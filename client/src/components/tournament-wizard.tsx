@@ -32,8 +32,8 @@ export default function TournamentWizard({ tournament, onTournamentCreated }: To
       const response = await apiRequest("POST", "/api/tournaments", tournamentData);
       const tournament = await response.json();
       
-      // If using casual mode, automatically create players
-      if (tournamentData.useQuickSetup && tournamentData.playerCount) {
+      // If using casual mode and not skipping auto-generation, automatically create players
+      if (tournamentData.useQuickSetup && tournamentData.playerCount && !skipAutoGeneration) {
         const playerPromises = [];
         for (let i = 1; i <= tournamentData.playerCount; i++) {
           playerPromises.push(
@@ -88,8 +88,8 @@ export default function TournamentWizard({ tournament, onTournamentCreated }: To
       timeControl,
       currentRound: 0,
       isDoubleRoundRobin: format === 'roundrobin' ? isDoubleRoundRobin : false,
-      useQuickSetup: tournamentMode === 'casual',
-      playerCount: tournamentMode === 'casual' ? playerCount : undefined,
+      useQuickSetup: tournamentMode === 'casual' && !skipAutoGeneration,
+      playerCount: (tournamentMode === 'casual' && !skipAutoGeneration) ? playerCount : undefined,
     };
 
     createTournamentMutation.mutate(tournamentData);
@@ -322,10 +322,8 @@ export default function TournamentWizard({ tournament, onTournamentCreated }: To
                           <input
                             type="checkbox"
                             id="skipAutoGeneration"
-                            checked={!tournamentMode || tournamentMode === 'official'}
-                            onChange={(e) => {
-                              // This will be handled by switching the mode logic
-                            }}
+                            checked={skipAutoGeneration}
+                            onChange={(e) => setSkipAutoGeneration(e.target.checked)}
                             className="rounded border-gray-300"
                           />
                           <Label htmlFor="skipAutoGeneration" className="text-sm">
