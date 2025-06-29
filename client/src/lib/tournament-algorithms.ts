@@ -180,7 +180,34 @@ export class SwissPairingEngine {
       }
     }
 
-    return pairings;
+    // Sort pairings by board order - highest point totals on top boards
+    return this.sortPairingsByPointTotal(pairings, playerStats);
+  }
+
+  private sortPairingsByPointTotal(pairings: PairingResult[], playerStats: any[]): PairingResult[] {
+    // Create a map for quick player stats lookup
+    const statsMap = new Map();
+    playerStats.forEach(stat => {
+      statsMap.set(stat.player.id, stat.points);
+    });
+
+    // Sort pairings by total points of both players (highest first)
+    const sortedPairings = pairings.filter(p => !p.isBye).sort((a, b) => {
+      const aTotal = (statsMap.get(a.whitePlayerId) || 0) + (statsMap.get(a.blackPlayerId) || 0);
+      const bTotal = (statsMap.get(b.whitePlayerId) || 0) + (statsMap.get(b.blackPlayerId) || 0);
+      return bTotal - aTotal; // Descending order
+    });
+
+    // Add bye pairings at the end
+    const byePairings = pairings.filter(p => p.isBye);
+
+    // Reassign board numbers
+    const result = [...sortedPairings, ...byePairings];
+    result.forEach((pairing, index) => {
+      pairing.board = pairing.isBye ? 0 : index + 1;
+    });
+
+    return result;
   }
 
   private generateFirstRoundPairings(playerStats: any[]): PairingResult[] {
@@ -198,7 +225,8 @@ export class SwissPairingEngine {
     const upperHalf = sortedPlayers.slice(0, mid);
     const lowerHalf = sortedPlayers.slice(mid);
 
-    // Random color assignment for first board
+    // USCF Rule: High-rated players should alternate colors in early rounds
+    // Random color assignment for first board (coin flip)
     const firstBoardWhiteIsUpper = Math.random() < 0.5;
     let boardNumber = 1;
 
@@ -209,7 +237,8 @@ export class SwissPairingEngine {
       const upperPlayer = upperHalf[i];
       const lowerPlayer = lowerHalf[i];
       
-      // Alternate colors, starting with random assignment for first board
+      // Strict color alternation for high-rated players
+      // Board 1: Random (coin flip), then alternate strictly
       const upperPlayerIsWhite = i === 0 ? firstBoardWhiteIsUpper : (i % 2 === 0) === firstBoardWhiteIsUpper;
       
       pairings.push({
@@ -233,6 +262,7 @@ export class SwissPairingEngine {
         blackPlayerId: null,
         board: boardNumber,
         isBye: true,
+        byeType: 'half_point' // USCF Rule: Odd player gets half-point bye
       });
     }
 

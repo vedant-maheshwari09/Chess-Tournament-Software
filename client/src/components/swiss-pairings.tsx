@@ -65,6 +65,18 @@ export default function SwissPairings({ tournamentId }: SwissPairingsProps) {
     },
   });
 
+  // Get all pairings to calculate player points
+  const { data: allPairings } = useQuery({
+    queryKey: [`/api/tournaments/${tournamentId}/pairings`],
+    queryFn: async () => {
+      const response = await fetch(`/api/tournaments/${tournamentId}/pairings`, {
+        credentials: "include",
+      });
+      if (!response.ok) throw new Error("Failed to fetch all pairings");
+      return response.json();
+    },
+  });
+
   const generatePairingsMutation = useMutation({
     mutationFn: async ({ regenerate = false }: { regenerate?: boolean } = {}) => {
       const response = await apiRequest("POST", `/api/tournaments/${tournamentId}/generate-pairings`, {
@@ -127,6 +139,12 @@ export default function SwissPairings({ tournamentId }: SwissPairingsProps) {
     if (!playerId || !players) return 0;
     const player = players.find(p => p.id === playerId);
     return player?.rating || 0;
+  }
+
+  const getPlayerPoints = (playerId: number | null) => {
+    if (!playerId || !allPairings) return 0;
+    const playerPairings = allPairings.filter((p: any) => p.playerId === playerId);
+    return playerPairings.reduce((total: number, pairing: any) => total + (pairing.points || 0), 0);
   };
 
   const handleResultChange = (matchId: number, result: string) => {
@@ -325,7 +343,7 @@ export default function SwissPairings({ tournamentId }: SwissPairingsProps) {
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
                           <div className="text-sm font-medium text-gray-900">
-                            {getPlayerName(match.whitePlayerId)}
+                            {getPlayerName(match.whitePlayerId)} [{getPlayerPoints(match.whitePlayerId)}]
                           </div>
                           <div className="text-xs text-gray-500 ml-2">
                             ({getPlayerRating(match.whitePlayerId)})
