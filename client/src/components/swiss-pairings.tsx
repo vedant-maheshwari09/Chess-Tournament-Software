@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Play, RefreshCw, Crown as Chess, ChevronLeft, ChevronRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -76,8 +77,8 @@ export default function SwissPairings({ tournamentId }: SwissPairingsProps) {
       toast({
         title: "Success",
         description: variables?.regenerate 
-          ? `Round ${currentRound} has been regenerated` 
-          : `Round ${currentRound + 1} pairings generated`,
+          ? `Round ${currentRound} pairings have been repaired` 
+          : `Round ${currentRound + 1} pairings generated successfully`,
       });
       queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/matches`] });
       queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/pairings`] });
@@ -210,22 +211,65 @@ export default function SwissPairings({ tournamentId }: SwissPairingsProps) {
           </div>
           
           <div className="flex space-x-3">
-            <Button
-              onClick={() => generatePairingsMutation.mutate({ regenerate: false })}
-              disabled={generatePairingsMutation.isPending}
-              className="bg-green-600 hover:bg-green-700"
-            >
-              <Play className="h-4 w-4 mr-2" />
-              {generatePairingsMutation.isPending ? "Generating..." : "Generate Next Round"}
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => generatePairingsMutation.mutate({ regenerate: true })}
-              disabled={generatePairingsMutation.isPending}
-            >
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Regenerate Round {currentRound}
-            </Button>
+            {/* Generate Next Round with Confirmation */}
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  disabled={generatePairingsMutation.isPending}
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  <Play className="h-4 w-4 mr-2" />
+                  {generatePairingsMutation.isPending ? "Generating..." : "Generate Next Round"}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Generate Round {currentRound + 1}?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will create pairings for Round {currentRound + 1}. Make sure all results from Round {currentRound} have been entered first.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => generatePairingsMutation.mutate({ regenerate: false })}
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    Generate Round {currentRound + 1}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+
+            {/* Repair Round with Confirmation */}
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="outline"
+                  disabled={generatePairingsMutation.isPending}
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Repair Round {currentRound}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Repair Round {currentRound} Pairings?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will delete and recreate all pairings for Round {currentRound}. Any existing match results will be lost. This action cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => generatePairingsMutation.mutate({ regenerate: true })}
+                    className="bg-red-600 hover:bg-red-700"
+                  >
+                    Repair Round {currentRound}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
         </div>
       </CardHeader>
