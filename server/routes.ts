@@ -349,6 +349,75 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`All existing rounds: ${existingMatches.map(m => m.round).filter((round, index, arr) => arr.indexOf(round) === index).sort((a, b) => a - b).join(', ')}`);
       
       if (roundsToRegenerate.length === 0) {
+        // No existing future rounds - check if we should generate the next round
+        const maxExistingRound = existingMatches.length > 0 ? 
+          Math.max(...existingMatches.map(m => m.round)) : 0;
+        
+        if (fromRound === maxExistingRound + 1) {
+          // Generate the next round
+          console.log(`No future rounds exist yet, generating Round ${fromRound} as the next round`);
+          
+          const baseMatches = existingMatches; // Use all existing matches for pairing
+          const swissPairings = generateSwissPairings(players, baseMatches, fromRound);
+          
+          let allNewPairings = [];
+          let allNewMatches = [];
+          
+          // Save matches and pairings for the new round
+          for (const pairing of swissPairings) {
+            // Create match
+            const match = await storage.createMatch({
+              tournamentId,
+              round: fromRound,
+              board: pairing.board,
+              whitePlayerId: pairing.whitePlayer.id,
+              blackPlayerId: pairing.blackPlayer?.id || null,
+              result: null,
+              status: 'pending'
+            });
+            allNewMatches.push(match);
+
+            // Create pairings for both players
+            if (pairing.whitePlayer) {
+              const whitePairing = await storage.createPairing({
+                tournamentId,
+                round: fromRound,
+                playerId: pairing.whitePlayer.id,
+                opponentId: pairing.blackPlayer?.id || null,
+                color: 'white',
+                points: pairing.isBye ? (pairing.byeType === 'full_point' ? 1 : 0.5) : 0,
+                isBye: pairing.isBye,
+                byeType: pairing.byeType || null,
+              });
+              allNewPairings.push(whitePairing);
+            }
+
+            if (pairing.blackPlayer) {
+              const blackPairing = await storage.createPairing({
+                tournamentId,
+                round: fromRound,
+                playerId: pairing.blackPlayer.id,
+                opponentId: pairing.whitePlayer.id,
+                color: 'black',
+                points: 0,
+                isBye: false,
+                byeType: null,
+              });
+              allNewPairings.push(blackPairing);
+            }
+          }
+          
+          console.log(`Generated Round ${fromRound} with ${allNewMatches.length} matches and ${allNewPairings.length} pairings`);
+          
+          return res.json({ 
+            message: `Generated Round ${fromRound} successfully`,
+            roundsAffected: 1,
+            roundsRegenerated: [fromRound],
+            matchesCreated: allNewMatches.length,
+            pairingsCreated: allNewPairings.length
+          });
+        }
+        
         return res.status(200).json({ 
           message: "No future rounds found to regenerate",
           roundsAffected: 0,
