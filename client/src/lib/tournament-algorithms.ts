@@ -20,43 +20,72 @@ export class SwissPairingEngine {
     const pairings: PairingResult[] = [];
     const playerStats = this.calculatePlayerStats();
     
-    // Sort players by points (descending), then by rating (descending)
-    const sortedPlayers = playerStats.sort((a, b) => {
-      if (b.points !== a.points) return b.points - a.points;
-      return (b.player.rating || 0) - (a.player.rating || 0);
-    });
+    if (round === 1) {
+      return this.generateFirstRoundPairings(playerStats);
+    }
 
-    const unpaired = [...sortedPlayers];
+    // Group players by score
+    const scoreGroups = this.groupPlayersByScore(playerStats);
+    const unpaired: any[] = [];
     let boardNumber = 1;
 
-    while (unpaired.length > 1) {
-      const player1 = unpaired.shift()!;
-      
-      // Find best opponent for player1
-      let opponentIndex = this.findBestOpponent(player1, unpaired);
-      
-      if (opponentIndex === -1) {
-        // No valid opponent found, pair with next available
-        opponentIndex = 0;
+    // Process each score group from highest to lowest
+    for (const scoreGroup of scoreGroups) {
+      // Add any unpaired players from higher score groups
+      const playersToProcess = [...unpaired, ...scoreGroup];
+      unpaired.length = 0; // Clear unpaired array
+
+      // Try to pair within score group first
+      while (playersToProcess.length > 1) {
+        const player1 = playersToProcess.shift()!;
+        
+        // Find best opponent following Swiss rules precedence
+        const opponentIndex = this.findBestSwissOpponent(player1, playersToProcess, round);
+        
+        if (opponentIndex >= 0) {
+          const player2 = playersToProcess.splice(opponentIndex, 1)[0];
+          
+          // Determine colors following Swiss color rules
+          const colors = this.determineSwissColors(player1, player2, round);
+          
+          pairings.push({
+            whitePlayerId: colors.whitePlayer.id,
+            blackPlayerId: colors.blackPlayer.id,
+            board: boardNumber++,
+            isBye: false,
+          });
+        } else {
+          // Can't pair in this score group, move to unpaired for next group
+          unpaired.push(player1);
+        }
       }
 
-      const player2 = unpaired.splice(opponentIndex, 1)[0];
+      // Add remaining player to unpaired if any
+      if (playersToProcess.length === 1) {
+        unpaired.push(playersToProcess[0]);
+      }
+    }
+
+    // Handle final unpaired players and byes
+    while (unpaired.length > 1) {
+      const player1 = unpaired.shift()!;
+      const player2 = unpaired.shift()!;
       
-      // Determine colors based on color balance
-      const shouldPlayer1BeWhite = this.shouldPlayerBeWhite(player1.player, round);
+      const colors = this.determineSwissColors(player1, player2, round);
       
       pairings.push({
-        whitePlayerId: shouldPlayer1BeWhite ? player1.player.id : player2.player.id,
-        blackPlayerId: shouldPlayer1BeWhite ? player2.player.id : player1.player.id,
+        whitePlayerId: colors.whitePlayer.id,
+        blackPlayerId: colors.blackPlayer.id,
         board: boardNumber++,
         isBye: false,
       });
     }
 
-    // Handle bye if odd number of players
+    // Handle bye - avoid giving bye to unrated players or players who already had a bye
     if (unpaired.length === 1) {
+      const byePlayer = unpaired[0];
       pairings.push({
-        whitePlayerId: unpaired[0].player.id,
+        whitePlayerId: byePlayer.player.id,
         blackPlayerId: null,
         board: boardNumber,
         isBye: true,
@@ -64,6 +93,92 @@ export class SwissPairingEngine {
     }
 
     return pairings;
+  }
+
+  private generateFirstRoundPairings(playerStats: any[]): PairingResult[] {
+    // Sort by rating for first round (highest to lowest)
+    const sortedPlayers = playerStats.sort((a, b) => 
+      (b.player.rating || 0) - (a.player.rating || 0)
+    );
+
+    const pairings: PairingResult[] = [];
+    const n = sortedPlayers.length;
+    const isOdd = n % 2 === 1;
+    
+    // Split into upper and lower halves
+    const mid = Math.ceil(n / 2);
+    const upperHalf = sortedPlayers.slice(0, mid);
+    const lowerHalf = sortedPlayers.slice(mid);
+
+    // Random color assignment for first board
+    const firstBoardWhiteIsUpper = Math.random() < 0.5;
+    let boardNumber = 1;
+
+    // Pair corresponding players from upper and lower halves
+    const pairsCount = Math.min(upperHalf.length, lowerHalf.length);
+    
+    for (let i = 0; i < pairsCount; i++) {
+      const upperPlayer = upperHalf[i];
+      const lowerPlayer = lowerHalf[i];
+      
+      // Alternate colors, starting with random assignment for first board
+      const upperPlayerIsWhite = i === 0 ? firstBoardWhiteIsUpper : (i % 2 === 0) === firstBoardWhiteIsUpper;
+      
+      pairings.push({
+        whitePlayerId: upperPlayerIsWhite ? upperPlayer.player.id : lowerPlayer.player.id,
+        blackPlayerId: upperPlayerIsWhite ? lowerPlayer.player.id : upperPlayer.player.id,
+        board: boardNumber++,
+        isBye: false,
+      });
+    }
+
+    // Handle bye if odd number (lowest rated gets bye, unless unrated)
+    if (isOdd) {
+      const byePlayer = sortedPlayers[sortedPlayers.length - 1];
+      // If lowest player is unrated, give bye to second lowest instead
+      const actualByePlayer = (byePlayer.player.rating === null || byePlayer.player.rating === undefined) && 
+                             sortedPlayers.length > 1 ? 
+                             sortedPlayers[sortedPlayers.length - 2] : byePlayer;
+      
+      pairings.push({
+        whitePlayerId: actualByePlayer.player.id,
+        blackPlayerId: null,
+        board: boardNumber,
+        isBye: true,
+      });
+    }
+
+    return pairings;
+  }
+
+  private groupPlayersByScore(playerStats: any[]): any[][] {
+    // Sort by score (descending), then by rating (descending) for ranking
+    const sorted = playerStats.sort((a, b) => {
+      if (b.points !== a.points) return b.points - a.points;
+      return (b.player.rating || 0) - (a.player.rating || 0);
+    });
+
+    const groups: any[][] = [];
+    let currentGroup: any[] = [];
+    let lastScore = -1;
+
+    for (const player of sorted) {
+      if (player.points !== lastScore) {
+        if (currentGroup.length > 0) {
+          groups.push(currentGroup);
+        }
+        currentGroup = [player];
+        lastScore = player.points;
+      } else {
+        currentGroup.push(player);
+      }
+    }
+
+    if (currentGroup.length > 0) {
+      groups.push(currentGroup);
+    }
+
+    return groups;
   }
 
   private calculatePlayerStats() {
@@ -103,15 +218,115 @@ export class SwissPairingEngine {
     });
   }
 
-  private findBestOpponent(player: any, candidates: any[]): number {
-    // Find opponent that hasn't played against this player yet
+  private findBestSwissOpponent(player: any, candidates: any[], round: number): number {
+    // Swiss pairing rules in order of precedence:
+    // 1) Avoid repeat pairings
+    // 2) Equal scores (within score group)
+    // 3) Upper-half vs lower-half
+    // 4) Color equalization
+    // 5) Color alternation
+
+    // First pass: Look for opponents not played before
+    const unplayedOpponents: { index: number; candidate: any }[] = [];
+    
     for (let i = 0; i < candidates.length; i++) {
       const candidate = candidates[i];
       if (!this.havePlayed(player.player.id, candidate.player.id)) {
-        return i;
+        unplayedOpponents.push({ index: i, candidate });
       }
     }
-    return -1; // No valid opponent found
+
+    if (unplayedOpponents.length === 0) {
+      // Rule 1 violated - no unplayed opponents available
+      // Return first available (will be handled as repeat pairing)
+      return candidates.length > 0 ? 0 : -1;
+    }
+
+    if (unplayedOpponents.length === 1) {
+      return unplayedOpponents[0].index;
+    }
+
+    // Multiple unplayed opponents - apply further criteria
+    // Rule 4 & 5: Consider color needs
+    const playerColorBalance = player.colorBalance;
+    const playerNeedsWhite = playerColorBalance < 0; // More black games
+    const playerNeedsBlack = playerColorBalance > 0; // More white games
+
+    // Find opponents that would create good color pairing
+    const goodColorPairings = unplayedOpponents.filter(({ candidate }) => {
+      const candidateColorBalance = candidate.colorBalance;
+      const candidateNeedsWhite = candidateColorBalance < 0;
+      const candidateNeedsBlack = candidateColorBalance > 0;
+
+      // Ideal: one needs white, other needs black
+      return (playerNeedsWhite && candidateNeedsBlack) || 
+             (playerNeedsBlack && candidateNeedsWhite);
+    });
+
+    if (goodColorPairings.length > 0) {
+      // Return first opponent with good color match
+      return goodColorPairings[0].index;
+    }
+
+    // If no perfect color match, return first unplayed opponent
+    return unplayedOpponents[0].index;
+  }
+
+  private determineSwissColors(player1: any, player2: any, round: number): { whitePlayer: Player; blackPlayer: Player } {
+    // Swiss color assignment rules:
+    // 1) Color equalization (balance white/black games)
+    // 2) Color alternation (avoid same color in consecutive rounds)
+    // 3) Higher-ranked player gets color preference when tied
+
+    const p1Balance = player1.colorBalance; // whiteGames - blackGames
+    const p2Balance = player2.colorBalance;
+
+    // Strong color preference (2+ game difference)
+    if (p1Balance <= -2) return { whitePlayer: player1.player, blackPlayer: player2.player };
+    if (p1Balance >= 2) return { whitePlayer: player2.player, blackPlayer: player1.player };
+    if (p2Balance <= -2) return { whitePlayer: player2.player, blackPlayer: player1.player };
+    if (p2Balance >= 2) return { whitePlayer: player1.player, blackPlayer: player2.player };
+
+    // Moderate color preference (1 game difference)
+    if (p1Balance === -1 && p2Balance >= 0) return { whitePlayer: player1.player, blackPlayer: player2.player };
+    if (p1Balance === 1 && p2Balance <= 0) return { whitePlayer: player2.player, blackPlayer: player1.player };
+    if (p2Balance === -1 && p1Balance >= 0) return { whitePlayer: player2.player, blackPlayer: player1.player };
+    if (p2Balance === 1 && p1Balance <= 0) return { whitePlayer: player1.player, blackPlayer: player2.player };
+
+    // Equal color balance - use rank (higher rated player gets preference)
+    const p1Rating = player1.player.rating || 0;
+    const p2Rating = player2.player.rating || 0;
+    
+    if (p1Rating > p2Rating) {
+      // Player 1 is higher rated, gets color preference
+      // Give them the color they need for alternation
+      const p1LastColor = this.getLastColor(player1.player.id);
+      if (p1LastColor === 'white') {
+        return { whitePlayer: player2.player, blackPlayer: player1.player };
+      } else {
+        return { whitePlayer: player1.player, blackPlayer: player2.player };
+      }
+    } else {
+      // Player 2 is higher rated or equal, gets color preference
+      const p2LastColor = this.getLastColor(player2.player.id);
+      if (p2LastColor === 'white') {
+        return { whitePlayer: player1.player, blackPlayer: player2.player };
+      } else {
+        return { whitePlayer: player2.player, blackPlayer: player1.player };
+      }
+    }
+  }
+
+  private getLastColor(playerId: number): 'white' | 'black' | 'none' {
+    // Find the most recent match for this player
+    const playerMatches = this.matches
+      .filter(match => match.whitePlayerId === playerId || match.blackPlayerId === playerId)
+      .sort((a, b) => a.round - b.round);
+    
+    if (playerMatches.length === 0) return 'none';
+    
+    const lastMatch = playerMatches[playerMatches.length - 1];
+    return lastMatch.whitePlayerId === playerId ? 'white' : 'black';
   }
 
   private havePlayed(playerId1: number, playerId2: number): boolean {
@@ -121,21 +336,7 @@ export class SwissPairingEngine {
     );
   }
 
-  private shouldPlayerBeWhite(player: Player, round: number): boolean {
-    const playerMatches = this.matches.filter(
-      match => match.whitePlayerId === player.id || match.blackPlayerId === player.id
-    );
 
-    const whiteGames = playerMatches.filter(match => match.whitePlayerId === player.id).length;
-    const blackGames = playerMatches.filter(match => match.blackPlayerId === player.id).length;
-
-    // Prefer color that balances the player's games
-    if (whiteGames > blackGames) return false;
-    if (blackGames > whiteGames) return true;
-    
-    // If equal, alternate based on round
-    return round % 2 === 1;
-  }
 }
 
 export class RoundRobinEngine {
