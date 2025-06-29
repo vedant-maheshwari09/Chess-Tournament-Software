@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Play, RefreshCw } from "lucide-react";
+import { Play, RefreshCw, Crown as Chess, ChevronLeft, ChevronRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Match, Player } from "@shared/schema";
@@ -150,8 +150,11 @@ export default function SwissPairings({ tournamentId }: SwissPairingsProps) {
           <div>
             <div className="flex items-center space-x-4">
               <div>
-                <CardTitle>Round {currentRound} Pairings</CardTitle>
-                <p className="text-sm text-gray-600 mt-1">Swiss System - Auto-generated pairings</p>
+                <CardTitle className="flex items-center gap-2">
+                  <Chess className="h-5 w-5" />
+                  Round {currentRound} Pairings
+                </CardTitle>
+                <p className="text-sm text-gray-600 mt-1">Swiss System - USCF Tournament Rules</p>
               </div>
               
               {/* Round Navigation */}
@@ -183,23 +186,41 @@ export default function SwissPairings({ tournamentId }: SwissPairingsProps) {
               )}
             </div>
           </div>
-          <div className="flex space-x-3">
-            <Button
-              onClick={() => generatePairingsMutation.mutate({ regenerate: false })}
-              disabled={generatePairingsMutation.isPending}
-              className="bg-green-600 hover:bg-green-700"
-            >
-              <Play className="h-4 w-4 mr-2" />
-              {generatePairingsMutation.isPending ? "Generating..." : "Generate Next Round"}
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => generatePairingsMutation.mutate({ regenerate: true })}
-              disabled={generatePairingsMutation.isPending}
-            >
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Regenerate Round {currentRound}
-            </Button>
+          <div className="flex items-center space-x-6">
+            {/* Match Status Indicator */}
+            {matches && matches.length > 0 && (
+              <div className="flex items-center space-x-2">
+                <div className={`w-3 h-3 rounded-full ${
+                  matches.every(m => m.result && m.result !== 'Pending') 
+                    ? 'bg-green-500' 
+                    : matches.some(m => m.result && m.result !== 'Pending')
+                    ? 'bg-yellow-500'
+                    : 'bg-red-500'
+                }`} />
+                <span className="text-sm font-medium">
+                  {matches.filter(m => m.result && m.result !== 'Pending').length} / {matches.length} complete
+                </span>
+              </div>
+            )}
+            
+            <div className="flex space-x-3">
+              <Button
+                onClick={() => generatePairingsMutation.mutate({ regenerate: false })}
+                disabled={generatePairingsMutation.isPending}
+                className="bg-green-600 hover:bg-green-700"
+              >
+                <Play className="h-4 w-4 mr-2" />
+                {generatePairingsMutation.isPending ? "Generating..." : "Generate Next Round"}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => generatePairingsMutation.mutate({ regenerate: true })}
+                disabled={generatePairingsMutation.isPending}
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Regenerate Round {currentRound}
+              </Button>
+            </div>
           </div>
         </div>
       </CardHeader>

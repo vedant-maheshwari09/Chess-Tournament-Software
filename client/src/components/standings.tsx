@@ -38,7 +38,7 @@ export default function Standings({ tournamentId }: StandingsProps) {
     },
   });
 
-  if (playersLoading || matchesLoading) {
+  if (playersLoading || matchesLoading || pairingsLoading) {
     return (
       <Card>
         <CardHeader>
@@ -56,11 +56,16 @@ export default function Standings({ tournamentId }: StandingsProps) {
   }
 
   const calculateStandings = (): PlayerStanding[] => {
-    if (!players || !matches) return [];
+    if (!players || !matches || !pairings) return [];
 
     const standings: PlayerStanding[] = players.map(player => {
       const playerMatches = matches.filter(
         match => match.whitePlayerId === player.id || match.blackPlayerId === player.id
+      );
+
+      // Get bye pairings for this player
+      const playerByes = pairings.filter((pairing: any) => 
+        pairing.playerId === player.id && pairing.isBye && pairing.points !== null
       );
 
       let points = 0;
@@ -68,6 +73,7 @@ export default function Standings({ tournamentId }: StandingsProps) {
       let draws = 0;
       let losses = 0;
 
+      // Add points from matches
       playerMatches.forEach(match => {
         if (!match.result) return;
 
@@ -93,10 +99,19 @@ export default function Standings({ tournamentId }: StandingsProps) {
         }
       });
 
+      // Add points from byes
+      playerByes.forEach((bye: any) => {
+        points += bye.points;
+        if (bye.points === 1) {
+          wins++; // Full point bye counts as win
+        }
+        // Half-point byes don't count as wins/draws/losses for record purposes
+      });
+
       return {
         player,
         points,
-        gamesPlayed: playerMatches.filter(m => m.result).length,
+        gamesPlayed: playerMatches.filter(m => m.result).length + playerByes.length,
         wins,
         draws,
         losses,
