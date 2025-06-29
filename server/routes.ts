@@ -176,6 +176,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "At least 2 players required to generate pairings" });
       }
 
+      console.log(`Pairing generation: regenerate=${regenerate}, targetRound=${targetRound}`);
+      console.log(`Request body:`, JSON.stringify(req.body));
+
       const existingMatches = await storage.getMatchesByTournament(tournamentId);
       let currentRound;
 
