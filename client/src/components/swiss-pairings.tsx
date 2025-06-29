@@ -131,6 +131,7 @@ export default function SwissPairings({ tournamentId }: SwissPairingsProps) {
         if (updatedMatchData && updatedMatchData.round < maxRound) {
           // Automatically regenerate future rounds when changing earlier round results
           const nextRound = updatedMatchData.round + 1;
+          console.log(`Auto-regenerating from Round ${nextRound} due to Round ${updatedMatchData.round} result change`);
           regenerateFutureRoundsMutation.mutate({ fromRound: nextRound }, {});
           
           toast({
@@ -159,9 +160,15 @@ export default function SwissPairings({ tournamentId }: SwissPairingsProps) {
       return response.json();
     },
     onSuccess: (data) => {
+      console.log('Regeneration response:', data);
+      const message = data.roundsAffected > 0 
+        ? `Regenerated ${data.roundsAffected} rounds. ${data.matchesCreated} matches and ${data.pairingsCreated} pairings created.`
+        : data.message || "No rounds were regenerated.";
+      
       toast({
-        title: "Success",
-        description: `Regenerated all rounds from Round ${currentRound + 1} onwards. ${data.roundsAffected} rounds updated.`,
+        title: data.roundsAffected > 0 ? "Success" : "No Action Needed",
+        description: message,
+        variant: data.roundsAffected > 0 ? "default" : "destructive",
       });
       queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/matches`] });
       queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/pairings`] });
