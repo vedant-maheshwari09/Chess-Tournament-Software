@@ -22,7 +22,7 @@ export default function PlayerRegistration({ tournamentId }: PlayerRegistrationP
   const { toast } = useToast();
 
   const { data: players, isLoading } = useQuery<Player[]>({
-    queryKey: ["/api/tournaments", tournamentId, "players"],
+    queryKey: [`/api/tournaments/${tournamentId}/players`],
   });
 
   const addPlayerMutation = useMutation({
@@ -35,7 +35,7 @@ export default function PlayerRegistration({ tournamentId }: PlayerRegistrationP
         title: "Player Added",
         description: "Player has been successfully registered.",
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", tournamentId, "players"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/players`] });
       setFirstName("");
       setLastName("");
       setRating("");
@@ -59,7 +59,7 @@ export default function PlayerRegistration({ tournamentId }: PlayerRegistrationP
         title: "Player Removed",
         description: "Player has been successfully removed.",
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", tournamentId, "players"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/players`] });
     },
     onError: () => {
       toast({
