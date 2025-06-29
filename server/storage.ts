@@ -12,6 +12,8 @@ import {
   type Pairing,
   type InsertPairing
 } from "@shared/schema";
+import { db } from "./db";
+import { eq, and } from "drizzle-orm";
 
 export interface IStorage {
   // Tournament methods
@@ -42,169 +44,152 @@ export interface IStorage {
   updatePairing(id: number, pairing: Partial<Pairing>): Promise<Pairing | undefined>;
 }
 
-export class MemStorage implements IStorage {
-  private tournaments: Map<number, Tournament> = new Map();
-  private players: Map<number, Player> = new Map();
-  private matches: Map<number, Match> = new Map();
-  private pairings: Map<number, Pairing> = new Map();
-  private currentTournamentId = 1;
-  private currentPlayerId = 1;
-  private currentMatchId = 1;
-  private currentPairingId = 1;
-
+export class DatabaseStorage implements IStorage {
   // Tournament methods
   async createTournament(tournament: InsertTournament): Promise<Tournament> {
-    const id = this.currentTournamentId++;
-    const newTournament: Tournament = { 
-      ...tournament, 
-      id,
-      status: tournament.status || 'draft',
-      currentRound: tournament.currentRound || 0,
-      isDoubleRoundRobin: tournament.isDoubleRoundRobin || false,
-      useQuickSetup: tournament.useQuickSetup || false,
-      rounds: tournament.rounds || null,
-      timeControl: tournament.timeControl || null,
-      playerCount: tournament.playerCount || null,
-    };
-    this.tournaments.set(id, newTournament);
-    return newTournament;
+    const [result] = await db
+      .insert(tournaments)
+      .values({
+        ...tournament,
+        status: tournament.status || 'draft',
+        currentRound: tournament.currentRound || 0,
+      })
+      .returning();
+    return result;
   }
 
   async getTournament(id: number): Promise<Tournament | undefined> {
-    return this.tournaments.get(id);
+    const [tournament] = await db.select().from(tournaments).where(eq(tournaments.id, id));
+    return tournament || undefined;
   }
 
   async getAllTournaments(): Promise<Tournament[]> {
-    return Array.from(this.tournaments.values());
+    return await db.select().from(tournaments);
   }
 
   async updateTournament(id: number, tournament: Partial<Tournament>): Promise<Tournament | undefined> {
-    const existing = this.tournaments.get(id);
-    if (!existing) return undefined;
-    
-    const updated = { ...existing, ...tournament };
-    this.tournaments.set(id, updated);
-    return updated;
+    const [updated] = await db
+      .update(tournaments)
+      .set(tournament)
+      .where(eq(tournaments.id, id))
+      .returning();
+    return updated || undefined;
   }
 
   async deleteTournament(id: number): Promise<boolean> {
-    return this.tournaments.delete(id);
+    const result = await db.delete(tournaments).where(eq(tournaments.id, id));
+    return (result.rowCount || 0) > 0;
   }
 
   // Player methods
   async createPlayer(player: InsertPlayer): Promise<Player> {
-    const id = this.currentPlayerId++;
-    const playersInTournament = Array.from(this.players.values())
-      .filter(p => p.tournamentId === player.tournamentId);
-    const seed = playersInTournament.length + 1;
-    
-    const newPlayer: Player = { 
-      ...player, 
-      id, 
-      seed,
-      rating: player.rating || 1000,
-      federation: player.federation || 'USCF',
-    };
-    this.players.set(id, newPlayer);
-    return newPlayer;
+    const [result] = await db
+      .insert(players)
+      .values({
+        ...player,
+        rating: player.rating || 1000,
+        federation: player.federation || 'USCF',
+      })
+      .returning();
+    return result;
   }
 
   async getPlayer(id: number): Promise<Player | undefined> {
-    return this.players.get(id);
+    const [player] = await db.select().from(players).where(eq(players.id, id));
+    return player || undefined;
   }
 
   async getPlayersByTournament(tournamentId: number): Promise<Player[]> {
-    return Array.from(this.players.values())
-      .filter(player => player.tournamentId === tournamentId)
-      .sort((a, b) => (a.seed || 0) - (b.seed || 0));
+    return await db.select().from(players).where(eq(players.tournamentId, tournamentId));
   }
 
   async updatePlayer(id: number, player: Partial<Player>): Promise<Player | undefined> {
-    const existing = this.players.get(id);
-    if (!existing) return undefined;
-    
-    const updated = { ...existing, ...player };
-    this.players.set(id, updated);
-    return updated;
+    const [updated] = await db
+      .update(players)
+      .set(player)
+      .where(eq(players.id, id))
+      .returning();
+    return updated || undefined;
   }
 
   async deletePlayer(id: number): Promise<boolean> {
-    return this.players.delete(id);
+    const result = await db.delete(players).where(eq(players.id, id));
+    return (result.rowCount || 0) > 0;
   }
 
   // Match methods
   async createMatch(match: InsertMatch): Promise<Match> {
-    const id = this.currentMatchId++;
-    const newMatch: Match = { 
-      ...match, 
-      id,
-      status: match.status || 'pending',
-      result: match.result || null,
-      board: match.board || null,
-      whitePlayerId: match.whitePlayerId || null,
-      blackPlayerId: match.blackPlayerId || null,
-    };
-    this.matches.set(id, newMatch);
-    return newMatch;
+    const [result] = await db
+      .insert(matches)
+      .values({
+        ...match,
+        status: match.status || 'pending',
+        result: match.result || null,
+        board: match.board || null,
+        whitePlayerId: match.whitePlayerId || null,
+        blackPlayerId: match.blackPlayerId || null,
+      })
+      .returning();
+    return result;
   }
 
   async getMatch(id: number): Promise<Match | undefined> {
-    return this.matches.get(id);
+    const [match] = await db.select().from(matches).where(eq(matches.id, id));
+    return match || undefined;
   }
 
   async getMatchesByTournament(tournamentId: number): Promise<Match[]> {
-    return Array.from(this.matches.values())
-      .filter(match => match.tournamentId === tournamentId);
+    return await db.select().from(matches).where(eq(matches.tournamentId, tournamentId));
   }
 
   async getMatchesByRound(tournamentId: number, round: number): Promise<Match[]> {
-    return Array.from(this.matches.values())
-      .filter(match => match.tournamentId === tournamentId && match.round === round)
-      .sort((a, b) => (a.board || 0) - (b.board || 0));
+    return await db.select()
+      .from(matches)
+      .where(and(eq(matches.tournamentId, tournamentId), eq(matches.round, round)));
   }
 
   async updateMatch(id: number, match: Partial<Match>): Promise<Match | undefined> {
-    const existing = this.matches.get(id);
-    if (!existing) return undefined;
-    
-    const updated = { ...existing, ...match };
-    this.matches.set(id, updated);
-    return updated;
+    const [updated] = await db
+      .update(matches)
+      .set(match)
+      .where(eq(matches.id, id))
+      .returning();
+    return updated || undefined;
   }
 
   // Pairing methods
   async createPairing(pairing: InsertPairing): Promise<Pairing> {
-    const id = this.currentPairingId++;
-    const newPairing: Pairing = { 
-      ...pairing, 
-      id,
-      color: pairing.color || null,
-      points: pairing.points || 0,
-      opponentId: pairing.opponentId || null,
-      isBye: pairing.isBye || false,
-    };
-    this.pairings.set(id, newPairing);
-    return newPairing;
+    const [result] = await db
+      .insert(pairings)
+      .values({
+        ...pairing,
+        color: pairing.color || null,
+        points: pairing.points || 0,
+        opponentId: pairing.opponentId || null,
+        isBye: pairing.isBye || false,
+      })
+      .returning();
+    return result;
   }
 
   async getPairingsByTournament(tournamentId: number): Promise<Pairing[]> {
-    return Array.from(this.pairings.values())
-      .filter(pairing => pairing.tournamentId === tournamentId);
+    return await db.select().from(pairings).where(eq(pairings.tournamentId, tournamentId));
   }
 
   async getPairingsByRound(tournamentId: number, round: number): Promise<Pairing[]> {
-    return Array.from(this.pairings.values())
-      .filter(pairing => pairing.tournamentId === tournamentId && pairing.round === round);
+    return await db.select()
+      .from(pairings)
+      .where(and(eq(pairings.tournamentId, tournamentId), eq(pairings.round, round)));
   }
 
   async updatePairing(id: number, pairing: Partial<Pairing>): Promise<Pairing | undefined> {
-    const existing = this.pairings.get(id);
-    if (!existing) return undefined;
-    
-    const updated = { ...existing, ...pairing };
-    this.pairings.set(id, updated);
-    return updated;
+    const [updated] = await db
+      .update(pairings)
+      .set(pairing)
+      .where(eq(pairings.id, id))
+      .returning();
+    return updated || undefined;
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();

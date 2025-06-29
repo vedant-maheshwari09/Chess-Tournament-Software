@@ -95,6 +95,7 @@ ChessTournament Pro is a comprehensive chess tournament management system built 
 ```
 Changelog:
 - June 29, 2025. Initial setup
+- June 29, 2025. Added PostgreSQL database integration with Drizzle ORM
 ```
 
 ## User Preferences
