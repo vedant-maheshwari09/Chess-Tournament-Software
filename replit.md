@@ -108,6 +108,13 @@ Changelog:
   - Fixed standings calculation to include bye points from pairings table
   - Enhanced professional tournament director interface with status indicators
   - Added clear match completion tracking and USCF rule compliance
+- June 29, 2025. Enhanced USCF Swiss system features for tournament directors
+  - Implemented high-rated player color alternation in first rounds (USCF Rule)
+  - Added automatic standings updates after every round completion
+  - Implemented board ordering by combined player points (top boards = highest points)
+  - Added player points display in brackets next to names in pairings
+  - Enhanced cache invalidation for real-time tournament data updates
+  - Improved tournament creation: rounds selection from 3-20, removed time control field
 ```
 
 ## User Preferences

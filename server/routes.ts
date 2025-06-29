@@ -595,7 +595,35 @@ function generateSwissPairings(players: any[], matches: any[], round: number) {
     }
   }
   
-  return pairings;
+  // Sort pairings by board order - highest point totals on top boards
+  return sortPairingsByPointTotal(pairings, players, matches);
+}
+
+function sortPairingsByPointTotal(pairings: any[], players: any[], matches: any[]): any[] {
+  // Create a map for quick player points lookup
+  const playerStats = calculatePlayerStats(players, matches);
+  const pointsMap = new Map();
+  playerStats.forEach((stat: any) => {
+    pointsMap.set(stat.player.id, stat.points);
+  });
+
+  // Sort pairings by total points of both players (highest first)
+  const sortedPairings = pairings.filter(p => !p.isBye).sort((a, b) => {
+    const aTotal = (pointsMap.get(a.whitePlayerId) || 0) + (pointsMap.get(a.blackPlayerId) || 0);
+    const bTotal = (pointsMap.get(b.whitePlayerId) || 0) + (pointsMap.get(b.blackPlayerId) || 0);
+    return bTotal - aTotal; // Descending order
+  });
+
+  // Add bye pairings at the end
+  const byePairings = pairings.filter(p => p.isBye);
+
+  // Reassign board numbers
+  const result = [...sortedPairings, ...byePairings];
+  result.forEach((pairing, index) => {
+    pairing.board = pairing.isBye ? 0 : index + 1;
+  });
+
+  return result;
 }
 
 function calculatePlayerStats(players: any[], matches: any[]) {
