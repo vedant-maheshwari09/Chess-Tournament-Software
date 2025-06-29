@@ -205,9 +205,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Clear existing matches and pairings for this round first (especially important for regeneration)
       if (regenerate) {
-        console.log(`Clearing existing data for round ${currentRound}`);
-        await storage.deleteMatchesByRound(tournamentId, currentRound);
-        await storage.deletePairingsByRound(tournamentId, currentRound);
+        const existingMatches = await storage.getMatchesByRound(tournamentId, currentRound);
+        const existingPairings = await storage.getPairingsByRound(tournamentId, currentRound);
+        
+        console.log(`Clearing existing data for round ${currentRound}: ${existingMatches.length} matches, ${existingPairings.length} pairings`);
+        
+        // Delete pairings first (no foreign key dependencies)
+        const pairingsDeleted = await storage.deletePairingsByRound(tournamentId, currentRound);
+        console.log(`Pairings deletion result: ${pairingsDeleted}`);
+        
+        // Then delete matches
+        const matchesDeleted = await storage.deleteMatchesByRound(tournamentId, currentRound);
+        console.log(`Matches deletion result: ${matchesDeleted}`);
+        
+        // Small delay to ensure database operations complete
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // Verify deletion worked with fresh queries
+        const remainingMatches = await storage.getMatchesByRound(tournamentId, currentRound);
+        const remainingPairings = await storage.getPairingsByRound(tournamentId, currentRound);
+        console.log(`After deletion: ${remainingMatches.length} matches, ${remainingPairings.length} pairings remaining`);
+        
+        if (remainingMatches.length > 0 || remainingPairings.length > 0) {
+          console.error(`ERROR: Failed to delete all data. Remaining: ${remainingMatches.length} matches, ${remainingPairings.length} pairings`);
+          return res.status(500).json({ 
+            error: `Failed to clear existing round data. ${remainingMatches.length} matches and ${remainingPairings.length} pairings could not be deleted.`
+          });
+        }
       }
       
       // Generate Swiss pairings directly (excluding matches from the round being regenerated)

@@ -176,9 +176,15 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteMatchesByRound(tournamentId: number, round: number): Promise<boolean> {
-    const result = await db.delete(matches)
-      .where(and(eq(matches.tournamentId, tournamentId), eq(matches.round, round)));
-    return (result.rowCount ?? 0) >= 0;
+    try {
+      const result = await db.delete(matches)
+        .where(and(eq(matches.tournamentId, tournamentId), eq(matches.round, round)));
+      console.log(`Deleted ${result.rowCount ?? 0} matches for tournament ${tournamentId}, round ${round}`);
+      return true;
+    } catch (error) {
+      console.error("Error deleting matches:", error);
+      return false;
+    }
   }
 
   // Pairing methods
@@ -221,9 +227,15 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deletePairingsByRound(tournamentId: number, round: number): Promise<boolean> {
-    const result = await db.delete(pairings)
-      .where(and(eq(pairings.tournamentId, tournamentId), eq(pairings.round, round)));
-    return true; // Return true since deletion completed successfully
+    try {
+      const result = await db.delete(pairings)
+        .where(and(eq(pairings.tournamentId, tournamentId), eq(pairings.round, round)));
+      console.log(`Deleted ${result.rowCount ?? 0} pairings for tournament ${tournamentId}, round ${round}`);
+      return true;
+    } catch (error) {
+      console.error("Error deleting pairings:", error);
+      return false;
+    }
   }
 
   // Bye request methods
