@@ -101,6 +101,13 @@ Changelog:
   - Implemented full-point and half-point bye rules according to USCF standards
   - Enhanced Swiss pairing algorithm with proper bye assignment logic
   - Added API endpoints for bye request management
+- June 29, 2025. Fixed critical tournament director functionality
+  - Corrected bye handling: Half-point byes for odd players (not full-point)
+  - Added round completion validation - prevents next round without results
+  - Implemented proper regeneration vs. next round generation
+  - Fixed standings calculation to include bye points from pairings table
+  - Enhanced professional tournament director interface with status indicators
+  - Added clear match completion tracking and USCF rule compliance
 ```
 
 ## User Preferences
