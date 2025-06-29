@@ -52,6 +52,18 @@ export default function SwissPairings({ tournamentId }: SwissPairingsProps) {
     queryKey: [`/api/tournaments/${tournamentId}/players`],
   });
 
+  // Get pairings to check for byes
+  const { data: pairings } = useQuery({
+    queryKey: [`/api/tournaments/${tournamentId}/pairings`, { round: currentRound }],
+    queryFn: async () => {
+      const response = await fetch(`/api/tournaments/${tournamentId}/pairings?round=${currentRound}`, {
+        credentials: "include",
+      });
+      if (!response.ok) throw new Error("Failed to fetch pairings");
+      return response.json();
+    },
+  });
+
   const generatePairingsMutation = useMutation({
     mutationFn: async () => {
       const response = await apiRequest("POST", `/api/tournaments/${tournamentId}/generate-pairings`, {
@@ -199,82 +211,104 @@ export default function SwissPairings({ tournamentId }: SwissPairingsProps) {
             </Button>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Board
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    White
-                  </th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    vs
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Black
-                  </th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Result
-                  </th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {matches.map((match) => (
-                  <tr key={match.id}>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">{match.board}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="text-sm font-medium text-gray-900">
-                          {getPlayerName(match.whitePlayerId)}
-                        </div>
-                        <div className="text-xs text-gray-500 ml-2">
-                          ({getPlayerRating(match.whitePlayerId)})
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-center">
-                      <span className="text-gray-400">vs</span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="text-sm font-medium text-gray-900">
-                          {getPlayerName(match.blackPlayerId)}
-                        </div>
-                        <div className="text-xs text-gray-500 ml-2">
-                          ({getPlayerRating(match.blackPlayerId)})
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-center">
-                      <Select
-                        value={match.result || "Pending"}
-                        onValueChange={(value) => handleResultChange(match.id, value)}
-                      >
-                        <SelectTrigger className="w-24">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Pending">Pending</SelectItem>
-                          <SelectItem value="1-0">1-0</SelectItem>
-                          <SelectItem value="0-1">0-1</SelectItem>
-                          <SelectItem value="1/2-1/2">½-½</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-center">
-                      {getStatusBadge(match.status)}
-                    </td>
+          <div className="space-y-6">
+            {/* Matches Table */}
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Board
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      White
+                    </th>
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      vs
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Black
+                    </th>
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Result
+                    </th>
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Status
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {matches.map((match) => (
+                    <tr key={match.id}>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-medium text-gray-900">{match.board}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <div className="text-sm font-medium text-gray-900">
+                            {getPlayerName(match.whitePlayerId)}
+                          </div>
+                          <div className="text-xs text-gray-500 ml-2">
+                            ({getPlayerRating(match.whitePlayerId)})
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-center">
+                        <span className="text-gray-400">vs</span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <div className="text-sm font-medium text-gray-900">
+                            {getPlayerName(match.blackPlayerId)}
+                          </div>
+                          <div className="text-xs text-gray-500 ml-2">
+                            ({getPlayerRating(match.blackPlayerId)})
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-center">
+                        <Select
+                          value={match.result || "Pending"}
+                          onValueChange={(value) => handleResultChange(match.id, value)}
+                        >
+                          <SelectTrigger className="w-24">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Pending">Pending</SelectItem>
+                            <SelectItem value="1-0">1-0</SelectItem>
+                            <SelectItem value="0-1">0-1</SelectItem>
+                            <SelectItem value="1/2-1/2">½-½</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-center">
+                        {getStatusBadge(match.status)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Byes Section */}
+            {pairings && pairings.filter((p: any) => p.isBye).length > 0 && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <h4 className="text-sm font-medium text-yellow-800 mb-2">Byes This Round</h4>
+                <div className="space-y-1">
+                  {pairings.filter((p: any) => p.isBye).map((byePairing: any) => (
+                    <div key={byePairing.id} className="flex items-center justify-between text-sm">
+                      <span className="text-yellow-700">
+                        {getPlayerName(byePairing.playerId)} ({getPlayerRating(byePairing.playerId)})
+                      </span>
+                      <Badge variant="outline" className="text-yellow-700 border-yellow-300">
+                        {byePairing.byeType === 'half_point' ? '½ Point Bye' : '1 Point Bye'}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </CardContent>

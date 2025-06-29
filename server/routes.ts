@@ -193,15 +193,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       for (const pairing of swissPairings) {
         if (pairing.isBye) {
           // Create pairing for bye
+          const byePoints = pairing.byeType === 'half_point' ? 0.5 : 1.0;
           const savedPairing = await storage.createPairing({
             tournamentId: tournament.id,
             round: currentRound,
             playerId: pairing.whitePlayerId,
             opponentId: null,
             color: null,
-            points: 1, // Full point for bye
+            points: byePoints, // Half-point for odd number, full-point for other byes
             isBye: true,
-            byeType: 'full_point',
+            byeType: pairing.byeType || 'half_point',
           });
           savedPairings.push(savedPairing);
         } else {
@@ -499,14 +500,15 @@ function generateSwissPairings(players: any[], matches: any[], round: number) {
       });
     }
     
-    // Handle odd player (bye)
+    // Handle odd player (half-point bye to lowest rated player)
     if (isOdd) {
-      const byePlayer = sortedPlayers[sortedPlayers.length - 1];
+      const byePlayer = sortedPlayers[sortedPlayers.length - 1]; // Lowest rated player
       pairings.push({
         whitePlayerId: byePlayer.id,
         blackPlayerId: null,
         board: 0, // Bye doesn't get a board
         isBye: true,
+        byeType: 'half_point', // Half-point bye for odd number
       });
     }
   } else {
@@ -558,13 +560,14 @@ function generateSwissPairings(players: any[], matches: any[], round: number) {
       });
     }
     
-    // Handle any remaining player with bye
+    // Handle any remaining player with half-point bye (lowest rated gets bye)
     if (unpaired.length === 1) {
       pairings.push({
         whitePlayerId: unpaired[0].player.id,
         blackPlayerId: null,
         board: 0,
         isBye: true,
+        byeType: 'half_point', // Half-point bye for odd number
       });
     }
   }
