@@ -203,6 +203,7 @@ export default function SwissPairings({ tournamentId }: SwissPairingsProps) {
   };
 
   const handleResultChange = (matchId: number, result: string) => {
+    console.log(`Attempting to change match ${matchId} result to: ${result}`);
     updateMatchMutation.mutate({ matchId, result });
   };
 
@@ -344,8 +345,43 @@ export default function SwissPairings({ tournamentId }: SwissPairingsProps) {
               </AlertDialogContent>
             </AlertDialog>
 
-            {/* Regenerate Future Rounds - only show if we have future rounds */}
-            {allMatches && allMatches.some(m => m.round > currentRound) && (
+            {/* Restart Tournament from Round 2 - only show if we have future rounds */}
+            {allMatches && allMatches.some(m => m.round > 1) && currentRound === 1 && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="outline"
+                    disabled={regenerateFutureRoundsMutation.isPending}
+                    className="border-red-300 text-red-600 hover:bg-red-50"
+                  >
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    {regenerateFutureRoundsMutation.isPending ? "Restarting..." : "Restart Tournament from Round 2"}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Restart Tournament from Round 2?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will delete ALL future rounds (Round 2, 3, etc.) and generate a fresh Round 2 based on the current Round 1 results. 
+                      Use this after you've corrected Round 1 results and want to restart the tournament from Round 2.
+                      This action cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => regenerateFutureRoundsMutation.mutate({ fromRound: 2 })}
+                      className="bg-red-600 hover:bg-red-700"
+                    >
+                      Restart from Round 2
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+
+            {/* Regenerate Future Rounds - only show if we're not on Round 1 */}
+            {allMatches && allMatches.some(m => m.round > currentRound) && currentRound > 1 && (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button
