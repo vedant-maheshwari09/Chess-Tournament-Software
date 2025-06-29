@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Play, RefreshCw, Crown as Chess, ChevronLeft, ChevronRight } from "lucide-react";
+import { Play, RefreshCw, Crown as Chess, ChevronLeft, ChevronRight, RotateCcw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Match, Player } from "@shared/schema";
@@ -127,6 +127,33 @@ export default function SwissPairings({ tournamentId }: SwissPairingsProps) {
       toast({
         title: "Error",
         description: "Failed to update match result.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // New mutation for regenerating future rounds after fixing results
+  const regenerateFutureRoundsMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", `/api/tournaments/${tournamentId}/regenerate-future-rounds`, {
+        fromRound: currentRound + 1
+      });
+      return response.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Success",
+        description: `Regenerated all rounds from Round ${currentRound + 1} onwards. ${data.roundsAffected} rounds updated.`,
+      });
+      queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/matches`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/pairings`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/players`] });
+    },
+    onError: (error: any) => {
+      const errorMessage = error?.error || "Failed to regenerate future rounds.";
+      toast({
+        title: "Regeneration Failed",
+        description: errorMessage,
         variant: "destructive",
       });
     },
@@ -291,6 +318,41 @@ export default function SwissPairings({ tournamentId }: SwissPairingsProps) {
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
+
+            {/* Regenerate Future Rounds - only show if we have future rounds */}
+            {allMatches && allMatches.some(m => m.round > currentRound) && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="outline"
+                    disabled={regenerateFutureRoundsMutation.isPending}
+                    className="border-orange-300 text-orange-600 hover:bg-orange-50"
+                  >
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    {regenerateFutureRoundsMutation.isPending ? "Regenerating..." : "Regenerate Future Rounds"}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Regenerate All Future Rounds?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will delete and recreate all pairings from Round {currentRound + 1} onwards. 
+                      Use this after correcting results in Round {currentRound} to ensure all future rounds are properly paired. 
+                      This action cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => regenerateFutureRoundsMutation.mutate()}
+                      className="bg-orange-600 hover:bg-orange-700"
+                    >
+                      Regenerate Future Rounds
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
           </div>
         </div>
       </CardHeader>

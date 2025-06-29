@@ -318,6 +318,120 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Regenerate future rounds endpoint
+  app.post("/api/tournaments/:tournamentId/regenerate-future-rounds", async (req, res) => {
+    try {
+      const tournamentId = parseInt(req.params.tournamentId);
+      const { fromRound } = req.body;
+      
+      console.log(`Regenerating future rounds from Round ${fromRound} for tournament ${tournamentId}`);
+      
+      const tournament = await storage.getTournament(tournamentId);
+      if (!tournament) {
+        return res.status(404).json({ message: "Tournament not found" });
+      }
+
+      const players = await storage.getPlayersByTournament(tournamentId);
+      if (players.length < 2) {
+        return res.status(400).json({ message: "At least 2 players required" });
+      }
+
+      const existingMatches = await storage.getMatchesByTournament(tournamentId);
+      
+      // Find all rounds to be regenerated (fromRound and higher)
+      const roundsToRegenerate = existingMatches
+        .map(m => m.round)
+        .filter(round => round >= fromRound)
+        .filter((round, index, arr) => arr.indexOf(round) === index)
+        .sort((a, b) => a - b);
+
+      console.log(`Rounds to regenerate: ${roundsToRegenerate.join(', ')}`);
+      
+      if (roundsToRegenerate.length === 0) {
+        return res.status(400).json({ message: "No future rounds found to regenerate" });
+      }
+
+      // Clear all future rounds
+      for (const round of roundsToRegenerate) {
+        console.log(`Clearing round ${round}...`);
+        await storage.deletePairingsByRound(tournamentId, round);
+        await storage.deleteMatchesByRound(tournamentId, round);
+      }
+
+      // Get matches up to the last completed round (before fromRound)
+      const baseMatches = existingMatches.filter(m => m.round < fromRound);
+      
+      // Regenerate each round sequentially
+      let allNewPairings = [];
+      let allNewMatches = [];
+      
+      for (const round of roundsToRegenerate) {
+        console.log(`Regenerating round ${round}...`);
+        
+        // Use all previous matches (base + already regenerated) for pairing calculation
+        const matchesForPairing = [...baseMatches, ...allNewMatches];
+        const swissPairings = generateSwissPairings(players, matchesForPairing, round);
+        
+        // Save matches and pairings for this round
+        for (const pairing of swissPairings) {
+          // Create match
+          const match = await storage.createMatch({
+            tournamentId,
+            round,
+            board: pairing.board,
+            whitePlayerId: pairing.whitePlayer.id,
+            blackPlayerId: pairing.blackPlayer?.id || null,
+            result: null,
+            status: 'pending'
+          });
+          allNewMatches.push(match);
+
+          // Create pairings for both players
+          if (pairing.whitePlayer) {
+            const whitePairing = await storage.createPairing({
+              tournamentId,
+              round,
+              playerId: pairing.whitePlayer.id,
+              opponentId: pairing.blackPlayer?.id || null,
+              color: 'white',
+              points: pairing.isBye ? (pairing.byeType === 'full_point' ? 1 : 0.5) : 0,
+              isBye: pairing.isBye,
+              byeType: pairing.byeType || null,
+            });
+            allNewPairings.push(whitePairing);
+          }
+
+          if (pairing.blackPlayer) {
+            const blackPairing = await storage.createPairing({
+              tournamentId,
+              round,
+              playerId: pairing.blackPlayer.id,
+              opponentId: pairing.whitePlayer.id,
+              color: 'black',
+              points: 0,
+              isBye: false,
+              byeType: null,
+            });
+            allNewPairings.push(blackPairing);
+          }
+        }
+      }
+      
+      console.log(`Regenerated ${roundsToRegenerate.length} rounds with ${allNewMatches.length} matches and ${allNewPairings.length} pairings`);
+      
+      res.json({ 
+        message: "Future rounds regenerated successfully",
+        roundsAffected: roundsToRegenerate.length,
+        roundsRegenerated: roundsToRegenerate,
+        matchesCreated: allNewMatches.length,
+        pairingsCreated: allNewPairings.length
+      });
+    } catch (error) {
+      console.error('Future rounds regeneration error:', error);
+      res.status(500).json({ message: "Failed to regenerate future rounds", error: error.message });
+    }
+  });
+
   // Bye request routes
   app.post("/api/tournaments/:tournamentId/bye-requests", async (req, res) => {
     try {
