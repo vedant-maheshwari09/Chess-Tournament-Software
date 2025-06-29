@@ -39,12 +39,16 @@ export interface IStorage {
   getMatchesByTournament(tournamentId: number): Promise<Match[]>;
   getMatchesByRound(tournamentId: number, round: number): Promise<Match[]>;
   updateMatch(id: number, match: Partial<Match>): Promise<Match | undefined>;
+  deleteMatch(id: number): Promise<boolean>;
+  deleteMatchesByRound(tournamentId: number, round: number): Promise<boolean>;
 
   // Pairing methods
   createPairing(pairing: InsertPairing): Promise<Pairing>;
   getPairingsByTournament(tournamentId: number): Promise<Pairing[]>;
   getPairingsByRound(tournamentId: number, round: number): Promise<Pairing[]>;
   updatePairing(id: number, pairing: Partial<Pairing>): Promise<Pairing | undefined>;
+  deletePairing(id: number): Promise<boolean>;
+  deletePairingsByRound(tournamentId: number, round: number): Promise<boolean>;
 
   // Bye request methods
   createByeRequest(byeRequest: InsertByeRequest): Promise<ByeRequest>;
@@ -166,6 +170,17 @@ export class DatabaseStorage implements IStorage {
     return updated || undefined;
   }
 
+  async deleteMatch(id: number): Promise<boolean> {
+    const result = await db.delete(matches).where(eq(matches.id, id));
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  async deleteMatchesByRound(tournamentId: number, round: number): Promise<boolean> {
+    const result = await db.delete(matches)
+      .where(and(eq(matches.tournamentId, tournamentId), eq(matches.round, round)));
+    return (result.rowCount ?? 0) >= 0;
+  }
+
   // Pairing methods
   async createPairing(pairing: InsertPairing): Promise<Pairing> {
     const [result] = await db
@@ -198,6 +213,17 @@ export class DatabaseStorage implements IStorage {
       .where(eq(pairings.id, id))
       .returning();
     return updated || undefined;
+  }
+
+  async deletePairing(id: number): Promise<boolean> {
+    const result = await db.delete(pairings).where(eq(pairings.id, id));
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  async deletePairingsByRound(tournamentId: number, round: number): Promise<boolean> {
+    const result = await db.delete(pairings)
+      .where(and(eq(pairings.tournamentId, tournamentId), eq(pairings.round, round)));
+    return true; // Return true since deletion completed successfully
   }
 
   // Bye request methods
