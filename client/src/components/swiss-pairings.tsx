@@ -369,7 +369,7 @@ export default function SwissPairings({ tournamentId }: SwissPairingsProps) {
                   <AlertDialogFooter>
                     <AlertDialogCancel>Cancel</AlertDialogCancel>
                     <AlertDialogAction
-                      onClick={() => regenerateFutureRoundsMutation.mutate({})}
+                      onClick={() => regenerateFutureRoundsMutation.mutate({ fromRound: currentRound + 1 })}
                       className="bg-orange-600 hover:bg-orange-700"
                     >
                       Regenerate Future Rounds
