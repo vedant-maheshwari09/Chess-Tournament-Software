@@ -249,7 +249,7 @@ export default function SwissPairings({ tournamentId }: SwissPairingsProps) {
                   disabled={generatePairingsMutation.isPending}
                 >
                   <RefreshCw className="h-4 w-4 mr-2" />
-                  Repair Round {currentRound}
+                  Repair
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
