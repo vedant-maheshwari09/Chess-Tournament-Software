@@ -189,7 +189,7 @@ export default function TournamentWizard({ tournament, onTournamentCreated }: To
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {[5, 6, 7, 8, 9, 10].map((num) => (
+                      {Array.from({ length: 18 }, (_, i) => i + 3).map((num) => (
                         <SelectItem key={num} value={num.toString()}>{num} rounds</SelectItem>
                       ))}
                     </SelectContent>
