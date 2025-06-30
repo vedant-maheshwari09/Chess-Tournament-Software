@@ -6,7 +6,10 @@ import {
   insertPlayerSchema, 
   insertMatchSchema,
   loginSchema,
-  registerSchema
+  registerSchema,
+  forgotPasswordSchema,
+  forgotUsernameSchema,
+  resetPasswordSchema
 } from "@shared/schema";
 import { 
   hashPassword, 
@@ -14,7 +17,8 @@ import {
   createSession, 
   requireAuth, 
   requireRole, 
-  requireTournamentAccess 
+  requireTournamentAccess,
+  generateSessionToken
 } from "./auth";
 
 export async function registerRoutes(app: Express): Promise<Server> {

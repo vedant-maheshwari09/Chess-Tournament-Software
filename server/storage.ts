@@ -6,6 +6,7 @@ import {
   byeRequests,
   users,
   sessions,
+  passwordResets,
   type Tournament, 
   type InsertTournament,
   type Player,
@@ -18,7 +19,8 @@ import {
   type InsertByeRequest,
   type User,
   type InsertUser,
-  type Session
+  type Session,
+  type PasswordReset
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and } from "drizzle-orm";
@@ -35,6 +37,11 @@ export interface IStorage {
   createSession(userId: number, token: string, expiresAt: Date): Promise<Session>;
   getSessionByToken(token: string): Promise<Session | undefined>;
   deleteSession(token: string): Promise<boolean>;
+  
+  // Password reset methods
+  createPasswordReset(userId: number, token: string, expiresAt: Date): Promise<PasswordReset>;
+  getPasswordResetByToken(token: string): Promise<PasswordReset | undefined>;
+  usePasswordReset(token: string): Promise<boolean>;
   
   // Tournament methods
   createTournament(tournament: InsertTournament): Promise<Tournament>;
@@ -123,6 +130,29 @@ export class DatabaseStorage implements IStorage {
   async deleteSession(token: string): Promise<boolean> {
     const result = await db.delete(sessions).where(eq(sessions.token, token));
     return (result.rowCount || 0) > 0;
+  }
+
+  // Password reset methods
+  async createPasswordReset(userId: number, token: string, expiresAt: Date): Promise<PasswordReset> {
+    const [passwordReset] = await db
+      .insert(passwordResets)
+      .values({ userId, token, expiresAt, used: false })
+      .returning();
+    return passwordReset;
+  }
+
+  async getPasswordResetByToken(token: string): Promise<PasswordReset | undefined> {
+    const [passwordReset] = await db.select().from(passwordResets).where(eq(passwordResets.token, token));
+    return passwordReset || undefined;
+  }
+
+  async usePasswordReset(token: string): Promise<boolean> {
+    const result = await db
+      .update(passwordResets)
+      .set({ used: true })
+      .where(eq(passwordResets.token, token))
+      .returning();
+    return result.length > 0;
   }
 
   // Tournament methods

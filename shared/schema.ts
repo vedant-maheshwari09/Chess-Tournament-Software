@@ -23,6 +23,15 @@ export const sessions = pgTable("sessions", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const passwordResets = pgTable("password_resets", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  token: text("token").notNull().unique(),
+  expiresAt: timestamp("expires_at").notNull(),
+  used: boolean("used").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const tournaments = pgTable("tournaments", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
@@ -106,6 +115,19 @@ export const registerSchema = z.object({
   role: z.enum(['player', 'tournament_director']),
 });
 
+export const forgotPasswordSchema = z.object({
+  email: z.string().email(),
+});
+
+export const forgotUsernameSchema = z.object({
+  email: z.string().email(),
+});
+
+export const resetPasswordSchema = z.object({
+  token: z.string().min(1),
+  newPassword: z.string().min(6),
+});
+
 export const insertTournamentSchema = createInsertSchema(tournaments).omit({
   id: true,
   createdAt: true,
@@ -135,7 +157,11 @@ export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type LoginData = z.infer<typeof loginSchema>;
 export type RegisterData = z.infer<typeof registerSchema>;
+export type ForgotPasswordData = z.infer<typeof forgotPasswordSchema>;
+export type ForgotUsernameData = z.infer<typeof forgotUsernameSchema>;
+export type ResetPasswordData = z.infer<typeof resetPasswordSchema>;
 export type Session = typeof sessions.$inferSelect;
+export type PasswordReset = typeof passwordResets.$inferSelect;
 
 // Tournament types
 export type Tournament = typeof tournaments.$inferSelect;
