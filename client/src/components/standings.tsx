@@ -19,6 +19,10 @@ interface PlayerStanding {
 }
 
 export default function Standings({ tournamentId }: StandingsProps) {
+  const { data: tournament, isLoading: tournamentLoading } = useQuery({
+    queryKey: [`/api/tournaments/${tournamentId}`],
+  });
+
   const { data: players, isLoading: playersLoading } = useQuery<Player[]>({
     queryKey: [`/api/tournaments/${tournamentId}/players`],
   });
@@ -31,7 +35,7 @@ export default function Standings({ tournamentId }: StandingsProps) {
     queryKey: [`/api/tournaments/${tournamentId}/pairings`],
   });
 
-  if (playersLoading || matchesLoading || pairingsLoading) {
+  if (tournamentLoading || playersLoading || matchesLoading || pairingsLoading) {
     return (
       <Card>
         <CardHeader>
@@ -51,14 +55,20 @@ export default function Standings({ tournamentId }: StandingsProps) {
   const calculateStandings = (): PlayerStanding[] => {
     if (!players || !matches || !pairings) return [];
 
+    // Calculate current round from existing matches
+    const currentRound = matches.length > 0 ? Math.max(...matches.map(m => m.round)) : 0;
+
     const standings: PlayerStanding[] = players.map(player => {
       const playerMatches = matches.filter(
         match => match.whitePlayerId === player.id || match.blackPlayerId === player.id
       );
 
-      // Get bye pairings for this player
+      // Get bye pairings for this player - ONLY for completed/current rounds
       const playerByes = Array.isArray(pairings) ? pairings.filter((pairing: any) => 
-        pairing.playerId === player.id && pairing.isBye && pairing.points !== null
+        pairing.playerId === player.id && 
+        pairing.isBye && 
+        pairing.points !== null &&
+        pairing.round <= currentRound
       ) : [];
 
       let points = 0;
