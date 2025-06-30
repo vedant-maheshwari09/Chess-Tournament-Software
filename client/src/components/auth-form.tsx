@@ -288,26 +288,25 @@ export default function AuthForm() {
                   )}
                 />
               </div>
-              <FormField
-                control={registerForm.control}
-                name="username"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Username</FormLabel>
-                    <FormControl>
-                      <Input 
-                        placeholder="Enter your username" 
-                        {...field}
-                        onChange={(e) => {
-                          console.log("Username input change:", e.target.value);
-                          field.onChange(e);
-                        }}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
+              <div className="space-y-2">
+                <label htmlFor="username" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                  Username
+                </label>
+                <Input
+                  id="username"
+                  placeholder="Enter your username"
+                  value={registerForm.watch("username")}
+                  onChange={(e) => {
+                    console.log("Username input change:", e.target.value);
+                    registerForm.setValue("username", e.target.value, { shouldValidate: true });
+                  }}
+                />
+                {registerForm.formState.errors.username && (
+                  <p className="text-sm font-medium text-destructive">
+                    {registerForm.formState.errors.username.message}
+                  </p>
                 )}
-              />
+              </div>
               <FormField
                 control={registerForm.control}
                 name="email"
