@@ -142,6 +142,12 @@ Changelog:
   - Implemented USCF rule: lower-rated player gets same color again, higher-rated alternates
   - Enhanced color balance calculations to handle edge cases with equal balances
   - Strengthened color assignment priority: due colors → alternation needs → rating tiebreakers
+- June 30, 2025. Fixed comprehensive bye points calculation and automatic bye assignment
+  - Fixed integer mapping for bye points storage (0=0pts, 1=0.5pts, 2=1pt) throughout system
+  - Corrected standings to only show points for completed/current rounds, not future byes
+  - Enhanced pairings display to show points before each round (Round 1 shows [0], etc.)
+  - Fixed automatic bye assignment to include existing bye points in player scoring
+  - Clarified bye types: 1/2 Point Bye (temporary skip) vs 0 Point Bye (withdrawal)
 ```
 
 ## User Preferences
