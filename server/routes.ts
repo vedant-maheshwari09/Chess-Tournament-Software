@@ -1270,13 +1270,11 @@ function sortPairingsByPointTotal(pairings: any[], players: any[], matches: any[
   playerStats.forEach((stat: any) => {
     statsMap.set(stat.player.id, {
       points: stat.points,
-      rating: stat.player.rating || 0,
-      tiebreak: stat.points * 1000 + (stat.player.rating || 0) // Points weighted heavily + rating
+      rating: stat.player.rating || 0
     });
   });
 
-  // Sort pairings by HIGHEST individual player tiebreak (USCF Board 1 rule)
-  // Board 1 gets the player with highest tiebreak paired with appropriate opponent
+  // Sort pairings by HIGHEST individual player points first, then rating (USCF Board 1 rule)
   const sortedPairings = pairings.filter(p => !p.isBye).sort((a, b) => {
     const aWhiteStats = statsMap.get(a.whitePlayerId);
     const aBlackStats = statsMap.get(a.blackPlayerId);
@@ -1285,12 +1283,34 @@ function sortPairingsByPointTotal(pairings: any[], players: any[], matches: any[
 
     if (!aWhiteStats || !aBlackStats || !bWhiteStats || !bBlackStats) return 0;
 
-    // Get the HIGHEST tiebreak player on each board (this determines board order)
-    const aHighestTiebreak = Math.max(aWhiteStats.tiebreak, aBlackStats.tiebreak);
-    const bHighestTiebreak = Math.max(bWhiteStats.tiebreak, bBlackStats.tiebreak);
+    // Get the HIGHEST points player on each board (this determines board order)
+    const aHighestPoints = Math.max(aWhiteStats.points, aBlackStats.points);
+    const bHighestPoints = Math.max(bWhiteStats.points, bBlackStats.points);
 
-    // Board with highest individual tiebreak goes first (Board 1)
-    return bHighestTiebreak - aHighestTiebreak;
+    // First priority: Board with highest individual points goes first
+    if (aHighestPoints !== bHighestPoints) {
+      return bHighestPoints - aHighestPoints;
+    }
+
+    // Tiebreaker: If highest points are equal, use highest rating among the highest-point players
+    let aHighestRating = 0;
+    let bHighestRating = 0;
+    
+    // Get rating of the highest-point player(s) on each board
+    if (aWhiteStats.points === aHighestPoints) {
+      aHighestRating = Math.max(aHighestRating, aWhiteStats.rating);
+    }
+    if (aBlackStats.points === aHighestPoints) {
+      aHighestRating = Math.max(aHighestRating, aBlackStats.rating);
+    }
+    if (bWhiteStats.points === bHighestPoints) {
+      bHighestRating = Math.max(bHighestRating, bWhiteStats.rating);
+    }
+    if (bBlackStats.points === bHighestPoints) {
+      bHighestRating = Math.max(bHighestRating, bBlackStats.rating);
+    }
+
+    return bHighestRating - aHighestRating;
   });
 
   // Add bye pairings at the end
