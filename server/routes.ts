@@ -1113,20 +1113,42 @@ function determineSwissColors(player1: any, player2: any): { whitePlayer: any, b
   const p1Balance = player1.colorBalance || 0; // whiteGames - blackGames
   const p2Balance = player2.colorBalance || 0;
   
-  // Strong color preference (2+ game difference)
+  // Strong color preference (2+ game difference) - Rule #4 priority
   if (p1Balance <= -2) return { whitePlayer: player1.player, blackPlayer: player2.player };
   if (p1Balance >= 2) return { whitePlayer: player2.player, blackPlayer: player1.player };
   if (p2Balance <= -2) return { whitePlayer: player2.player, blackPlayer: player1.player };
   if (p2Balance >= 2) return { whitePlayer: player1.player, blackPlayer: player2.player };
 
-  // Moderate color preference (1 game difference)
+  // Moderate color preference (1 game difference) - Rule #4 priority
   if (p1Balance === -1 && p2Balance >= 0) return { whitePlayer: player1.player, blackPlayer: player2.player };
   if (p1Balance === 1 && p2Balance <= 0) return { whitePlayer: player2.player, blackPlayer: player1.player };
   if (p2Balance === -1 && p1Balance >= 0) return { whitePlayer: player2.player, blackPlayer: player1.player };
   if (p2Balance === 1 && p1Balance <= 0) return { whitePlayer: player1.player, blackPlayer: player2.player };
 
-  // No strong preference - higher rated player gets white
-  if ((player1.player.rating || 0) > (player2.player.rating || 0)) {
+  // Equal color balance - apply Rule #5 (alternation) with rating tiebreaker
+  const p1Rating = player1.player.rating || 0;
+  const p2Rating = player2.player.rating || 0;
+  
+  // Get last colors for alternation
+  const p1LastColor = player1.lastColor; // should be 'white', 'black', or null
+  const p2LastColor = player2.lastColor;
+  
+  // If one player needs alternation more than the other
+  if (p1LastColor === 'white' && p2LastColor !== 'white') {
+    return { whitePlayer: player2.player, blackPlayer: player1.player };
+  }
+  if (p1LastColor === 'black' && p2LastColor !== 'black') {
+    return { whitePlayer: player1.player, blackPlayer: player2.player };
+  }
+  if (p2LastColor === 'white' && p1LastColor !== 'white') {
+    return { whitePlayer: player1.player, blackPlayer: player2.player };
+  }
+  if (p2LastColor === 'black' && p1LastColor !== 'black') {
+    return { whitePlayer: player2.player, blackPlayer: player1.player };
+  }
+  
+  // Both players have same alternation needs - higher rated player gets white
+  if (p1Rating > p2Rating) {
     return { whitePlayer: player1.player, blackPlayer: player2.player };
   } else {
     return { whitePlayer: player2.player, blackPlayer: player1.player };
@@ -1287,19 +1309,27 @@ function calculatePlayerStats(players: any[], matches: any[]) {
   return players.map(player => {
     const playerMatches = matches.filter(
       match => match.whitePlayerId === player.id || match.blackPlayerId === player.id
-    );
+    ).sort((a, b) => a.round - b.round); // Sort by round to get last color correctly
 
     let points = 0;
     let whiteGames = 0;
     let blackGames = 0;
+    let lastColor = null;
 
     playerMatches.forEach(match => {
-      if (!match.result) return;
-
       const isWhite = match.whitePlayerId === player.id;
       
-      if (isWhite) whiteGames++;
-      else blackGames++;
+      // Track color history
+      if (isWhite) {
+        whiteGames++;
+        lastColor = 'white';
+      } else {
+        blackGames++;
+        lastColor = 'black';
+      }
+
+      // Only count points for completed games
+      if (!match.result) return;
 
       if (match.result === '1-0') {
         points += isWhite ? 1 : 0;
@@ -1316,6 +1346,7 @@ function calculatePlayerStats(players: any[], matches: any[]) {
       whiteGames,
       blackGames,
       colorBalance: whiteGames - blackGames,
+      lastColor, // Track last color for alternation rule
     };
   });
 }
