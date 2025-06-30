@@ -54,8 +54,13 @@ export default function PlayerRegistration({ tournamentId }: PlayerRegistrationP
       pairing.playerId === playerId && pairing.isBye
     );
     
-    const withdrawnByes = playerByes.filter((bye: any) => bye.byeType === 'zero_point');
-    const requestedByes = playerByes.filter((bye: any) => bye.byeType === 'half_point');
+    // Only system-assigned zero-point byes indicate withdrawal
+    const withdrawnByes = playerByes.filter((bye: any) => 
+      bye.byeType === 'zero_point' && !bye.isRequested
+    );
+    const requestedByes = playerByes.filter((bye: any) => 
+      bye.byeType === 'half_point' || (bye.byeType === 'zero_point' && bye.isRequested)
+    );
     
     if (withdrawnByes.length > 0) {
       return { status: 'withdrawn', byes: playerByes };
@@ -229,8 +234,12 @@ export default function PlayerRegistration({ tournamentId }: PlayerRegistrationP
       );
       
       // Separate withdrawal byes from requested byes
-      const withdrawnByes = playerByes.filter((bye: any) => bye.byeType === 'zero_point');
-      const requestedByes = playerByes.filter((bye: any) => bye.byeType === 'half_point');
+      const withdrawnByes = playerByes.filter((bye: any) => 
+        bye.byeType === 'zero_point' && !bye.isRequested
+      );
+      const requestedByes = playerByes.filter((bye: any) => 
+        bye.byeType === 'half_point' || (bye.byeType === 'zero_point' && bye.isRequested)
+      );
       
       // Set player status
       if (withdrawnByes.length > 0) {
@@ -283,7 +292,7 @@ export default function PlayerRegistration({ tournamentId }: PlayerRegistrationP
     });
   };
 
-  // Check if a player is withdrawn (has zero-point byes)
+  // Check if a player is withdrawn (has system-assigned zero-point byes)
   const isPlayerWithdrawn = async (playerId: number): Promise<boolean> => {
     try {
       const response = await fetch(`/api/tournaments/${tournamentId}/pairings`);
@@ -292,7 +301,8 @@ export default function PlayerRegistration({ tournamentId }: PlayerRegistrationP
       return pairings.some((pairing: any) => 
         pairing.playerId === playerId && 
         pairing.isBye && 
-        pairing.byeType === 'zero_point'
+        pairing.byeType === 'zero_point' &&
+        !pairing.isRequested // Only system-assigned withdrawal byes
       );
     } catch {
       return false;
