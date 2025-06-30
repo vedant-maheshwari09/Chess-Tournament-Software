@@ -487,11 +487,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/tournaments/:tournamentId/players", async (req, res) => {
     try {
       const tournamentId = parseInt(req.params.tournamentId);
-      const playerData = { ...req.body, tournamentId };
+      const { byeType, byeRounds, ...playerFields } = req.body;
+      const playerData = { ...playerFields, tournamentId };
       const player = insertPlayerSchema.parse(playerData);
       const newPlayer = await storage.createPlayer(player);
+      
+      // Create bye pairings if specified
+      if (byeType && byeType !== "none" && byeRounds > 0) {
+        const pointsPerBye = byeType === "half_point" ? 0.5 : 0;
+        
+        for (let round = 1; round <= byeRounds; round++) {
+          await storage.createPairing({
+            tournamentId,
+            round,
+            playerId: newPlayer.id,
+            opponentId: null,
+            color: null,
+            points: pointsPerBye,
+            isBye: true,
+            byeType: byeType
+          });
+        }
+      }
+      
       res.status(201).json(newPlayer);
     } catch (error) {
+      console.error('Player creation error:', error);
       res.status(400).json({ message: "Invalid player data" });
     }
   });

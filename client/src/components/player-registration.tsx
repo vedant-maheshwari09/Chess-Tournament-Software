@@ -19,7 +19,8 @@ export default function PlayerRegistration({ tournamentId }: PlayerRegistrationP
   const [lastName, setLastName] = useState("");
   const [rating, setRating] = useState("");
   const [federation, setFederation] = useState("USCF");
-  const [selectedByeRounds, setSelectedByeRounds] = useState<number[]>([]);
+  const [byeType, setByeType] = useState<"none" | "half_point" | "zero_point">("none");
+  const [byeRounds, setByeRounds] = useState<number>(0);
   const { toast } = useToast();
 
   const { data: players, isLoading } = useQuery<Player[]>({
@@ -48,7 +49,8 @@ export default function PlayerRegistration({ tournamentId }: PlayerRegistrationP
       setLastName("");
       setRating("");
       setFederation("USCF");
-      setSelectedByeRounds([]);
+      setByeType("none");
+      setByeRounds(0);
     },
     onError: () => {
       toast({
@@ -92,12 +94,14 @@ export default function PlayerRegistration({ tournamentId }: PlayerRegistrationP
       return;
     }
 
-    const playerData: InsertPlayer = {
+    const playerData: InsertPlayer & { byeType?: string; byeRounds?: number } = {
       tournamentId,
       firstName: firstName.trim(),
       lastName: lastName.trim() || "",
       rating: rating ? parseInt(rating) : undefined,
       federation: federation || "USCF",
+      byeType: byeType !== "none" ? byeType : undefined,
+      byeRounds: byeType !== "none" ? byeRounds : undefined,
     };
 
     addPlayerMutation.mutate(playerData);
@@ -161,6 +165,49 @@ export default function PlayerRegistration({ tournamentId }: PlayerRegistrationP
                 </Select>
               </div>
             </div>
+            
+            {/* Bye Assignment Section */}
+            <div className="space-y-4 p-4 bg-gray-50 rounded-lg">
+              <Label className="text-sm font-medium text-gray-700">Bye Assignment (for late-joining players)</Label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="byeType">Bye Type</Label>
+                  <Select value={byeType} onValueChange={(value: "none" | "half_point" | "zero_point") => setByeType(value)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No Bye</SelectItem>
+                      <SelectItem value="half_point">1/2 Point Bye</SelectItem>
+                      <SelectItem value="zero_point">0 Point Bye</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {byeType !== "none" && (
+                  <div>
+                    <Label htmlFor="byeRounds">Number of Bye Rounds</Label>
+                    <Input
+                      id="byeRounds"
+                      type="number"
+                      min="1"
+                      max="10"
+                      value={byeRounds}
+                      onChange={(e) => setByeRounds(parseInt(e.target.value) || 0)}
+                      placeholder="1"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Rounds missed before joining tournament
+                    </p>
+                  </div>
+                )}
+              </div>
+              {byeType !== "none" && (
+                <p className="text-sm text-blue-600">
+                  Player will receive {byeType === "half_point" ? "0.5" : "0"} points for {byeRounds} missed round{byeRounds !== 1 ? "s" : ""}
+                </p>
+              )}
+            </div>
+
             <Button type="submit" className="w-full" disabled={addPlayerMutation.isPending}>
               <Plus className="h-4 w-4 mr-2" />
               {addPlayerMutation.isPending ? "Adding..." : "Add Player"}
