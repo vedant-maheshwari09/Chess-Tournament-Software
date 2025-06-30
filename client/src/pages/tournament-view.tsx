@@ -30,14 +30,19 @@ export default function TournamentView() {
 
   const deleteTournamentMutation = useMutation({
     mutationFn: async () => {
-      await apiRequest("DELETE", `/api/tournaments/${tournamentId}`);
+      await apiRequest(`/api/tournaments/${tournamentId}`, {
+        method: "DELETE",
+      });
     },
     onSuccess: () => {
       toast({
         title: "Tournament Deleted",
         description: "The tournament has been successfully deleted.",
       });
+      // Invalidate multiple cache keys to ensure UI updates
       queryClient.invalidateQueries({ queryKey: ["/api/tournaments"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/my-tournaments"] });
+      queryClient.removeQueries({ queryKey: [`/api/tournaments/${tournamentId}`] });
       setLocation("/");
     },
     onError: () => {
