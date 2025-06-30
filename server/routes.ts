@@ -338,6 +338,89 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Start tournament
+  app.post("/api/tournaments/:id/start", requireAuth, async (req, res) => {
+    try {
+      const tournamentId = parseInt(req.params.id);
+      const tournament = await storage.getTournament(tournamentId);
+      
+      if (!tournament) {
+        return res.status(404).json({ message: "Tournament not found" });
+      }
+      
+      if (tournament.status !== 'draft') {
+        return res.status(400).json({ message: "Tournament is already started" });
+      }
+      
+      const players = await storage.getPlayersByTournament(tournamentId);
+      if (players.length < 2) {
+        return res.status(400).json({ message: "Need at least 2 players to start tournament" });
+      }
+      
+      // Update tournament status and set current round to 1
+      const updatedTournament = await storage.updateTournament(tournamentId, {
+        status: 'active',
+        currentRound: 1
+      });
+      
+      // Generate first round pairings
+      await generatePairings(tournament, players, [], 1);
+      
+      res.json(updatedTournament);
+    } catch (error) {
+      console.error('Start tournament error:', error);
+      res.status(500).json({ message: "Failed to start tournament" });
+    }
+  });
+
+  // Generate next round
+  app.post("/api/tournaments/:id/next-round", requireAuth, async (req, res) => {
+    try {
+      const tournamentId = parseInt(req.params.id);
+      const tournament = await storage.getTournament(tournamentId);
+      
+      if (!tournament) {
+        return res.status(404).json({ message: "Tournament not found" });
+      }
+      
+      if (tournament.status !== 'active') {
+        return res.status(400).json({ message: "Tournament is not active" });
+      }
+      
+      const nextRound = (tournament.currentRound || 0) + 1;
+      
+      if (tournament.rounds && nextRound > tournament.rounds) {
+        return res.status(400).json({ message: "Tournament is complete" });
+      }
+      
+      const players = await storage.getPlayersByTournament(tournamentId);
+      const matches = await storage.getMatchesByTournament(tournamentId);
+      
+      // Check if current round is complete
+      const currentRoundMatches = matches.filter(m => m.round === tournament.currentRound);
+      const incompleteMatches = currentRoundMatches.filter(m => !m.result);
+      
+      if (incompleteMatches.length > 0) {
+        return res.status(400).json({ 
+          message: `Please complete all matches in round ${tournament.currentRound} before generating next round` 
+        });
+      }
+      
+      // Update tournament to next round
+      const updatedTournament = await storage.updateTournament(tournamentId, {
+        currentRound: nextRound
+      });
+      
+      // Generate next round pairings
+      await generatePairings(tournament, players, matches, nextRound);
+      
+      res.json(updatedTournament);
+    } catch (error) {
+      console.error('Next round error:', error);
+      res.status(500).json({ message: "Failed to generate next round" });
+    }
+  });
+
   app.put("/api/tournaments/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);

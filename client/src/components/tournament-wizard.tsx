@@ -17,6 +17,7 @@ interface TournamentWizardProps {
 }
 
 export default function TournamentWizard({ tournament, onTournamentCreated }: TournamentWizardProps) {
+  const [, setLocation] = useLocation();
   const [name, setName] = useState(tournament?.name || "");
   const [format, setFormat] = useState<'swiss' | 'roundrobin' | 'knockout'>(tournament?.format as any || 'swiss');
   const [rounds, setRounds] = useState(tournament?.rounds || 5);
@@ -66,6 +67,9 @@ export default function TournamentWizard({ tournament, onTournamentCreated }: To
       });
       queryClient.invalidateQueries({ queryKey: ["/api/tournaments"] });
       onTournamentCreated(newTournament);
+      
+      // Redirect to tournament management page
+      setLocation(`/tournaments/${newTournament.id}/manage`);
     },
     onError: () => {
       toast({
