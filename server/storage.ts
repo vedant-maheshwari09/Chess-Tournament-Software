@@ -122,7 +122,7 @@ export class DatabaseStorage implements IStorage {
 
   async deleteSession(token: string): Promise<boolean> {
     const result = await db.delete(sessions).where(eq(sessions.token, token));
-    return result.count > 0;
+    return (result.rowCount || 0) > 0;
   }
 
   // Tournament methods
@@ -145,6 +145,10 @@ export class DatabaseStorage implements IStorage {
 
   async getAllTournaments(): Promise<Tournament[]> {
     return await db.select().from(tournaments);
+  }
+
+  async getTournamentsByUser(userId: number): Promise<Tournament[]> {
+    return await db.select().from(tournaments).where(eq(tournaments.createdBy, userId));
   }
 
   async updateTournament(id: number, tournament: Partial<Tournament>): Promise<Tournament | undefined> {

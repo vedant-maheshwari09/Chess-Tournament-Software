@@ -4,11 +4,114 @@ import { storage } from "./storage";
 import { 
   insertTournamentSchema, 
   insertPlayerSchema, 
-  insertMatchSchema 
+  insertMatchSchema,
+  loginSchema,
+  registerSchema
 } from "@shared/schema";
+import { 
+  hashPassword, 
+  verifyPassword, 
+  createSession, 
+  requireAuth, 
+  requireRole, 
+  requireTournamentAccess 
+} from "./auth";
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Tournament routes
+  // Authentication routes
+  app.post("/api/auth/register", async (req, res) => {
+    try {
+      const userData = registerSchema.parse(req.body);
+      
+      // Check if username or email already exists
+      const existingUser = await storage.getUserByUsername(userData.username) || 
+                           await storage.getUserByEmail(userData.email);
+      
+      if (existingUser) {
+        return res.status(400).json({ 
+          message: existingUser.username === userData.username ? 
+            "Username already exists" : "Email already exists" 
+        });
+      }
+      
+      // Hash password and create user
+      const passwordHash = await hashPassword(userData.password);
+      const newUser = await storage.createUser({
+        ...userData,
+        passwordHash,
+      });
+      
+      // Create session
+      const session = await createSession(newUser.id);
+      
+      // Return user info and token (excluding password hash)
+      const { passwordHash: _, ...userWithoutPassword } = newUser;
+      res.status(201).json({ 
+        user: userWithoutPassword, 
+        token: session.token 
+      });
+    } catch (error) {
+      console.error('Registration error:', error);
+      res.status(400).json({ message: "Invalid registration data" });
+    }
+  });
+
+  app.post("/api/auth/login", async (req, res) => {
+    try {
+      const { username, password } = loginSchema.parse(req.body);
+      
+      // Find user by username
+      const user = await storage.getUserByUsername(username);
+      
+      if (!user) {
+        return res.status(401).json({ message: "Invalid username or password" });
+      }
+      
+      // Verify password
+      const isValidPassword = await verifyPassword(password, user.passwordHash);
+      
+      if (!isValidPassword) {
+        return res.status(401).json({ message: "Invalid username or password" });
+      }
+      
+      // Create session
+      const session = await createSession(user.id);
+      
+      // Return user info and token (excluding password hash)
+      const { passwordHash: _, ...userWithoutPassword } = user;
+      res.json({ 
+        user: userWithoutPassword, 
+        token: session.token 
+      });
+    } catch (error) {
+      console.error('Login error:', error);
+      res.status(400).json({ message: "Invalid login data" });
+    }
+  });
+
+  app.post("/api/auth/logout", requireAuth, async (req, res) => {
+    try {
+      const session = (req as any).session;
+      await storage.deleteSession(session.token);
+      res.json({ message: "Logged out successfully" });
+    } catch (error) {
+      console.error('Logout error:', error);
+      res.status(500).json({ message: "Logout failed" });
+    }
+  });
+
+  app.get("/api/auth/me", requireAuth, async (req, res) => {
+    try {
+      const user = (req as any).user;
+      const { passwordHash: _, ...userWithoutPassword } = user;
+      res.json(userWithoutPassword);
+    } catch (error) {
+      console.error('Get user error:', error);
+      res.status(500).json({ message: "Failed to get user info" });
+    }
+  });
+
+  // Tournament routes (now protected)
   app.get("/api/tournaments", async (req, res) => {
     try {
       const tournaments = await storage.getAllTournaments();
