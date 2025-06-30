@@ -332,69 +332,37 @@ export default function SwissPairings({ tournamentId }: SwissPairingsProps) {
           </div>
           
           <div className="flex space-x-3">
-            {/* Show different options based on tournament completion */}
+            {/* Generate Next Round Button - show differently based on tournament completion */}
             {tournament && tournament.rounds && currentRound >= tournament.rounds ? (
-              /* Tournament has reached planned rounds - show extend or finish options */
-              <>
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button
-                      disabled={generatePairingsMutation.isPending}
+              /* Tournament has reached planned rounds - show as extension */
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    disabled={generatePairingsMutation.isPending}
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    <Play className="h-4 w-4 mr-2" />
+                    {generatePairingsMutation.isPending ? "Generating..." : `Generate Round ${currentRound + 1}`}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Generate Round {currentRound + 1}?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will extend the tournament beyond the planned {tournament.rounds} rounds. Make sure all results from Round {currentRound} have been entered first.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => generatePairingsMutation.mutate({ regenerate: false })}
                       className="bg-green-600 hover:bg-green-700"
                     >
-                      <Play className="h-4 w-4 mr-2" />
-                      {generatePairingsMutation.isPending ? "Generating..." : "Generate Round 5"}
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Generate Round 5?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This will extend the tournament beyond the planned {tournament.rounds} rounds. Make sure all results from Round {currentRound} have been entered first.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction
-                        onClick={() => generatePairingsMutation.mutate({ regenerate: false })}
-                        className="bg-green-600 hover:bg-green-700"
-                      >
-                        Generate Round 5
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button
-                      variant="outline"
-                      disabled={finishTournamentMutation.isPending}
-                      className="border-blue-600 text-blue-600 hover:bg-blue-50"
-                    >
-                      <Chess className="h-4 w-4 mr-2" />
-                      {finishTournamentMutation.isPending ? "Finishing..." : "Finish Tournament"}
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Finish Tournament?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This will complete the tournament with the current standings as final results. This action cannot be undone.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction
-                        onClick={() => finishTournamentMutation.mutate()}
-                        className="bg-blue-600 hover:bg-blue-700"
-                      >
-                        Finish Tournament
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              </>
+                      Generate Round {currentRound + 1}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             ) : (
               /* Normal next round generation */
               <AlertDialog>
@@ -426,6 +394,39 @@ export default function SwissPairings({ tournamentId }: SwissPairingsProps) {
                 </AlertDialogContent>
               </AlertDialog>
             )}
+
+            {/* Finish Tournament Button - always available for tournament directors */}
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="outline"
+                  disabled={finishTournamentMutation.isPending}
+                  className="border-blue-600 text-blue-600 hover:bg-blue-50"
+                >
+                  <Chess className="h-4 w-4 mr-2" />
+                  {finishTournamentMutation.isPending ? "Finishing..." : "Finish Tournament"}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Finish Tournament Early?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will complete the tournament with the current standings as final results. 
+                    The tournament will end at Round {currentRound} instead of the planned {tournament?.rounds || 'full'} rounds. 
+                    This action cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => finishTournamentMutation.mutate()}
+                    className="bg-blue-600 hover:bg-blue-700"
+                  >
+                    Finish Tournament
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
 
             {/* Repair Round with Confirmation */}
             <AlertDialog>
