@@ -154,6 +154,11 @@ Changelog:
   - Enhanced bye display logic to show "½ Point Bye", "0 Point Bye", and "1 Point Bye" correctly
   - Tournament directors can now add specific round byes without changing player status
   - Withdrawal remains separate action requiring explicit status change from active to withdrawn
+- June 30, 2025. Fixed Swiss pairing algorithm to properly handle explicit bye requests
+  - Corrected filtering logic to exclude withdrawn players AND players with round-specific bye requests
+  - Implemented proper automatic bye assignment: lowest-rated active player gets 1-point bye when odd numbers
+  - Fixed USCF compliance: respects explicit bye requests while giving automatic byes to remaining odd player
+  - Enhanced pairing generation to distinguish between withdrawal byes vs requested byes vs automatic byes
 ```
 
 ## User Preferences
