@@ -70,7 +70,8 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
         title: "Next Round Generated",
         description: `Round ${(tournament?.currentRound || 0) + 1} pairings are ready!`,
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", tournamentId] });
+      queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/players`] });
       setActiveTab("pairings");
     },
     onError: () => {
@@ -111,7 +112,7 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
   }
 
   const canStartTournament = tournament.status === 'draft' && players.length >= 2;
-  const canGenerateNextRound = tournament.status === 'active' && tournament.currentRound > 0;
+  const canGenerateNextRound = tournament.status === 'active' && (tournament.currentRound || 0) > 0;
 
   return (
     <div className="max-w-7xl mx-auto p-6">
@@ -230,7 +231,7 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
                 <div className="space-y-2">
                   <h4 className="font-medium text-gray-900">Created</h4>
                   <p className="text-gray-600">
-                    {new Date(tournament.createdAt).toLocaleDateString()}
+                    {tournament.createdAt ? new Date(tournament.createdAt).toLocaleDateString() : 'Unknown'}
                   </p>
                 </div>
                 {tournament.format === 'roundrobin' && tournament.isDoubleRoundRobin && (
@@ -275,8 +276,8 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
               <CardTitle className="flex items-center space-x-2">
                 <Calendar className="h-5 w-5" />
                 <span>Tournament Pairings</span>
-                {tournament.currentRound > 0 && (
-                  <Badge>Round {tournament.currentRound}</Badge>
+                {(tournament.currentRound || 0) > 0 && (
+                  <Badge>Round {tournament.currentRound || 0}</Badge>
                 )}
               </CardTitle>
             </CardHeader>
