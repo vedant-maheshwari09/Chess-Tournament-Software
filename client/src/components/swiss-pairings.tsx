@@ -42,7 +42,7 @@ export default function SwissPairings({ tournamentId }: SwissPairingsProps) {
     queryKey: [`/api/tournaments/${tournamentId}/players`],
   });
 
-  // Get pairings to check for byes
+  // Get pairings to check for byes (current round)
   const { data: pairings } = useQuery<Pairing[]>({
     queryKey: [`/api/tournaments/${tournamentId}/pairings`, { round: currentRound }],
     queryFn: async () => {
@@ -50,16 +50,9 @@ export default function SwissPairings({ tournamentId }: SwissPairingsProps) {
     },
   });
 
-  // Get all pairings to calculate player points
-  const { data: allPairings } = useQuery({
+  // Get all pairings for point calculation  
+  const { data: allTournamentPairings } = useQuery<Pairing[]>({
     queryKey: [`/api/tournaments/${tournamentId}/pairings`],
-    queryFn: async () => {
-      const response = await fetch(`/api/tournaments/${tournamentId}/pairings`, {
-        credentials: "include",
-      });
-      if (!response.ok) throw new Error("Failed to fetch all pairings");
-      return response.json();
-    },
   });
 
   const generatePairingsMutation = useMutation({
@@ -193,9 +186,39 @@ export default function SwissPairings({ tournamentId }: SwissPairingsProps) {
   }
 
   const getPlayerPoints = (playerId: number | null) => {
-    if (!playerId || !allPairings) return 0;
-    const playerPairings = allPairings.filter((p: any) => p.playerId === playerId);
-    return playerPairings.reduce((total: number, pairing: any) => total + (pairing.points || 0), 0);
+    if (!playerId || !allMatches) return 0;
+    
+    let points = 0;
+    
+    // Calculate points from completed matches across all rounds
+    for (const match of allMatches) {
+      if (match.whitePlayerId === playerId || match.blackPlayerId === playerId) {
+        if (match.result && match.result !== 'Pending') {
+          if (match.result === '1/2-1/2') {
+            // Draw - both players get 0.5 points
+            points += 0.5;
+          } else if (
+            (match.result === '1-0' && match.whitePlayerId === playerId) ||
+            (match.result === '0-1' && match.blackPlayerId === playerId)
+          ) {
+            // Win - player gets 1 point
+            points += 1;
+          }
+          // Loss - player gets 0 points (no need to add anything)
+        }
+      }
+    }
+    
+    // Add points from bye pairings across all rounds
+    if (allTournamentPairings) {
+      for (const pairing of allTournamentPairings) {
+        if (pairing.playerId === playerId && pairing.isBye) {
+          points += pairing.points || 0;
+        }
+      }
+    }
+    
+    return points;
   };
 
   const handleResultChange = (matchId: number, result: string) => {
