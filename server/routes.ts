@@ -448,6 +448,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Finish tournament (tournament directors only)
+  app.post("/api/tournaments/:id/finish", requireAuth, requireRole('tournament_director'), requireTournamentAccess, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      
+      // Update tournament status to completed
+      const completedTournament = await storage.updateTournament(id, { 
+        status: 'completed',
+        updatedAt: new Date()
+      });
+      
+      if (!completedTournament) {
+        return res.status(404).json({ message: "Tournament not found" });
+      }
+      
+      res.json({ 
+        message: "Tournament finished successfully", 
+        tournament: completedTournament 
+      });
+    } catch (error) {
+      console.error('Finish tournament error:', error);
+      res.status(500).json({ message: "Failed to finish tournament" });
+    }
+  });
+
   // Player routes
   app.get("/api/tournaments/:tournamentId/players", async (req, res) => {
     try {
