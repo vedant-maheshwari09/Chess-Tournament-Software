@@ -291,7 +291,7 @@ export default function SwissPairings({ tournamentId }: SwissPairingsProps) {
                 Previous
               </Button>
               <span className="text-sm font-medium px-3 py-1 bg-gray-100 rounded">
-                Round {currentRound} of {Math.max(...allMatches.map(m => m.round))}
+                Round {currentRound} of {tournament?.rounds || Math.max(...allMatches.map(m => m.round))}
               </span>
               <Button
                 variant="outline"
