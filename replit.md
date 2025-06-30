@@ -136,6 +136,12 @@ Changelog:
   - Enhanced Swiss pairing algorithm to automatically exclude withdrawn players from future pairings
   - Added intelligent status detection: dialog shows current player status (active vs withdrawn)
   - Tournament directors can now manage player status changes throughout the tournament lifecycle
+  - Enhanced complete bye management: add and remove individual bye requests with visual interface
+- June 30, 2025. Improved Swiss color assignment algorithm for proper USCF compliance
+  - Fixed color alternation when both players had same color in previous round
+  - Implemented USCF rule: lower-rated player gets same color again, higher-rated alternates
+  - Enhanced color balance calculations to handle edge cases with equal balances
+  - Strengthened color assignment priority: due colors → alternation needs → rating tiebreakers
 ```
 
 ## User Preferences

@@ -1328,6 +1328,29 @@ function determineSwissColors(player1: any, player2: any): { whitePlayer: any, b
     return { whitePlayer: player2.player, blackPlayer: player1.player };
   }
   
+  // Special case: Both players had the same color in previous round
+  // USCF Rule: Lower-rated player gets same color again, higher-rated alternates
+  if (p1LastColor === p2LastColor && p1LastColor !== null) {
+    const higherRated = p1Rating >= p2Rating ? player1 : player2;
+    const lowerRated = p1Rating >= p2Rating ? player2 : player1;
+    
+    if (p1LastColor === 'white') {
+      // Both had white last round: lower-rated gets white again, higher-rated gets black
+      if (lowerRated === player1) {
+        return { whitePlayer: player1.player, blackPlayer: player2.player };
+      } else {
+        return { whitePlayer: player2.player, blackPlayer: player1.player };
+      }
+    } else {
+      // Both had black last round: lower-rated gets black again, higher-rated gets white
+      if (lowerRated === player1) {
+        return { whitePlayer: player2.player, blackPlayer: player1.player };
+      } else {
+        return { whitePlayer: player1.player, blackPlayer: player2.player };
+      }
+    }
+  }
+  
   // Both players have same alternation needs - higher rated player gets white
   if (p1Rating > p2Rating) {
     return { whitePlayer: player1.player, blackPlayer: player2.player };
