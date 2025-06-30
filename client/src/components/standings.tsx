@@ -92,10 +92,11 @@ export default function Standings({ tournamentId }: StandingsProps) {
         }
       });
 
-      // Add points from byes
+      // Add points from byes (convert from integer mapping: 0=0pts, 1=0.5pts, 2=1pt)
       playerByes.forEach((bye: any) => {
-        points += bye.points;
-        if (bye.points === 1) {
+        const byePoints = bye.points === 1 ? 0.5 : bye.points === 2 ? 1 : 0;
+        points += byePoints;
+        if (bye.points === 2) {
           wins++; // Full point bye counts as win
         }
         // Half-point byes don't count as wins/draws/losses for record purposes

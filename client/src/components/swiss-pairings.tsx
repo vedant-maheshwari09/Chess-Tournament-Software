@@ -237,11 +237,13 @@ export default function SwissPairings({ tournamentId }: SwissPairingsProps) {
       }
     }
     
-    // Add points from bye pairings across all rounds
+    // Add points from bye pairings across all rounds (convert from integer mapping)
     if (allTournamentPairings) {
       for (const pairing of allTournamentPairings) {
         if (pairing.playerId === playerId && pairing.isBye) {
-          points += pairing.points || 0;
+          // Convert from integer mapping: 0=0pts, 1=0.5pts, 2=1pt
+          const byePoints = pairing.points === 1 ? 0.5 : pairing.points === 2 ? 1 : 0;
+          points += byePoints;
         }
       }
     }
