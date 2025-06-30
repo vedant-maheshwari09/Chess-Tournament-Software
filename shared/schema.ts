@@ -82,6 +82,7 @@ export const pairings = pgTable("pairings", {
   points: integer("points").default(0),
   isBye: boolean("is_bye").default(false),
   byeType: text("bye_type"), // 'half_point', 'full_point', null
+  isRequested: boolean("is_requested").default(false), // true for player-requested byes, false for automatic
 });
 
 export const byeRequests = pgTable("bye_requests", {

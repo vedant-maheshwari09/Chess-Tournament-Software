@@ -650,7 +650,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
               color: null,
               points: pointsPerBye,
               isBye: true,
-              byeType: byeEntry.type
+              byeType: byeEntry.type,
+              isRequested: true // Mark as requested since it's explicitly added by TD
             });
           }
         }
@@ -1016,9 +1017,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 playerId: pairing.whitePlayer.id,
                 opponentId: pairing.blackPlayer?.id || null,
                 color: 'white',
-                points: pairing.isBye ? (pairing.byeType === 'full_point' ? 1 : 0.5) : 0,
+                points: pairing.isBye ? (pairing.byeType === 'full_point' ? 2 : 1) : 0,
                 isBye: pairing.isBye,
                 byeType: pairing.byeType || null,
+                isRequested: pairing.isRequested || false,
               });
               allNewPairings.push(whitePairing);
             }
@@ -1033,6 +1035,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 points: 0,
                 isBye: false,
                 byeType: null,
+                isRequested: false,
               });
               allNewPairings.push(blackPairing);
             }
@@ -1604,6 +1607,7 @@ async function generateSwissPairings(players: any[], matches: any[], round: numb
         board: 0,
         isBye: true,
         byeType: byeType,
+        isRequested: false, // Automatic bye assignment
       });
     }
   }
