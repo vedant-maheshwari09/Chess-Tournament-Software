@@ -8,7 +8,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Play, RefreshCw, Crown as Chess, ChevronLeft, ChevronRight, RotateCcw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { Match, Player } from "@shared/schema";
+import type { Match, Player, Pairing } from "@shared/schema";
 
 interface SwissPairingsProps {
   tournamentId: number;
@@ -32,7 +32,10 @@ export default function SwissPairings({ tournamentId }: SwissPairingsProps) {
   }, [allMatches]);
 
   const { data: matches, isLoading } = useQuery<Match[]>({
-    queryKey: [`/api/tournaments/${tournamentId}/matches?round=${currentRound}`],
+    queryKey: [`/api/tournaments/${tournamentId}/matches`, { round: currentRound }],
+    queryFn: async () => {
+      return await apiRequest(`/api/tournaments/${tournamentId}/matches?round=${currentRound}`);
+    },
   });
 
   const { data: players } = useQuery<Player[]>({
@@ -40,8 +43,11 @@ export default function SwissPairings({ tournamentId }: SwissPairingsProps) {
   });
 
   // Get pairings to check for byes
-  const { data: pairings } = useQuery({
-    queryKey: [`/api/tournaments/${tournamentId}/pairings?round=${currentRound}`],
+  const { data: pairings } = useQuery<Pairing[]>({
+    queryKey: [`/api/tournaments/${tournamentId}/pairings`, { round: currentRound }],
+    queryFn: async () => {
+      return await apiRequest(`/api/tournaments/${tournamentId}/pairings?round=${currentRound}`);
+    },
   });
 
   // Get all pairings to calculate player points
