@@ -31,32 +31,41 @@ export default function TournamentWizard({ tournament, onTournamentCreated }: To
 
   const createTournamentMutation = useMutation({
     mutationFn: async (tournamentData: InsertTournament) => {
-      const response = await apiRequest("/api/tournaments", {
-        method: "POST",
-        body: JSON.stringify(tournamentData),
-      });
-      const tournament = await response.json();
-      
-      // If using casual mode and not skipping auto-generation, automatically create players
-      if (tournamentData.useQuickSetup && tournamentData.playerCount && !skipAutoGeneration) {
-        const playerPromises = [];
-        for (let i = 1; i <= tournamentData.playerCount; i++) {
-          playerPromises.push(
-            apiRequest(`/api/tournaments/${tournament.id}/players`, {
-              method: "POST",
-              body: JSON.stringify({
-                firstName: `Player`,
-                lastName: `${i}`,
-                rating: 1000,
-                federation: "USCF",
-              }),
-            })
-          );
+      try {
+        console.log('Creating tournament with data:', tournamentData);
+        const tournament = await apiRequest("/api/tournaments", {
+          method: "POST",
+          body: JSON.stringify(tournamentData),
+        });
+        
+        console.log('Tournament created successfully:', tournament);
+        
+        // If using casual mode and not skipping auto-generation, automatically create players
+        if (tournamentData.useQuickSetup && tournamentData.playerCount && !skipAutoGeneration) {
+          console.log('Auto-generating players...');
+          const playerPromises = [];
+          for (let i = 1; i <= tournamentData.playerCount; i++) {
+            playerPromises.push(
+              apiRequest(`/api/tournaments/${tournament.id}/players`, {
+                method: "POST",
+                body: JSON.stringify({
+                  firstName: `Player`,
+                  lastName: `${i}`,
+                  rating: 1000,
+                  federation: "USCF",
+                }),
+              })
+            );
+          }
+          await Promise.all(playerPromises);
+          console.log('Players auto-generated successfully');
         }
-        await Promise.all(playerPromises);
+        
+        return tournament;
+      } catch (error) {
+        console.error('Tournament creation error:', error);
+        throw error;
       }
-      
-      return tournament;
     },
     onSuccess: (newTournament) => {
       toast({
