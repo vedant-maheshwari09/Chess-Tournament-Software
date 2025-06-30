@@ -32,7 +32,7 @@ export default function SwissPairings({ tournamentId }: SwissPairingsProps) {
   }, [allMatches]);
 
   const { data: matches, isLoading } = useQuery<Match[]>({
-    queryKey: [`/api/tournaments/${tournamentId}/matches`, { round: currentRound }],
+    queryKey: [`/api/tournaments/${tournamentId}/matches?round=${currentRound}`],
   });
 
   const { data: players } = useQuery<Player[]>({
@@ -41,7 +41,7 @@ export default function SwissPairings({ tournamentId }: SwissPairingsProps) {
 
   // Get pairings to check for byes
   const { data: pairings } = useQuery({
-    queryKey: [`/api/tournaments/${tournamentId}/pairings`, { round: currentRound }],
+    queryKey: [`/api/tournaments/${tournamentId}/pairings?round=${currentRound}`],
   });
 
   // Get all pairings to calculate player points
