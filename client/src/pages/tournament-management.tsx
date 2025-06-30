@@ -20,7 +20,7 @@ interface TournamentManagementProps {
 
 export default function TournamentManagement({ tournamentId }: TournamentManagementProps) {
   const [, setLocation] = useLocation();
-  const [activeTab, setActiveTab] = useState("players");
+  const [activeTab, setActiveTab] = useState("info");
   const { toast } = useToast();
 
   // Fetch tournament details
@@ -171,7 +171,11 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
 
       {/* Tournament Management Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
+          <TabsTrigger value="info" className="flex items-center space-x-2">
+            <Trophy className="h-4 w-4" />
+            <span>Tournament Info</span>
+          </TabsTrigger>
           <TabsTrigger value="players" className="flex items-center space-x-2">
             <Users className="h-4 w-4" />
             <span>Players ({players.length})</span>
@@ -191,6 +195,72 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
             </TabsTrigger>
           )}
         </TabsList>
+
+        <TabsContent value="info" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <Trophy className="h-5 w-5" />
+                <span>Tournament Information</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="space-y-2">
+                  <h4 className="font-medium text-gray-900">Tournament Name</h4>
+                  <p className="text-gray-600">{tournament.name}</p>
+                </div>
+                <div className="space-y-2">
+                  <h4 className="font-medium text-gray-900">Format</h4>
+                  <p className="text-gray-600 capitalize">{tournament.format}</p>
+                </div>
+                <div className="space-y-2">
+                  <h4 className="font-medium text-gray-900">Status</h4>
+                  <Badge variant={tournament.status === 'active' ? 'default' : tournament.status === 'completed' ? 'secondary' : 'outline'}>
+                    {tournament.status.charAt(0).toUpperCase() + tournament.status.slice(1)}
+                  </Badge>
+                </div>
+                {tournament.rounds && (
+                  <div className="space-y-2">
+                    <h4 className="font-medium text-gray-900">Total Rounds</h4>
+                    <p className="text-gray-600">{tournament.rounds}</p>
+                  </div>
+                )}
+                <div className="space-y-2">
+                  <h4 className="font-medium text-gray-900">Current Round</h4>
+                  <p className="text-gray-600">{tournament.currentRound || 0}</p>
+                </div>
+                <div className="space-y-2">
+                  <h4 className="font-medium text-gray-900">Players</h4>
+                  <p className="text-gray-600">{players.length} registered</p>
+                </div>
+                <div className="space-y-2">
+                  <h4 className="font-medium text-gray-900">Created</h4>
+                  <p className="text-gray-600">
+                    {new Date(tournament.createdAt).toLocaleDateString()}
+                  </p>
+                </div>
+                {tournament.format === 'roundrobin' && tournament.isDoubleRoundRobin && (
+                  <div className="space-y-2">
+                    <h4 className="font-medium text-gray-900">Round Robin Type</h4>
+                    <p className="text-gray-600">Double Round Robin</p>
+                  </div>
+                )}
+              </div>
+              
+              {tournament.status === 'draft' && (
+                <div className="mt-8 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <h4 className="font-medium text-blue-900 mb-2">Getting Started</h4>
+                  <ol className="list-decimal list-inside space-y-1 text-sm text-blue-800">
+                    <li>Add players in the Players tab</li>
+                    <li>Review player information and bye requests</li>
+                    <li>Click "Start Tournament" to begin round 1</li>
+                  </ol>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         <TabsContent value="players" className="mt-6">
           <Card>

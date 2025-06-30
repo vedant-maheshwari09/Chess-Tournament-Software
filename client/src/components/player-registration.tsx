@@ -19,16 +19,24 @@ export default function PlayerRegistration({ tournamentId }: PlayerRegistrationP
   const [lastName, setLastName] = useState("");
   const [rating, setRating] = useState("");
   const [federation, setFederation] = useState("USCF");
+  const [selectedByeRounds, setSelectedByeRounds] = useState<number[]>([]);
   const { toast } = useToast();
 
   const { data: players, isLoading } = useQuery<Player[]>({
     queryKey: [`/api/tournaments/${tournamentId}/players`],
   });
 
+  // Fetch tournament info to get number of rounds for bye selection
+  const { data: tournament } = useQuery({
+    queryKey: [`/api/tournaments/${tournamentId}`],
+  });
+
   const addPlayerMutation = useMutation({
     mutationFn: async (playerData: InsertPlayer) => {
-      const response = await apiRequest("POST", `/api/tournaments/${tournamentId}/players`, playerData);
-      return response.json();
+      return await apiRequest(`/api/tournaments/${tournamentId}/players`, {
+        method: "POST",
+        body: JSON.stringify(playerData),
+      });
     },
     onSuccess: () => {
       toast({
@@ -40,6 +48,7 @@ export default function PlayerRegistration({ tournamentId }: PlayerRegistrationP
       setLastName("");
       setRating("");
       setFederation("USCF");
+      setSelectedByeRounds([]);
     },
     onError: () => {
       toast({
@@ -52,7 +61,9 @@ export default function PlayerRegistration({ tournamentId }: PlayerRegistrationP
 
   const deletePlayerMutation = useMutation({
     mutationFn: async (playerId: number) => {
-      await apiRequest("DELETE", `/api/players/${playerId}`);
+      await apiRequest(`/api/players/${playerId}`, {
+        method: "DELETE",
+      });
     },
     onSuccess: () => {
       toast({
@@ -72,10 +83,10 @@ export default function PlayerRegistration({ tournamentId }: PlayerRegistrationP
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!firstName.trim() || !lastName.trim()) {
+    if (!firstName.trim()) {
       toast({
         title: "Error",
-        description: "First name and last name are required.",
+        description: "First name is required.",
         variant: "destructive",
       });
       return;
@@ -84,9 +95,9 @@ export default function PlayerRegistration({ tournamentId }: PlayerRegistrationP
     const playerData: InsertPlayer = {
       tournamentId,
       firstName: firstName.trim(),
-      lastName: lastName.trim(),
-      rating: rating ? parseInt(rating) : 1000,
-      federation,
+      lastName: lastName.trim() || "",
+      rating: rating ? parseInt(rating) : undefined,
+      federation: federation || "USCF",
     };
 
     addPlayerMutation.mutate(playerData);
