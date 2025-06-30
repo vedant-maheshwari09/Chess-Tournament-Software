@@ -834,8 +834,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       for (const pairing of swissPairings) {
         if (pairing.isBye) {
-          // Create pairing for bye
-          const byePoints = pairing.byeType === 'half_point' ? 0.5 : 1.0;
+          // Create pairing for bye (use integer mapping: 0=0pts, 1=0.5pts, 2=1pt)
+          const byePoints = pairing.byeType === 'half_point' ? 1 : 2;
           const savedPairing = await storage.createPairing({
             tournamentId: tournament.id,
             round: currentRound,
