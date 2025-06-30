@@ -20,7 +20,7 @@ export default function PlayerRegistration({ tournamentId }: PlayerRegistrationP
   const [rating, setRating] = useState("");
   const [federation, setFederation] = useState("USCF");
   const [byeType, setByeType] = useState<"none" | "half_point" | "zero_point">("none");
-  const [byeRounds, setByeRounds] = useState<number>(0);
+  const [byeRoundsText, setByeRoundsText] = useState<string>("");
   const { toast } = useToast();
 
   const { data: players, isLoading } = useQuery<Player[]>({
@@ -50,7 +50,7 @@ export default function PlayerRegistration({ tournamentId }: PlayerRegistrationP
       setRating("");
       setFederation("USCF");
       setByeType("none");
-      setByeRounds(0);
+      setByeRoundsText("");
     },
     onError: () => {
       toast({
@@ -94,14 +94,20 @@ export default function PlayerRegistration({ tournamentId }: PlayerRegistrationP
       return;
     }
 
-    const playerData: InsertPlayer & { byeType?: string; byeRounds?: number } = {
+    // Parse round numbers from text input (e.g., "1, 3, 5")
+    const parseByeRounds = (text: string): number[] => {
+      if (!text.trim()) return [];
+      return text.split(',').map(r => parseInt(r.trim())).filter(n => !isNaN(n) && n > 0);
+    };
+
+    const playerData: InsertPlayer & { byeType?: string; byeRounds?: number[] } = {
       tournamentId,
       firstName: firstName.trim(),
       lastName: lastName.trim() || "",
       rating: rating ? parseInt(rating) : undefined,
       federation: federation || "USCF",
       byeType: byeType !== "none" ? byeType : undefined,
-      byeRounds: byeType !== "none" ? byeRounds : undefined,
+      byeRounds: byeType !== "none" ? parseByeRounds(byeRoundsText) : undefined,
     };
 
     addPlayerMutation.mutate(playerData);
@@ -185,25 +191,23 @@ export default function PlayerRegistration({ tournamentId }: PlayerRegistrationP
                 </div>
                 {byeType !== "none" && (
                   <div>
-                    <Label htmlFor="byeRounds">Number of Bye Rounds</Label>
+                    <Label htmlFor="byeRounds">Specific Bye Rounds</Label>
                     <Input
                       id="byeRounds"
-                      type="number"
-                      min="1"
-                      max="10"
-                      value={byeRounds}
-                      onChange={(e) => setByeRounds(parseInt(e.target.value) || 0)}
-                      placeholder="1"
+                      type="text"
+                      value={byeRoundsText}
+                      onChange={(e) => setByeRoundsText(e.target.value)}
+                      placeholder="1, 3, 5"
                     />
                     <p className="text-xs text-gray-500 mt-1">
-                      Rounds missed before joining tournament
+                      Enter round numbers separated by commas (e.g., "1, 3" for rounds 1 and 3)
                     </p>
                   </div>
                 )}
               </div>
-              {byeType !== "none" && (
+              {byeType !== "none" && byeRoundsText && (
                 <p className="text-sm text-blue-600">
-                  Player will receive {byeType === "half_point" ? "0.5" : "0"} points for {byeRounds} missed round{byeRounds !== 1 ? "s" : ""}
+                  Player will receive {byeType === "half_point" ? "0.5" : "0"} points for rounds: {byeRoundsText}
                 </p>
               )}
             </div>
