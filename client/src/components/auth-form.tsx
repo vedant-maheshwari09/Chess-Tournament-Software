@@ -43,8 +43,14 @@ export default function AuthForm() {
   const registerForm = useForm<RegisterData>({
     resolver: zodResolver(registerSchema),
     defaultValues: {
-      username: "", email: "", password: "", firstName: "", lastName: "", role: "player",
+      username: "",
+      email: "",
+      password: "",
+      firstName: "",
+      lastName: "",
+      role: "player",
     },
+    mode: "onChange",
   });
 
   const forgotPasswordForm = useForm<ForgotPasswordData>({
@@ -286,7 +292,14 @@ export default function AuthForm() {
                   <FormItem>
                     <FormLabel>Username</FormLabel>
                     <FormControl>
-                      <Input placeholder="Enter your username" {...field} />
+                      <Input 
+                        placeholder="Enter your username" 
+                        value={field.value || ""}
+                        onChange={field.onChange}
+                        onBlur={field.onBlur}
+                        name={field.name}
+                        ref={field.ref}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
