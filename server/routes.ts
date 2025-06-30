@@ -79,6 +79,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Check username availability
+  app.get("/api/auth/check-username/:username", async (req, res) => {
+    try {
+      const { username } = req.params;
+      
+      if (!username || username.length < 3) {
+        return res.json({ available: false, message: "Username must be at least 3 characters" });
+      }
+      
+      const existingUser = await storage.getUserByUsername(username);
+      
+      if (existingUser) {
+        res.json({ available: false, message: "Username is already taken" });
+      } else {
+        res.json({ available: true, message: "Username is available" });
+      }
+    } catch (error) {
+      console.error('Username check error:', error);
+      res.json({ available: false, message: "Error checking username" });
+    }
+  });
+
+  // Check email availability  
+  app.get("/api/auth/check-email/:email", async (req, res) => {
+    try {
+      const { email } = req.params;
+      
+      // Basic email validation
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        return res.json({ available: false, message: "Please enter a valid email address" });
+      }
+      
+      const existingUser = await storage.getUserByEmail(email);
+      
+      if (existingUser) {
+        res.json({ available: false, message: "Email is already registered" });
+      } else {
+        res.json({ available: true, message: "Email is available" });
+      }
+    } catch (error) {
+      console.error('Email check error:', error);
+      res.json({ available: false, message: "Error checking email" });
+    }
+  });
+
   app.post("/api/auth/login", async (req, res) => {
     try {
       const { username, password } = loginSchema.parse(req.body);

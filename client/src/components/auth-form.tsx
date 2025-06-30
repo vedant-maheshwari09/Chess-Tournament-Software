@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, Check, X, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -32,6 +32,20 @@ export default function AuthForm() {
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [showRegisterPassword, setShowRegisterPassword] = useState(false);
   const [showResetPassword, setShowResetPassword] = useState(false);
+  
+  // Real-time validation states
+  const [usernameCheck, setUsernameCheck] = useState<{
+    checking: boolean;
+    available: boolean | null;
+    message: string;
+  }>({ checking: false, available: null, message: '' });
+  
+  const [emailCheck, setEmailCheck] = useState<{
+    checking: boolean;
+    available: boolean | null;
+    message: string;
+  }>({ checking: false, available: null, message: '' });
+  
   const { login, register, isLoggingIn, isRegistering } = useAuth();
   const { toast } = useToast();
 
@@ -55,6 +69,81 @@ export default function AuthForm() {
 
   // Debug: Watch form values
   console.log("Register form values:", registerForm.watch());
+
+  // Debounced username validation
+  const checkUsernameAvailability = useCallback(async (username: string) => {
+    if (!username || username.length < 3) {
+      setUsernameCheck({ checking: false, available: null, message: '' });
+      return;
+    }
+
+    setUsernameCheck({ checking: true, available: null, message: 'Checking availability...' });
+
+    try {
+      const response = await fetch(`/api/auth/check-username/${encodeURIComponent(username)}`);
+      const data = await response.json();
+      
+      setUsernameCheck({
+        checking: false,
+        available: data.available,
+        message: data.message
+      });
+    } catch (error) {
+      setUsernameCheck({
+        checking: false,
+        available: false,
+        message: 'Error checking username'
+      });
+    }
+  }, []);
+
+  // Debounced email validation
+  const checkEmailAvailability = useCallback(async (email: string) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!email || !emailRegex.test(email)) {
+      setEmailCheck({ checking: false, available: null, message: '' });
+      return;
+    }
+
+    setEmailCheck({ checking: true, available: null, message: 'Checking availability...' });
+
+    try {
+      const response = await fetch(`/api/auth/check-email/${encodeURIComponent(email)}`);
+      const data = await response.json();
+      
+      setEmailCheck({
+        checking: false,
+        available: data.available,
+        message: data.message
+      });
+    } catch (error) {
+      setEmailCheck({
+        checking: false,
+        available: false,
+        message: 'Error checking email'
+      });
+    }
+  }, []);
+
+  // Debounce effect for username
+  useEffect(() => {
+    const username = registerForm.watch("username");
+    const timeoutId = setTimeout(() => {
+      checkUsernameAvailability(username);
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [registerForm.watch("username"), checkUsernameAvailability]);
+
+  // Debounce effect for email
+  useEffect(() => {
+    const email = registerForm.watch("email");
+    const timeoutId = setTimeout(() => {
+      checkEmailAvailability(email);
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [registerForm.watch("email"), checkEmailAvailability]);
 
   const forgotPasswordForm = useForm<ForgotPasswordData>({
     resolver: zodResolver(forgotPasswordSchema),
@@ -292,34 +381,84 @@ export default function AuthForm() {
                 <label htmlFor="username" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
                   Username
                 </label>
-                <Input
-                  id="username"
-                  placeholder="Enter your username"
-                  value={registerForm.watch("username")}
-                  onChange={(e) => {
-                    console.log("Username input change:", e.target.value);
-                    registerForm.setValue("username", e.target.value, { shouldValidate: true });
-                  }}
-                />
+                <div className="relative">
+                  <Input
+                    id="username"
+                    placeholder="Enter your username"
+                    value={registerForm.watch("username")}
+                    onChange={(e) => {
+                      console.log("Username input change:", e.target.value);
+                      registerForm.setValue("username", e.target.value, { shouldValidate: true });
+                    }}
+                    className={`pr-10 ${
+                      usernameCheck.available === true ? 'border-green-500 focus:ring-green-500' :
+                      usernameCheck.available === false ? 'border-red-500 focus:ring-red-500' : ''
+                    }`}
+                  />
+                  <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+                    {usernameCheck.checking ? (
+                      <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+                    ) : usernameCheck.available === true ? (
+                      <Check className="h-4 w-4 text-green-500" />
+                    ) : usernameCheck.available === false ? (
+                      <X className="h-4 w-4 text-red-500" />
+                    ) : null}
+                  </div>
+                </div>
+                {usernameCheck.message && (
+                  <p className={`text-sm font-medium ${
+                    usernameCheck.available === true ? 'text-green-600' : 'text-red-600'
+                  }`}>
+                    {usernameCheck.message}
+                  </p>
+                )}
                 {registerForm.formState.errors.username && (
                   <p className="text-sm font-medium text-destructive">
                     {registerForm.formState.errors.username.message}
                   </p>
                 )}
               </div>
-              <FormField
-                control={registerForm.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Email</FormLabel>
-                    <FormControl>
-                      <Input type="email" placeholder="john@example.com" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
+              <div className="space-y-2">
+                <label htmlFor="email" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                  Email
+                </label>
+                <div className="relative">
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="john@example.com"
+                    value={registerForm.watch("email")}
+                    onChange={(e) => {
+                      registerForm.setValue("email", e.target.value, { shouldValidate: true });
+                    }}
+                    className={`pr-10 ${
+                      emailCheck.available === true ? 'border-green-500 focus:ring-green-500' :
+                      emailCheck.available === false ? 'border-red-500 focus:ring-red-500' : ''
+                    }`}
+                  />
+                  <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+                    {emailCheck.checking ? (
+                      <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+                    ) : emailCheck.available === true ? (
+                      <Check className="h-4 w-4 text-green-500" />
+                    ) : emailCheck.available === false ? (
+                      <X className="h-4 w-4 text-red-500" />
+                    ) : null}
+                  </div>
+                </div>
+                {emailCheck.message && (
+                  <p className={`text-sm font-medium ${
+                    emailCheck.available === true ? 'text-green-600' : 'text-red-600'
+                  }`}>
+                    {emailCheck.message}
+                  </p>
                 )}
-              />
+                {registerForm.formState.errors.email && (
+                  <p className="text-sm font-medium text-destructive">
+                    {registerForm.formState.errors.email.message}
+                  </p>
+                )}
+              </div>
               <FormField
                 control={registerForm.control}
                 name="password"
