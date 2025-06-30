@@ -53,6 +53,9 @@ export default function AuthForm() {
     mode: "onChange",
   });
 
+  // Debug: Watch form values
+  console.log("Register form values:", registerForm.watch());
+
   const forgotPasswordForm = useForm<ForgotPasswordData>({
     resolver: zodResolver(forgotPasswordSchema),
     defaultValues: { email: "" },
@@ -294,11 +297,11 @@ export default function AuthForm() {
                     <FormControl>
                       <Input 
                         placeholder="Enter your username" 
-                        value={field.value || ""}
-                        onChange={field.onChange}
-                        onBlur={field.onBlur}
-                        name={field.name}
-                        ref={field.ref}
+                        {...field}
+                        onChange={(e) => {
+                          console.log("Username input change:", e.target.value);
+                          field.onChange(e);
+                        }}
                       />
                     </FormControl>
                     <FormMessage />
