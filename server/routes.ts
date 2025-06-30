@@ -111,22 +111,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Tournament routes (now protected)
+  // Tournament routes (role-specific access)
+  
+  // Get all live tournaments (for players to view)
   app.get("/api/tournaments", async (req, res) => {
     try {
       const tournaments = await storage.getAllTournaments();
-      res.json(tournaments);
+      // Filter to only show active tournaments for general viewing
+      const liveTournaments = tournaments.filter(t => t.status === 'active');
+      res.json(liveTournaments);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch tournaments" });
     }
   });
 
-  app.post("/api/tournaments", async (req, res) => {
+  // Get tournaments for a specific tournament director (protected)
+  app.get("/api/my-tournaments", requireAuth, requireRole('tournament_director'), async (req, res) => {
     try {
-      const tournament = insertTournamentSchema.parse(req.body);
-      const newTournament = await storage.createTournament(tournament);
+      const user = (req as any).user;
+      const tournaments = await storage.getTournamentsByUser(user.id);
+      res.json(tournaments);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch your tournaments" });
+    }
+  });
+
+  // Create tournament (tournament directors only)
+  app.post("/api/tournaments", requireAuth, requireRole('tournament_director'), async (req, res) => {
+    try {
+      const user = (req as any).user;
+      const tournamentData = insertTournamentSchema.parse(req.body);
+      
+      // Add the creator's user ID
+      const tournamentWithCreator = {
+        ...tournamentData,
+        createdBy: user.id,
+      };
+      
+      const newTournament = await storage.createTournament(tournamentWithCreator);
       res.status(201).json(newTournament);
     } catch (error) {
+      console.error('Tournament creation error:', error);
       res.status(400).json({ message: "Invalid tournament data" });
     }
   });
