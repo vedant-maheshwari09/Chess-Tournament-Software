@@ -968,7 +968,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.log(`Generating Round ${fromRound}. MaxExisting: ${maxExistingRound}, Requested: ${fromRound}`);
           
           const baseMatches = existingMatches; // Use all existing matches for pairing
-          const swissPairings = generateSwissPairings(players, baseMatches, fromRound);
+          const swissPairings = await generateSwissPairings(players, baseMatches, fromRound);
           
           let allNewPairings = [];
           let allNewMatches = [];
@@ -1058,7 +1058,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         // Use all previous matches (base + already regenerated) for pairing calculation
         const matchesForPairing = [...baseMatches, ...allNewMatches];
-        const swissPairings = generateSwissPairings(players, matchesForPairing, round);
+        const swissPairings = await generateSwissPairings(players, matchesForPairing, round);
         
         // Save matches and pairings for this round
         for (const pairing of swissPairings) {
@@ -1398,9 +1398,24 @@ function determineSwissColors(player1: any, player2: any): { whitePlayer: any, b
   }
 }
 
-function generateSwissPairings(players: any[], matches: any[], round: number, existingPairings: any[] = []) {
+async function generateSwissPairings(players: any[], matches: any[], round: number, existingPairings: any[] = []) {
   // Server-side Swiss pairing implementation following USCF rules
   const pairings = [];
+  
+  // Filter out withdrawn players (those with zero-point byes)
+  const tournamentId = players[0]?.tournamentId;
+  if (tournamentId) {
+    const allPairings = await storage.getPairingsByTournament(tournamentId);
+    const withdrawnPlayerIds = new Set(
+      allPairings
+        .filter(p => p.isBye && p.byeType === 'zero_point')
+        .map(p => p.playerId)
+    );
+    
+    // Filter to active players only
+    players = players.filter(p => !withdrawnPlayerIds.has(p.id));
+    console.log(`Active players for round ${round}: ${players.length} (${withdrawnPlayerIds.size} withdrawn)`);
+  }
   
   if (round === 1) {
     // First round: sort by rating and pair upper half vs lower half
