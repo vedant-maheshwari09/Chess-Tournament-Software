@@ -102,7 +102,7 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
             <Trophy className="h-12 w-12 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-semibold mb-2">Tournament Not Found</h3>
             <p className="text-gray-600 mb-4">The tournament you're looking for doesn't exist.</p>
-            <Button onClick={() => setLocation("/dashboard")}>
+            <Button onClick={() => setLocation("/")}>
               Back to Dashboard
             </Button>
           </CardContent>

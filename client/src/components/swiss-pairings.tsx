@@ -21,13 +21,6 @@ export default function SwissPairings({ tournamentId }: SwissPairingsProps) {
   // Get all matches to determine the current round
   const { data: allMatches } = useQuery<Match[]>({
     queryKey: [`/api/tournaments/${tournamentId}/matches`],
-    queryFn: async () => {
-      const response = await fetch(`/api/tournaments/${tournamentId}/matches`, {
-        credentials: "include",
-      });
-      if (!response.ok) throw new Error("Failed to fetch all matches");
-      return response.json();
-    },
   });
 
   // Update current round based on latest matches
@@ -40,13 +33,6 @@ export default function SwissPairings({ tournamentId }: SwissPairingsProps) {
 
   const { data: matches, isLoading } = useQuery<Match[]>({
     queryKey: [`/api/tournaments/${tournamentId}/matches`, { round: currentRound }],
-    queryFn: async () => {
-      const response = await fetch(`/api/tournaments/${tournamentId}/matches?round=${currentRound}`, {
-        credentials: "include",
-      });
-      if (!response.ok) throw new Error("Failed to fetch matches");
-      return response.json();
-    },
   });
 
   const { data: players } = useQuery<Player[]>({
@@ -56,13 +42,6 @@ export default function SwissPairings({ tournamentId }: SwissPairingsProps) {
   // Get pairings to check for byes
   const { data: pairings } = useQuery({
     queryKey: [`/api/tournaments/${tournamentId}/pairings`, { round: currentRound }],
-    queryFn: async () => {
-      const response = await fetch(`/api/tournaments/${tournamentId}/pairings?round=${currentRound}`, {
-        credentials: "include",
-      });
-      if (!response.ok) throw new Error("Failed to fetch pairings");
-      return response.json();
-    },
   });
 
   // Get all pairings to calculate player points
@@ -79,11 +58,13 @@ export default function SwissPairings({ tournamentId }: SwissPairingsProps) {
 
   const generatePairingsMutation = useMutation({
     mutationFn: async ({ regenerate = false }: { regenerate?: boolean } = {}) => {
-      const response = await apiRequest("POST", `/api/tournaments/${tournamentId}/generate-pairings`, {
-        regenerate,
-        targetRound: regenerate ? currentRound : undefined,
+      return await apiRequest(`/api/tournaments/${tournamentId}/generate-pairings`, {
+        method: "POST",
+        body: JSON.stringify({
+          regenerate,
+          targetRound: regenerate ? currentRound : undefined,
+        }),
       });
-      return response.json();
     },
     onSuccess: (data, variables) => {
       toast({

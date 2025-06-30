@@ -9,11 +9,11 @@ interface KnockoutBracketProps {
 
 export default function KnockoutBracket({ tournamentId }: KnockoutBracketProps) {
   const { data: players, isLoading: playersLoading } = useQuery<Player[]>({
-    queryKey: ["/api/tournaments", tournamentId, "players"],
+    queryKey: [`/api/tournaments/${tournamentId}/players`],
   });
 
   const { data: matches, isLoading: matchesLoading } = useQuery<Match[]>({
-    queryKey: ["/api/tournaments", tournamentId, "matches"],
+    queryKey: [`/api/tournaments/${tournamentId}/matches`],
   });
 
   if (playersLoading || matchesLoading) {
