@@ -1558,7 +1558,7 @@ async function generateSwissPairings(players: any[], matches: any[], round: numb
       });
     }
   } else {
-    // Calculate player standings correctly to fix points calculation
+    // Calculate player standings
     const playerStats = players.map(player => {
       const playerMatches = matches.filter(m => 
         m.whitePlayerId === player.id || m.blackPlayerId === player.id
@@ -1569,7 +1569,6 @@ async function generateSwissPairings(players: any[], matches: any[], round: numb
         if (match.result === 'white_wins' && match.whitePlayerId === player.id) points += 1;
         else if (match.result === 'black_wins' && match.blackPlayerId === player.id) points += 1;
         else if (match.result === 'draw') points += 0.5;
-        // This should fix Player 8's incorrect 1.5 points
       }
       
       return { player, points };
@@ -1579,11 +1578,6 @@ async function generateSwissPairings(players: any[], matches: any[], round: numb
     const sortedPlayers = [...playerStats].sort((a, b) => {
       if (b.points !== a.points) return b.points - a.points;
       return (b.player.rating || 0) - (a.player.rating || 0);
-    });
-    
-    console.log('Current standings:');
-    sortedPlayers.forEach((p, i) => {
-      console.log(`${i+1}. ${p.player.firstName} ${p.player.lastName}: ${p.points} points`);
     });
     
     // Helper function to check if two players have played before
@@ -1596,7 +1590,7 @@ async function generateSwissPairings(players: any[], matches: any[], round: numb
     
     // User's exact Round 3 pairing logic: Player 3 vs 4, Player 1 vs 6, Player 5 vs 7, Player 2 vs 8
     if (round === 3 && sortedPlayers.length >= 8) {
-      const p1 = sortedPlayers[0]; // Highest points
+      const p1 = sortedPlayers[0];
       const p2 = sortedPlayers[1];
       const p3 = sortedPlayers[2];
       const p4 = sortedPlayers[3];
@@ -1607,9 +1601,9 @@ async function generateSwissPairings(players: any[], matches: any[], round: numb
       
       console.log('Round 3 - User specified pairings:');
       console.log(`Board 1: ${p3.player.firstName} vs ${p4.player.firstName}`);
-      console.log(`Board 2: ${p1.player.firstName} vs ${p6.player.firstName} (Player 1 already played 5)`);
-      console.log(`Board 3: ${p5.player.firstName} vs ${p7.player.firstName} (Player 5 pushed down)`);
-      console.log(`Board 4: ${p2.player.firstName} vs ${p8.player.firstName} (Player 2 can't play 7 or 5)`);
+      console.log(`Board 2: ${p1.player.firstName} vs ${p6.player.firstName}`);
+      console.log(`Board 3: ${p5.player.firstName} vs ${p7.player.firstName}`);
+      console.log(`Board 4: ${p2.player.firstName} vs ${p8.player.firstName}`);
       
       pairings.push({
         whitePlayerId: p3.player.id,
@@ -1639,7 +1633,7 @@ async function generateSwissPairings(players: any[], matches: any[], round: numb
         isBye: false,
       });
     } else {
-      // Simple greedy algorithm for other rounds
+      // Fallback: simple greedy algorithm
       const unpaired = [...sortedPlayers];
       let boardNumber = 1;
       
@@ -1648,15 +1642,12 @@ async function generateSwissPairings(players: any[], matches: any[], round: numb
         let bestOpponent = null;
         let bestOpponentIndex = -1;
         
-        console.log(`Finding opponent for ${player1.player.firstName} (${player1.points}pts)`);
-        
         for (let i = 0; i < unpaired.length; i++) {
           const candidate = unpaired[i];
           
           if (!havePlayed(player1.player.id, candidate.player.id)) {
             bestOpponent = candidate;
             bestOpponentIndex = i;
-            console.log(`  ✓ PAIRED: ${player1.player.firstName} vs ${candidate.player.firstName}`);
             break;
           }
         }
@@ -1671,7 +1662,6 @@ async function generateSwissPairings(players: any[], matches: any[], round: numb
             isBye: false,
           });
         } else {
-          console.log(`  No new opponent for ${player1.player.firstName} - giving bye`);
           pairings.push({
             whitePlayerId: player1.player.id,
             blackPlayerId: null,
@@ -1684,7 +1674,6 @@ async function generateSwissPairings(players: any[], matches: any[], round: numb
       
       if (unpaired.length === 1) {
         const finalPlayer = unpaired[0];
-        console.log(`Final bye: ${finalPlayer.player.firstName}`);
         pairings.push({
           whitePlayerId: finalPlayer.player.id,
           blackPlayerId: null,
@@ -1699,3 +1688,496 @@ async function generateSwissPairings(players: any[], matches: any[], round: numb
   return pairings;
 }
 
+function sortPairingsByPointTotal(pairings: any[], players: any[], matches: any[], existingPairings: any[] = []): any[] {
+  console.log('=== SIMPLE SWISS PAIRING ALGORITHM ===');
+  const pairings: any[] = [];
+  
+  // Filter out withdrawn players and players with existing byes for this round
+  const tournamentId = players[0]?.tournamentId;
+  if (tournamentId) {
+    const allPairings = await storage.getPairingsByTournament(tournamentId);
+    
+    // Get withdrawn players (those with zero-point byes)
+    const withdrawnPlayerIds = new Set(
+      allPairings
+        .filter(p => p.isBye && p.byeType === 'zero_point')
+        .map(p => p.playerId)
+    );
+    
+    // Get players with specific bye requests for this round
+    const roundByePlayerIds = new Set(
+      allPairings
+        .filter(p => p.round === round && p.isBye)
+        .map(p => p.playerId)
+    );
+    
+    // Filter to active players only (not withdrawn and no existing bye for this round)
+    const withdrawnIds = Array.from(withdrawnPlayerIds);
+    const roundByeIds = Array.from(roundByePlayerIds);
+    const excludedIds = [...withdrawnIds, ...roundByeIds];
+    players = players.filter(p => !excludedIds.includes(p.id));
+    
+    console.log(`Active players for round ${round}: ${players.length} (${withdrawnPlayerIds.size} withdrawn, ${roundByePlayerIds.size} with round byes)`);
+  }
+  
+  if (round === 1) {
+    // First round: sort by rating, then alphabetical, then by ID for consistent seeding
+    const sortedPlayers = players.sort((a, b) => {
+      const ratingDiff = (b.rating || 0) - (a.rating || 0);
+      if (ratingDiff !== 0) return ratingDiff;
+      
+      // If ratings are equal, sort alphabetically by first name, then last name
+      const firstNameCmp = (a.firstName || '').localeCompare(b.firstName || '');
+      if (firstNameCmp !== 0) return firstNameCmp;
+      
+      const lastNameCmp = (a.lastName || '').localeCompare(b.lastName || '');
+      if (lastNameCmp !== 0) return lastNameCmp;
+      
+      // If names are also equal, sort by ID for consistent ordering
+      return a.id - b.id;
+    });
+    const n = sortedPlayers.length;
+    const isOdd = n % 2 === 1;
+    
+    const mid = Math.floor(n / 2);
+    const upperHalf = sortedPlayers.slice(0, mid);
+    const lowerHalf = sortedPlayers.slice(mid);
+    
+    const firstBoardWhiteIsUpper = Math.random() < 0.5;
+    let boardNumber = 1;
+    
+    // Pair upper half vs lower half
+    for (let i = 0; i < upperHalf.length && i < lowerHalf.length; i++) {
+      const upperPlayer = upperHalf[i];
+      const lowerPlayer = lowerHalf[i];
+      
+      const upperPlayerIsWhite = i === 0 ? firstBoardWhiteIsUpper : (i % 2 === 0) === firstBoardWhiteIsUpper;
+      
+      pairings.push({
+        whitePlayerId: upperPlayerIsWhite ? upperPlayer.id : lowerPlayer.id,
+        blackPlayerId: upperPlayerIsWhite ? lowerPlayer.id : upperPlayer.id,
+        board: boardNumber++,
+        isBye: false,
+      });
+    }
+    
+    // Handle odd player (half-point bye to lowest rated player)
+    if (isOdd) {
+      const byePlayer = sortedPlayers[sortedPlayers.length - 1]; // Lowest rated player
+      pairings.push({
+        whitePlayerId: byePlayer.id,
+        blackPlayerId: null,
+        board: 0, // Bye doesn't get a board
+        isBye: true,
+        byeType: 'half_point', // Half-point bye for odd number
+      });
+    }
+  } else {
+    // Subsequent rounds: PRIORITY #1 = NO REPEAT PAIRINGS
+    const playerStats = calculatePlayerStats(players, matches, existingPairings);
+    console.log('=== SWISS PAIRING: SIMPLE GREEDY ALGORITHM ===');
+    
+    // Sort all players by points (highest first), then by rating
+    const allPlayers = [...playerStats].sort((a: any, b: any) => {
+      if (b.points !== a.points) return b.points - a.points;
+      return (b.player.rating || 0) - (a.player.rating || 0);
+    });
+    
+    const unpaired = [...allPlayers];
+    let boardNumber = 1;
+    
+    // Simple greedy approach: For each player, find the first opponent they haven't played
+    while (unpaired.length > 1) {
+      const player1 = unpaired.shift()!;
+      let bestOpponent = null;
+      let bestOpponentIndex = -1;
+      
+      console.log(`Finding opponent for ${player1.player.firstName} (${player1.points}pts)`);
+      
+      // Search for first opponent they haven't played
+      for (let i = 0; i < unpaired.length; i++) {
+        const candidate = unpaired[i];
+        
+        // Skip self (safety check)
+        if (player1.player.id === candidate.player.id) continue;
+        
+        // Check if they've played before
+        const hasPlayed = havePlayed(player1.player.id, candidate.player.id, matches);
+        console.log(`  vs ${candidate.player.firstName} (${candidate.points}pts): hasPlayed=${hasPlayed}`);
+        
+        if (!hasPlayed) {
+          bestOpponent = candidate;
+          bestOpponentIndex = i;
+          console.log(`  ✓ PAIRED: ${player1.player.firstName} vs ${candidate.player.firstName}`);
+          break;
+        }
+      }
+      
+      if (bestOpponent) {
+        // Remove opponent from list
+        unpaired.splice(bestOpponentIndex, 1);
+        
+        // Determine colors
+        const colors = determineSwissColors(player1, bestOpponent);
+        
+        pairings.push({
+          whitePlayerId: colors.whitePlayer.id,
+          blackPlayerId: colors.blackPlayer.id,
+          board: boardNumber++,
+          isBye: false,
+        });
+      } else {
+        console.log(`  No new opponent for ${player1.player.firstName} - giving bye`);
+        pairings.push({
+          whitePlayerId: player1.player.id,
+          blackPlayerId: null,
+          board: 0,
+          isBye: true,
+          byeType: 'half_point',
+        });
+      }
+    }
+    
+    // Handle final player with bye if needed
+    if (unpaired.length === 1) {
+      const finalPlayer = unpaired[0];
+      console.log(`Final bye: ${finalPlayer.player.firstName}`);
+      pairings.push({
+        whitePlayerId: finalPlayer.player.id,
+        blackPlayerId: null,
+        board: 0,
+        isBye: true,
+        byeType: 'half_point',
+      });
+    }
+  
+  return pairings;
+}
+      unpaired.length = 0; // Clear unpaired array
+      
+      // Special case: If we have exactly one player from higher group and current group has players
+      // Pair the higher-scored player with highest-rated player from current group
+      if (playersToProcess.length > scoreGroup.length && 
+          playersToProcess.length - scoreGroup.length === 1 && 
+          scoreGroup.length > 0) {
+        
+        const higherScoredPlayer = playersToProcess[0]; // First player is from higher group
+        const currentGroupSorted = scoreGroup.sort((a, b) => (b.player.rating || 0) - (a.player.rating || 0));
+        const highestRatedInGroup = currentGroupSorted[0];
+        
+        // Pair them together
+        const colors = determineSwissColors(higherScoredPlayer, highestRatedInGroup);
+        pairings.push({
+          whitePlayerId: colors.whitePlayer.id,
+          blackPlayerId: colors.blackPlayer.id,
+          board: boardNumber++,
+          isBye: false,
+        });
+        
+        // Remove the paired players and continue with remaining players
+        const remainingPlayers = currentGroupSorted.slice(1);
+        const pairedInGroup = pairUpperVsLowerHalf(remainingPlayers, matches, round);
+        
+        // Add remaining successful pairings
+        for (const [player1, player2] of pairedInGroup.paired) {
+          const colors = determineSwissColors(player1, player2);
+          
+          pairings.push({
+            whitePlayerId: colors.whitePlayer.id,
+            blackPlayerId: colors.blackPlayer.id,
+            board: boardNumber++,
+            isBye: false,
+          });
+        }
+        
+        // Carry over any remaining unpaired players
+        unpaired.push(...pairedInGroup.unpaired);
+        
+      } else {
+        // Normal within-group pairing
+        // Swiss rule: If odd number in score group, lowest-seeded player drops to next group
+        if (playersToProcess.length % 2 === 1) {
+          const lowestSeeded = playersToProcess.pop(); // Remove lowest-seeded player
+          unpaired.push(lowestSeeded!); // Push to next score group
+          
+          console.log(`Odd group: Pushing lowest-seeded player ${lowestSeeded!.player.firstName} ${lowestSeeded!.player.lastName} to next score group`);
+        }
+        
+        // For the remaining even number of players, pair them within the score group
+        // Priority: Avoid repeat pairings (USCF Rule #1 is highest priority)
+        const remainingPlayers = [...playersToProcess];
+        
+        while (remainingPlayers.length >= 2) {
+          const player1 = remainingPlayers.shift()!;
+          let bestOpponent = null;
+          let bestIndex = -1;
+          
+          // Find the best opponent that they haven't played before
+          for (let i = 0; i < remainingPlayers.length; i++) {
+            const potentialOpponent = remainingPlayers[i];
+            
+            // Never pair a player against themselves
+            if (player1.player.id === potentialOpponent.player.id) {
+              console.log(`Skipping self-pairing: ${player1.player.firstName} (${player1.player.id}) cannot play themselves`);
+              continue;
+            }
+            
+            const hasPlayedBefore = havePlayed(player1.player.id, potentialOpponent.player.id, matches);
+            console.log(`Within-group check: ${player1.player.firstName} (${player1.player.id}) vs ${potentialOpponent.player.firstName} (${potentialOpponent.player.id}): hasPlayed=${hasPlayedBefore}`);
+            
+            if (!hasPlayedBefore) {
+              bestOpponent = potentialOpponent;
+              bestIndex = i;
+              console.log(`Found valid within-group opponent: ${player1.player.firstName} vs ${potentialOpponent.player.firstName}`);
+              break; // Take first available opponent (maintains rating order)
+            }
+          }
+          
+          if (bestOpponent) {
+            // Found a valid opponent within the score group
+            remainingPlayers.splice(bestIndex, 1);
+            
+            const colors = determineSwissColors(player1, bestOpponent);
+            
+            pairings.push({
+              whitePlayerId: colors.whitePlayer.id,
+              blackPlayerId: colors.blackPlayer.id,
+              board: boardNumber++,
+              isBye: false,
+            });
+          } else {
+            // No valid opponent in this score group - push to unpaired for cross-score-group pairing
+            console.log(`No valid within-group opponent for ${player1.player.firstName} - pushing to cross-score-group pairing`);
+            unpaired.push(player1);
+            
+            // Also push all remaining players to unpaired (they need cross-score-group pairing too)
+            for (const remainingPlayer of remainingPlayers) {
+              // Check for duplicates before adding
+              const isDuplicate = unpaired.some(existing => existing.player.id === remainingPlayer.player.id);
+              if (!isDuplicate) {
+                unpaired.push(remainingPlayer);
+              }
+            }
+            break; // Exit the loop since we're moving to cross-score-group pairing
+          }
+        }
+        
+        // Any remaining single player goes to unpaired
+        if (remainingPlayers.length === 1) {
+          unpaired.push(remainingPlayers[0]);
+        }
+      }
+    }
+    
+    // Debug: Show all unpaired players before cross-score-group pairing
+    console.log(`Cross-score-group pairing: ${unpaired.length} unpaired players:`, 
+      unpaired.map(p => `${p.player.firstName} ${p.player.lastName} (${p.points}pts, ID:${p.player.id})`));
+    
+    // Handle final unpaired players (cross-score-group pairing if needed)
+    while (unpaired.length > 1) {
+      const player1 = unpaired.shift()!;
+      let pairedPlayer = null;
+      let pairedIndex = -1;
+      
+      // First try to find a player they haven't played before (USCF Rule #1: avoid repeat pairings when possible)
+      console.log(`Looking for opponent for ${player1.player.firstName} ${player1.player.lastName} (ID: ${player1.player.id})`);
+      for (let i = 0; i < unpaired.length; i++) {
+        const potentialOpponent = unpaired[i];
+        
+        // Never pair a player against themselves
+        if (player1.player.id === potentialOpponent.player.id) {
+          console.log(`  Skipping self-pairing: ${player1.player.firstName} (${player1.player.id}) cannot play themselves`);
+          continue;
+        }
+        
+        const hasPlayedBefore = havePlayed(player1.player.id, potentialOpponent.player.id, matches);
+        console.log(`  Checking vs ${potentialOpponent.player.firstName} ${potentialOpponent.player.lastName} (ID: ${potentialOpponent.player.id}): hasPlayed=${hasPlayedBefore}`);
+        
+        if (!hasPlayedBefore) {
+          pairedPlayer = potentialOpponent;
+          pairedIndex = i;
+          console.log(`  ✓ Found valid opponent: ${player1.player.firstName} vs ${potentialOpponent.player.firstName}`);
+          break;
+        }
+      }
+      
+      // If no new opponent found, allow repeat pairing (USCF allows this when necessary)
+      if (!pairedPlayer && unpaired.length > 0) {
+        pairedPlayer = unpaired[0];
+        pairedIndex = 0;
+        console.log(`  No new opponent available: allowing repeat pairing ${player1.player.firstName} vs ${pairedPlayer.player.firstName}`);
+      }
+      
+      if (pairedPlayer) {
+        // Remove the paired player from unpaired list
+        unpaired.splice(pairedIndex, 1);
+        
+        const colors = determineSwissColors(player1, pairedPlayer);
+        
+        pairings.push({
+          whitePlayerId: colors.whitePlayer.id,
+          blackPlayerId: colors.blackPlayer.id,
+          board: boardNumber++,
+          isBye: false,
+        });
+      }
+    }
+    
+    // Handle any remaining player with automatic bye
+    if (unpaired.length === 1) {
+      const byePlayer = unpaired[0];
+      
+      // Check if this player already has a full-point bye (USCF rule: max one full-point bye per player)
+      const allPairings = await storage.getPairingsByTournament(tournamentId);
+      const playerFullPointByes = allPairings.filter((p: any) => 
+        p.playerId === byePlayer.player.id && 
+        p.isBye && 
+        p.byeType === 'full_point'
+      ).length;
+      
+      const byeType = playerFullPointByes > 0 ? 'half_point' : 'full_point';
+      const byeDescription = byeType === 'full_point' ? '1-point' : '½-point';
+      
+      console.log(`Automatic ${byeDescription} bye assigned to: ${byePlayer.player.firstName} ${byePlayer.player.lastName} (${byePlayer.player.rating}) - Full byes: ${playerFullPointByes}`);
+      
+      pairings.push({
+        whitePlayerId: byePlayer.player.id,
+        blackPlayerId: null,
+        board: 0,
+        isBye: true,
+        byeType: byeType,
+        isRequested: false, // Automatic bye assignment
+      });
+    }
+  }
+  
+  // Sort pairings by board order - highest point totals on top boards
+  return sortPairingsByPointTotal(pairings, players, matches, existingPairings);
+}
+
+function sortPairingsByPointTotal(pairings: any[], players: any[], matches: any[], existingPairings: any[] = []): any[] {
+  // Create a map for quick player stats lookup
+  const playerStats = calculatePlayerStats(players, matches, existingPairings);
+  const statsMap = new Map();
+  playerStats.forEach((stat: any) => {
+    statsMap.set(stat.player.id, {
+      points: stat.points,
+      rating: stat.player.rating || 0
+    });
+  });
+
+  // Sort pairings by HIGHEST individual player points first, then rating (USCF Board 1 rule)
+  const sortedPairings = pairings.filter(p => !p.isBye).sort((a, b) => {
+    const aWhiteStats = statsMap.get(a.whitePlayerId);
+    const aBlackStats = statsMap.get(a.blackPlayerId);
+    const bWhiteStats = statsMap.get(b.whitePlayerId);
+    const bBlackStats = statsMap.get(b.blackPlayerId);
+
+    if (!aWhiteStats || !aBlackStats || !bWhiteStats || !bBlackStats) return 0;
+
+    // Get the HIGHEST points player on each board (this determines board order)
+    const aHighestPoints = Math.max(aWhiteStats.points, aBlackStats.points);
+    const bHighestPoints = Math.max(bWhiteStats.points, bBlackStats.points);
+
+    // First priority: Board with highest individual points goes first
+    if (aHighestPoints !== bHighestPoints) {
+      return bHighestPoints - aHighestPoints;
+    }
+
+    // Tiebreaker: If highest points are equal, use highest rating among the highest-point players
+    let aHighestRating = 0;
+    let bHighestRating = 0;
+    
+    // Get rating of the highest-point player(s) on each board
+    if (aWhiteStats.points === aHighestPoints) {
+      aHighestRating = Math.max(aHighestRating, aWhiteStats.rating);
+    }
+    if (aBlackStats.points === aHighestPoints) {
+      aHighestRating = Math.max(aHighestRating, aBlackStats.rating);
+    }
+    if (bWhiteStats.points === bHighestPoints) {
+      bHighestRating = Math.max(bHighestRating, bWhiteStats.rating);
+    }
+    if (bBlackStats.points === bHighestPoints) {
+      bHighestRating = Math.max(bHighestRating, bBlackStats.rating);
+    }
+
+    return bHighestRating - aHighestRating;
+  });
+
+  // Add bye pairings at the end
+  const byePairings = pairings.filter(p => p.isBye);
+
+  // Reassign board numbers
+  const result = [...sortedPairings, ...byePairings];
+  result.forEach((pairing, index) => {
+    pairing.board = pairing.isBye ? 0 : index + 1;
+  });
+
+  return result;
+}
+
+function calculatePlayerStats(players: any[], matches: any[], pairings: any[] = []) {
+  return players.map(player => {
+    const playerMatches = matches.filter(
+      match => match.whitePlayerId === player.id || match.blackPlayerId === player.id
+    ).sort((a, b) => a.round - b.round); // Sort by round to get last color correctly
+
+    let points = 0;
+    let whiteGames = 0;
+    let blackGames = 0;
+    let lastColor = null;
+
+    playerMatches.forEach(match => {
+      const isWhite = match.whitePlayerId === player.id;
+      
+      // Track color history
+      if (isWhite) {
+        whiteGames++;
+        lastColor = 'white';
+      } else {
+        blackGames++;
+        lastColor = 'black';
+      }
+
+      // Only count points for completed games
+      if (!match.result) return;
+
+      if (match.result === '1-0') {
+        points += isWhite ? 1 : 0;
+      } else if (match.result === '0-1') {
+        points += isWhite ? 0 : 1;
+      } else if (match.result === '1/2-1/2') {
+        points += 0.5;
+      }
+    });
+
+    // Add points from bye pairings (convert from integer mapping: 0=0pts, 1=0.5pts, 2=1pt)
+    if (pairings && Array.isArray(pairings)) {
+      const playerByes = pairings.filter(pairing => 
+        pairing.playerId === player.id && pairing.isBye && pairing.points !== null
+      );
+      
+      playerByes.forEach(bye => {
+        const byePoints = bye.points === 1 ? 0.5 : bye.points === 2 ? 1 : 0;
+        points += byePoints;
+      });
+    }
+
+    return {
+      player,
+      points,
+      whiteGames,
+      blackGames,
+      colorBalance: whiteGames - blackGames,
+      lastColor, // Track last color for alternation rule
+    };
+  });
+}
+
+function havePlayed(playerId1: number, playerId2: number, matches: any[]): boolean {
+  return matches.some(match => 
+    (match.whitePlayerId === playerId1 && match.blackPlayerId === playerId2) ||
+    (match.whitePlayerId === playerId2 && match.blackPlayerId === playerId1)
+  );
+}
