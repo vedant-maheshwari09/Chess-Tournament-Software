@@ -1679,9 +1679,13 @@ async function generateSwissPairings(players: any[], matches: any[], round: numb
           // Find the best opponent that they haven't played before
           for (let i = 0; i < remainingPlayers.length; i++) {
             const potentialOpponent = remainingPlayers[i];
-            if (!havePlayed(player1.player.id, potentialOpponent.player.id, matches)) {
+            const hasPlayedBefore = havePlayed(player1.player.id, potentialOpponent.player.id, matches);
+            console.log(`Checking ${player1.player.firstName} (${player1.player.id}) vs ${potentialOpponent.player.firstName} (${potentialOpponent.player.id}): hasPlayed=${hasPlayedBefore}`);
+            
+            if (!hasPlayedBefore) {
               bestOpponent = potentialOpponent;
               bestIndex = i;
+              console.log(`Found valid opponent: ${player1.player.firstName} vs ${potentialOpponent.player.firstName}`);
               break; // Take first available opponent (maintains rating order)
             }
           }
