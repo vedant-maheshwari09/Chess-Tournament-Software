@@ -1718,6 +1718,10 @@ async function generateSwissPairings(players: any[], matches: any[], round: numb
       }
     }
     
+    // Debug: Show all unpaired players before cross-score-group pairing
+    console.log(`Cross-score-group pairing: ${unpaired.length} unpaired players:`, 
+      unpaired.map(p => `${p.player.firstName} ${p.player.lastName} (${p.points}pts, ID:${p.player.id})`));
+    
     // Handle final unpaired players (cross-score-group pairing if needed)
     while (unpaired.length > 1) {
       const player1 = unpaired.shift()!;
