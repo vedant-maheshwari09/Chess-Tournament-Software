@@ -1680,24 +1680,18 @@ async function generateSwissPairings(players: any[], matches: any[], round: numb
           for (let i = 0; i < remainingPlayers.length; i++) {
             const potentialOpponent = remainingPlayers[i];
             const hasPlayedBefore = havePlayed(player1.player.id, potentialOpponent.player.id, matches);
-            console.log(`Checking ${player1.player.firstName} (${player1.player.id}) vs ${potentialOpponent.player.firstName} (${potentialOpponent.player.id}): hasPlayed=${hasPlayedBefore}`);
+            console.log(`Within-group check: ${player1.player.firstName} (${player1.player.id}) vs ${potentialOpponent.player.firstName} (${potentialOpponent.player.id}): hasPlayed=${hasPlayedBefore}`);
             
             if (!hasPlayedBefore) {
               bestOpponent = potentialOpponent;
               bestIndex = i;
-              console.log(`Found valid opponent: ${player1.player.firstName} vs ${potentialOpponent.player.firstName}`);
+              console.log(`Found valid within-group opponent: ${player1.player.firstName} vs ${potentialOpponent.player.firstName}`);
               break; // Take first available opponent (maintains rating order)
             }
           }
           
-          // If no new opponent, take the next available (allow repeat pairing only when absolutely necessary)
-          if (!bestOpponent && remainingPlayers.length > 0) {
-            bestOpponent = remainingPlayers[0];
-            bestIndex = 0;
-            console.log(`No new opponent available: allowing repeat pairing ${player1.player.firstName} vs ${bestOpponent.player.firstName}`);
-          }
-          
           if (bestOpponent) {
+            // Found a valid opponent within the score group
             remainingPlayers.splice(bestIndex, 1);
             
             const colors = determineSwissColors(player1, bestOpponent);
@@ -1708,6 +1702,14 @@ async function generateSwissPairings(players: any[], matches: any[], round: numb
               board: boardNumber++,
               isBye: false,
             });
+          } else {
+            // No valid opponent in this score group - push to unpaired for cross-score-group pairing
+            console.log(`No valid within-group opponent for ${player1.player.firstName} - pushing to cross-score-group pairing`);
+            unpaired.push(player1);
+            
+            // Also push all remaining players to unpaired (they need cross-score-group pairing too)
+            unpaired.push(...remainingPlayers);
+            break; // Exit the loop since we're moving to cross-score-group pairing
           }
         }
         
