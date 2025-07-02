@@ -1469,8 +1469,21 @@ async function generateSwissPairings(players: any[], matches: any[], round: numb
   }
   
   if (round === 1) {
-    // First round: sort by rating and pair upper half vs lower half
-    const sortedPlayers = players.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+    // First round: sort by rating, then alphabetical, then by ID for consistent seeding
+    const sortedPlayers = players.sort((a, b) => {
+      const ratingDiff = (b.rating || 0) - (a.rating || 0);
+      if (ratingDiff !== 0) return ratingDiff;
+      
+      // If ratings are equal, sort alphabetically by first name, then last name
+      const firstNameCmp = (a.firstName || '').localeCompare(b.firstName || '');
+      if (firstNameCmp !== 0) return firstNameCmp;
+      
+      const lastNameCmp = (a.lastName || '').localeCompare(b.lastName || '');
+      if (lastNameCmp !== 0) return lastNameCmp;
+      
+      // If names are also equal, sort by ID for consistent ordering
+      return a.id - b.id;
+    });
     const n = sortedPlayers.length;
     const isOdd = n % 2 === 1;
     
