@@ -11,7 +11,7 @@ export function useAuth() {
   const queryClient = useQueryClient();
 
   // Get current user from token
-  const { data: user, isLoading, error } = useQuery({
+  const { data: user, isLoading, error } = useQuery<User>({
     queryKey: ["/api/auth/me"],
     retry: false,
     enabled: !!localStorage.getItem("auth_token"),

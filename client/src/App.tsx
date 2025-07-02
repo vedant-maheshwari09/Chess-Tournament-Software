@@ -1,4 +1,4 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, Redirect } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -49,9 +49,10 @@ function AuthenticatedApp() {
 
       {/* Role-based Routing */}
       <Switch>
-        {user.role === 'tournament_director' ? (
+        {(user as any)?.role === 'tournament_director' ? (
           <>
             <Route path="/" component={TournamentDirectorDashboard} />
+            <Route path="/dashboard" component={TournamentDirectorDashboard} />
             <Route path="/tournaments/new" component={TournamentCreation} />
             <Route path="/tournaments/:id/manage">
               {(params) => <TournamentManagement tournamentId={parseInt(params.id)} />}
@@ -62,6 +63,7 @@ function AuthenticatedApp() {
         ) : (
           <>
             <Route path="/" component={PlayerDashboard} />
+            <Route path="/dashboard" component={PlayerDashboard} />
             <Route path="/tournaments/:id/view" component={TournamentView} />
             <Route component={NotFound} />
           </>
