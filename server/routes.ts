@@ -1696,7 +1696,7 @@ async function generateSwissPairings(players: any[], matches: any[], round: numb
       let pairedPlayer = null;
       let pairedIndex = -1;
       
-      // Find a player they haven't played before (USCF Rule #1: avoid repeat pairings)
+      // First try to find a player they haven't played before (USCF Rule #1: avoid repeat pairings when possible)
       for (let i = 0; i < unpaired.length; i++) {
         const potentialOpponent = unpaired[i];
         if (!havePlayed(player1.player.id, potentialOpponent.player.id, matches)) {
@@ -1704,6 +1704,13 @@ async function generateSwissPairings(players: any[], matches: any[], round: numb
           pairedIndex = i;
           break;
         }
+      }
+      
+      // If no new opponent found, allow repeat pairing (USCF allows this when necessary)
+      if (!pairedPlayer && unpaired.length > 0) {
+        pairedPlayer = unpaired[0];
+        pairedIndex = 0;
+        console.log(`Allowing repeat pairing: ${player1.player.firstName} ${player1.player.lastName} vs ${pairedPlayer.player.firstName} ${pairedPlayer.player.lastName} (necessary for Swiss system)`);
       }
       
       if (pairedPlayer) {
@@ -1717,19 +1724,6 @@ async function generateSwissPairings(players: any[], matches: any[], round: numb
           blackPlayerId: colors.blackPlayer.id,
           board: boardNumber++,
           isBye: false,
-        });
-      } else {
-        // No valid opponent found - this shouldn't happen in a well-managed tournament
-        // Give the player a bye instead
-        console.warn(`No valid opponent found for ${player1.player.firstName} ${player1.player.lastName} - giving bye`);
-        
-        pairings.push({
-          whitePlayerId: player1.player.id,
-          blackPlayerId: null,
-          board: 0,
-          isBye: true,
-          byeType: 'half_point',
-          isRequested: false,
         });
       }
     }
