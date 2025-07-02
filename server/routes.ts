@@ -1668,24 +1668,48 @@ async function generateSwissPairings(players: any[], matches: any[], round: numb
         }
         
         // For the remaining even number of players, pair them within the score group
-        while (playersToProcess.length >= 2) {
-          // Take the highest two available players and pair them
-          const player1 = playersToProcess.shift()!;
-          const player2 = playersToProcess.shift()!;
+        // Priority: Avoid repeat pairings (USCF Rule #1 is highest priority)
+        const remainingPlayers = [...playersToProcess];
+        
+        while (remainingPlayers.length >= 2) {
+          const player1 = remainingPlayers.shift()!;
+          let bestOpponent = null;
+          let bestIndex = -1;
           
-          const colors = determineSwissColors(player1, player2);
+          // Find the best opponent that they haven't played before
+          for (let i = 0; i < remainingPlayers.length; i++) {
+            const potentialOpponent = remainingPlayers[i];
+            if (!havePlayed(player1.player.id, potentialOpponent.player.id, matches)) {
+              bestOpponent = potentialOpponent;
+              bestIndex = i;
+              break; // Take first available opponent (maintains rating order)
+            }
+          }
           
-          pairings.push({
-            whitePlayerId: colors.whitePlayer.id,
-            blackPlayerId: colors.blackPlayer.id,
-            board: boardNumber++,
-            isBye: false,
-          });
+          // If no new opponent, take the next available (allow repeat pairing only when absolutely necessary)
+          if (!bestOpponent && remainingPlayers.length > 0) {
+            bestOpponent = remainingPlayers[0];
+            bestIndex = 0;
+            console.log(`No new opponent available: allowing repeat pairing ${player1.player.firstName} vs ${bestOpponent.player.firstName}`);
+          }
+          
+          if (bestOpponent) {
+            remainingPlayers.splice(bestIndex, 1);
+            
+            const colors = determineSwissColors(player1, bestOpponent);
+            
+            pairings.push({
+              whitePlayerId: colors.whitePlayer.id,
+              blackPlayerId: colors.blackPlayer.id,
+              board: boardNumber++,
+              isBye: false,
+            });
+          }
         }
         
-        // Any remaining single player goes to unpaired (shouldn't happen with proper odd handling)
-        if (playersToProcess.length === 1) {
-          unpaired.push(playersToProcess[0]);
+        // Any remaining single player goes to unpaired
+        if (remainingPlayers.length === 1) {
+          unpaired.push(remainingPlayers[0]);
         }
       }
     }
