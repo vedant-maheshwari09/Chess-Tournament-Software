@@ -340,7 +340,7 @@ export default function SwissPairings({ tournamentId }: SwissPairingsProps) {
             )}
           </div>
           
-          <div className="flex space-x-3">
+          <div className="flex flex-wrap gap-2">
             {/* Generate Next Round Button - show differently based on tournament completion */}
             {tournament && tournament.rounds && currentRound >= tournament.rounds ? (
               /* Tournament has reached planned rounds - show as extension */
@@ -349,8 +349,9 @@ export default function SwissPairings({ tournamentId }: SwissPairingsProps) {
                   <Button
                     disabled={generatePairingsMutation.isPending}
                     className="bg-green-600 hover:bg-green-700"
+                    size="sm"
                   >
-                    <Play className="h-4 w-4 mr-2" />
+                    <Play className="h-4 w-4 mr-1" />
                     {generatePairingsMutation.isPending ? "Generating..." : `Generate Round ${currentRound + 1}`}
                   </Button>
                 </AlertDialogTrigger>
@@ -379,8 +380,9 @@ export default function SwissPairings({ tournamentId }: SwissPairingsProps) {
                   <Button
                     disabled={generatePairingsMutation.isPending}
                     className="bg-green-600 hover:bg-green-700"
+                    size="sm"
                   >
-                    <Play className="h-4 w-4 mr-2" />
+                    <Play className="h-4 w-4 mr-1" />
                     {generatePairingsMutation.isPending ? "Generating..." : "Generate Next Round"}
                   </Button>
                 </AlertDialogTrigger>
@@ -411,8 +413,9 @@ export default function SwissPairings({ tournamentId }: SwissPairingsProps) {
                   variant="outline"
                   disabled={finishTournamentMutation.isPending}
                   className="border-blue-600 text-blue-600 hover:bg-blue-50"
+                  size="sm"
                 >
-                  <Chess className="h-4 w-4 mr-2" />
+                  <Chess className="h-4 w-4 mr-1" />
                   {finishTournamentMutation.isPending ? "Finishing..." : "Finish Tournament"}
                 </Button>
               </AlertDialogTrigger>
@@ -443,8 +446,9 @@ export default function SwissPairings({ tournamentId }: SwissPairingsProps) {
                 <Button
                   variant="outline"
                   disabled={generatePairingsMutation.isPending}
+                  size="sm"
                 >
-                  <RefreshCw className="h-4 w-4 mr-2" />
+                  <RefreshCw className="h-4 w-4 mr-1" />
                   Repair
                 </Button>
               </AlertDialogTrigger>
@@ -467,24 +471,25 @@ export default function SwissPairings({ tournamentId }: SwissPairingsProps) {
               </AlertDialogContent>
             </AlertDialog>
 
-            {/* Manual Regenerate Future Rounds - show only when viewing past rounds with future rounds existing */}
-            {allMatches && allMatches.length > 0 && currentRound < Math.max(...allMatches.map(m => m.round)) && (
+            {/* Regenerate Future Rounds - available on every round if future rounds exist */}
+            {allMatches && allMatches.length > 0 && (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button
                     variant="outline"
                     disabled={regenerateFutureRoundsMutation.isPending}
-                    className="border-orange-300 text-orange-600 hover:bg-orange-50"
+                    className="border-red-300 text-red-600 hover:bg-red-50"
+                    size="sm"
                   >
-                    <RefreshCw className="h-4 w-4 mr-2" />
-                    {regenerateFutureRoundsMutation.isPending ? "Regenerating..." : `Regenerate Rounds ${currentRound + 1}+`}
+                    <RefreshCw className="h-4 w-4 mr-1" />
+                    {regenerateFutureRoundsMutation.isPending ? "Regenerating..." : `Regenerate Round ${currentRound + 1}+`}
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Regenerate Future Rounds?</AlertDialogTitle>
+                    <AlertDialogTitle>Regenerate Rounds {currentRound + 1}+?</AlertDialogTitle>
                     <AlertDialogDescription>
-                      This will regenerate all rounds from Round {currentRound + 1} onwards based on current results. 
+                      This will regenerate all rounds from Round {currentRound + 1} onwards based on current results through Round {currentRound}. 
                       Any existing future round results will be lost. This action cannot be undone.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
@@ -492,9 +497,9 @@ export default function SwissPairings({ tournamentId }: SwissPairingsProps) {
                     <AlertDialogCancel>Cancel</AlertDialogCancel>
                     <AlertDialogAction
                       onClick={() => regenerateFutureRoundsMutation.mutate({ fromRound: currentRound + 1 })}
-                      className="bg-orange-600 hover:bg-orange-700"
+                      className="bg-red-600 hover:bg-red-700"
                     >
-                      Regenerate Future Rounds
+                      Regenerate Round {currentRound + 1}+
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
