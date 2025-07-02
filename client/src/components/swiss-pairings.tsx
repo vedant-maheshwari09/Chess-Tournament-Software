@@ -16,6 +16,7 @@ interface SwissPairingsProps {
 
 export default function SwissPairings({ tournamentId }: SwissPairingsProps) {
   const [currentRound, setCurrentRound] = useState(1);
+  const [pendingResultChange, setPendingResultChange] = useState<{matchId: number, result: string, isPastRound: boolean} | null>(null);
   const { toast } = useToast();
 
   // Get tournament data for planned rounds
@@ -238,7 +239,28 @@ export default function SwissPairings({ tournamentId }: SwissPairingsProps) {
 
   const handleResultChange = (matchId: number, result: string) => {
     console.log(`Attempting to change match ${matchId} result to: ${result}`);
-    updateMatchMutation.mutate({ matchId, result });
+    
+    // Check if this is a past round (not the latest round)
+    const maxRound = allMatches ? Math.max(...allMatches.map(m => m.round)) : currentRound;
+    const isPastRound = currentRound < maxRound;
+    
+    if (isPastRound) {
+      // Show confirmation dialog for past round edits
+      setPendingResultChange({ matchId, result, isPastRound: true });
+    } else {
+      // Direct update for current/latest round
+      updateMatchMutation.mutate({ matchId, result });
+    }
+  };
+
+  const confirmResultChange = () => {
+    if (pendingResultChange) {
+      updateMatchMutation.mutate({ 
+        matchId: pendingResultChange.matchId, 
+        result: pendingResultChange.result 
+      });
+      setPendingResultChange(null);
+    }
   };
 
   const getStatusBadge = (status: string) => {
@@ -608,6 +630,33 @@ export default function SwissPairings({ tournamentId }: SwissPairingsProps) {
           </div>
         )}
       </CardContent>
+
+      {/* Confirmation Dialog for Past Round Edits */}
+      {pendingResultChange && (
+        <AlertDialog open={!!pendingResultChange} onOpenChange={() => setPendingResultChange(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Edit Previous Round Result?</AlertDialogTitle>
+              <AlertDialogDescription>
+                You are editing a result from Round {currentRound}, which is a previous round. 
+                This will change historical data and may affect future rounds. 
+                Are you sure you want to proceed?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setPendingResultChange(null)}>
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={confirmResultChange}
+                className="bg-orange-600 hover:bg-orange-700"
+              >
+                Yes, Edit Previous Round
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </Card>
   );
 }
