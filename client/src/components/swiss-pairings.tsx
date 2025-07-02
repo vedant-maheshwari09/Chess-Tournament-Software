@@ -133,28 +133,10 @@ export default function SwissPairings({ tournamentId }: SwissPairingsProps) {
       queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/pairings`] });
       queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/players`] });
       
-      // Check if we updated a match in an earlier round - if so, automatically regenerate future rounds
-      if (allMatches) {
-        const maxRound = Math.max(...allMatches.map(m => m.round));
-        const updatedMatchData = allMatches.find(m => m.id === variables.matchId);
-        
-        if (updatedMatchData && updatedMatchData.round < maxRound) {
-          // Automatically regenerate future rounds when changing earlier round results
-          const nextRound = updatedMatchData.round + 1;
-          console.log(`Auto-regenerating from Round ${nextRound} due to Round ${updatedMatchData.round} result change`);
-          regenerateFutureRoundsMutation.mutate({ fromRound: nextRound });
-          
-          toast({
-            title: "Result Updated",
-            description: `Automatically regenerating all rounds from Round ${nextRound} onwards.`,
-          });
-        } else {
-          toast({
-            title: "Result Updated",
-            description: "Match result has been saved.",
-          });
-        }
-      }
+      toast({
+        title: "Result Updated",
+        description: "Match result has been saved. Use 'Repair' to regenerate future rounds if needed.",
+      });
     },
     onError: () => {
       toast({
@@ -463,6 +445,39 @@ export default function SwissPairings({ tournamentId }: SwissPairingsProps) {
               </AlertDialogContent>
             </AlertDialog>
 
+            {/* Manual Regenerate Future Rounds - show only when viewing past rounds with future rounds existing */}
+            {allMatches && allMatches.length > 0 && currentRound < Math.max(...allMatches.map(m => m.round)) && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="outline"
+                    disabled={regenerateFutureRoundsMutation.isPending}
+                    className="border-orange-300 text-orange-600 hover:bg-orange-50"
+                  >
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    {regenerateFutureRoundsMutation.isPending ? "Regenerating..." : `Regenerate Rounds ${currentRound + 1}+`}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Regenerate Future Rounds?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will regenerate all rounds from Round {currentRound + 1} onwards based on current results. 
+                      Any existing future round results will be lost. This action cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => regenerateFutureRoundsMutation.mutate({ fromRound: currentRound + 1 })}
+                      className="bg-orange-600 hover:bg-orange-700"
+                    >
+                      Regenerate Future Rounds
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
 
           </div>
         </div>
