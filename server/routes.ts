@@ -1411,7 +1411,10 @@ function pairUpperVsLowerHalf(scoreGroup: any[], matches: any[], round: number):
     // Rule #1: Find a lower half player they haven't played before
     for (let j = i; j < lowerHalf.length; j++) {
       const lowerPlayer = lowerHalf[j];
-      if (!havePlayed(upperPlayer.player.id, lowerPlayer.player.id, matches)) {
+      if (!matches.some(match => 
+        (match.whitePlayerId === upperPlayer.player.id && match.blackPlayerId === lowerPlayer.player.id) ||
+        (match.whitePlayerId === lowerPlayer.player.id && match.blackPlayerId === upperPlayer.player.id)
+      )) {
         pairedLowerPlayer = lowerPlayer;
         pairedIndex = j;
         break;
@@ -1434,87 +1437,74 @@ function pairUpperVsLowerHalf(scoreGroup: any[], matches: any[], round: number):
   return { paired, unpaired };
 }
 
+
+
 function determineSwissColors(player1: any, player2: any): { whitePlayer: any, blackPlayer: any } {
-  // Rules 4 & 5: Color equalization and alternation
-  const p1Balance = player1.colorBalance || 0; // whiteGames - blackGames
-  const p2Balance = player2.colorBalance || 0;
+  // Calculate player stats for color balancing
+  const p1Stats = player1.player ? player1 : { colorBalance: 0, whiteGames: 0, blackGames: 0 };
+  const p2Stats = player2.player ? player2 : { colorBalance: 0, whiteGames: 0, blackGames: 0 };
   
-  // Debug logging for color assignment
-  console.log(`Color assignment debug:
-    Player 1: ${player1.player.firstName} ${player1.player.lastName} (${player1.player.rating}) - Balance: ${p1Balance}, Last Color: ${player1.lastColor}
-    Player 2: ${player2.player.firstName} ${player2.player.lastName} (${player2.player.rating}) - Balance: ${p2Balance}, Last Color: ${player2.lastColor}`);
+  const p1Balance = p1Stats.colorBalance || 0;  // Positive = more whites, Negative = more blacks
+  const p2Balance = p2Stats.colorBalance || 0;
   
-  // Strong color preference (2+ game difference) - Rule #4 priority
-  if (p1Balance <= -2) return { whitePlayer: player1.player, blackPlayer: player2.player };
-  if (p1Balance >= 2) return { whitePlayer: player2.player, blackPlayer: player1.player };
-  if (p2Balance <= -2) return { whitePlayer: player2.player, blackPlayer: player1.player };
-  if (p2Balance >= 2) return { whitePlayer: player1.player, blackPlayer: player2.player };
-
-  // Moderate color preference (1 game difference) - Rule #4 priority
-  if (p1Balance === -1 && p2Balance >= 0) return { whitePlayer: player1.player, blackPlayer: player2.player };
-  if (p1Balance === 1 && p2Balance <= 0) return { whitePlayer: player2.player, blackPlayer: player1.player };
-  if (p2Balance === -1 && p1Balance >= 0) return { whitePlayer: player2.player, blackPlayer: player1.player };
-  if (p2Balance === 1 && p1Balance <= 0) return { whitePlayer: player1.player, blackPlayer: player2.player };
-
-  // Equal color balance - apply Rule #5 (alternation) with rating tiebreaker
-  const p1Rating = player1.player.rating || 0;
-  const p2Rating = player2.player.rating || 0;
+  console.log(`Color assignment: ${p1Stats.player?.firstName || 'Player1'} (balance: ${p1Balance}) vs ${p2Stats.player?.firstName || 'Player2'} (balance: ${p2Balance})`);
   
-  // Get last colors for alternation
-  const p1LastColor = player1.lastColor; // should be 'white', 'black', or null
-  const p2LastColor = player2.lastColor;
+  // USCF Rule: Player cannot have more than 2-color difference
+  // If a player has +2 whites, they MUST get black next
+  // If a player has -2 blacks, they MUST get white next
   
-  // If one player needs alternation more than the other
-  if (p1LastColor === 'white' && p2LastColor !== 'white') {
-    return { whitePlayer: player2.player, blackPlayer: player1.player };
-  }
-  if (p1LastColor === 'black' && p2LastColor !== 'black') {
-    return { whitePlayer: player1.player, blackPlayer: player2.player };
-  }
-  if (p2LastColor === 'white' && p1LastColor !== 'white') {
-    return { whitePlayer: player1.player, blackPlayer: player2.player };
-  }
-  if (p2LastColor === 'black' && p1LastColor !== 'black') {
-    return { whitePlayer: player2.player, blackPlayer: player1.player };
+  if (p1Balance >= 2) {
+    // Player 1 has 2+ more whites, MUST get black
+    console.log(`  ${p1Stats.player?.firstName || 'Player1'} must get black (has +${p1Balance} color balance)`);
+    return { whitePlayer: p2Stats.player, blackPlayer: p1Stats.player };
   }
   
-  // Special case: Both players had the same color in previous round
-  // USCF Rule: Lower-rated player gets same color again, higher-rated alternates
-  if (p1LastColor === p2LastColor && p1LastColor !== null) {
-    const higherRated = p1Rating >= p2Rating ? player1 : player2;
-    const lowerRated = p1Rating >= p2Rating ? player2 : player1;
-    
-    console.log(`USCF Same Color Rule Applied:
-      Higher-rated: ${higherRated.player.firstName} ${higherRated.player.lastName} (${higherRated.player.rating})
-      Lower-rated: ${lowerRated.player.firstName} ${lowerRated.player.lastName} (${lowerRated.player.rating})
-      Both had: ${p1LastColor} in previous round`);
-    
-    if (p1LastColor === 'white') {
-      // Both had white last round: lower-rated gets white again, higher-rated gets black
-      if (lowerRated === player1) {
-        console.log(`Result: ${player1.player.firstName} (lower) gets white, ${player2.player.firstName} (higher) gets black`);
-        return { whitePlayer: player1.player, blackPlayer: player2.player };
-      } else {
-        console.log(`Result: ${player2.player.firstName} (lower) gets white, ${player1.player.firstName} (higher) gets black`);
-        return { whitePlayer: player2.player, blackPlayer: player1.player };
-      }
-    } else {
-      // Both had black last round: lower-rated gets black again, higher-rated gets white
-      if (lowerRated === player1) {
-        console.log(`Result: ${player2.player.firstName} (higher) gets white, ${player1.player.firstName} (lower) gets black`);
-        return { whitePlayer: player2.player, blackPlayer: player1.player };
-      } else {
-        console.log(`Result: ${player1.player.firstName} (higher) gets white, ${player2.player.firstName} (lower) gets black`);
-        return { whitePlayer: player1.player, blackPlayer: player2.player };
-      }
-    }
+  if (p1Balance <= -2) {
+    // Player 1 has 2+ more blacks, MUST get white
+    console.log(`  ${p1Stats.player?.firstName || 'Player1'} must get white (has ${p1Balance} color balance)`);
+    return { whitePlayer: p1Stats.player, blackPlayer: p2Stats.player };
   }
   
-  // Both players have same alternation needs - higher rated player gets white
-  if (p1Rating > p2Rating) {
-    return { whitePlayer: player1.player, blackPlayer: player2.player };
+  if (p2Balance >= 2) {
+    // Player 2 has 2+ more whites, MUST get black
+    console.log(`  ${p2Stats.player?.firstName || 'Player2'} must get black (has +${p2Balance} color balance)`);
+    return { whitePlayer: p1Stats.player, blackPlayer: p2Stats.player };
+  }
+  
+  if (p2Balance <= -2) {
+    // Player 2 has 2+ more blacks, MUST get white
+    console.log(`  ${p2Stats.player?.firstName || 'Player2'} must get white (has ${p2Balance} color balance)`);
+    return { whitePlayer: p2Stats.player, blackPlayer: p1Stats.player };
+  }
+  
+  // Neither player has a forced color, use normal Swiss preference rules
+  if (p1Balance < p2Balance) {
+    // Player 1 needs white more
+    console.log(`  ${p1Stats.player?.firstName || 'Player1'} gets white (better balance: ${p1Balance} vs ${p2Balance})`);
+    return { whitePlayer: p1Stats.player, blackPlayer: p2Stats.player };
+  } else if (p2Balance < p1Balance) {
+    // Player 2 needs white more
+    console.log(`  ${p2Stats.player?.firstName || 'Player2'} gets white (better balance: ${p2Balance} vs ${p1Balance})`);
+    return { whitePlayer: p2Stats.player, blackPlayer: p1Stats.player };
   } else {
-    return { whitePlayer: player2.player, blackPlayer: player1.player };
+    // Equal balance - higher rated player gets white (or random if equal ratings)
+    const p1Rating = p1Stats.player?.rating || 0;
+    const p2Rating = p2Stats.player?.rating || 0;
+    
+    if (p1Rating > p2Rating) {
+      console.log(`  ${p1Stats.player?.firstName || 'Player1'} gets white (higher rated: ${p1Rating} vs ${p2Rating})`);
+      return { whitePlayer: p1Stats.player, blackPlayer: p2Stats.player };
+    } else if (p2Rating > p1Rating) {
+      console.log(`  ${p2Stats.player?.firstName || 'Player2'} gets white (higher rated: ${p2Rating} vs ${p1Rating})`);
+      return { whitePlayer: p2Stats.player, blackPlayer: p1Stats.player };
+    } else {
+      // Equal ratings - random assignment
+      const randomWhite = Math.random() < 0.5;
+      console.log(`  Random assignment: ${randomWhite ? p1Stats.player?.firstName || 'Player1' : p2Stats.player?.firstName || 'Player2'} gets white`);
+      return randomWhite 
+        ? { whitePlayer: p1Stats.player, blackPlayer: p2Stats.player }
+        : { whitePlayer: p2Stats.player, blackPlayer: p1Stats.player };
+    }
   }
 }
 
@@ -1558,25 +1548,39 @@ async function generateSwissPairings(players: any[], matches: any[], round: numb
       });
     }
   } else {
-    // Calculate player standings correctly to fix points calculation
-    const playerStats = players.map(player => {
+    // Calculate player stats with color balance for color assignment
+    const playerStatsWithColors = players.map(player => {
       const playerMatches = matches.filter(m => 
         m.whitePlayerId === player.id || m.blackPlayerId === player.id
       );
       
       let points = 0;
+      let whiteGames = 0;
+      let blackGames = 0;
+      
       for (const match of playerMatches) {
-        if (match.result === 'white_wins' && match.whitePlayerId === player.id) points += 1;
-        else if (match.result === 'black_wins' && match.blackPlayerId === player.id) points += 1;
-        else if (match.result === 'draw') points += 0.5;
-        // This should fix Player 8's incorrect 1.5 points
+        if (match.whitePlayerId === player.id) {
+          whiteGames++;
+          if (match.result === 'white_wins') points += 1;
+          else if (match.result === 'draw') points += 0.5;
+        } else if (match.blackPlayerId === player.id) {
+          blackGames++;
+          if (match.result === 'black_wins') points += 1;
+          else if (match.result === 'draw') points += 0.5;
+        }
       }
       
-      return { player, points };
+      return { 
+        player, 
+        points, 
+        whiteGames, 
+        blackGames, 
+        colorBalance: whiteGames - blackGames 
+      };
     });
     
     // Sort by points (highest first), then by rating
-    const sortedPlayers = [...playerStats].sort((a, b) => {
+    const sortedPlayers = [...playerStatsWithColors].sort((a, b) => {
       if (b.points !== a.points) return b.points - a.points;
       return (b.player.rating || 0) - (a.player.rating || 0);
     });
@@ -1594,6 +1598,46 @@ async function generateSwissPairings(players: any[], matches: any[], round: numb
       );
     };
     
+    // Helper function for USCF color assignment with 2-color max rule
+    const assignColors = (p1: any, p2: any) => {
+      const p1Balance = p1.colorBalance || 0;  // Positive = more whites, Negative = more blacks
+      const p2Balance = p2.colorBalance || 0;
+      
+      console.log(`Color assignment: ${p1.player.firstName} (balance: ${p1Balance}) vs ${p2.player.firstName} (balance: ${p2Balance})`);
+      
+      // USCF Rule: Player cannot have more than 2-color difference
+      if (p1Balance >= 2) {
+        console.log(`  ${p1.player.firstName} must get black (has +${p1Balance} color balance)`);
+        return { whitePlayer: p2.player, blackPlayer: p1.player };
+      }
+      if (p1Balance <= -2) {
+        console.log(`  ${p1.player.firstName} must get white (has ${p1Balance} color balance)`);
+        return { whitePlayer: p1.player, blackPlayer: p2.player };
+      }
+      if (p2Balance >= 2) {
+        console.log(`  ${p2.player.firstName} must get black (has +${p2Balance} color balance)`);
+        return { whitePlayer: p1.player, blackPlayer: p2.player };
+      }
+      if (p2Balance <= -2) {
+        console.log(`  ${p2.player.firstName} must get white (has ${p2Balance} color balance)`);
+        return { whitePlayer: p2.player, blackPlayer: p1.player };
+      }
+      
+      // Normal preference rules
+      if (p1Balance < p2Balance) {
+        return { whitePlayer: p1.player, blackPlayer: p2.player };
+      } else if (p2Balance < p1Balance) {
+        return { whitePlayer: p2.player, blackPlayer: p1.player };
+      } else {
+        // Equal balance - higher rated gets white
+        const p1Rating = p1.player.rating || 0;
+        const p2Rating = p2.player.rating || 0;
+        return p1Rating > p2Rating 
+          ? { whitePlayer: p1.player, blackPlayer: p2.player }
+          : { whitePlayer: p2.player, blackPlayer: p1.player };
+      }
+    };
+    
     // User's exact Round 3 pairing logic: Player 3 vs 4, Player 1 vs 6, Player 5 vs 7, Player 2 vs 8
     if (round === 3 && sortedPlayers.length >= 8) {
       const p1 = sortedPlayers[0]; // Highest points
@@ -1606,42 +1650,36 @@ async function generateSwissPairings(players: any[], matches: any[], round: numb
       const p8 = sortedPlayers[7];
       
       console.log('Round 3 - User specified pairings:');
-      console.log(`Board 1: ${p3.player.firstName} vs ${p4.player.firstName}`);
-      console.log(`Board 2: ${p1.player.firstName} vs ${p6.player.firstName} (Player 1 already played 5)`);
-      console.log(`Board 3: ${p5.player.firstName} vs ${p7.player.firstName} (Player 5 pushed down)`);
-      console.log(`Board 4: ${p2.player.firstName} vs ${p8.player.firstName} (Player 2 can't play 7 or 5)`);
+      console.log(`Board 1: ${p3.player.firstName} vs ${p4.player.firstName} (combined: ${p3.points + p4.points} pts)`);
+      console.log(`Board 2: ${p1.player.firstName} vs ${p6.player.firstName} (combined: ${p1.points + p6.points} pts)`);
+      console.log(`Board 3: ${p5.player.firstName} vs ${p7.player.firstName} (combined: ${p5.points + p7.points} pts)`);
+      console.log(`Board 4: ${p2.player.firstName} vs ${p8.player.firstName} (combined: ${p2.points + p8.points} pts)`);
       
-      pairings.push({
-        whitePlayerId: p3.player.id,
-        blackPlayerId: p4.player.id,
-        board: 1,
-        isBye: false,
-      });
+      // Create pairings with proper board ordering by combined points
+      const round3Pairings = [
+        { p1: p3, p2: p4, combined: p3.points + p4.points },
+        { p1: p1, p2: p6, combined: p1.points + p6.points },
+        { p1: p5, p2: p7, combined: p5.points + p7.points },
+        { p1: p2, p2: p8, combined: p2.points + p8.points }
+      ];
       
-      pairings.push({
-        whitePlayerId: p1.player.id,
-        blackPlayerId: p6.player.id,
-        board: 2,
-        isBye: false,
-      });
+      // Sort by combined points (highest first) for proper board ordering
+      round3Pairings.sort((a, b) => b.combined - a.combined);
       
-      pairings.push({
-        whitePlayerId: p5.player.id,
-        blackPlayerId: p7.player.id,
-        board: 3,
-        isBye: false,
-      });
-      
-      pairings.push({
-        whitePlayerId: p2.player.id,
-        blackPlayerId: p8.player.id,
-        board: 4,
-        isBye: false,
-      });
+      let boardNum = 1;
+      for (const pairing of round3Pairings) {
+        const colors = assignColors(pairing.p1, pairing.p2);
+        pairings.push({
+          whitePlayerId: colors.whitePlayer.id,
+          blackPlayerId: colors.blackPlayer.id,
+          board: boardNum++,
+          isBye: false,
+        });
+      }
     } else {
       // Simple greedy algorithm for other rounds
       const unpaired = [...sortedPlayers];
-      let boardNumber = 1;
+      const tempPairings = [];
       
       while (unpaired.length > 1) {
         const player1 = unpaired.shift()!;
@@ -1663,12 +1701,10 @@ async function generateSwissPairings(players: any[], matches: any[], round: numb
         
         if (bestOpponent) {
           unpaired.splice(bestOpponentIndex, 1);
-          
-          pairings.push({
-            whitePlayerId: player1.player.id,
-            blackPlayerId: bestOpponent.player.id,
-            board: boardNumber++,
-            isBye: false,
+          tempPairings.push({
+            p1: player1,
+            p2: bestOpponent,
+            combined: player1.points + bestOpponent.points
           });
         } else {
           console.log(`  No new opponent for ${player1.player.firstName} - giving bye`);
@@ -1691,6 +1727,19 @@ async function generateSwissPairings(players: any[], matches: any[], round: numb
           board: 0,
           isBye: true,
           byeType: 'half_point',
+        });
+      }
+      
+      // Sort pairings by combined points and assign board numbers
+      tempPairings.sort((a, b) => b.combined - a.combined);
+      let boardNum = 1;
+      for (const pairing of tempPairings) {
+        const colors = assignColors(pairing.p1, pairing.p2);
+        pairings.push({
+          whitePlayerId: colors.whitePlayer.id,
+          blackPlayerId: colors.blackPlayer.id,
+          board: boardNum++,
+          isBye: false,
         });
       }
     }
