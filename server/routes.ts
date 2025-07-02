@@ -1297,10 +1297,24 @@ function groupPlayersByScore(playerStats: any[]): any[][] {
     groups[score].push(player);
   }
   
-  // Sort groups by score (highest first) and players within groups by rating (highest first)
+  // Sort groups by score (highest first) and players within groups by seeding order
   return Object.keys(groups)
     .sort((a, b) => parseFloat(b) - parseFloat(a))
-    .map(score => groups[score].sort((a, b) => (b.player.rating || 0) - (a.player.rating || 0)));
+    .map(score => groups[score].sort((a, b) => {
+      // Sort by rating first, then alphabetically for consistent seeding
+      const ratingDiff = (b.player.rating || 0) - (a.player.rating || 0);
+      if (ratingDiff !== 0) return ratingDiff;
+      
+      // If ratings are equal, sort alphabetically by first name, then last name
+      const firstNameCmp = (a.player.firstName || '').localeCompare(b.player.firstName || '');
+      if (firstNameCmp !== 0) return firstNameCmp;
+      
+      const lastNameCmp = (a.player.lastName || '').localeCompare(b.player.lastName || '');
+      if (lastNameCmp !== 0) return lastNameCmp;
+      
+      // If names are also equal, sort by ID for consistent ordering
+      return a.player.id - b.player.id;
+    }));
 }
 
 function pairUpperVsLowerHalf(scoreGroup: any[], matches: any[], round: number): { paired: any[][], unpaired: any[] } {
@@ -1577,6 +1591,14 @@ async function generateSwissPairings(players: any[], matches: any[], round: numb
         
       } else {
         // Normal within-group pairing
+        // Swiss rule: If odd number in score group, lowest-seeded player drops to next group
+        if (playersToProcess.length % 2 === 1) {
+          const lowestSeeded = playersToProcess.pop(); // Remove lowest-seeded player
+          unpaired.push(lowestSeeded!); // Push to next score group
+          
+          console.log(`Odd group: Pushing lowest-seeded player ${lowestSeeded!.player.firstName} ${lowestSeeded!.player.lastName} to next score group`);
+        }
+        
         const pairedInGroup = pairUpperVsLowerHalf(playersToProcess, matches, round);
         
         // Add successful pairings
@@ -1591,7 +1613,7 @@ async function generateSwissPairings(players: any[], matches: any[], round: numb
           });
         }
         
-        // Carry over unpaired players to next score group
+        // Carry over any remaining unpaired players to next score group
         unpaired.push(...pairedInGroup.unpaired);
       }
     }
