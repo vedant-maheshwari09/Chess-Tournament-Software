@@ -1667,10 +1667,12 @@ async function generateSwissPairings(players: any[], matches: any[], round: numb
           console.log(`Odd group: Pushing lowest-seeded player ${lowestSeeded!.player.firstName} ${lowestSeeded!.player.lastName} to next score group`);
         }
         
-        const pairedInGroup = pairUpperVsLowerHalf(playersToProcess, matches, round);
-        
-        // Add successful pairings
-        for (const [player1, player2] of pairedInGroup.paired) {
+        // For the remaining even number of players, pair them within the score group
+        while (playersToProcess.length >= 2) {
+          // Take the highest two available players and pair them
+          const player1 = playersToProcess.shift()!;
+          const player2 = playersToProcess.shift()!;
+          
           const colors = determineSwissColors(player1, player2);
           
           pairings.push({
@@ -1681,8 +1683,10 @@ async function generateSwissPairings(players: any[], matches: any[], round: numb
           });
         }
         
-        // Carry over any remaining unpaired players to next score group
-        unpaired.push(...pairedInGroup.unpaired);
+        // Any remaining single player goes to unpaired (shouldn't happen with proper odd handling)
+        if (playersToProcess.length === 1) {
+          unpaired.push(playersToProcess[0]);
+        }
       }
     }
     
