@@ -471,8 +471,8 @@ export default function SwissPairings({ tournamentId }: SwissPairingsProps) {
               </AlertDialogContent>
             </AlertDialog>
 
-            {/* Regenerate Future Rounds - available on every round if future rounds exist */}
-            {allMatches && allMatches.length > 0 && (
+            {/* Regenerate Future Rounds - HIDDEN: available on every round if future rounds exist */}
+            {false && allMatches && allMatches.length > 0 && (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button
