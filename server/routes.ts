@@ -473,6 +473,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Tournament history routes (tournament directors only)
+  app.get("/api/tournaments/:id/history", requireAuth, requireRole('tournament_director'), requireTournamentAccess, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const history = await storage.getTournamentHistory(id);
+      res.json(history);
+    } catch (error) {
+      console.error('Get tournament history error:', error);
+      res.status(500).json({ message: "Failed to fetch tournament history" });
+    }
+  });
+
   // Player routes
   app.get("/api/tournaments/:tournamentId/players", async (req, res) => {
     try {
@@ -717,15 +729,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/matches/:id", async (req, res) => {
+  app.put("/api/matches/:id", requireAuth, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      const match = await storage.updateMatch(id, req.body);
-      if (!match) {
+      const user = (req as any).user;
+      
+      // Get the current match state before updating
+      const currentMatch = await storage.getMatch(id);
+      if (!currentMatch) {
         return res.status(404).json({ message: "Match not found" });
       }
-      res.json(match);
+      
+      // Update the match
+      const updatedMatch = await storage.updateMatch(id, req.body);
+      if (!updatedMatch) {
+        return res.status(404).json({ message: "Match not found" });
+      }
+      
+      // Log the change in tournament history
+      if (currentMatch.result !== updatedMatch.result) {
+        const whitePlayerName = currentMatch.whitePlayerId 
+          ? await storage.getPlayer(currentMatch.whitePlayerId) 
+          : null;
+        const blackPlayerName = currentMatch.blackPlayerId 
+          ? await storage.getPlayer(currentMatch.blackPlayerId) 
+          : null;
+        
+        const description = blackPlayerName 
+          ? `Result changed for Round ${currentMatch.round}, Board ${currentMatch.board}: ${whitePlayerName?.firstName} ${whitePlayerName?.lastName} vs ${blackPlayerName.firstName} ${blackPlayerName.lastName} from "${currentMatch.result || 'Pending'}" to "${updatedMatch.result}"`
+          : `Bye result changed for Round ${currentMatch.round}: ${whitePlayerName?.firstName} ${whitePlayerName?.lastName} from "${currentMatch.result || 'Pending'}" to "${updatedMatch.result}"`;
+
+        await storage.createHistoryEntry({
+          tournamentId: currentMatch.tournamentId,
+          action: 'result_change',
+          description,
+          changedBy: user.id,
+          previousState: JSON.stringify(currentMatch),
+          newState: JSON.stringify(updatedMatch),
+          round: currentMatch.round,
+          matchId: currentMatch.id,
+          canRevert: true
+        });
+      }
+      
+      res.json(updatedMatch);
     } catch (error) {
+      console.error('Update match error:', error);
       res.status(500).json({ message: "Failed to update match" });
     }
   });
@@ -943,6 +992,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
           savedPairings.push(whitePairing, blackPairing);
         }
       }
+      
+      // Log pairing generation in tournament history
+      const user = (req as any).user;
+      const action = regenerate ? 'pairing_regeneration' : 'pairing_generation';
+      const description = regenerate 
+        ? `Round ${currentRound} pairings regenerated (${savedPairings.length} pairings created)`
+        : `Round ${currentRound} pairings generated (${savedPairings.length} pairings created)`;
+      
+      await storage.createHistoryEntry({
+        tournamentId: tournament.id,
+        action,
+        description,
+        changedBy: user.id,
+        previousState: null,
+        newState: JSON.stringify({ round: currentRound, pairingsCount: savedPairings.length }),
+        round: currentRound,
+        canRevert: false
+      });
       
       res.json({ pairings: savedPairings, matches, round: currentRound });
     } catch (error) {

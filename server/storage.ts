@@ -4,6 +4,7 @@ import {
   matches, 
   pairings,
   byeRequests,
+  tournamentHistory,
   users,
   sessions,
   passwordResets,
@@ -17,13 +18,15 @@ import {
   type InsertPairing,
   type ByeRequest,
   type InsertByeRequest,
+  type TournamentHistory,
+  type InsertTournamentHistory,
   type User,
   type InsertUser,
   type Session,
   type PasswordReset
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 
 export interface IStorage {
   // User methods
@@ -80,6 +83,11 @@ export interface IStorage {
   getByeRequestsByTournament(tournamentId: number): Promise<ByeRequest[]>;
   getByeRequestsByRound(tournamentId: number, round: number): Promise<ByeRequest[]>;
   updateByeRequest(id: number, byeRequest: Partial<ByeRequest>): Promise<ByeRequest | undefined>;
+
+  // Tournament history methods
+  createHistoryEntry(entry: InsertTournamentHistory): Promise<TournamentHistory>;
+  getTournamentHistory(tournamentId: number): Promise<TournamentHistory[]>;
+  getHistoryEntry(id: number): Promise<TournamentHistory | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -370,6 +378,28 @@ export class DatabaseStorage implements IStorage {
       .where(eq(byeRequests.id, id))
       .returning();
     return updatedByeRequest || undefined;
+  }
+
+  // Tournament history methods
+  async createHistoryEntry(entry: InsertTournamentHistory): Promise<TournamentHistory> {
+    const [result] = await db.insert(tournamentHistory).values(entry).returning();
+    return result;
+  }
+
+  async getTournamentHistory(tournamentId: number): Promise<TournamentHistory[]> {
+    return await db
+      .select()
+      .from(tournamentHistory)
+      .where(eq(tournamentHistory.tournamentId, tournamentId))
+      .orderBy(desc(tournamentHistory.createdAt));
+  }
+
+  async getHistoryEntry(id: number): Promise<TournamentHistory | undefined> {
+    const [entry] = await db
+      .select()
+      .from(tournamentHistory)
+      .where(eq(tournamentHistory.id, id));
+    return entry || undefined;
   }
 }
 

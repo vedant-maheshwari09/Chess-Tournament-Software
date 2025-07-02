@@ -159,6 +159,13 @@ Changelog:
   - Implemented proper automatic bye assignment: lowest-rated active player gets 1-point bye when odd numbers
   - Fixed USCF compliance: respects explicit bye requests while giving automatic byes to remaining odd player
   - Enhanced pairing generation to distinguish between withdrawal byes vs requested byes vs automatic byes
+- July 2, 2025. Implemented comprehensive tournament history and change tracking system
+  - Added tournament_history database table to track all tournament modifications with complete audit trail
+  - Created automatic history logging for match result changes with before/after state preservation
+  - Implemented pairing generation and regeneration tracking with detailed metadata storage
+  - Built tournament history UI component with detailed change viewing and revert capabilities
+  - Enhanced tournament director interface with dedicated History tab showing chronological change timeline
+  - Added visual change indicators with action-specific badges and icons for better change identification
 ```
 
 ## User Preferences

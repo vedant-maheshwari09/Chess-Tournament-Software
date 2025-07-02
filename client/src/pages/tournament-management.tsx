@@ -5,13 +5,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Users, Trophy, Calendar, Play, Plus } from "lucide-react";
+import { Users, Trophy, Calendar, Play, Plus, History } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import PlayerRegistration from "@/components/player-registration";
 import SwissPairings from "@/components/swiss-pairings";
 import Standings from "@/components/standings";
 import KnockoutBracket from "@/components/knockout-bracket";
+import TournamentHistoryComponent from "@/components/tournament-history";
 import type { Tournament, Player } from "@shared/schema";
 
 interface TournamentManagementProps {
@@ -165,7 +166,7 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
 
       {/* Tournament Management Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="info" className="flex items-center space-x-2">
             <Trophy className="h-4 w-4" />
             <span>Tournament Info</span>
@@ -181,6 +182,10 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
           <TabsTrigger value="standings" className="flex items-center space-x-2">
             <Trophy className="h-4 w-4" />
             <span>Standings</span>
+          </TabsTrigger>
+          <TabsTrigger value="history" className="flex items-center space-x-2">
+            <History className="h-4 w-4" />
+            <span>History</span>
           </TabsTrigger>
           {tournament.format === 'knockout' && (
             <TabsTrigger value="bracket" className="flex items-center space-x-2">
@@ -306,6 +311,10 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
               <Standings tournamentId={tournamentId} />
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="history" className="mt-6">
+          <TournamentHistoryComponent tournamentId={tournamentId} />
         </TabsContent>
 
         {tournament.format === 'knockout' && (

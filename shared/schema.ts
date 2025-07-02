@@ -95,6 +95,21 @@ export const byeRequests = pgTable("bye_requests", {
   requestedAt: timestamp("requested_at").defaultNow(),
 });
 
+export const tournamentHistory = pgTable("tournament_history", {
+  id: serial("id").primaryKey(),
+  tournamentId: integer("tournament_id").notNull(),
+  action: text("action").notNull(), // 'result_change', 'pairing_regeneration', 'player_added', 'player_removed', 'round_generated'
+  description: text("description").notNull(),
+  changedBy: integer("changed_by").notNull(), // User ID who made the change
+  previousState: text("previous_state"), // JSON snapshot of relevant data before change
+  newState: text("new_state"), // JSON snapshot of relevant data after change
+  round: integer("round"), // Which round was affected (if applicable)
+  matchId: integer("match_id"), // Which match was affected (if applicable)
+  playerId: integer("player_id"), // Which player was affected (if applicable)
+  canRevert: boolean("can_revert").default(true), // Whether this change can be undone
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // User schemas
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -154,6 +169,11 @@ export const insertByeRequestSchema = createInsertSchema(byeRequests).omit({
   requestedAt: true,
 });
 
+export const insertTournamentHistorySchema = createInsertSchema(tournamentHistory).omit({
+  id: true,
+  createdAt: true,
+});
+
 // User types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -176,3 +196,5 @@ export type Pairing = typeof pairings.$inferSelect;
 export type InsertPairing = z.infer<typeof insertPairingSchema>;
 export type ByeRequest = typeof byeRequests.$inferSelect;
 export type InsertByeRequest = z.infer<typeof insertByeRequestSchema>;
+export type TournamentHistory = typeof tournamentHistory.$inferSelect;
+export type InsertTournamentHistory = z.infer<typeof insertTournamentHistorySchema>;
