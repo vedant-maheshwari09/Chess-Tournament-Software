@@ -18,6 +18,8 @@ interface TournamentPairingsProps {
 export default function SwissPairings({ tournamentId }: TournamentPairingsProps) {
   const [currentRound, setCurrentRound] = useState(1);
   const [pendingResultChange, setPendingResultChange] = useState<{matchId: number, result: string, isPastRound: boolean} | null>(null);
+  const [draggedPlayer, setDraggedPlayer] = useState<{playerId: number, matchId: number, color: 'white' | 'black'} | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
   
@@ -161,6 +163,41 @@ export default function SwissPairings({ tournamentId }: TournamentPairingsProps)
     },
   });
 
+  const swapPlayersMutation = useMutation({
+    mutationFn: async ({ match1Id, match2Id, player1Id, player2Id, color1, color2 }: { 
+      match1Id: number; 
+      match2Id: number; 
+      player1Id: number | null; 
+      player2Id: number | null; 
+      color1: 'white' | 'black'; 
+      color2: 'white' | 'black'; 
+    }) => {
+      return await apiRequest(`/api/tournaments/${tournamentId}/swap-players`, {
+        method: "POST",
+        body: JSON.stringify({ match1Id, match2Id, player1Id, player2Id, color1, color2 }),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/matches`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/pairings`] });
+      setDraggedPlayer(null);
+      setIsDragging(false);
+      toast({
+        title: "Players swapped",
+        description: "The pairing has been updated successfully.",
+      });
+    },
+    onError: (error) => {
+      setDraggedPlayer(null);
+      setIsDragging(false);
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   // New mutation for regenerating future rounds after fixing results
   const regenerateFutureRoundsMutation = useMutation({
     mutationFn: async (options: { fromRound?: number } = {}) => {
@@ -268,6 +305,42 @@ export default function SwissPairings({ tournamentId }: TournamentPairingsProps)
     }
   };
 
+  const handleDragStart = (playerId: number, matchId: number, color: 'white' | 'black') => {
+    if (!isOwner) return;
+    setDraggedPlayer({ playerId, matchId, color });
+    setIsDragging(true);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (targetPlayerId: number | null, targetMatchId: number, targetColor: 'white' | 'black') => {
+    if (!draggedPlayer || !isOwner) return;
+    
+    // Can't drop on the same position
+    if (draggedPlayer.matchId === targetMatchId && draggedPlayer.color === targetColor) {
+      setDraggedPlayer(null);
+      setIsDragging(false);
+      return;
+    }
+
+    // Execute the swap
+    swapPlayersMutation.mutate({
+      match1Id: draggedPlayer.matchId,
+      match2Id: targetMatchId,
+      player1Id: draggedPlayer.playerId,
+      player2Id: targetPlayerId,
+      color1: draggedPlayer.color,
+      color2: targetColor,
+    });
+  };
+
+  const handleDragEnd = () => {
+    setDraggedPlayer(null);
+    setIsDragging(false);
+  };
+
   const confirmResultChange = () => {
     if (pendingResultChange) {
       updateMatchMutation.mutate({ 
@@ -287,6 +360,60 @@ export default function SwissPairings({ tournamentId }: TournamentPairingsProps)
       default:
         return <Badge variant="secondary">Pending</Badge>;
     }
+  };
+
+  // Draggable player box component
+  const PlayerBox = ({ 
+    playerId, 
+    playerName, 
+    rating, 
+    points, 
+    matchId, 
+    color, 
+    round 
+  }: { 
+    playerId: number | null; 
+    playerName: string; 
+    rating: number; 
+    points: number; 
+    matchId: number; 
+    color: 'white' | 'black'; 
+    round: number;
+  }) => {
+    const isDraggedOver = draggedPlayer && 
+      draggedPlayer.matchId !== matchId && 
+      draggedPlayer.color !== color;
+    
+    const isBeingDragged = draggedPlayer && 
+      draggedPlayer.playerId === playerId && 
+      draggedPlayer.matchId === matchId && 
+      draggedPlayer.color === color;
+
+    return (
+      <div
+        draggable={isOwner && playerId !== null}
+        onDragStart={() => playerId && handleDragStart(playerId, matchId, color)}
+        onDragOver={handleDragOver}
+        onDrop={() => handleDrop(playerId, matchId, color)}
+        onDragEnd={handleDragEnd}
+        className={`
+          inline-flex items-center gap-2 px-3 py-2 rounded-lg border transition-all
+          ${isOwner && playerId ? 'cursor-move hover:shadow-md' : 'cursor-default'}
+          ${isBeingDragged ? 'opacity-50 bg-blue-100 border-blue-300' : ''}
+          ${isDraggedOver ? 'bg-green-100 border-green-300 border-dashed' : 'bg-gray-50 border-gray-200'}
+          ${playerId ? 'text-gray-900' : 'text-gray-500 italic'}
+        `}
+      >
+        <div className="flex flex-col">
+          <span className="text-sm font-medium">
+            {playerName} {points !== undefined ? `[${points}]` : ''}
+          </span>
+          <span className="text-xs text-gray-500">
+            {playerId ? `(${rating})` : ''}
+          </span>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -631,30 +758,29 @@ export default function SwissPairings({ tournamentId }: TournamentPairingsProps)
                                     <div className="text-sm font-medium text-gray-900">{match.board}</div>
                                   </td>
                                   <td className="px-4 py-3 whitespace-nowrap">
-                                    <div className="flex items-center">
-                                      <div className="text-sm font-medium text-gray-900">
-                                        {getPlayerName(match.whitePlayerId)} [{getPlayerPoints(match.whitePlayerId, round)}]
-                                      </div>
-                                      <div className="text-xs text-gray-500 ml-2">
-                                        ({getPlayerRating(match.whitePlayerId)})
-                                      </div>
-                                    </div>
+                                    <PlayerBox
+                                      playerId={match.whitePlayerId}
+                                      playerName={getPlayerName(match.whitePlayerId)}
+                                      rating={getPlayerRating(match.whitePlayerId)}
+                                      points={getPlayerPoints(match.whitePlayerId, round)}
+                                      matchId={match.id}
+                                      color="white"
+                                      round={round}
+                                    />
                                   </td>
                                   <td className="px-4 py-3 whitespace-nowrap text-center">
                                     <span className="text-gray-400">vs</span>
                                   </td>
                                   <td className="px-4 py-3 whitespace-nowrap">
-                                    <div className="flex items-center">
-                                      <div className="text-sm font-medium text-gray-900">
-                                        {match.blackPlayerId ? 
-                                          `${getPlayerName(match.blackPlayerId)} [${getPlayerPoints(match.blackPlayerId, round)}]` : 
-                                          "See T.D."
-                                        }
-                                      </div>
-                                      <div className="text-xs text-gray-500 ml-2">
-                                        {match.blackPlayerId ? `(${getPlayerRating(match.blackPlayerId)})` : ""}
-                                      </div>
-                                    </div>
+                                    <PlayerBox
+                                      playerId={match.blackPlayerId}
+                                      playerName={match.blackPlayerId ? getPlayerName(match.blackPlayerId) : "See T.D."}
+                                      rating={match.blackPlayerId ? getPlayerRating(match.blackPlayerId) : 0}
+                                      points={match.blackPlayerId ? getPlayerPoints(match.blackPlayerId, round) : 0}
+                                      matchId={match.id}
+                                      color="black"
+                                      round={round}
+                                    />
                                   </td>
                                   <td className="px-4 py-3 whitespace-nowrap text-center">
                                     <Select
@@ -732,30 +858,29 @@ export default function SwissPairings({ tournamentId }: TournamentPairingsProps)
                             <div className="text-sm font-medium text-gray-900">{match.board}</div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center">
-                              <div className="text-sm font-medium text-gray-900">
-                                {getPlayerName(match.whitePlayerId)} [{getPlayerPoints(match.whitePlayerId, match.round)}]
-                              </div>
-                              <div className="text-xs text-gray-500 ml-2">
-                                ({getPlayerRating(match.whitePlayerId)})
-                              </div>
-                            </div>
+                            <PlayerBox
+                              playerId={match.whitePlayerId}
+                              playerName={getPlayerName(match.whitePlayerId)}
+                              rating={getPlayerRating(match.whitePlayerId)}
+                              points={getPlayerPoints(match.whitePlayerId, match.round)}
+                              matchId={match.id}
+                              color="white"
+                              round={match.round}
+                            />
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-center">
                             <span className="text-gray-400">vs</span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center">
-                              <div className="text-sm font-medium text-gray-900">
-                                {match.blackPlayerId ? 
-                                  `${getPlayerName(match.blackPlayerId)} [${getPlayerPoints(match.blackPlayerId, match.round)}]` : 
-                                  "See T.D."
-                                }
-                              </div>
-                              <div className="text-xs text-gray-500 ml-2">
-                                {match.blackPlayerId ? `(${getPlayerRating(match.blackPlayerId)})` : ""}
-                              </div>
-                            </div>
+                            <PlayerBox
+                              playerId={match.blackPlayerId}
+                              playerName={match.blackPlayerId ? getPlayerName(match.blackPlayerId) : "See T.D."}
+                              rating={match.blackPlayerId ? getPlayerRating(match.blackPlayerId) : 0}
+                              points={match.blackPlayerId ? getPlayerPoints(match.blackPlayerId, match.round) : 0}
+                              matchId={match.id}
+                              color="black"
+                              round={match.round}
+                            />
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-center">
                             {isTournamentDirector ? (

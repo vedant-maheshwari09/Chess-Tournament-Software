@@ -1527,6 +1527,76 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Player swap endpoint for drag and drop functionality
+  app.post("/api/tournaments/:id/swap-players", requireAuth, requireTournamentAccess, async (req: Request, res: Response) => {
+    try {
+      const tournamentId = parseInt(req.params.id);
+      const { match1Id, match2Id, player1Id, player2Id, color1, color2 } = req.body;
+
+      // Get the matches to verify they exist and are in the same tournament
+      const match1 = await storage.getMatch(match1Id);
+      const match2 = await storage.getMatch(match2Id);
+
+      if (!match1 || !match2) {
+        return res.status(404).json({ message: "One or both matches not found" });
+      }
+
+      if (match1.tournamentId !== tournamentId || match2.tournamentId !== tournamentId) {
+        return res.status(400).json({ message: "Matches must be from the same tournament" });
+      }
+
+      // Perform the swap
+      if (color1 === 'white') {
+        await storage.updateMatch(match1Id, { whitePlayerId: player2Id });
+      } else {
+        await storage.updateMatch(match1Id, { blackPlayerId: player2Id });
+      }
+
+      if (color2 === 'white') {
+        await storage.updateMatch(match2Id, { whitePlayerId: player1Id });
+      } else {
+        await storage.updateMatch(match2Id, { blackPlayerId: player1Id });
+      }
+
+      // Update corresponding pairings
+      const pairings = await storage.getPairingsByTournament(tournamentId);
+      
+      // Update pairing for player1's new position
+      const pairing1 = pairings.find(p => p.playerId === player1Id && p.round === match1.round);
+      if (pairing1) {
+        await storage.updatePairing(pairing1.id, { 
+          opponentId: color2 === 'white' ? match2.blackPlayerId : match2.whitePlayerId 
+        });
+      }
+
+      // Update pairing for player2's new position  
+      const pairing2 = pairings.find(p => p.playerId === player2Id && p.round === match2.round);
+      if (pairing2) {
+        await storage.updatePairing(pairing2.id, { 
+          opponentId: color1 === 'white' ? match1.blackPlayerId : match1.whitePlayerId 
+        });
+      }
+
+      // Log the swap in tournament history
+      const user = (req as any).user;
+      await storage.createHistoryEntry({
+        tournamentId,
+        action: 'player_swap',
+        description: `Players swapped: Match ${match1Id} and Match ${match2Id}`,
+        changedBy: user.id,
+        previousState: JSON.stringify({ match1Id, match2Id, player1Id, player2Id }),
+        newState: JSON.stringify({ swapped: true }),
+        round: match1.round,
+        canRevert: false
+      });
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Player swap error:', error);
+      res.status(500).json({ message: "Failed to swap players" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
