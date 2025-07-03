@@ -1796,6 +1796,7 @@ async function generateSwissPairings(players: any[], matches: any[], round: numb
     
     if (isOdd) {
       const byePlayer = sortedPlayers[sortedPlayers.length - 1]; // Lowest-rated player paired with "See T.D."
+      console.log(`Round 1 - Odd number of players, pairing with "See T.D.": ${byePlayer.firstName} (rating ${byePlayer.rating})`);
       pairings.push({
         whitePlayerId: byePlayer.id,
         blackPlayerId: null,
@@ -1962,14 +1963,33 @@ async function generateSwissPairings(players: any[], matches: any[], round: numb
       let unpaired = [...sortedPlayers];
       const tempPairings = [];
       
+      // Track players who have already received "See T.D." pairings
+      const playersWithSeeTD = new Set();
+      for (const match of matches) {
+        if (match.blackPlayerId === null && match.whitePlayerId) {
+          playersWithSeeTD.add(match.whitePlayerId);
+        }
+      }
+      
       // Check if we have odd number - pair with "See T.D." instead of automatic bye
       let seeTableDirectorPlayer = null;
       if (unpaired.length % 2 === 1) {
-        seeTableDirectorPlayer = unpaired[unpaired.length - 1]; // Last player (lowest points/rating)
-        console.log(`Odd number of players - pairing with "See T.D.": ${seeTableDirectorPlayer.player.firstName} (${seeTableDirectorPlayer.points} pts, rating ${seeTableDirectorPlayer.player.rating})`);
+        // Find a player who hasn't received "See T.D." yet, preferring lowest-rated
+        let candidateIndex = unpaired.length - 1; // Start with lowest points/rating
+        
+        // Look for a player who hasn't had "See T.D." yet
+        for (let i = unpaired.length - 1; i >= 0; i--) {
+          if (!playersWithSeeTD.has(unpaired[i].player.id)) {
+            candidateIndex = i;
+            break;
+          }
+        }
+        
+        seeTableDirectorPlayer = unpaired[candidateIndex];
+        console.log(`Odd number of players - pairing with "See T.D.": ${seeTableDirectorPlayer.player.firstName} (${seeTableDirectorPlayer.points} pts, rating ${seeTableDirectorPlayer.player.rating})${playersWithSeeTD.has(seeTableDirectorPlayer.player.id) ? ' [REPEAT - no alternatives]' : ' [FIRST TIME]'}`);
         
         // Remove "See T.D." player from unpaired list
-        unpaired = unpaired.slice(0, -1);
+        unpaired.splice(candidateIndex, 1);
       }
       
       while (unpaired.length > 1) {
