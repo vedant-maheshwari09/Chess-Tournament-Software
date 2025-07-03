@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Play, RefreshCw, Crown as Chess, ChevronLeft, ChevronRight, RotateCcw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Match, Player, Pairing, Tournament } from "@shared/schema";
 
@@ -18,6 +19,10 @@ export default function SwissPairings({ tournamentId }: TournamentPairingsProps)
   const [currentRound, setCurrentRound] = useState(1);
   const [pendingResultChange, setPendingResultChange] = useState<{matchId: number, result: string, isPastRound: boolean} | null>(null);
   const { toast } = useToast();
+  const { user } = useAuth();
+  
+  // Check if user is a tournament director
+  const isTournamentDirector = user?.role === 'tournament_director';
 
   // Get tournament data for planned rounds
   const { data: tournament } = useQuery<Tournament>({
@@ -349,9 +354,10 @@ export default function SwissPairings({ tournamentId }: TournamentPairingsProps)
             )}
           </div>
           
-          <div className="flex flex-wrap gap-2">
-            {/* Regenerate Complete Schedule Button - Round Robin only */}
-            {tournament?.format === 'roundrobin' && (
+          {isTournamentDirector && (
+            <div className="flex flex-wrap gap-2">
+              {/* Regenerate Complete Schedule Button - Round Robin only */}
+              {tournament?.format === 'roundrobin' && (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button
@@ -556,7 +562,8 @@ export default function SwissPairings({ tournamentId }: TournamentPairingsProps)
               </AlertDialog>
             )}
 
-          </div>
+            </div>
+          )}
         </div>
       </CardHeader>
       <CardContent>
@@ -571,9 +578,11 @@ export default function SwissPairings({ tournamentId }: TournamentPairingsProps)
         ) : !matches || matches.length === 0 ? (
           <div className="text-center py-8">
             <p className="text-gray-500 mb-4">No pairings generated yet</p>
-            <Button onClick={() => generatePairingsMutation.mutate({ regenerate: false })}>
-              Generate Pairings
-            </Button>
+            {isTournamentDirector && (
+              <Button onClick={() => generatePairingsMutation.mutate({ regenerate: false })}>
+                Generate Pairings
+              </Button>
+            )}
           </div>
         ) : (
           <div className="space-y-6">
@@ -727,22 +736,28 @@ export default function SwissPairings({ tournamentId }: TournamentPairingsProps)
                             </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-center">
-                            <Select
-                              value={match.result || "Pending"}
-                              onValueChange={(value) => handleResultChange(match.id, value)}
-                            >
-                              <SelectTrigger className="w-24">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="Pending">Pending</SelectItem>
-                                <SelectItem value="1-0">1-0</SelectItem>
-                                <SelectItem value="0-1">0-1</SelectItem>
-                                <SelectItem value="1/2-1/2">½-½</SelectItem>
-                                <SelectItem value="1F-0F">1F-0F</SelectItem>
-                                <SelectItem value="0F-1F">0F-1F</SelectItem>
-                              </SelectContent>
-                            </Select>
+                            {isTournamentDirector ? (
+                              <Select
+                                value={match.result || "Pending"}
+                                onValueChange={(value) => handleResultChange(match.id, value)}
+                              >
+                                <SelectTrigger className="w-24">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="Pending">Pending</SelectItem>
+                                  <SelectItem value="1-0">1-0</SelectItem>
+                                  <SelectItem value="0-1">0-1</SelectItem>
+                                  <SelectItem value="1/2-1/2">½-½</SelectItem>
+                                  <SelectItem value="1F-0F">1F-0F</SelectItem>
+                                  <SelectItem value="0F-1F">0F-1F</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <span className="text-sm font-medium">
+                                {match.result || "Pending"}
+                              </span>
+                            )}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-center">
                             {getStatusBadge(match.status)}

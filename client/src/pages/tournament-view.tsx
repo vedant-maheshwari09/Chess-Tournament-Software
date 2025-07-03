@@ -8,6 +8,7 @@ import { Trophy, ArrowLeft, Trash2 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import TournamentWizard from "@/components/tournament-wizard";
 import PlayerRegistration from "@/components/player-registration";
@@ -19,9 +20,13 @@ import type { Tournament } from "@shared/schema";
 export default function TournamentView() {
   const [match, params] = useRoute("/tournaments/:id");
   const tournamentId = params?.id ? parseInt(params.id) : null;
-  const [activeTab, setActiveTab] = useState("players");
+  const [activeTab, setActiveTab] = useState("pairings");
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const { user } = useAuth();
+  
+  // Check if user is a tournament director
+  const isTournamentDirector = user?.role === 'tournament_director';
 
   const { data: tournament, isLoading } = useQuery<Tournament>({
     queryKey: [`/api/tournaments/${tournamentId}`],
@@ -140,35 +145,37 @@ export default function TournamentView() {
                 </div>
               </div>
             </div>
-            <div className="flex items-center space-x-3">
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="destructive" size="sm">
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Delete Tournament
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Delete Tournament</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Are you sure you want to delete "{tournament.name}"? This action cannot be undone. 
-                      All players, matches, and pairings will be permanently removed.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction 
-                      onClick={handleDeleteTournament}
-                      className="bg-red-600 hover:bg-red-700"
-                      disabled={deleteTournamentMutation.isPending}
-                    >
-                      {deleteTournamentMutation.isPending ? "Deleting..." : "Delete Tournament"}
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </div>
+            {isTournamentDirector && (
+              <div className="flex items-center space-x-3">
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" size="sm">
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete Tournament
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete Tournament</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Are you sure you want to delete "{tournament.name}"? This action cannot be undone. 
+                        All players, matches, and pairings will be permanently removed.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction 
+                        onClick={handleDeleteTournament}
+                        className="bg-red-600 hover:bg-red-700"
+                        disabled={deleteTournamentMutation.isPending}
+                      >
+                        {deleteTournamentMutation.isPending ? "Deleting..." : "Delete Tournament"}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
+            )}
           </div>
         </div>
       </header>
@@ -176,23 +183,34 @@ export default function TournamentView() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="bg-white rounded-lg shadow">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="setup">Setup</TabsTrigger>
-              <TabsTrigger value="players">Players</TabsTrigger>
-              <TabsTrigger value="pairings">Pairings</TabsTrigger>
-              <TabsTrigger value="standings">Standings</TabsTrigger>
-            </TabsList>
+            {isTournamentDirector ? (
+              <TabsList className="grid w-full grid-cols-4">
+                <TabsTrigger value="setup">Setup</TabsTrigger>
+                <TabsTrigger value="players">Players</TabsTrigger>
+                <TabsTrigger value="pairings">Pairings</TabsTrigger>
+                <TabsTrigger value="standings">Standings</TabsTrigger>
+              </TabsList>
+            ) : (
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="pairings">Pairings</TabsTrigger>
+                <TabsTrigger value="standings">Standings</TabsTrigger>
+              </TabsList>
+            )}
 
-            <TabsContent value="setup">
-              <TournamentWizard 
-                tournament={tournament}
-                onTournamentCreated={handleTournamentUpdated} 
-              />
-            </TabsContent>
+            {isTournamentDirector && (
+              <>
+                <TabsContent value="setup">
+                  <TournamentWizard 
+                    tournament={tournament}
+                    onTournamentCreated={handleTournamentUpdated} 
+                  />
+                </TabsContent>
 
-            <TabsContent value="players">
-              <PlayerRegistration tournamentId={tournament.id} />
-            </TabsContent>
+                <TabsContent value="players">
+                  <PlayerRegistration tournamentId={tournament.id} />
+                </TabsContent>
+              </>
+            )}
 
             <TabsContent value="pairings">
               {tournament.format === 'knockout' ? (
