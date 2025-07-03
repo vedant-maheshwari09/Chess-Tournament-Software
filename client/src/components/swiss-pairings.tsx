@@ -224,9 +224,11 @@ export default function SwissPairings({ tournamentId }: TournamentPairingsProps)
             points += 0.5;
           } else if (
             (match.result === '1-0' && match.whitePlayerId === playerId) ||
-            (match.result === '0-1' && match.blackPlayerId === playerId)
+            (match.result === '0-1' && match.blackPlayerId === playerId) ||
+            (match.result === '1F-0F' && match.whitePlayerId === playerId) ||
+            (match.result === '0F-1F' && match.blackPlayerId === playerId)
           ) {
-            // Win - player gets 1 point
+            // Win - player gets 1 point (including forfeit wins)
             points += 1;
           }
           // Loss - player gets 0 points (no need to add anything)
@@ -718,7 +720,7 @@ export default function SwissPairings({ tournamentId }: TournamentPairingsProps)
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center">
                               <div className="text-sm font-medium text-gray-900">
-                                {getPlayerName(match.whitePlayerId)} [{getPlayerPoints(match.whitePlayerId, currentRound)}]
+                                {getPlayerName(match.whitePlayerId)} [{getPlayerPoints(match.whitePlayerId, match.round)}]
                               </div>
                               <div className="text-xs text-gray-500 ml-2">
                                 ({getPlayerRating(match.whitePlayerId)})
@@ -731,7 +733,7 @@ export default function SwissPairings({ tournamentId }: TournamentPairingsProps)
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center">
                               <div className="text-sm font-medium text-gray-900">
-                                {getPlayerName(match.blackPlayerId)} [{getPlayerPoints(match.blackPlayerId, currentRound)}]
+                                {getPlayerName(match.blackPlayerId)} [{getPlayerPoints(match.blackPlayerId, match.round)}]
                               </div>
                               <div className="text-xs text-gray-500 ml-2">
                                 ({getPlayerRating(match.blackPlayerId)})
@@ -779,7 +781,7 @@ export default function SwissPairings({ tournamentId }: TournamentPairingsProps)
                       {pairings.filter((p: any) => p.isBye).map((byePairing: any) => (
                         <div key={byePairing.id} className="flex items-center justify-between text-sm">
                           <span className="text-yellow-700">
-                            {getPlayerName(byePairing.playerId)} [{getPlayerPoints(byePairing.playerId)}] ({getPlayerRating(byePairing.playerId)})
+                            {getPlayerName(byePairing.playerId)} [{getPlayerPoints(byePairing.playerId, currentRound)}] ({getPlayerRating(byePairing.playerId)})
                           </span>
                           <div className="flex items-center gap-2">
                             <Badge variant="outline" className="text-yellow-700 border-yellow-300">
