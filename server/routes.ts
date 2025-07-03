@@ -1979,15 +1979,24 @@ async function generateSwissPairings(players: any[], matches: any[], round: numb
         
         console.log(`Finding opponent for ${player1.player.firstName} (${player1.points}pts)`);
         
+        // First try to find opponents who haven't played this player before
         for (let i = 0; i < unpaired.length; i++) {
           const candidate = unpaired[i];
           
           if (!havePlayed(player1.player.id, candidate.player.id)) {
             bestOpponent = candidate;
             bestOpponentIndex = i;
-            console.log(`  ✓ PAIRED: ${player1.player.firstName} vs ${candidate.player.firstName}`);
+            console.log(`  ✓ PAIRED: ${player1.player.firstName} vs ${candidate.player.firstName} (first time)`);
             break;
           }
+        }
+        
+        // If no first-time opponents available, allow repeat pairings (USCF allows this)
+        if (!bestOpponent && unpaired.length > 0) {
+          console.log(`  No first-time opponents available for ${player1.player.firstName} - allowing repeat pairing`);
+          bestOpponent = unpaired[0]; // Pair with the next available player
+          bestOpponentIndex = 0;
+          console.log(`  ✓ REPEAT PAIRING: ${player1.player.firstName} vs ${bestOpponent.player.firstName} (second time)`);
         }
         
         if (bestOpponent) {
@@ -1998,7 +2007,8 @@ async function generateSwissPairings(players: any[], matches: any[], round: numb
             combined: player1.points + bestOpponent.points
           });
         } else {
-          console.log(`  No new opponent for ${player1.player.firstName} - pairing with "See T.D."`);
+          // This should only happen if there's only one player left
+          console.log(`  No opponent available for ${player1.player.firstName} - pairing with "See T.D."`);
           pairings.push({
             whitePlayerId: player1.player.id,
             blackPlayerId: null,
