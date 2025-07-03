@@ -1528,14 +1528,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Player swap endpoint for drag and drop functionality
-  app.post("/api/tournaments/:id/swap-players", requireAuth, requireTournamentAccess, async (req: Request, res: Response) => {
+  app.post("/api/tournaments/:id/swap-players", requireAuth, requireTournamentAccess, async (req: any, res: any) => {
     try {
-      const tournamentId = parseInt(req.params.id);
+      const tournamentId = Number(req.params.id);
       const { match1Id, match2Id, player1Id, player2Id, color1, color2 } = req.body;
 
       // Get the matches to verify they exist and are in the same tournament
-      const match1 = await storage.getMatch(match1Id);
-      const match2 = await storage.getMatch(match2Id);
+      const match1 = await storage.getMatch(Number(match1Id));
+      const match2 = await storage.getMatch(Number(match2Id));
 
       if (!match1 || !match2) {
         return res.status(404).json({ message: "One or both matches not found" });
@@ -1547,15 +1547,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Perform the swap
       if (color1 === 'white') {
-        await storage.updateMatch(match1Id, { whitePlayerId: player2Id });
+        await storage.updateMatch(Number(match1Id), { whitePlayerId: player2Id });
       } else {
-        await storage.updateMatch(match1Id, { blackPlayerId: player2Id });
+        await storage.updateMatch(Number(match1Id), { blackPlayerId: player2Id });
       }
 
       if (color2 === 'white') {
-        await storage.updateMatch(match2Id, { whitePlayerId: player1Id });
+        await storage.updateMatch(Number(match2Id), { whitePlayerId: player1Id });
       } else {
-        await storage.updateMatch(match2Id, { blackPlayerId: player1Id });
+        await storage.updateMatch(Number(match2Id), { blackPlayerId: player1Id });
       }
 
       // Update corresponding pairings
@@ -1578,7 +1578,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Log the swap in tournament history
-      const user = (req as any).user;
+      const user = req.user;
       await storage.createHistoryEntry({
         tournamentId,
         action: 'player_swap',

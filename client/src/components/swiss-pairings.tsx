@@ -311,30 +311,7 @@ export default function SwissPairings({ tournamentId }: TournamentPairingsProps)
     setIsDragging(true);
   };
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-  };
 
-  const handleDrop = (targetPlayerId: number | null, targetMatchId: number, targetColor: 'white' | 'black') => {
-    if (!draggedPlayer || !isOwner) return;
-    
-    // Can't drop on the same position
-    if (draggedPlayer.matchId === targetMatchId && draggedPlayer.color === targetColor) {
-      setDraggedPlayer(null);
-      setIsDragging(false);
-      return;
-    }
-
-    // Execute the swap
-    swapPlayersMutation.mutate({
-      match1Id: draggedPlayer.matchId,
-      match2Id: targetMatchId,
-      player1Id: draggedPlayer.playerId,
-      player2Id: targetPlayerId,
-      color1: draggedPlayer.color,
-      color2: targetColor,
-    });
-  };
 
   const handleDragEnd = () => {
     setDraggedPlayer(null);
@@ -392,13 +369,43 @@ export default function SwissPairings({ tournamentId }: TournamentPairingsProps)
     return (
       <div
         draggable={isOwner && playerId !== null}
-        onDragStart={() => playerId && handleDragStart(playerId, matchId, color)}
-        onDragOver={handleDragOver}
-        onDrop={() => handleDrop(playerId, matchId, color)}
+        onDragStart={(e) => {
+          if (playerId && isOwner) {
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', JSON.stringify({ playerId, matchId, color }));
+            handleDragStart(playerId, matchId, color);
+          } else {
+            e.preventDefault();
+          }
+        }}
+        onDragOver={(e) => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          
+          if (!draggedPlayer || !isOwner) return;
+          
+          // Can't drop on the same position
+          if (draggedPlayer.matchId === matchId && draggedPlayer.color === color) {
+            return;
+          }
+
+          // Execute the swap
+          swapPlayersMutation.mutate({
+            match1Id: draggedPlayer.matchId,
+            match2Id: matchId,
+            player1Id: draggedPlayer.playerId,
+            player2Id: playerId,
+            color1: draggedPlayer.color,
+            color2: color,
+          });
+        }}
         onDragEnd={handleDragEnd}
         className={`
           inline-flex items-center gap-2 px-3 py-2 rounded-lg border transition-all
-          ${isOwner && playerId ? 'cursor-move hover:shadow-md' : 'cursor-default'}
+          ${isOwner && playerId ? 'cursor-move hover:shadow-md select-none' : 'cursor-default'}
           ${isBeingDragged ? 'opacity-50 bg-blue-100 border-blue-300' : ''}
           ${isDraggedOver ? 'bg-green-100 border-green-300 border-dashed' : 'bg-gray-50 border-gray-200'}
           ${playerId ? 'text-gray-900' : 'text-gray-500 italic'}
