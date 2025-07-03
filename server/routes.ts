@@ -1180,8 +1180,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
             byeType: pairing.byeType || 'half_point',
           });
           savedPairings.push(savedPairing);
+        } else if (pairing.blackPlayerId === null) {
+          // Handle "See T.D." matches - create match and single pairing
+          const match = await storage.createMatch({
+            tournamentId: tournament.id,
+            round: currentRound,
+            board: pairing.board,
+            whitePlayerId: pairing.whitePlayerId,
+            blackPlayerId: null, // "See T.D." match
+            result: null,
+            status: 'pending'
+          });
+          matches.push(match);
+          
+          // Create only white pairing for "See T.D." matches
+          const whitePairing = await storage.createPairing({
+            tournamentId: tournament.id,
+            round: currentRound,
+            playerId: pairing.whitePlayerId,
+            opponentId: null,
+            color: 'white',
+            points: 0,
+            isBye: false, // Not a bye, just "See T.D."
+          });
+          
+          savedPairings.push(whitePairing);
         } else {
-          // Create match
+          // Create regular match with both players
           const match = await storage.createMatch({
             tournamentId: tournament.id,
             round: currentRound,
