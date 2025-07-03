@@ -646,10 +646,13 @@ export default function SwissPairings({ tournamentId }: TournamentPairingsProps)
                                   <td className="px-4 py-3 whitespace-nowrap">
                                     <div className="flex items-center">
                                       <div className="text-sm font-medium text-gray-900">
-                                        {getPlayerName(match.blackPlayerId)} [{getPlayerPoints(match.blackPlayerId, round)}]
+                                        {match.blackPlayerId ? 
+                                          `${getPlayerName(match.blackPlayerId)} [${getPlayerPoints(match.blackPlayerId, round)}]` : 
+                                          "See T.D."
+                                        }
                                       </div>
                                       <div className="text-xs text-gray-500 ml-2">
-                                        ({getPlayerRating(match.blackPlayerId)})
+                                        {match.blackPlayerId ? `(${getPlayerRating(match.blackPlayerId)})` : ""}
                                       </div>
                                     </div>
                                   </td>
@@ -663,11 +666,17 @@ export default function SwissPairings({ tournamentId }: TournamentPairingsProps)
                                       </SelectTrigger>
                                       <SelectContent>
                                         <SelectItem value="Pending">Pending</SelectItem>
-                                        <SelectItem value="1-0">1-0</SelectItem>
-                                        <SelectItem value="0-1">0-1</SelectItem>
-                                        <SelectItem value="1/2-1/2">½-½</SelectItem>
-                                        <SelectItem value="1F-0F">1F-0F</SelectItem>
-                                        <SelectItem value="0F-1F">0F-1F</SelectItem>
+                                        {match.blackPlayerId ? (
+                                          <>
+                                            <SelectItem value="1-0">1-0</SelectItem>
+                                            <SelectItem value="0-1">0-1</SelectItem>
+                                            <SelectItem value="1/2-1/2">½-½</SelectItem>
+                                            <SelectItem value="1F-0F">1F-0F</SelectItem>
+                                            <SelectItem value="0F-1F">0F-1F</SelectItem>
+                                          </>
+                                        ) : (
+                                          <SelectItem value="1-bye">1-point bye</SelectItem>
+                                        )}
                                       </SelectContent>
                                     </Select>
                                   </td>
@@ -733,10 +742,13 @@ export default function SwissPairings({ tournamentId }: TournamentPairingsProps)
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center">
                               <div className="text-sm font-medium text-gray-900">
-                                {getPlayerName(match.blackPlayerId)} [{getPlayerPoints(match.blackPlayerId, match.round)}]
+                                {match.blackPlayerId ? 
+                                  `${getPlayerName(match.blackPlayerId)} [${getPlayerPoints(match.blackPlayerId, match.round)}]` : 
+                                  "See T.D."
+                                }
                               </div>
                               <div className="text-xs text-gray-500 ml-2">
-                                ({getPlayerRating(match.blackPlayerId)})
+                                {match.blackPlayerId ? `(${getPlayerRating(match.blackPlayerId)})` : ""}
                               </div>
                             </div>
                           </td>
@@ -751,11 +763,17 @@ export default function SwissPairings({ tournamentId }: TournamentPairingsProps)
                                 </SelectTrigger>
                                 <SelectContent>
                                   <SelectItem value="Pending">Pending</SelectItem>
-                                  <SelectItem value="1-0">1-0</SelectItem>
-                                  <SelectItem value="0-1">0-1</SelectItem>
-                                  <SelectItem value="1/2-1/2">½-½</SelectItem>
-                                  <SelectItem value="1F-0F">1F-0F</SelectItem>
-                                  <SelectItem value="0F-1F">0F-1F</SelectItem>
+                                  {match.blackPlayerId ? (
+                                    <>
+                                      <SelectItem value="1-0">1-0</SelectItem>
+                                      <SelectItem value="0-1">0-1</SelectItem>
+                                      <SelectItem value="1/2-1/2">½-½</SelectItem>
+                                      <SelectItem value="1F-0F">1F-0F</SelectItem>
+                                      <SelectItem value="0F-1F">0F-1F</SelectItem>
+                                    </>
+                                  ) : (
+                                    <SelectItem value="1-bye">1-point bye</SelectItem>
+                                  )}
                                 </SelectContent>
                               </Select>
                             ) : (

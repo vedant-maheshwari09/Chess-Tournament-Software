@@ -1770,13 +1770,13 @@ async function generateSwissPairings(players: any[], matches: any[], round: numb
     }
     
     if (isOdd) {
-      const byePlayer = sortedPlayers[sortedPlayers.length - 1]; // Lowest-rated player gets bye
+      const byePlayer = sortedPlayers[sortedPlayers.length - 1]; // Lowest-rated player paired with "See T.D."
       pairings.push({
         whitePlayerId: byePlayer.id,
         blackPlayerId: null,
-        board: 0,
-        isBye: true,
-        byeType: 'full_point', // 1-point bye for lowest-rated player when odd numbers
+        board: boardNumber++,
+        isBye: false, // Not a bye - it's a pairing with "See T.D."
+        opponentName: "See T.D.",
       });
     }
   } else {
@@ -1798,6 +1798,8 @@ async function generateSwissPairings(players: any[], matches: any[], round: numb
             points += 1;
           } else if (match.result === 'draw' || match.result === '1/2-1/2') {
             points += 0.5;
+          } else if (match.result === '1-bye') {
+            points += 1; // 1-point bye for the player
           }
         } else if (match.blackPlayerId === player.id) {
           blackGames++;
@@ -1935,20 +1937,13 @@ async function generateSwissPairings(players: any[], matches: any[], round: numb
       let unpaired = [...sortedPlayers];
       const tempPairings = [];
       
-      // Check if we have odd number - assign bye to lowest-pointed, lowest-rated player first
+      // Check if we have odd number - pair with "See T.D." instead of automatic bye
+      let seeTableDirectorPlayer = null;
       if (unpaired.length % 2 === 1) {
-        const byePlayer = unpaired[unpaired.length - 1]; // Last player (lowest points/rating)
-        console.log(`Odd number of players - assigning 1-point bye to: ${byePlayer.player.firstName} (${byePlayer.points} pts, rating ${byePlayer.player.rating})`);
+        seeTableDirectorPlayer = unpaired[unpaired.length - 1]; // Last player (lowest points/rating)
+        console.log(`Odd number of players - pairing with "See T.D.": ${seeTableDirectorPlayer.player.firstName} (${seeTableDirectorPlayer.points} pts, rating ${seeTableDirectorPlayer.player.rating})`);
         
-        pairings.push({
-          whitePlayerId: byePlayer.player.id,
-          blackPlayerId: null,
-          board: 0,
-          isBye: true,
-          byeType: 'full_point', // 1-point bye for lowest-pointed, lowest-rated player
-        });
-        
-        // Remove bye player from unpaired list
+        // Remove "See T.D." player from unpaired list
         unpaired = unpaired.slice(0, -1);
       }
       
@@ -1978,13 +1973,13 @@ async function generateSwissPairings(players: any[], matches: any[], round: numb
             combined: player1.points + bestOpponent.points
           });
         } else {
-          console.log(`  No new opponent for ${player1.player.firstName} - giving bye`);
+          console.log(`  No new opponent for ${player1.player.firstName} - pairing with "See T.D."`);
           pairings.push({
             whitePlayerId: player1.player.id,
             blackPlayerId: null,
             board: 0,
-            isBye: true,
-            byeType: 'full_point', // 1-point bye when no opponent available
+            isBye: false, // Not a bye - it's a pairing with "See T.D."
+            opponentName: "See T.D.",
           });
         }
       }
@@ -2004,6 +1999,17 @@ async function generateSwissPairings(players: any[], matches: any[], round: numb
           blackPlayerId: colors.blackPlayer.id,
           board: boardNum++,
           isBye: false,
+        });
+      }
+      
+      // Add "See T.D." pairing for the odd player
+      if (seeTableDirectorPlayer) {
+        pairings.push({
+          whitePlayerId: seeTableDirectorPlayer.player.id,
+          blackPlayerId: null,
+          board: boardNum++,
+          isBye: false, // Not a bye - it's a pairing with "See T.D."
+          opponentName: "See T.D.",
         });
       }
     }

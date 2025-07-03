@@ -224,6 +224,9 @@ export default function SwissStandings({ tournamentId }: SwissStandingsProps) {
           } else if (matchThisRound.result === '0F-1F') {
             result = isWhite ? 'forfeit-loss' : 'forfeit-win';
             points = isWhite ? 0 : 1;
+          } else if (matchThisRound.result === '1-bye') {
+            result = 'bye';
+            points = 1; // 1-point bye
           }
         }
 
