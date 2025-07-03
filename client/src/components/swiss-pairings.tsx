@@ -307,7 +307,9 @@ export default function SwissPairings({ tournamentId }: TournamentPairingsProps)
                 Previous
               </Button>
               <span className="text-sm font-medium px-3 py-1 bg-gray-100 rounded">
-                Round {currentRound} of {tournament?.rounds || Math.max(...allMatches.map(m => m.round))}
+                Round {currentRound} of {tournament?.format === 'roundrobin' 
+                  ? Math.max(...allMatches.map(m => m.round)) 
+                  : (tournament?.rounds || Math.max(...allMatches.map(m => m.round)))}
               </span>
               <Button
                 variant="outline"
@@ -348,6 +350,41 @@ export default function SwissPairings({ tournamentId }: TournamentPairingsProps)
           </div>
           
           <div className="flex flex-wrap gap-2">
+            {/* Regenerate Complete Schedule Button - Round Robin only */}
+            {tournament?.format === 'roundrobin' && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="outline"
+                    disabled={generatePairingsMutation.isPending}
+                    className="border-purple-600 text-purple-600 hover:bg-purple-50"
+                    size="sm"
+                  >
+                    <RefreshCw className="h-4 w-4 mr-1" />
+                    {generatePairingsMutation.isPending ? "Regenerating..." : "Regenerate Schedule"}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Regenerate Complete Round Robin Schedule?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will delete and recreate all pairings for ALL rounds in the Round Robin tournament. 
+                      Any existing match results will be lost. This action cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => generatePairingsMutation.mutate({ regenerate: true })}
+                      className="bg-purple-600 hover:bg-purple-700"
+                    >
+                      Regenerate All Rounds
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+
             {/* Generate Next Round Button - only show for Swiss tournaments */}
             {tournament?.format === 'swiss' && (
               <>
@@ -451,8 +488,8 @@ export default function SwissPairings({ tournamentId }: TournamentPairingsProps)
               </AlertDialogContent>
             </AlertDialog>
 
-            {/* Repair Round with Confirmation - Swiss only */}
-            {tournament?.format === 'swiss' && (
+            {/* Repair Round with Confirmation - Swiss and Round Robin */}
+            {(tournament?.format === 'swiss' || tournament?.format === 'roundrobin') && (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button

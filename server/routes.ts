@@ -892,6 +892,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const existingPairings = await storage.getPairingsByTournament(tournamentId);
         const existingMatches = await storage.getMatchesByTournament(tournamentId);
         
+        // If regenerating, clear existing data first
+        if (regenerate && (existingPairings.length > 0 || existingMatches.length > 0)) {
+          console.log('Regenerating Round Robin tournament - clearing existing data');
+          
+          // Delete all existing pairings and matches
+          for (const pairing of existingPairings) {
+            await storage.deletePairing(pairing.id);
+          }
+          for (const match of existingMatches) {
+            await storage.deleteMatch(match.id);
+          }
+          
+          // Log the regeneration in tournament history
+          await storage.createHistoryEntry({
+            tournamentId,
+            action: 'regenerate_all_rounds',
+            description: `Round Robin tournament regenerated - all rounds recreated`,
+            changedBy: (req as any).user.id,
+            previousState: JSON.stringify({ pairingsCount: existingPairings.length, matchesCount: existingMatches.length }),
+            newState: JSON.stringify({ regenerated: true }),
+            round: null,
+            canRevert: false
+          });
+        }
+        
         if (existingPairings.length === 0 && existingMatches.length === 0) {
           // Generate all Round Robin pairings for all rounds
           const { generateRoundRobinSchedule, validateRoundRobinSchedule } = await import('./round-robin');
