@@ -1770,13 +1770,13 @@ async function generateSwissPairings(players: any[], matches: any[], round: numb
     }
     
     if (isOdd) {
-      const byePlayer = sortedPlayers[sortedPlayers.length - 1];
+      const byePlayer = sortedPlayers[sortedPlayers.length - 1]; // Lowest-rated player gets bye
       pairings.push({
         whitePlayerId: byePlayer.id,
         blackPlayerId: null,
         board: 0,
         isBye: true,
-        byeType: 'full_point', // USCF: Round 1 automatic bye is full point
+        byeType: 'full_point', // 1-point bye for lowest-rated player when odd numbers
       });
     }
   } else {
@@ -1921,8 +1921,25 @@ async function generateSwissPairings(players: any[], matches: any[], round: numb
       }
     } else {
       // Simple greedy algorithm for other rounds
-      const unpaired = [...sortedPlayers];
+      let unpaired = [...sortedPlayers];
       const tempPairings = [];
+      
+      // Check if we have odd number - assign bye to lowest-pointed, lowest-rated player first
+      if (unpaired.length % 2 === 1) {
+        const byePlayer = unpaired[unpaired.length - 1]; // Last player (lowest points/rating)
+        console.log(`Odd number of players - assigning 1-point bye to: ${byePlayer.player.firstName} (${byePlayer.points} pts, rating ${byePlayer.player.rating})`);
+        
+        pairings.push({
+          whitePlayerId: byePlayer.player.id,
+          blackPlayerId: null,
+          board: 0,
+          isBye: true,
+          byeType: 'full_point', // 1-point bye for lowest-pointed, lowest-rated player
+        });
+        
+        // Remove bye player from unpaired list
+        unpaired = unpaired.slice(0, -1);
+      }
       
       while (unpaired.length > 1) {
         const player1 = unpaired.shift()!;
@@ -1956,21 +1973,14 @@ async function generateSwissPairings(players: any[], matches: any[], round: numb
             blackPlayerId: null,
             board: 0,
             isBye: true,
-            byeType: 'full_point', // USCF: Automatic byes are full points
+            byeType: 'full_point', // 1-point bye when no opponent available
           });
         }
       }
       
+      // All players should be paired now since we handled odd numbers upfront
       if (unpaired.length === 1) {
-        const finalPlayer = unpaired[0];
-        console.log(`Final bye: ${finalPlayer.player.firstName}`);
-        pairings.push({
-          whitePlayerId: finalPlayer.player.id,
-          blackPlayerId: null,
-          board: 0,
-          isBye: true,
-          byeType: 'full_point', // USCF: Automatic byes are full points
-        });
+        console.error(`Error: Still have unpaired player: ${unpaired[0].player.firstName}`);
       }
       
       // Sort pairings by combined points and assign board numbers
