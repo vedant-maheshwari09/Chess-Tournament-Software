@@ -602,6 +602,8 @@ export default function SwissPairings({ tournamentId }: TournamentPairingsProps)
                             <SelectItem value="1-0">1-0</SelectItem>
                             <SelectItem value="0-1">0-1</SelectItem>
                             <SelectItem value="1/2-1/2">½-½</SelectItem>
+                            <SelectItem value="1F-0F">1F-0F</SelectItem>
+                            <SelectItem value="0F-1F">0F-1F</SelectItem>
                           </SelectContent>
                         </Select>
                       </td>

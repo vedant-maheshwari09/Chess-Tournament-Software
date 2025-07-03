@@ -11,6 +11,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import PlayerRegistration from "@/components/player-registration";
 import SwissPairings from "@/components/swiss-pairings";
 import Standings from "@/components/standings";
+import SwissStandings from "@/components/swiss-standings";
 import RoundRobinCrosstable from "@/components/round-robin-crosstable";
 import KnockoutBracket from "@/components/knockout-bracket";
 import type { Tournament, Player } from "@shared/schema";
@@ -307,6 +308,8 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
         <TabsContent value="standings" className="mt-6">
           {tournament.format === 'roundrobin' ? (
             <RoundRobinCrosstable tournamentId={tournamentId} />
+          ) : tournament.format === 'swiss' ? (
+            <SwissStandings tournamentId={tournamentId} />
           ) : (
             <Card>
               <CardHeader>

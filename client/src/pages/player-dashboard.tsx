@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/useAuth";
 import type { Tournament } from "@shared/schema";
 import Standings from "@/components/standings";
+import SwissStandings from "@/components/swiss-standings";
 import SwissPairings from "@/components/swiss-pairings";
 import RoundRobinCrosstable from "@/components/round-robin-crosstable";
 import KnockoutBracket from "@/components/knockout-bracket";
@@ -280,6 +281,8 @@ export default function PlayerDashboard() {
               <CardContent>
                 {selectedTournament.format === 'roundrobin' ? (
                   <RoundRobinCrosstable tournamentId={selectedTournament.id} />
+                ) : selectedTournament.format === 'swiss' ? (
+                  <SwissStandings tournamentId={selectedTournament.id} />
                 ) : (
                   <Standings tournamentId={selectedTournament.id} />
                 )}
