@@ -25,13 +25,20 @@ export default function TournamentView() {
   const { toast } = useToast();
   const { user } = useAuth();
   
-  // Check if user is a tournament director
-  const isTournamentDirector = user?.role === 'tournament_director';
-
   const { data: tournament, isLoading } = useQuery<Tournament>({
     queryKey: [`/api/tournaments/${tournamentId}`],
     enabled: !!tournamentId,
   });
+
+  // Get tournament creator information
+  const { data: creator } = useQuery<{firstName: string, lastName: string}>({
+    queryKey: [`/api/users/${tournament?.createdBy}`],
+    enabled: !!tournament?.createdBy,
+  });
+
+  // Check if user is a tournament director and owns this tournament
+  const isTournamentDirector = user?.role === 'tournament_director';
+  const isOwner = isTournamentDirector && tournament && user && tournament.createdBy === user.id;
 
   const deleteTournamentMutation = useMutation({
     mutationFn: async () => {
@@ -143,9 +150,14 @@ export default function TournamentView() {
                     {tournament.format.charAt(0).toUpperCase() + tournament.format.slice(1)} Format
                   </span>
                 </div>
+                {creator && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    {creator.firstName} {creator.lastName}'s tournament
+                  </p>
+                )}
               </div>
             </div>
-            {isTournamentDirector && (
+            {isOwner && (
               <div className="flex items-center space-x-3">
                 <AlertDialog>
                   <AlertDialogTrigger asChild>

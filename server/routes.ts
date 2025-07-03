@@ -181,6 +181,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get user by ID (for showing tournament creators)
+  app.get("/api/users/:id", async (req, res) => {
+    try {
+      const userId = parseInt(req.params.id);
+      const user = await storage.getUserById(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      // Return only public information
+      const { passwordHash: _, ...publicUser } = user;
+      res.json(publicUser);
+    } catch (error) {
+      console.error('Get user by ID error:', error);
+      res.status(500).json({ message: "Failed to get user info" });
+    }
+  });
+
   // Forgot password routes
   app.post("/api/auth/forgot-password", async (req, res) => {
     try {
@@ -340,7 +358,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Start tournament
-  app.post("/api/tournaments/:id/start", requireAuth, async (req, res) => {
+  app.post("/api/tournaments/:id/start", requireAuth, requireRole('tournament_director'), requireTournamentAccess, async (req, res) => {
     try {
       const tournamentId = parseInt(req.params.id);
       const tournament = await storage.getTournament(tournamentId);
@@ -443,7 +461,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Generate next round
-  app.post("/api/tournaments/:id/next-round", requireAuth, async (req, res) => {
+  app.post("/api/tournaments/:id/next-round", requireAuth, requireRole('tournament_director'), requireTournamentAccess, async (req, res) => {
     try {
       const tournamentId = parseInt(req.params.id);
       const tournament = await storage.getTournament(tournamentId);
@@ -495,7 +513,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/tournaments/:id", async (req, res) => {
+  app.put("/api/tournaments/:id", requireAuth, requireRole('tournament_director'), requireTournamentAccess, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const tournament = await storage.updateTournament(id, req.body);
@@ -509,7 +527,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Delete tournament
-  app.delete("/api/tournaments/:id", async (req, res) => {
+  app.delete("/api/tournaments/:id", requireAuth, requireRole('tournament_director'), requireTournamentAccess, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const deleted = await storage.deleteTournament(id);
@@ -570,7 +588,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/tournaments/:tournamentId/players", async (req, res) => {
+  app.post("/api/tournaments/:tournamentId/players", requireAuth, requireRole('tournament_director'), requireTournamentAccess, async (req, res) => {
     try {
       const tournamentId = parseInt(req.params.tournamentId);
       const { byeConfiguration, ...playerFields } = req.body;
@@ -604,13 +622,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/players/:id", async (req, res) => {
+  app.delete("/api/players/:id", requireAuth, requireRole('tournament_director'), async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      const deleted = await storage.deletePlayer(id);
-      if (!deleted) {
+      const user = (req as any).user;
+      
+      // Get player to check tournament ownership
+      const player = await storage.getPlayer(id);
+      if (!player) {
         return res.status(404).json({ message: "Player not found" });
       }
+      
+      // Verify tournament ownership
+      const tournament = await storage.getTournament(player.tournamentId);
+      if (!tournament || tournament.createdBy !== user.id) {
+        return res.status(403).json({ message: "Access denied to this tournament" });
+      }
+      
+      const deleted = await storage.deletePlayer(id);
       res.status(200).json({ message: "Player deleted successfully" });
     } catch (error) {
       res.status(500).json({ message: "Failed to delete player" });
@@ -791,7 +820,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/tournaments/:tournamentId/matches", async (req, res) => {
+  app.post("/api/tournaments/:tournamentId/matches", requireAuth, requireRole('tournament_director'), requireTournamentAccess, async (req, res) => {
     try {
       const tournamentId = parseInt(req.params.tournamentId);
       const matchData = { ...req.body, tournamentId };
@@ -803,7 +832,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/matches/:id", requireAuth, async (req, res) => {
+  app.put("/api/matches/:id", requireAuth, requireRole('tournament_director'), async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const user = (req as any).user;
@@ -869,7 +898,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/tournaments/:tournamentId/generate-pairings", requireAuth, async (req, res) => {
+  app.post("/api/tournaments/:tournamentId/generate-pairings", requireAuth, requireRole('tournament_director'), requireTournamentAccess, async (req, res) => {
     try {
       const tournamentId = parseInt(req.params.tournamentId);
       const { regenerate = false, targetRound } = req.body;

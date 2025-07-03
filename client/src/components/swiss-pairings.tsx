@@ -21,13 +21,14 @@ export default function SwissPairings({ tournamentId }: TournamentPairingsProps)
   const { toast } = useToast();
   const { user } = useAuth();
   
-  // Check if user is a tournament director
-  const isTournamentDirector = user?.role === 'tournament_director';
-
   // Get tournament data for planned rounds
   const { data: tournament } = useQuery<Tournament>({
     queryKey: [`/api/tournaments/${tournamentId}`],
   });
+
+  // Check if user is a tournament director and owns this tournament
+  const isTournamentDirector = user?.role === 'tournament_director';
+  const isOwner = isTournamentDirector && tournament && user && tournament.createdBy === user.id;
 
   // Get all matches to determine the current round
   const { data: allMatches } = useQuery<Match[]>({
@@ -354,7 +355,7 @@ export default function SwissPairings({ tournamentId }: TournamentPairingsProps)
             )}
           </div>
           
-          {isTournamentDirector && (
+          {isOwner && (
             <div className="flex flex-wrap gap-2">
               {/* Regenerate Complete Schedule Button - Round Robin only */}
               {tournament?.format === 'roundrobin' && (
@@ -578,7 +579,7 @@ export default function SwissPairings({ tournamentId }: TournamentPairingsProps)
         ) : !matches || matches.length === 0 ? (
           <div className="text-center py-8">
             <p className="text-gray-500 mb-4">No pairings generated yet</p>
-            {isTournamentDirector && (
+            {isOwner && (
               <Button onClick={() => generatePairingsMutation.mutate({ regenerate: false })}>
                 Generate Pairings
               </Button>

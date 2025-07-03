@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Users, Trophy, Calendar, Play, Plus, Undo } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import PlayerRegistration from "@/components/player-registration";
 import SwissPairings from "@/components/swiss-pairings";
@@ -24,11 +25,22 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
   const [, setLocation] = useLocation();
   const [activeTab, setActiveTab] = useState("info");
   const { toast } = useToast();
+  const { user } = useAuth();
 
   // Fetch tournament details
   const { data: tournament, isLoading: tournamentLoading } = useQuery<Tournament>({
     queryKey: [`/api/tournaments/${tournamentId}`],
   });
+
+  // Check if user owns this tournament
+  const isOwner = user?.role === 'tournament_director' && tournament && user && tournament.createdBy === user.id;
+
+  // Redirect non-owners to tournament view
+  useEffect(() => {
+    if (tournament && user && !isOwner) {
+      setLocation(`/tournaments/${tournamentId}`);
+    }
+  }, [tournament, user, isOwner, tournamentId, setLocation]);
 
   // Fetch players
   const { data: players = [], isLoading: playersLoading } = useQuery<Player[]>({
