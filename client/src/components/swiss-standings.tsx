@@ -74,7 +74,8 @@ export default function SwissStandings({ tournamentId }: SwissStandingsProps) {
   const calculateSwissStandings = (): SwissPlayerStanding[] => {
     // Calculate current round from existing matches
     const currentRound = matches.length > 0 ? Math.max(...matches.map(m => m.round)) : 0;
-    const totalRounds = tournament.rounds || 5;
+    // Use the actual highest round number instead of planned rounds to show extended tournaments
+    const totalRounds = Math.max(currentRound, tournament.rounds || 5);
 
     // First pass: Calculate basic points and rankings
     const basicStandings = players.map(player => {
@@ -254,7 +255,7 @@ export default function SwissStandings({ tournamentId }: SwissStandingsProps) {
 
   const standings = calculateSwissStandings();
   const currentRound = matches.length > 0 ? Math.max(...matches.map(m => m.round)) : 0;
-  const totalRounds = tournament.rounds || 5;
+  const totalRounds = Math.max(currentRound, tournament.rounds || 5);
 
   const formatRoundResult = (result: PlayerRoundResult, round: number): string => {
     if (result.result === 'bye') {
