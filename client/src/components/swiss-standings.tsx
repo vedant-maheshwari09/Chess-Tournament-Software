@@ -361,6 +361,9 @@ export default function SwissStandings({ tournamentId }: SwissStandingsProps) {
                     <td className="px-3 py-3 whitespace-nowrap">
                       <div className="text-sm font-medium text-gray-900">
                         {standing.player.firstName} {standing.player.lastName}
+                        {`${standing.player.firstName} ${standing.player.lastName}`.toLowerCase() === "j q" && (
+                          <span className="text-xs text-gray-500 font-normal"> (substitute player)</span>
+                        )}
                       </div>
                       <div className="text-xs text-gray-500">
                         {standing.player.rating} {standing.player.federation}

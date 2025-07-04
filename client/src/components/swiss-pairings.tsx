@@ -312,7 +312,14 @@ export default function SwissPairings({ tournamentId }: TournamentPairingsProps)
   const getPlayerName = (playerId: number | null) => {
     if (!playerId || !players) return "BYE";
     const player = players.find(p => p.id === playerId);
-    return player ? `${player.firstName} ${player.lastName}` : "Unknown";
+    if (!player) return "Unknown";
+    
+    const fullName = `${player.firstName} ${player.lastName}`;
+    // Add substitute player note for j q
+    if (fullName.toLowerCase() === "j q") {
+      return `${fullName} (substitute player)`;
+    }
+    return fullName;
   };
 
   const getPlayerRating = (playerId: number | null) => {
