@@ -23,66 +23,32 @@ interface TournamentManagementProps {
 }
 
 export default function TournamentManagement({ tournamentId }: TournamentManagementProps) {
-  console.log("=== TournamentManagement component START ===");
-  console.log("tournamentId:", tournamentId);
-  
   const [, setLocation] = useLocation();
   const [activeTab, setActiveTab] = useState("info");
   const { toast } = useToast();
   const { user } = useAuth();
 
-  console.log("TournamentManagement component loaded with tournamentId:", tournamentId);
-  console.log("User auth state:", user);
-
   // Fetch tournament details
-  const { data: tournament, isLoading: tournamentLoading, error: tournamentError } = useQuery<Tournament>({
+  const { data: tournament, isLoading: tournamentLoading } = useQuery<Tournament>({
     queryKey: [`/api/tournaments/${tournamentId}`],
   });
 
-  console.log("Tournament data:", tournament);
-  console.log("Tournament loading:", tournamentLoading);
-  console.log("Tournament error:", tournamentError);
-
   // Check if user owns this tournament
   const isOwner = user?.role === 'tournament_director' && tournament && user && tournament.createdBy === user.id;
-  console.log("User role:", user?.role);
-  console.log("Tournament createdBy:", tournament?.createdBy);
-  console.log("User ID:", user?.id);
-  console.log("IsOwner calculation:", isOwner);
 
   // Redirect non-owners to tournament view
   useEffect(() => {
-    console.log("Redirect check - tournament:", tournament, "user:", user, "isOwner:", isOwner);
     if (tournament && user && !isOwner) {
-      console.log("Redirecting to tournament view");
       setLocation(`/tournaments/${tournamentId}`);
     }
   }, [tournament, user, isOwner, tournamentId, setLocation]);
 
   // Fetch players
-  const { data: players = [], isLoading: playersLoading, error: playersError } = useQuery<Player[]>({
+  const { data: players = [] } = useQuery<Player[]>({
     queryKey: [`/api/tournaments/${tournamentId}/players`],
   });
 
-  console.log("Players data:", players);
-  console.log("Players loading:", playersLoading);
-  console.log("Players error:", playersError);
 
-  // TEST: Early return to see if component is being called
-  if (true) {
-    console.log("TEST: About to render simple test component");
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold">Tournament Management Test</h1>
-          <p>Tournament ID: {tournamentId}</p>
-          <p>User: {user?.username || 'No user'}</p>
-          <p>Loading: {tournamentLoading ? 'Yes' : 'No'}</p>
-          <p>Tournament: {tournament ? tournament.name : 'No tournament'}</p>
-        </div>
-      </div>
-    );
-  }
 
   // Start tournament mutation
   const startTournamentMutation = useMutation({
@@ -163,8 +129,8 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
     );
   }
 
-  const canStartTournament = tournament.status === 'draft' && players.length >= 2;
-  const canGenerateNextRound = tournament.status === 'active' && (tournament.currentRound || 0) > 0;
+  const canStartTournament = tournament?.status === 'draft' && players.length >= 2;
+  const canGenerateNextRound = tournament?.status === 'active' && (tournament?.currentRound || 0) > 0;
 
   return (
     <div className="max-w-7xl mx-auto p-6">
@@ -172,13 +138,13 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
       <div className="mb-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">{tournament.name}</h1>
+            <h1 className="text-3xl font-bold text-gray-900">{tournament?.name}</h1>
             <div className="flex items-center space-x-4 mt-2">
-              <Badge variant={tournament.status === 'active' ? 'default' : tournament.status === 'completed' ? 'secondary' : 'outline'}>
-                {tournament.status.charAt(0).toUpperCase() + tournament.status.slice(1)}
+              <Badge variant={tournament?.status === 'active' ? 'default' : tournament?.status === 'completed' ? 'secondary' : 'outline'}>
+                {tournament?.status.charAt(0).toUpperCase() + tournament?.status.slice(1)}
               </Badge>
-              <span className="text-gray-600">{tournament.format.toUpperCase()}</span>
-              {tournament.rounds && (
+              <span className="text-gray-600">{tournament?.format.toUpperCase()}</span>
+              {tournament?.rounds && (
                 <span className="text-gray-600">{tournament.rounds} rounds</span>
               )}
               <span className="text-gray-600">{players.length} players</span>
@@ -329,7 +295,7 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
                   </div>
                 )}
                 
-                {tournament.directorEmail && (
+                {tournament?.directorEmail && (
                   <div className="space-y-2">
                     <h4 className="font-medium text-gray-900">Director Email</h4>
                     <p className="text-gray-600">{tournament.directorEmail}</p>
@@ -337,7 +303,7 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
                 )}
                 
                 {/* Round Schedule */}
-                {tournament.roundTimings && (tournament.roundTimings as any).length > 0 && (
+                {tournament?.roundTimings && (tournament.roundTimings as any).length > 0 && (
                   <>
                     <div className="col-span-full">
                       <h3 className="text-lg font-semibold text-gray-900 mb-4 border-b pb-2">
