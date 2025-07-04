@@ -203,7 +203,8 @@ export default function SwissStandings({ tournamentId }: SwissStandingsProps) {
         const isWhite = matchThisRound.whitePlayerId === standing.player.id;
         const opponentId = isWhite ? matchThisRound.blackPlayerId : matchThisRound.whitePlayerId;
         const opponent = players.find(p => p.id === opponentId) || null;
-        const opponentPosition = standingsWithPositions.find(s => s.player.id === opponentId)?.position || 0;
+        const opponentStanding = standingsWithPositions.find(s => s.player.id === opponentId);
+        const opponentPosition = opponentStanding?.position || 0;
 
         let result: PlayerRoundResult['result'] = 'withdrawn';
         let points = 0;
@@ -296,17 +297,19 @@ export default function SwissStandings({ tournamentId }: SwissStandingsProps) {
     }
 
     const colorPrefix = result.color === 'white' ? 'W' : 'B';
-    const opponentPos = result.opponentPosition;
+    
+    // Show "TD" instead of position number if opponent is the active tournament director
+    const opponentDisplayText = result.opponent?.isActiveTd ? 'TD' : result.opponentPosition;
 
     if (result.result === 'forfeit-win') {
-      return `X${opponentPos}`;
+      return `X${opponentDisplayText}`;
     }
     
     if (result.result === 'forfeit-loss') {
-      return `F${opponentPos}`;
+      return `F${opponentDisplayText}`;
     }
 
-    return `${colorPrefix}${result.result}${opponentPos}`;
+    return `${colorPrefix}${result.result}${opponentDisplayText}`;
   };
 
   const formatPoints = (standing: SwissPlayerStanding): string => {

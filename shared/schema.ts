@@ -59,6 +59,7 @@ export const players = pgTable("players", {
   halfPointByesUsed: integer("half_point_byes_used").default(0),
   fullPointByesReceived: integer("full_point_byes_received").default(0),
   forfeitWinsReceived: integer("forfeit_wins_received").default(0),
+  isActiveTd: boolean("is_active_td").default(false), // Only one player per tournament can be active TD
 });
 
 export const matches = pgTable("matches", {

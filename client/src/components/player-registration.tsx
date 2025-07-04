@@ -22,6 +22,7 @@ export default function PlayerRegistration({ tournamentId }: PlayerRegistrationP
   const [rating, setRating] = useState("");
   const [federation, setFederation] = useState("USCF");
   const [byeConfiguration, setByeConfiguration] = useState<string>("");
+  const [isActiveTd, setIsActiveTd] = useState(false);
   
   // Player editing state
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
@@ -89,6 +90,7 @@ export default function PlayerRegistration({ tournamentId }: PlayerRegistrationP
       setRating("");
       setFederation("USCF");
       setByeConfiguration("");
+      setIsActiveTd(false);
     },
     onError: () => {
       toast({
@@ -211,6 +213,7 @@ export default function PlayerRegistration({ tournamentId }: PlayerRegistrationP
       lastName: lastName.trim() || "",
       rating: rating ? parseInt(rating) : undefined,
       federation: federation || "USCF",
+      isActiveTd,
       byeConfiguration: byeConfiguration ? parseByeConfiguration(byeConfiguration) : undefined,
     };
 
@@ -362,6 +365,28 @@ export default function PlayerRegistration({ tournamentId }: PlayerRegistrationP
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+            
+            {/* Tournament Director Option */}
+            <div className="space-y-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="isActiveTd"
+                  checked={isActiveTd}
+                  onChange={(e) => setIsActiveTd(e.target.checked)}
+                  className="rounded border-gray-300 text-yellow-600 focus:ring-yellow-500"
+                />
+                <Label htmlFor="isActiveTd" className="text-sm font-medium">
+                  Make this player the Active Tournament Director (TD)
+                </Label>
+              </div>
+              <p className="text-xs text-yellow-700">
+                • Only one TD can be active per tournament
+                • TD plays when "See T.D." pairing is needed
+                • In opponent standings, shows as "TD" instead of board number
+                • Previous active TD will be automatically deactivated
+              </p>
             </div>
             
             {/* Bye Assignment Section */}

@@ -594,6 +594,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { byeConfiguration, ...playerFields } = req.body;
       const playerData = { ...playerFields, tournamentId };
       const player = insertPlayerSchema.parse(playerData);
+      
+      // If this player is being set as active TD, deactivate any existing active TD
+      if (player.isActiveTd) {
+        const existingPlayers = await storage.getPlayersByTournament(tournamentId);
+        for (const existingPlayer of existingPlayers) {
+          if (existingPlayer.isActiveTd) {
+            await storage.updatePlayer(existingPlayer.id, { isActiveTd: false });
+          }
+        }
+      }
+      
       const newPlayer = await storage.createPlayer(player);
       
       // Create bye pairings if specified
