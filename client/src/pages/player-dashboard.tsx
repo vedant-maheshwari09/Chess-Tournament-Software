@@ -1,17 +1,18 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Trophy, Clock, Users, Eye, ArrowLeft, Medal, Target } from "lucide-react";
+import { Trophy, Clock, Users, Eye, ArrowLeft, Medal, Target, Info, Calculator } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/useAuth";
-import type { Tournament } from "@shared/schema";
+import type { Tournament, Player } from "@shared/schema";
 import Standings from "@/components/standings";
 import SwissStandings from "@/components/swiss-standings";
 import SwissPairings from "@/components/swiss-pairings";
 import RoundRobinCrosstable from "@/components/round-robin-crosstable";
 import KnockoutBracket from "@/components/knockout-bracket";
+import PairingPredictor from "@/components/pairing-predictor";
 
 export default function PlayerDashboard() {
   const { user } = useAuth();
@@ -252,8 +253,12 @@ export default function PlayerDashboard() {
 
       {/* Tournament Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Tabs defaultValue="standings" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3">
+        <Tabs defaultValue="info" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="info" className="flex items-center gap-2">
+              <Info className="h-4 w-4" />
+              Info
+            </TabsTrigger>
             <TabsTrigger value="standings" className="flex items-center gap-2">
               <Medal className="h-4 w-4" />
               Standings
@@ -262,13 +267,132 @@ export default function PlayerDashboard() {
               <Users className="h-4 w-4" />
               Pairings
             </TabsTrigger>
-            {selectedTournament.format === 'knockout' && (
-              <TabsTrigger value="bracket" className="flex items-center gap-2">
-                <Trophy className="h-4 w-4" />
-                Bracket
-              </TabsTrigger>
-            )}
+            <TabsTrigger value="predictor" className="flex items-center gap-2">
+              <Calculator className="h-4 w-4" />
+              Predictor
+            </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="info" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Tournament Information</CardTitle>
+                <CardDescription>
+                  Details about this tournament
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <div className="space-y-2">
+                    <h4 className="font-medium text-gray-900">Tournament Name</h4>
+                    <p className="text-gray-600">{selectedTournament.name}</p>
+                  </div>
+                  <div className="space-y-2">
+                    <h4 className="font-medium text-gray-900">Format</h4>
+                    <p className="text-gray-600 capitalize">{selectedTournament.format}</p>
+                  </div>
+                  <div className="space-y-2">
+                    <h4 className="font-medium text-gray-900">Status</h4>
+                    <Badge variant={selectedTournament.status === 'active' ? 'default' : selectedTournament.status === 'completed' ? 'secondary' : 'outline'}>
+                      {selectedTournament.status.charAt(0).toUpperCase() + selectedTournament.status.slice(1)}
+                    </Badge>
+                  </div>
+                  {selectedTournament.rounds && (
+                    <div className="space-y-2">
+                      <h4 className="font-medium text-gray-900">Total Rounds</h4>
+                      <p className="text-gray-600">{selectedTournament.rounds}</p>
+                    </div>
+                  )}
+                  <div className="space-y-2">
+                    <h4 className="font-medium text-gray-900">Current Round</h4>
+                    <p className="text-gray-600">{selectedTournament.currentRound || 0}</p>
+                  </div>
+                  <div className="space-y-2">
+                    <h4 className="font-medium text-gray-900">Created</h4>
+                    <p className="text-gray-600">
+                      {selectedTournament.createdAt ? new Date(selectedTournament.createdAt).toLocaleDateString() : 'Unknown'}
+                    </p>
+                  </div>
+                  {selectedTournament.format === 'roundrobin' && selectedTournament.isDoubleRoundRobin && (
+                    <div className="space-y-2">
+                      <h4 className="font-medium text-gray-900">Round Robin Type</h4>
+                      <p className="text-gray-600">Double Round Robin</p>
+                    </div>
+                  )}
+                  
+                  {/* Tournament Details */}
+                  {(selectedTournament.location || selectedTournament.directorPhone || selectedTournament.directorEmail) && (
+                    <>
+                      <div className="col-span-full">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-4 border-b pb-2">
+                          Tournament Details
+                        </h3>
+                      </div>
+                      
+                      {selectedTournament.location && (
+                        <div className="space-y-2">
+                          <h4 className="font-medium text-gray-900">Location</h4>
+                          <p className="text-gray-600">{selectedTournament.location}</p>
+                        </div>
+                      )}
+                      
+                      {selectedTournament.directorPhone && (
+                        <div className="space-y-2">
+                          <h4 className="font-medium text-gray-900">Director Phone</h4>
+                          <p className="text-gray-600">{selectedTournament.directorPhone}</p>
+                        </div>
+                      )}
+                      
+                      {selectedTournament.directorEmail && (
+                        <div className="space-y-2">
+                          <h4 className="font-medium text-gray-900">Director Email</h4>
+                          <p className="text-gray-600">{selectedTournament.directorEmail}</p>
+                        </div>
+                      )}
+                    </>
+                  )}
+                  
+                  {/* Round Schedule */}
+                  {selectedTournament.roundTimings && (selectedTournament.roundTimings as any).length > 0 && (
+                    <>
+                      <div className="col-span-full">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-4 border-b pb-2">
+                          Round Schedule
+                        </h3>
+                      </div>
+                      
+                      <div className="col-span-full">
+                        <div className="space-y-2">
+                          {(selectedTournament.roundTimings as any).map((timing: any, index: number) => {
+                            const hasSchedule = timing.date || timing.time;
+                            if (!hasSchedule) return null;
+                            
+                            return (
+                              <div key={index} className="flex items-center justify-between py-2 border-b border-gray-100">
+                                <span className="font-medium">Round {timing.round}</span>
+                                <div className="text-gray-600">
+                                  {timing.date && (
+                                    <span className="mr-3">
+                                      {new Date(timing.date).toLocaleDateString()}
+                                    </span>
+                                  )}
+                                  {timing.time && (
+                                    <span>
+                                      {timing.time}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
           <TabsContent value="standings" className="space-y-6">
             <Card>
@@ -310,21 +434,12 @@ export default function PlayerDashboard() {
             </Card>
           </TabsContent>
 
-          {selectedTournament.format === 'knockout' && (
-            <TabsContent value="bracket" className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Tournament Bracket</CardTitle>
-                  <CardDescription>
-                    Knockout bracket progression
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <KnockoutBracket tournamentId={selectedTournament.id} />
-                </CardContent>
-              </Card>
-            </TabsContent>
-          )}
+          <TabsContent value="predictor" className="space-y-6">
+            <PairingPredictor 
+              tournamentId={selectedTournament.id} 
+              tournament={selectedTournament} 
+            />
+          </TabsContent>
         </Tabs>
       </div>
     </div>

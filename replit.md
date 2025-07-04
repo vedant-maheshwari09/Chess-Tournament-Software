@@ -213,6 +213,12 @@ Changelog:
   - Added confirmation prompt when leaving tournament details blank: "Are you sure you don't want to add..."
   - Tournament details display in Tournament Info tab showing location, contact info, and round schedule
   - Enhanced tournament database schema with location, directorPhone, directorEmail, and roundTimings fields
+- July 4, 2025. Enhanced player tournament viewing with comprehensive 4-tab interface
+  - Players can now view tournament info tab with complete tournament details, location, and round scheduling
+  - Added pairing predictor tab allowing players to input hypothetical results and predict next round pairings
+  - Player dashboard now shows Info, Standings, Pairings, and Predictor tabs for selected tournaments
+  - Pairing predictor includes simulation warnings and mock pairing generation for educational purposes
+  - Enhanced player tournament selection interface with full tournament details viewing capability
 ```
 
 ## User Preferences

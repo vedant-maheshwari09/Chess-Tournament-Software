@@ -10,7 +10,7 @@ import AuthForm from "@/components/auth-form";
 import TournamentDirectorDashboard from "@/pages/tournament-director-dashboard";
 import PlayerDashboard from "@/pages/player-dashboard";
 import TournamentCreation from "@/pages/tournament-creation";
-import TournamentView from "@/pages/tournament-view";
+
 import TournamentManagement from "@/pages/tournament-management";
 import NotFound from "@/pages/not-found";
 
@@ -57,13 +57,11 @@ function AuthenticatedApp() {
             <Route path="/tournaments/:id/manage">
               {(params) => <TournamentManagement tournamentId={parseInt(params.id)} />}
             </Route>
-            <Route path="/tournaments/:id" component={TournamentView} />
           </>
         ) : (
           <>
             <Route path="/" component={PlayerDashboard} />
             <Route path="/dashboard" component={PlayerDashboard} />
-            <Route path="/tournaments/:id/view" component={TournamentView} />
           </>
         )}
       </Switch>
