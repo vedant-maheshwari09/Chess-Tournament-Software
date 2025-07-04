@@ -21,6 +21,7 @@ export default function TournamentWizard({ tournament, onTournamentCreated }: To
   const [name, setName] = useState(tournament?.name || "");
   const [format, setFormat] = useState<'swiss' | 'roundrobin' | 'knockout'>(tournament?.format as any || 'swiss');
   const [rounds, setRounds] = useState(tournament?.rounds || 5);
+  const [tiebreakOrder, setTiebreakOrder] = useState(tournament?.tiebreakOrder || 'rating');
 
   const [isDoubleRoundRobin, setIsDoubleRoundRobin] = useState(tournament?.isDoubleRoundRobin || false);
   const [tournamentMode, setTournamentMode] = useState<'casual' | 'official'>('casual');
@@ -107,6 +108,7 @@ export default function TournamentWizard({ tournament, onTournamentCreated }: To
       rounds: format === 'swiss' ? rounds : undefined,
       currentRound: 0,
       isDoubleRoundRobin: format === 'roundrobin' ? isDoubleRoundRobin : false,
+      tiebreakOrder: format === 'swiss' ? tiebreakOrder : undefined,
       useQuickSetup: tournamentMode === 'casual' && !skipAutoGeneration,
       playerCount: (tournamentMode === 'casual' && !skipAutoGeneration) ? playerCount : undefined,
     };
@@ -200,18 +202,38 @@ export default function TournamentWizard({ tournament, onTournamentCreated }: To
           {format === 'swiss' && (
             <div className="bg-gray-50 rounded-lg p-4">
               <h4 className="font-medium text-gray-900 mb-3">Swiss System Configuration</h4>
-              <div>
-                <Label htmlFor="rounds">Number of Rounds</Label>
-                <Select value={rounds.toString()} onValueChange={(value) => setRounds(parseInt(value))}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Array.from({ length: 18 }, (_, i) => i + 3).map((num) => (
-                      <SelectItem key={num} value={num.toString()}>{num} rounds</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="rounds">Number of Rounds</Label>
+                  <Select value={rounds.toString()} onValueChange={(value) => setRounds(parseInt(value))}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 18 }, (_, i) => i + 3).map((num) => (
+                        <SelectItem key={num} value={num.toString()}>{num} rounds</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="tiebreakOrder">Tiebreaker System</Label>
+                  <Select value={tiebreakOrder} onValueChange={(value) => setTiebreakOrder(value)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="rating">Rating-based (Points, then Rating)</SelectItem>
+                      <SelectItem value="uscf">USCF System (Modified Median, Solkoff, Cumulative)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {tiebreakOrder === 'rating' 
+                      ? 'Simple system: ties broken by player rating'
+                      : 'USCF-standard: Modified Median → Solkoff → Cumulative scores'
+                    }
+                  </p>
+                </div>
               </div>
             </div>
           )}

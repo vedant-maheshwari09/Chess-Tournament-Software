@@ -43,6 +43,7 @@ export const tournaments = pgTable("tournaments", {
   isDoubleRoundRobin: boolean("is_double_round_robin").default(false),
   playerCount: integer("player_count"), // for quick setup mode
   useQuickSetup: boolean("use_quick_setup").default(false),
+  tiebreakOrder: text("tiebreak_order").default("rating"), // "rating" or "uscf" (Modified Median, Solkoff, Cumulative)
   createdBy: integer("created_by").notNull(), // User ID of tournament director
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

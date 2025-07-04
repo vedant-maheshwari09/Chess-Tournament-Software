@@ -198,6 +198,12 @@ Changelog:
   - Added CSV download for Round Robin Crosstables with complete head-to-head matrix
   - Download buttons integrated into component headers with professional file naming
   - CSV files include all tournament data: rankings, ratings, points, and detailed round results
+- July 4, 2025. Added USCF tiebreaker system for Swiss tournaments
+  - Tournament directors can choose between "Rating-based" or "USCF System" tiebreakers during tournament creation
+  - USCF System implements official tiebreaker order: Modified Median → Solkoff → Cumulative scores
+  - Rating-based system uses simple points then rating for casual tournaments
+  - Tiebreaker selection integrated into Swiss System Configuration in tournament wizard
+  - Enhanced tournament database schema with tiebreakOrder field for persistent tiebreaker preferences
 ```
 
 ## User Preferences

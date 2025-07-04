@@ -24,6 +24,8 @@ interface SwissPlayerStanding {
   isWithdrawn: boolean;
 }
 
+
+
 export default function SwissStandings({ tournamentId }: SwissStandingsProps) {
   const { data: tournament, isLoading: tournamentLoading } = useQuery<Tournament>({
     queryKey: [`/api/tournaments/${tournamentId}`],
@@ -79,6 +81,80 @@ export default function SwissStandings({ tournamentId }: SwissStandingsProps) {
     // Use the actual highest round number instead of planned rounds to show extended tournaments
     const totalRounds = Math.max(currentRound, tournament.rounds || 5);
 
+    // USCF Tiebreaker calculation functions (local scope)
+    const calculateModifiedMedian = (playerId: number): number => {
+      const opponentScores = getOpponentScores(playerId);
+      if (opponentScores.length <= 2) return opponentScores.reduce((sum, score) => sum + score, 0);
+      
+      const sortedScores = [...opponentScores].sort((a, b) => b - a);
+      const middleScores = sortedScores.slice(1, -1);
+      return middleScores.reduce((sum, score) => sum + score, 0) / middleScores.length;
+    };
+
+    const calculateSolkoff = (playerId: number): number => {
+      const opponentScores = getOpponentScores(playerId);
+      return opponentScores.reduce((sum, score) => sum + score, 0);
+    };
+
+    const calculateCumulative = (playerId: number): number => {
+      let cumulative = 0;
+      let runningTotal = 0;
+      
+      const playerMatches = matches
+        .filter(m => m.whitePlayerId === playerId || m.blackPlayerId === playerId)
+        .sort((a, b) => a.round - b.round);
+        
+      playerMatches.forEach(match => {
+        if (match.result && match.result !== 'Pending') {
+          const isWhite = match.whitePlayerId === playerId;
+          let points = 0;
+          
+          if (match.result === '1-0') points = isWhite ? 1 : 0;
+          else if (match.result === '0-1') points = isWhite ? 0 : 1;
+          else if (match.result === '1/2-1/2') points = 0.5;
+          else if (match.result === '1F-0F') points = isWhite ? 1 : 0;
+          else if (match.result === '0F-1F') points = isWhite ? 0 : 1;
+          
+          runningTotal += points;
+          cumulative += runningTotal;
+        }
+      });
+      
+      return cumulative;
+    };
+
+    const getOpponentScores = (playerId: number): number[] => {
+      const opponentIds = new Set<number>();
+      
+      matches.forEach(match => {
+        if (match.whitePlayerId === playerId && match.blackPlayerId) {
+          opponentIds.add(match.blackPlayerId);
+        } else if (match.blackPlayerId === playerId && match.whitePlayerId) {
+          opponentIds.add(match.whitePlayerId);
+        }
+      });
+      
+      return Array.from(opponentIds).map(opponentId => {
+        let totalPoints = 0;
+        
+        matches.forEach(match => {
+          if (match.whitePlayerId === opponentId || match.blackPlayerId === opponentId) {
+            if (match.result && match.result !== 'Pending') {
+              const isWhite = match.whitePlayerId === opponentId;
+              
+              if (match.result === '1-0') totalPoints += isWhite ? 1 : 0;
+              else if (match.result === '0-1') totalPoints += isWhite ? 0 : 1;
+              else if (match.result === '1/2-1/2') totalPoints += 0.5;
+              else if (match.result === '1F-0F') totalPoints += isWhite ? 1 : 0;
+              else if (match.result === '0F-1F') totalPoints += isWhite ? 0 : 1;
+            }
+          }
+        });
+        
+        return totalPoints;
+      });
+    };
+
     // First pass: Calculate basic points and rankings
     const basicStandings = players.map(player => {
       const playerMatches = matches.filter(
@@ -126,14 +202,42 @@ export default function SwissStandings({ tournamentId }: SwissStandingsProps) {
       };
     });
 
-    // Sort by points (descending), then by rating (descending) to determine positions
-    basicStandings.sort((a, b) => {
+    // Calculate tiebreakers for each player if using USCF system
+    const standingsWithTiebreakers = tournament?.tiebreakOrder === 'uscf' 
+      ? basicStandings.map(standing => ({
+          ...standing,
+          modifiedMedian: calculateModifiedMedian(standing.player.id),
+          solkoff: calculateSolkoff(standing.player.id),
+          cumulative: calculateCumulative(standing.player.id)
+        }))
+      : basicStandings;
+
+    // Sort by points first, then by tiebreaker system
+    standingsWithTiebreakers.sort((a, b) => {
       if (b.totalPoints !== a.totalPoints) return b.totalPoints - a.totalPoints;
+      
+      if (tournament?.tiebreakOrder === 'uscf') {
+        // USCF tiebreaker order: Modified Median → Solkoff → Cumulative
+        const aWithTiebreaks = a as any;
+        const bWithTiebreaks = b as any;
+        
+        if (bWithTiebreaks.modifiedMedian !== aWithTiebreaks.modifiedMedian) {
+          return bWithTiebreaks.modifiedMedian - aWithTiebreaks.modifiedMedian;
+        }
+        if (bWithTiebreaks.solkoff !== aWithTiebreaks.solkoff) {
+          return bWithTiebreaks.solkoff - aWithTiebreaks.solkoff;
+        }
+        if (bWithTiebreaks.cumulative !== aWithTiebreaks.cumulative) {
+          return bWithTiebreaks.cumulative - aWithTiebreaks.cumulative;
+        }
+      }
+      
+      // Final tiebreaker: rating
       return (b.player.rating || 0) - (a.player.rating || 0);
     });
 
     // Assign positions
-    const standingsWithPositions = basicStandings.map((standing, index) => ({
+    const standingsWithPositions = standingsWithTiebreakers.map((standing, index) => ({
       ...standing,
       position: index + 1
     }));
