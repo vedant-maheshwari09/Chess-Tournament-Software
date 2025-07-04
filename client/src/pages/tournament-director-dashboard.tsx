@@ -167,7 +167,7 @@ export default function TournamentDirectorDashboard() {
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Link href={`/tournaments/${tournament.id}`}>
+                          <Link href={`/tournaments/${tournament.id}/manage`}>
                             <Button variant="outline" size="sm">
                               Manage
                             </Button>
