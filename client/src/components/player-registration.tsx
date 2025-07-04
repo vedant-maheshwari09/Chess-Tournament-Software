@@ -384,7 +384,8 @@ export default function PlayerRegistration({ tournamentId }: PlayerRegistrationP
               <p className="text-xs text-yellow-700">
                 • Only one TD can be active per tournament
                 • TD plays only when odd number of players creates "See T.D." pairing
-                • In opponent standings, shows as "TD (playing for See T.D.)" instead of board number
+                • Active TD appears as "(substitute player)" in pairings and standings
+                • In opponent standings, shows as "TD" instead of board number
                 • Previous active TD will be automatically deactivated
               </p>
             </div>

@@ -185,6 +185,7 @@ Changelog:
   - Added TD player designation: only one active TD per tournament, plays when odd players create "See T.D." pairing
   - Enhanced player registration with TD checkbox and automatic deactivation of previous active TD
   - Updated Swiss standings to show "TD" for active tournament director in opponent columns
+  - Active TD players display as "(substitute player)" in both pairings and standings for clear identification
   - Implemented player swap undo functionality with 30-second expiration timer
   - Added "Undo Swap" button that appears after manual pairing adjustments for improved tournament management
 ```

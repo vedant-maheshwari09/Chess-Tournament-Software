@@ -315,8 +315,8 @@ export default function SwissPairings({ tournamentId }: TournamentPairingsProps)
     if (!player) return "Unknown";
     
     const fullName = `${player.firstName} ${player.lastName}`;
-    // Add substitute player note for j q
-    if (fullName.toLowerCase() === "j q") {
+    // Add substitute player note for active TD players
+    if (player.isActiveTd) {
       return `${fullName} (substitute player)`;
     }
     return fullName;
