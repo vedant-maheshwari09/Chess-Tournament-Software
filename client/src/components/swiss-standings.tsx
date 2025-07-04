@@ -386,15 +386,30 @@ export default function SwissStandings({ tournamentId }: SwissStandingsProps) {
   const totalRounds = Math.max(currentRound, tournament.rounds || 5);
 
   const downloadStandings = () => {
-    // Create CSV content
-    const headers = ['Rank', 'Name', 'Rating', 'Points', ...Array.from({ length: totalRounds }, (_, i) => `Round ${i + 1}`)];
-    const rows = standings.map(standing => [
-      standing.position,
-      `${standing.player.firstName} ${standing.player.lastName}`,
-      standing.player.rating || 'Unrated',
-      formatPoints(standing),
-      ...standing.roundResults.map((result, index) => formatRoundResult(result, index + 1))
-    ]);
+    // Create CSV content with tiebreakers if using USCF system
+    const baseHeaders = ['Rank', 'Name', 'Rating', 'Points'];
+    const tiebreakHeaders = tournament?.tiebreakOrder === 'uscf' ? ['Modified Median', 'Solkoff', 'Cumulative'] : [];
+    const roundHeaders = Array.from({ length: totalRounds }, (_, i) => `Round ${i + 1}`);
+    const headers = [...baseHeaders, ...tiebreakHeaders, ...roundHeaders];
+    
+    const rows = standings.map(standing => {
+      const baseData = [
+        standing.position,
+        `${standing.player.firstName} ${standing.player.lastName}`,
+        standing.player.rating || 'Unrated',
+        formatPoints(standing)
+      ];
+      
+      const tiebreakData = tournament?.tiebreakOrder === 'uscf' ? [
+        (standing as any).modifiedMedian?.toFixed(2) || '0.00',
+        (standing as any).solkoff?.toFixed(2) || '0.00', 
+        (standing as any).cumulative?.toFixed(2) || '0.00'
+      ] : [];
+      
+      const roundData = standing.roundResults.map((result, index) => formatRoundResult(result, index + 1));
+      
+      return [...baseData, ...tiebreakData, ...roundData];
+    });
 
     const csvContent = [headers, ...rows]
       .map(row => row.map(cell => `"${cell}"`).join(','))
@@ -492,6 +507,11 @@ export default function SwissStandings({ tournamentId }: SwissStandingsProps) {
             <p className="text-sm text-gray-600 mt-1">
               Detailed round-by-round results and current rankings
             </p>
+            {tournament?.tiebreakOrder === 'uscf' && (
+              <p className="text-xs text-gray-400 mt-1">
+                MM: Modified Median | SK: Solkoff | CU: Cumulative
+              </p>
+            )}
           </div>
           <Button
             onClick={downloadStandings}
@@ -545,6 +565,13 @@ export default function SwissStandings({ tournamentId }: SwissStandingsProps) {
                       <div className="text-xs text-gray-500">
                         {standing.player.rating} {standing.player.federation}
                       </div>
+                      {tournament?.tiebreakOrder === 'uscf' && (standing as any).modifiedMedian !== undefined && (
+                        <div className="text-xs text-gray-400 mt-1">
+                          MM: {(standing as any).modifiedMedian?.toFixed(1)} | 
+                          SK: {(standing as any).solkoff?.toFixed(1)} | 
+                          CU: {(standing as any).cumulative?.toFixed(1)}
+                        </div>
+                      )}
                     </td>
                     {standing.roundResults.map((result, roundIndex) => {
                       // Calculate cumulative points up to this round

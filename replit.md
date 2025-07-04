@@ -204,6 +204,9 @@ Changelog:
   - Rating-based system uses simple points then rating for casual tournaments
   - Tiebreaker selection integrated into Swiss System Configuration in tournament wizard
   - Enhanced tournament database schema with tiebreakOrder field for persistent tiebreaker preferences
+  - Added tiebreaker values display in Swiss standings with small text showing MM/SK/CU values
+  - Tiebreaker data included in CSV download with dedicated columns for USCF tournaments
+  - Added legend explaining tiebreaker abbreviations: MM (Modified Median), SK (Solkoff), CU (Cumulative)
 ```
 
 ## User Preferences
