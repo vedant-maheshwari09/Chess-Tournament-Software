@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -271,34 +271,32 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
                 
                 {/* Tournament Details */}
                 {(tournament.location || tournament.directorPhone || tournament.directorEmail) && (
-                  <>
-                    <div className="col-span-full">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-4 border-b pb-2">
-                        Tournament Details
-                      </h3>
-                    </div>
-                    
-                    {tournament.location && (
-                      <div className="space-y-2">
-                        <h4 className="font-medium text-gray-900">Location</h4>
-                        <p className="text-gray-600">{tournament.location}</p>
-                      </div>
-                    )}
-                    
-                    {tournament.directorPhone && (
-                      <div className="space-y-2">
-                        <h4 className="font-medium text-gray-900">Director Phone</h4>
-                        <p className="text-gray-600">{tournament.directorPhone}</p>
-                      </div>
-                    )}
-                    
-                    {tournament.directorEmail && (
-                      <div className="space-y-2">
-                        <h4 className="font-medium text-gray-900">Director Email</h4>
-                        <p className="text-gray-600">{tournament.directorEmail}</p>
-                      </div>
-                    )}
-                  </>
+                  <div className="col-span-full">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4 border-b pb-2">
+                      Tournament Details
+                    </h3>
+                  </div>
+                )}
+                
+                {tournament.location && (
+                  <div className="space-y-2">
+                    <h4 className="font-medium text-gray-900">Location</h4>
+                    <p className="text-gray-600">{tournament.location}</p>
+                  </div>
+                )}
+                
+                {tournament.directorPhone && (
+                  <div className="space-y-2">
+                    <h4 className="font-medium text-gray-900">Director Phone</h4>
+                    <p className="text-gray-600">{tournament.directorPhone}</p>
+                  </div>
+                )}
+                
+                {tournament.directorEmail && (
+                  <div className="space-y-2">
+                    <h4 className="font-medium text-gray-900">Director Email</h4>
+                    <p className="text-gray-600">{tournament.directorEmail}</p>
+                  </div>
                 )}
                 
                 {/* Round Schedule */}
@@ -367,7 +365,7 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <PlayerRegistration tournamentId={tournamentId} />
+              <PlayerRegistration tournament={tournament} />
             </CardContent>
           </Card>
         </TabsContent>
