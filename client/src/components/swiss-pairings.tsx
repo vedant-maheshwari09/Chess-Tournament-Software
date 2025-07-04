@@ -24,6 +24,11 @@ export default function SwissPairings({ tournamentId }: TournamentPairingsProps)
     color: 'white' | 'black';
     playerName: string;
   }[]>([]);
+  const [lastSwapState, setLastSwapState] = useState<{
+    match1: { id: number; whitePlayerId: number | null; blackPlayerId: number | null };
+    match2: { id: number; whitePlayerId: number | null; blackPlayerId: number | null };
+    timestamp: number;
+  } | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
   
@@ -57,6 +62,17 @@ export default function SwissPairings({ tournamentId }: TournamentPairingsProps)
       setCurrentRound(latestRound);
     }
   }, [allMatches]);
+
+  // Auto-expire lastSwapState after 30 seconds
+  useEffect(() => {
+    if (lastSwapState) {
+      const timer = setTimeout(() => {
+        setLastSwapState(null);
+      }, 30000); // 30 seconds
+      
+      return () => clearTimeout(timer);
+    }
+  }, [lastSwapState]);
 
   // For Round Robin, show all matches, for Swiss show current round
   const { data: matches, isLoading } = useQuery<Match[]>({
@@ -185,6 +201,19 @@ export default function SwissPairings({ tournamentId }: TournamentPairingsProps)
       color1: 'white' | 'black'; 
       color2: 'white' | 'black'; 
     }) => {
+      // Store the current state before swapping
+      const currentMatches = matches || [];
+      const match1 = currentMatches.find((m: Match) => m.id === match1Id);
+      const match2 = currentMatches.find((m: Match) => m.id === match2Id);
+      
+      if (match1 && match2) {
+        setLastSwapState({
+          match1: { id: match1.id, whitePlayerId: match1.whitePlayerId, blackPlayerId: match1.blackPlayerId },
+          match2: { id: match2.id, whitePlayerId: match2.whitePlayerId, blackPlayerId: match2.blackPlayerId },
+          timestamp: Date.now()
+        });
+      }
+      
       return await apiRequest(`/api/tournaments/${tournamentId}/swap-players`, {
         method: "POST",
         body: JSON.stringify({ match1Id, match2Id, player1Id, player2Id, color1, color2 }),
@@ -196,7 +225,7 @@ export default function SwissPairings({ tournamentId }: TournamentPairingsProps)
       setSelectedPlayers([]);
       toast({
         title: "Players swapped",
-        description: "The pairing has been updated successfully.",
+        description: "The pairing has been updated successfully. You can undo this swap within 30 seconds.",
       });
     },
     onError: (error) => {
@@ -204,6 +233,41 @@ export default function SwissPairings({ tournamentId }: TournamentPairingsProps)
       toast({
         title: "Error",
         description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const undoSwapMutation = useMutation({
+    mutationFn: async () => {
+      if (!lastSwapState) return;
+      
+      // Restore the original pairing configuration
+      await apiRequest(`/api/tournaments/${tournamentId}/swap-players`, {
+        method: "POST",
+        body: JSON.stringify({ 
+          match1Id: lastSwapState.match1.id,
+          match2Id: lastSwapState.match2.id,
+          player1Id: lastSwapState.match1.whitePlayerId,
+          player2Id: lastSwapState.match2.whitePlayerId,
+          color1: 'white',
+          color2: 'white'
+        }),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/matches`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/pairings`] });
+      setLastSwapState(null);
+      toast({
+        title: "Swap undone",
+        description: "The previous pairing swap has been undone.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: "Failed to undo the swap.",
         variant: "destructive",
       });
     },
@@ -676,6 +740,20 @@ export default function SwissPairings({ tournamentId }: TournamentPairingsProps)
                 </AlertDialogFooter>
               </AlertDialogContent>
               </AlertDialog>
+            )}
+
+            {/* Undo Last Swap Button */}
+            {lastSwapState && (
+              <Button
+                variant="outline"
+                disabled={undoSwapMutation.isPending}
+                onClick={() => undoSwapMutation.mutate()}
+                size="sm"
+                className="border-orange-600 text-orange-600 hover:bg-orange-50"
+              >
+                <RotateCcw className="h-4 w-4 mr-1" />
+                {undoSwapMutation.isPending ? "Undoing..." : "Undo Swap"}
+              </Button>
             )}
 
             {/* Regenerate Future Rounds - HIDDEN: available on every round if future rounds exist */}
