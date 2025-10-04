@@ -179,10 +179,13 @@ export interface IStorage {
   getUserByUsername(username: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
   updateUser(id: number, user: Partial<User>): Promise<User | undefined>;
+  listUsersByIds(ids: number[]): Promise<User[]>;
+  deleteUser(id: number): Promise<boolean>;
 
   createSession(userId: number, token: string, expiresAt: Date): Promise<Session>;
   getSessionByToken(token: string): Promise<Session | undefined>;
   deleteSession(token: string): Promise<boolean>;
+  deleteSessionsByUser(userId: number): Promise<boolean>;
 
   createPasswordReset(userId: number, token: string, expiresAt: Date): Promise<PasswordReset>;
   getPasswordResetByToken(token: string): Promise<PasswordReset | undefined>;
@@ -256,6 +259,24 @@ class SupabaseStorage implements IStorage {
     return updateOne<User>("users", { id }, { ...user, updatedAt: new Date() });
   }
 
+  async listUsersByIds(ids: number[]): Promise<User[]> {
+    if (ids.length === 0) return [];
+    const { data, error } = await client()
+      .from("users")
+      .select()
+      .in("id", ids);
+
+    if (error) {
+      throw new Error(`Failed to fetch users by ids: ${error.message}`);
+    }
+
+    return toCamelCase<User[]>(data ?? []);
+  }
+
+  async deleteUser(id: number): Promise<boolean> {
+    return (await deleteMany("users", { id })) > 0;
+  }
+
   async createSession(userId: number, token: string, expiresAt: Date): Promise<Session> {
     return insertOne<Session>("sessions", { userId, token, expiresAt } as AnyRecord);
   }
@@ -266,6 +287,11 @@ class SupabaseStorage implements IStorage {
 
   async deleteSession(token: string): Promise<boolean> {
     return (await deleteMany("sessions", { token })) > 0;
+  }
+
+  async deleteSessionsByUser(userId: number): Promise<boolean> {
+    await deleteMany("sessions", { userId });
+    return true;
   }
 
   async createPasswordReset(userId: number, token: string, expiresAt: Date): Promise<PasswordReset> {

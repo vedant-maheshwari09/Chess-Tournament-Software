@@ -11,6 +11,10 @@ export const users = pgTable("users", {
   firstName: text("first_name").notNull(),
   lastName: text("last_name").notNull(),
   role: text("role").notNull().default('player'), // 'player', 'tournament_director'  
+  phoneNumber: varchar("phone_number", { length: 20 }),
+  carrier: varchar("carrier", { length: 60 }),
+  notifyEmail: boolean("notify_email").default(true),
+  notifySms: boolean("notify_sms").default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -149,6 +153,10 @@ export const registerSchema = z.object({
   firstName: z.string().min(1),
   lastName: z.string().min(1),
   role: z.enum(['player', 'tournament_director']),
+  phoneNumber: z.string().trim().optional(),
+  carrier: z.string().trim().optional(),
+  notifyEmail: z.boolean().optional(),
+  notifySms: z.boolean().optional(),
 });
 
 export const forgotPasswordSchema = z.object({

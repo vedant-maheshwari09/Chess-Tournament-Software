@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import SettingsMenu from "@/components/settings-menu";
 import { useAuth } from "@/hooks/useAuth";
 import type { Tournament, Player, PlayerRegistration as PlayerRegistrationType } from "@shared/schema";
 import Standings from "@/components/standings";
@@ -87,12 +88,7 @@ export default function PlayerDashboard() {
                   <Users className="h-4 w-4" />
                   Player Account
                 </div>
-                <Button 
-                  variant="outline" 
-                  onClick={() => window.location.href = '/api/auth/logout'}
-                >
-                  Logout
-                </Button>
+                <SettingsMenu />
               </div>
             </div>
           </div>
@@ -249,12 +245,7 @@ export default function PlayerDashboard() {
               <Badge className={getStatusColor(selectedTournament.status)}>
                 {selectedTournament.status}
               </Badge>
-              <Button 
-                variant="outline" 
-                onClick={() => window.location.href = '/api/auth/logout'}
-              >
-                Logout
-              </Button>
+              <SettingsMenu />
             </div>
           </div>
         </div>

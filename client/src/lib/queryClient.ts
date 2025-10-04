@@ -14,8 +14,8 @@ export async function apiRequest(
   const token = localStorage.getItem("auth_token");
   
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    ...options.headers as Record<string, string>,
+    ...(options.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
+    ...(options.headers as Record<string, string>),
   };
   
   if (token) {

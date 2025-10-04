@@ -1,6 +1,8 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { setupVite, serveStatic, log } from "./vite";
+import { z } from "zod";
 import { 
   insertTournamentSchema, 
   insertPlayerSchema, 
@@ -21,6 +23,7 @@ import {
   generateSessionToken
 } from "./auth";
 import { generateRoundRobinSchedule, validateRoundRobinSchedule } from "./round-robin";
+import { notificationService } from "./notifications";
 
 interface RatingLookupResult {
   source: "uscf" | "fide" | "ecf";
@@ -119,11 +122,80 @@ async function lookupECF(query: string): Promise<RatingLookupResult[]> {
   }
 }
 
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-1.5-flash";
+
+const geminiDraftSchema = z.object({
+  config: z
+    .object({
+      basic: z
+        .object({
+          name: z.string().optional(),
+          city: z.string().optional(),
+          description: z.string().optional(),
+          startDate: z.string().nullable().optional(),
+          endDate: z.string().nullable().optional(),
+          federation: z.string().optional(),
+        })
+        .partial()
+        .optional(),
+      details: z
+        .object({
+          rounds: z.number().optional(),
+          timeControl: z.string().optional(),
+          tiebreakSystem: z.string().optional(),
+          pairingSystem: z.string().optional(),
+          ratingType: z.string().optional(),
+        })
+        .partial()
+        .optional(),
+      schedule: z
+        .array(
+          z
+            .object({
+              label: z.string().optional(),
+              date: z.string().nullable().optional(),
+              time: z.string().nullable().optional(),
+            })
+            .passthrough(),
+        )
+        .optional(),
+      contacts: z
+        .array(
+          z
+            .object({
+              name: z.string().optional(),
+              role: z.string().optional(),
+              phone: z.string().optional(),
+              email: z.string().optional(),
+            })
+            .passthrough(),
+        )
+        .optional(),
+    })
+    .passthrough(),
+});
+
+const updateNotificationPreferencesSchema = z.object({
+  phoneNumber: z.string().trim().nullable().optional(),
+  carrier: z.string().trim().nullable().optional(),
+  notifyEmail: z.boolean().optional(),
+  notifySms: z.boolean().optional(),
+});
+
+const tournamentNotificationSchema = z.object({
+  subject: z.string().min(1),
+  message: z.string().min(1),
+  sendEmail: z.boolean().optional(),
+  sendSms: z.boolean().optional(),
+});
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Authentication routes
   app.post("/api/auth/register", async (req, res) => {
     try {
       const userData = registerSchema.parse(req.body);
+      const sanitizedPhone = userData.phoneNumber ? userData.phoneNumber.replace(/[^0-9]/g, "") : null;
       
       // Check if username already exists
       const existingUsername = await storage.getUserByUsername(userData.username);
@@ -143,9 +215,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Hash password and create user
       const passwordHash = await hashPassword(userData.password);
+      const normalizedCarrier = userData.carrier && userData.carrier.trim().length > 0 ? userData.carrier.trim() : null;
       const newUser = await storage.createUser({
-        ...userData,
+        username: userData.username,
+        email: userData.email,
+        firstName: userData.firstName,
+        lastName: userData.lastName,
+        role: userData.role,
         passwordHash,
+        phoneNumber: sanitizedPhone ?? undefined,
+        carrier: normalizedCarrier ?? undefined,
+        notifyEmail: userData.notifyEmail ?? true,
+        notifySms: userData.notifySms ?? false,
       });
       
       // Create session
@@ -284,6 +365,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.patch("/api/auth/preferences", requireAuth, async (req, res) => {
+    try {
+      const user = req.user;
+      if (!user) {
+        return res.status(401).json({ message: "User not found" });
+      }
+
+      const payload = updateNotificationPreferencesSchema.parse(req.body ?? {});
+      const sanitizedPhone = payload.phoneNumber ? payload.phoneNumber.replace(/[^0-9]/g, "") : null;
+      const carrier = payload.carrier && payload.carrier.trim().length > 0 ? payload.carrier.trim() : null;
+      const updated = await storage.updateUser(user.id, {
+        phoneNumber: sanitizedPhone ?? null,
+        carrier,
+        notifyEmail: payload.notifyEmail ?? (user.notifyEmail ?? true),
+        notifySms: payload.notifySms ?? (user.notifySms ?? false),
+      });
+
+      if (!updated) {
+        return res.status(500).json({ message: "Failed to update preferences" });
+      }
+
+      const { passwordHash: _, ...userWithoutPassword } = updated;
+      res.json(userWithoutPassword);
+    } catch (error) {
+      console.error("Update preferences error:", error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid preferences" });
+      }
+      res.status(500).json({ message: "Failed to update preferences" });
+    }
+  });
+
+  app.delete("/api/auth/account", requireAuth, async (req, res) => {
+    try {
+      const user = req.user;
+      if (!user) {
+        return res.status(401).json({ message: "User not found" });
+      }
+
+      await storage.deleteSessionsByUser(user.id);
+      await storage.deleteUser(user.id);
+
+      res.json({ message: "Account deleted" });
+    } catch (error) {
+      console.error("Delete account error:", error);
+      res.status(500).json({ message: "Failed to delete account" });
+    }
+  });
+
   // Get user by ID (for showing tournament creators)
   app.get("/api/users/:id", async (req, res) => {
     try {
@@ -409,6 +539,111 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/tools/gemini-draft", requireAuth, async (req, res) => {
+    if (!GEMINI_API_KEY) {
+      return res.status(503).json({ message: "Gemini integration is not configured" });
+    }
+
+    const parsed = geminiDraftSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ message: "Invalid payload for Gemini draft" });
+    }
+
+    const { config } = parsed.data;
+    const basic = (config.basic ?? {}) as Record<string, any>;
+    const details = (config.details ?? {}) as Record<string, any>;
+    const schedule = Array.isArray(config.schedule) ? config.schedule : [];
+    const contacts = Array.isArray(config.contacts) ? config.contacts : [];
+
+    const scheduleLines = schedule
+      .filter((item: any) => item && (item.label || item.date || item.time))
+      .map((item: any) => {
+        const parts: string[] = [];
+        if (item.date) parts.push(String(item.date));
+        if (item.time) parts.push(String(item.time));
+        const timing = parts.length > 0 ? ` – ${parts.join(" @ ")}` : "";
+        return `• ${item.label ?? "Event"}${timing}`;
+      })
+      .join("\n");
+
+    const contactLines = contacts
+      .filter((contact: any) => contact && (contact.name || contact.role))
+      .map((contact: any) => {
+        const segments: string[] = [];
+        if (contact.role) segments.push(contact.role);
+        if (contact.phone) segments.push(contact.phone);
+        if (contact.email) segments.push(contact.email);
+        return `• ${contact.name ?? "Contact"}${segments.length ? ` (${segments.join(" · ")})` : ""}`;
+      })
+      .join("\n");
+
+    const prompt = `You are assisting a chess tournament director by drafting the public tournament page copy.
+Use a professional but welcoming tone and produce concise Markdown with short headings and paragraphs.
+Include an Overview, Schedule, and Highlights section referencing the data below.
+
+Tournament data:
+- Name: ${basic.name ?? "TBD"}
+- Location: ${basic.city ?? "TBD"}
+- Dates: ${basic.startDate ?? "TBD"} to ${basic.endDate ?? "TBD"}
+- Federation focus: ${basic.federation ?? "General"}
+- Format: ${(config as any)?.format ?? details.pairingSystem ?? "Unknown"}
+- Rounds: ${details.rounds ?? "TBD"}
+- Time control: ${details.timeControl ?? "TBD"} (${details.ratingType ?? "standard"})
+- Description: ${basic.description ?? ""}
+
+Schedule:
+${scheduleLines || "No detailed schedule supplied."}
+
+Key contacts:
+${contactLines || "Staff contact information will be announced."}
+
+Close with a friendly call-to-action for players or parents.`;
+
+    try {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            contents: [
+              {
+                role: "user",
+                parts: [{ text: prompt }],
+              },
+            ],
+            generationConfig: {
+              temperature: 0.7,
+              maxOutputTokens: 800,
+            },
+          }),
+        },
+      );
+
+      const data = await response.json();
+      if (!response.ok) {
+        console.error("Gemini API error:", data);
+        return res.status(502).json({ message: "Gemini API request failed" });
+      }
+
+      const content = (data?.candidates?.[0]?.content?.parts ?? [])
+        .map((part: any) => part?.text ?? "")
+        .join("\n")
+        .trim();
+
+      if (!content) {
+        return res.status(502).json({ message: "Gemini returned no content" });
+      }
+
+      res.json({ content });
+    } catch (error) {
+      console.error("Gemini draft error:", error);
+      res.status(500).json({ message: "Failed to generate tournament copy" });
+    }
+  });
+
   // Tournament routes (role-specific access)
   
   // Get all live tournaments (for players to view)
@@ -422,6 +657,102 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to fetch tournaments" });
     }
   });
+
+  app.post(
+    "/api/tournaments/:id/notifications",
+    requireAuth,
+    requireRole('tournament_director'),
+    requireTournamentAccess,
+    async (req, res) => {
+      try {
+        if (!notificationService.isEnabled()) {
+          return res.status(503).json({ message: "Notification service is not configured" });
+        }
+
+        const payload = tournamentNotificationSchema.parse(req.body ?? {});
+        const sendEmail = payload.sendEmail !== false;
+        const sendSms = payload.sendSms === true;
+
+        if (!sendEmail && !sendSms) {
+          return res.status(400).json({ message: "Select at least one delivery channel" });
+        }
+
+        const tournamentId = parseInt(req.params.id);
+        const registrations = await storage.getPlayerRegistrationsByTournament(tournamentId);
+        const approvedRegistrations = registrations.filter((registration) => registration.status === "approved");
+
+        const userIds = Array.from(new Set(approvedRegistrations.map((registration) => registration.userId)));
+        const users = await storage.listUsersByIds(userIds);
+        const userMap = new Map(users.map((user) => [user.id, user]));
+
+        const emailRecipients = new Set<string>();
+        const smsTargets: Array<{ phone: string; carrier: string }> = [];
+
+        for (const registration of approvedRegistrations) {
+          const user = userMap.get(registration.userId);
+
+          if (sendEmail) {
+            const wantsEmail = user?.notifyEmail ?? true;
+            const email = (registration.email ?? user?.email ?? "").trim();
+            if (wantsEmail && email) {
+              emailRecipients.add(email);
+            }
+          }
+
+          if (sendSms) {
+            const wantsSms = user?.notifySms ?? false;
+            const phone = (user?.phoneNumber ?? registration.phoneNumber ?? "").trim();
+            const carrier = user?.carrier ?? "";
+            if (wantsSms && phone && carrier) {
+              smsTargets.push({ phone, carrier });
+            }
+          }
+        }
+
+        let emailCount = 0;
+        let smsCount = 0;
+
+        if (sendEmail && emailRecipients.size > 0) {
+          await notificationService.sendEmail({
+            to: Array.from(emailRecipients),
+            subject: payload.subject,
+            text: payload.message,
+          });
+          emailCount = emailRecipients.size;
+        }
+
+        if (sendSms && smsTargets.length > 0) {
+          await Promise.allSettled(
+            smsTargets.map(async (target) => {
+              try {
+                await notificationService.sendSms({
+                  phoneNumber: target.phone,
+                  carrier: target.carrier,
+                  message: payload.message,
+                });
+                smsCount += 1;
+              } catch (error) {
+                log(`SMS notification failed for ${target.phone}: ${(error as Error).message}`, "notifications");
+              }
+            }),
+          );
+        }
+
+        res.json({
+          message: "Notifications dispatched",
+          emails: emailCount,
+          sms: smsCount,
+          totalRegistrations: approvedRegistrations.length,
+        });
+      } catch (error) {
+        console.error("Tournament notification error:", error);
+        if (error instanceof z.ZodError) {
+          return res.status(400).json({ message: "Invalid notification payload" });
+        }
+        res.status(500).json({ message: "Failed to send notifications" });
+      }
+    },
+  );
 
   // Get tournaments for a specific tournament director (protected)
   app.get("/api/my-tournaments", requireAuth, requireRole('tournament_director'), async (req, res) => {

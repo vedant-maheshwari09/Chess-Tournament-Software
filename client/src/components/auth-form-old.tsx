@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { apiRequest } from "@/lib/queryClient";
@@ -24,6 +25,16 @@ import {
 } from "@shared/schema";
 
 type AuthMode = 'login' | 'register' | 'forgot-password' | 'forgot-username' | 'reset-password';
+
+const CARRIER_OPTIONS = [
+  { value: "att", label: "AT&T" },
+  { value: "verizon", label: "Verizon" },
+  { value: "tmobile", label: "T-Mobile" },
+  { value: "sprint", label: "Sprint" },
+  { value: "googlefi", label: "Google Fi" },
+  { value: "uscellular", label: "US Cellular" },
+  { value: "other", label: "Other" },
+];
 
 export default function AuthForm() {
   const [authMode, setAuthMode] = useState<AuthMode>('login');
@@ -52,6 +63,10 @@ export default function AuthForm() {
       firstName: "",
       lastName: "",
       role: "player",
+      phoneNumber: "",
+      carrier: "",
+      notifyEmail: true,
+      notifySms: false,
     },
   });
 
@@ -297,6 +312,77 @@ export default function AuthForm() {
                     </FormItem>
                   )}
                 />
+                <div className="grid gap-4 md:grid-cols-2">
+                  <FormField
+                    control={registerForm.control}
+                    name="phoneNumber"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Mobile Number</FormLabel>
+                        <FormControl>
+                          <Input type="tel" placeholder="5551234567" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={registerForm.control}
+                    name="carrier"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Carrier</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value ?? undefined}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select carrier" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {CARRIER_OPTIONS.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <FormField
+                    control={registerForm.control}
+                    name="notifyEmail"
+                    render={({ field }) => (
+                      <FormItem className="flex items-center justify-between rounded-md border p-3">
+                        <div>
+                          <FormLabel className="text-sm font-medium">Email updates</FormLabel>
+                          <p className="text-xs text-muted-foreground">Receive announcements by email.</p>
+                        </div>
+                        <FormControl>
+                          <Switch checked={field.value} onCheckedChange={field.onChange} />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={registerForm.control}
+                    name="notifySms"
+                    render={({ field }) => (
+                      <FormItem className="flex items-center justify-between rounded-md border p-3">
+                        <div>
+                          <FormLabel className="text-sm font-medium">SMS updates</FormLabel>
+                          <p className="text-xs text-muted-foreground">Sent via carrier gateways.</p>
+                        </div>
+                        <FormControl>
+                          <Switch checked={field.value} onCheckedChange={field.onChange} />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                </div>
                 <FormField
                   control={registerForm.control}
                   name="password"

@@ -1,6 +1,18 @@
-import React, { useRef, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { Upload, Check, ChevronRight } from "lucide-react";
+import {
+  Upload,
+  Check,
+  ChevronRight,
+  Sparkles,
+  Heading1,
+  Heading2,
+  Bold,
+  Italic,
+  List,
+  ListOrdered,
+  Link2,
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
@@ -28,6 +40,8 @@ import {
   ScheduleEvent,
   SCHEDULE_EVENT_OPTIONS,
 } from "@/lib/tournament-config";
+
+type ToolbarAction = "h1" | "h2" | "bold" | "italic" | "bullet" | "numbered" | "link";
 
 type BuilderMode = "create" | "edit";
 
@@ -312,6 +326,117 @@ interface StepTwoProps {
 }
 
 function StepTwo({ format, mode, config, onConfigChange, onBack, onCancel, onSave, saving }: StepTwoProps) {
+  const { toast } = useToast();
+  const pageEditorRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const pageToolbar = useMemo(
+    () => [
+      { action: "h1" as ToolbarAction, icon: <Heading1 className="h-4 w-4" />, label: "Heading 1" },
+      { action: "h2" as ToolbarAction, icon: <Heading2 className="h-4 w-4" />, label: "Heading 2" },
+      { action: "bold" as ToolbarAction, icon: <Bold className="h-4 w-4" />, label: "Bold" },
+      { action: "italic" as ToolbarAction, icon: <Italic className="h-4 w-4" />, label: "Italic" },
+      { action: "bullet" as ToolbarAction, icon: <List className="h-4 w-4" />, label: "Bullet list" },
+      { action: "numbered" as ToolbarAction, icon: <ListOrdered className="h-4 w-4" />, label: "Numbered list" },
+      { action: "link" as ToolbarAction, icon: <Link2 className="h-4 w-4" />, label: "Insert link" },
+    ],
+    []
+  );
+
+  const handlePageContentChange = (value: string) => {
+    onConfigChange({ ...config, tournamentPageContent: value });
+  };
+
+  const geminiDraft = useMutation({
+    mutationFn: async () =>
+      apiRequest("/api/tools/gemini-draft", {
+        method: "POST",
+        body: JSON.stringify({ config }),
+      }),
+    onSuccess: (data: any) => {
+      const generated = (data?.content ?? "").toString().trim();
+      if (generated) {
+        handlePageContentChange(generated);
+        toast({ title: "Draft ready", description: "Review and save the generated copy." });
+      } else {
+        toast({
+          title: "No content returned",
+          description: "Gemini did not return any text. Try again soon.",
+        });
+      }
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Draft failed",
+        description: error?.message ?? "Unable to generate content.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const wrapSelection = (
+    before: string,
+    after = "",
+    options: { placeholder?: string; selectPlaceholder?: boolean; newlineBefore?: boolean } = {}
+  ) => {
+    const textarea = pageEditorRef.current;
+    const currentValue = config.tournamentPageContent ?? "";
+    const start = textarea ? textarea.selectionStart : currentValue.length;
+    const end = textarea ? textarea.selectionEnd : start;
+    const needsNewline = options.newlineBefore && start > 0 && !currentValue.slice(0, start).endsWith("\n");
+    const selected = currentValue.slice(start, end);
+    const placeholder = selected.length > 0 ? selected : options.placeholder ?? "";
+    const insertBefore = `${needsNewline ? "\n" : ""}${before}`;
+
+    const nextValue =
+      currentValue.slice(0, start) +
+      insertBefore +
+      placeholder +
+      after +
+      currentValue.slice(end);
+
+    handlePageContentChange(nextValue);
+
+    requestAnimationFrame(() => {
+      const el = pageEditorRef.current;
+      if (!el) return;
+      el.focus();
+      const base = start + insertBefore.length;
+      if (options.selectPlaceholder && placeholder.length > 0) {
+        el.setSelectionRange(base, base + placeholder.length);
+      } else {
+        const position = base + placeholder.length + after.length;
+        el.setSelectionRange(position, position);
+      }
+    });
+  };
+
+  const handleToolbarAction = (action: ToolbarAction) => {
+    switch (action) {
+      case "h1":
+        wrapSelection("# ", "", { newlineBefore: true });
+        break;
+      case "h2":
+        wrapSelection("## ", "", { newlineBefore: true });
+        break;
+      case "bold":
+        wrapSelection("**", "**", { placeholder: "Bold text", selectPlaceholder: true });
+        break;
+      case "italic":
+        wrapSelection("*", "*", { placeholder: "Italic text", selectPlaceholder: true });
+        break;
+      case "bullet":
+        wrapSelection("- ", "", { newlineBefore: true });
+        break;
+      case "numbered":
+        wrapSelection("1. ", "", { newlineBefore: true });
+        break;
+      case "link":
+        wrapSelection("[", "](https://)", { placeholder: "Link text", selectPlaceholder: true });
+        break;
+      default:
+        break;
+    }
+  };
   const updateDetails = (updates: Partial<TournamentConfig["details"]>) =>
     onConfigChange({ ...config, details: { ...config.details, ...updates } });
 
@@ -482,15 +607,15 @@ function StepTwo({ format, mode, config, onConfigChange, onBack, onCancel, onSav
         <Card className="overflow-hidden">
           <CardContent className="p-0">
             <Tabs defaultValue="basic" className="w-full">
-              <TabsList className="grid grid-cols-5">
-                <TabsTrigger value="basic">Basic Info</TabsTrigger>
+              <TabsList className="grid w-full grid-cols-5">
+                <TabsTrigger value="basic">Basic information</TabsTrigger>
                 <TabsTrigger value="details">Details</TabsTrigger>
                 <TabsTrigger value="schedule">Schedule</TabsTrigger>
                 <TabsTrigger value="contacts">Contacts</TabsTrigger>
-                <TabsTrigger value="page">Tournament Page</TabsTrigger>
+                <TabsTrigger value="page">Tournament page</TabsTrigger>
               </TabsList>
 
-              <TabsContent value="basic" className="p-6 space-y-4">
+              <TabsContent value="basic" className="bg-white p-6 space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="tournament-name">Tournament Name</Label>
                   <Input
@@ -623,7 +748,7 @@ function StepTwo({ format, mode, config, onConfigChange, onBack, onCancel, onSav
                 </div>
               </TabsContent>
 
-              <TabsContent value="details" className="p-6 space-y-4">
+              <TabsContent value="details" className="bg-white p-6 space-y-4">
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
                     <Label>Chief Arbiter</Label>
@@ -807,7 +932,7 @@ function StepTwo({ format, mode, config, onConfigChange, onBack, onCancel, onSav
                 </div>
               </TabsContent>
 
-              <TabsContent value="schedule" className="p-6 space-y-3">
+              <TabsContent value="schedule" className="bg-white p-6 space-y-3">
                 <div className="flex justify-between items-center">
                   <div>
                     <h3 className="text-lg font-semibold">Schedule</h3>
@@ -873,7 +998,7 @@ function StepTwo({ format, mode, config, onConfigChange, onBack, onCancel, onSav
                 </div>
               </TabsContent>
 
-              <TabsContent value="contacts" className="p-6 space-y-4">
+              <TabsContent value="contacts" className="bg-white p-6 space-y-4">
                 <div className="flex justify-between items-center">
                   <h3 className="text-lg font-semibold">Contact Team</h3>
                   <Button
@@ -974,18 +1099,46 @@ function StepTwo({ format, mode, config, onConfigChange, onBack, onCancel, onSav
                 </div>
               </TabsContent>
 
-              <TabsContent value="page" className="p-6 space-y-4">
-                <div className="space-y-2">
-                  <Label>Tournament Page Content</Label>
-                  <Textarea
-                    rows={10}
-                    value={config.tournamentPageContent}
-                    onChange={(event) =>
-                      onConfigChange({ ...config, tournamentPageContent: event.target.value })
-                    }
-                    placeholder="Provide welcome message, venue instructions, or streaming links"
-                  />
+              <TabsContent value="page" className="bg-white p-6 space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <Label className="text-sm font-semibold uppercase tracking-wide">Tournament Page Content</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Provide the public description players and parents will see on your tournament portal.
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => geminiDraft.mutate()}
+                    disabled={geminiDraft.isPending}
+                    className="flex items-center gap-2"
+                  >
+                    <Sparkles className="h-4 w-4" />
+                    {geminiDraft.isPending ? "Drafting..." : "Draft with Gemini"}
+                  </Button>
                 </div>
+                <div className="flex flex-wrap items-center gap-1 rounded-md border bg-slate-50 p-2">
+                  {pageToolbar.map((item) => (
+                    <Button
+                      key={item.action}
+                      variant="ghost"
+                      size="sm"
+                      title={item.label}
+                      onClick={() => handleToolbarAction(item.action)}
+                    >
+                      {item.icon}
+                    </Button>
+                  ))}
+                </div>
+                <Textarea
+                  ref={pageEditorRef}
+                  rows={12}
+                  value={config.tournamentPageContent ?? ""}
+                  onChange={(event) => handlePageContentChange(event.target.value)}
+                  className="min-h-[280px]"
+                  placeholder="Welcome to our event! Share parking info, schedule highlights, livestream links, and more."
+                />
               </TabsContent>
             </Tabs>
           </CardContent>

@@ -5,10 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Users, Trophy, Calendar, Play, Plus, Undo } from "lucide-react";
+import { Users, Trophy, Calendar, Play, Plus, Undo, UserCircle2, FileText } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest } from "@/lib/queryClient";
 import RegistrationManagement from "@/components/registration-management";
 import SwissPairings from "@/components/swiss-pairings";
 import Standings from "@/components/standings";
@@ -18,6 +18,8 @@ import KnockoutBracket from "@/components/knockout-bracket";
 import TournamentBuilder from "@/components/tournament-builder";
 import type { Tournament, Player } from "@shared/schema";
 import PlayerManager from "@/components/player-manager";
+import TournamentContactManager from "@/components/tournament-contact-manager";
+import TournamentPagePanel from "@/components/tournament-page-panel";
 
 interface TournamentManagementProps {
   tournamentId: number;
@@ -25,7 +27,7 @@ interface TournamentManagementProps {
 
 export default function TournamentManagement({ tournamentId }: TournamentManagementProps) {
   const [, setLocation] = useLocation();
-  const [activeTab, setActiveTab] = useState("info");
+  const [activeTab, setActiveTab] = useState("dashboard");
   const { toast } = useToast();
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -52,6 +54,10 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
 
 
 
+  const selectTab = (value: string) => {
+    setActiveTab(value);
+  };
+
   // Start tournament mutation
   const startTournamentMutation = useMutation({
     mutationFn: async () => {
@@ -66,7 +72,7 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
       });
       queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}`] });
       queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/players`] });
-      setActiveTab("pairings");
+      selectTab("rounds");
     },
     onError: () => {
       toast({
@@ -91,7 +97,7 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
       });
       queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}`] });
       queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/players`] });
-      setActiveTab("pairings");
+      selectTab("rounds");
     },
     onError: () => {
       toast({
@@ -135,30 +141,34 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
 
   const canGenerateNextRound = tournament?.status === 'active' && (tournament?.currentRound || 0) > 0;
 
+  const handleTabChange = (value: string) => {
+    selectTab(value);
+  };
+
   return (
-    <div className="max-w-7xl mx-auto p-6">
+    <div className="min-h-screen bg-slate-50">
+      <div className="mx-auto max-w-7xl space-y-6 p-6">
       {/* Tournament Header */}
-      <div className="mb-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">{tournament?.name}</h1>
-            <div className="flex items-center space-x-4 mt-2">
-              <Badge variant={tournament?.status === 'active' ? 'default' : tournament?.status === 'completed' ? 'secondary' : 'outline'}>
-                {tournament?.status.charAt(0).toUpperCase() + tournament?.status.slice(1)}
-              </Badge>
-              <span className="text-gray-600">{tournament?.format.toUpperCase()}</span>
-              {tournament?.rounds && (
-                <span className="text-gray-600">{tournament.rounds} rounds</span>
-              )}
-              <span className="text-gray-600">{players.length} players</span>
+      <Card className="overflow-hidden shadow-sm">
+        <CardContent className="space-y-4 p-6">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">{tournament?.name}</h1>
+              <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-gray-600">
+                <Badge variant={tournament?.status === 'active' ? 'default' : tournament?.status === 'completed' ? 'secondary' : 'outline'}>
+                  {tournament?.status.charAt(0).toUpperCase() + tournament?.status.slice(1)}
+                </Badge>
+                <span>{tournament?.format.toUpperCase()}</span>
+                {tournament?.rounds && <span>{tournament.rounds} rounds</span>}
+                <span>{players.length} players</span>
+              </div>
             </div>
-          </div>
-          <div className="flex space-x-3">
+            <div className="flex flex-wrap items-center gap-3">
             {canStartTournament && (
               <Button
                 onClick={() => startTournamentMutation.mutate()}
                 disabled={startTournamentMutation.isPending}
-                className="bg-green-600 hover:bg-green-700"
+                  className="bg-green-600 hover:bg-green-700"
               >
                 <Play className="h-4 w-4 mr-2" />
                 {startTournamentMutation.isPending ? "Starting..." : "Start Tournament"}
@@ -183,48 +193,65 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
                 Undo Last Action
               </Button>
             )}
-            <Button
-              variant="outline"
-              onClick={() => setLocation("/dashboard")}
-            >
-              Back to Dashboard
-            </Button>
+              <Button
+                variant="outline"
+                onClick={() => setLocation("/dashboard")}
+              >
+                Back to Dashboard
+              </Button>
+            </div>
           </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
       {/* Tournament Management Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-6">
-          <TabsTrigger value="info" className="flex items-center space-x-2">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
+        <TabsList className="grid w-full grid-cols-6 overflow-hidden rounded-lg border border-slate-200 bg-white">
+          <TabsTrigger
+            value="dashboard"
+            className="flex min-w-[140px] items-center justify-center gap-2 px-4 py-3 text-sm font-semibold uppercase tracking-wide data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-950"
+          >
             <Trophy className="h-4 w-4" />
-            <span>Tournament Info</span>
+            <span>Dashboard</span>
           </TabsTrigger>
-          <TabsTrigger value="registrations" className="flex items-center space-x-2">
+          <TabsTrigger
+            value="tournamentPage"
+            className="flex min-w-[140px] items-center justify-center gap-2 px-4 py-3 text-sm font-semibold uppercase tracking-wide data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-950"
+          >
+            <FileText className="h-4 w-4" />
+            <span>Tournament Page</span>
+          </TabsTrigger>
+          <TabsTrigger
+            value="players"
+            className="flex min-w-[140px] items-center justify-center gap-2 px-4 py-3 text-sm font-semibold uppercase tracking-wide data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-950"
+          >
             <Users className="h-4 w-4" />
-            <span>Registrations</span>
+            <span>Players</span>
           </TabsTrigger>
-          <TabsTrigger value="players" className="flex items-center space-x-2">
-            <Users className="h-4 w-4" />
-            <span>Players ({players.length})</span>
-          </TabsTrigger>
-          <TabsTrigger value="pairings" className="flex items-center space-x-2">
+          <TabsTrigger
+            value="rounds"
+            className="flex min-w-[140px] items-center justify-center gap-2 px-4 py-3 text-sm font-semibold uppercase tracking-wide data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-950"
+          >
             <Calendar className="h-4 w-4" />
-            <span>Pairings</span>
+            <span>Rounds</span>
           </TabsTrigger>
-          <TabsTrigger value="standings" className="flex items-center space-x-2">
+          <TabsTrigger
+            value="standings"
+            className="flex min-w-[140px] items-center justify-center gap-2 px-4 py-3 text-sm font-semibold uppercase tracking-wide data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-950"
+          >
             <Trophy className="h-4 w-4" />
             <span>Standings</span>
           </TabsTrigger>
-          {tournament.format === 'knockout' && (
-            <TabsTrigger value="bracket" className="flex items-center space-x-2">
-              <Trophy className="h-4 w-4" />
-              <span>Bracket</span>
-            </TabsTrigger>
-          )}
+          <TabsTrigger
+            value="contact"
+            className="flex min-w-[140px] items-center justify-center gap-2 px-4 py-3 text-sm font-semibold uppercase tracking-wide data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-950"
+          >
+            <UserCircle2 className="h-4 w-4" />
+            <span>Contact</span>
+          </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="info" className="mt-6">
+        <TabsContent value="dashboard" className="mt-6 space-y-8">
           <TournamentBuilder
             mode="edit"
             format={tournament.format}
@@ -235,15 +262,20 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
           />
         </TabsContent>
 
-        <TabsContent value="registrations" className="mt-6">
-          <RegistrationManagement tournamentId={tournamentId} />
+        <TabsContent value="tournamentPage" className="mt-6">
+          <TournamentPagePanel
+            tournament={tournament}
+            onUpdated={() => {
+              queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}`] });
+            }}
+          />
         </TabsContent>
 
         <TabsContent value="players" className="mt-6">
           <PlayerManager tournament={tournament} tournamentId={tournamentId} />
         </TabsContent>
 
-        <TabsContent value="pairings" className="mt-6">
+        <TabsContent value="rounds" className="mt-6 space-y-6">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
@@ -254,17 +286,33 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
                 )}
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
               {tournament.format === 'swiss' || tournament.format === 'roundrobin' ? (
-                <SwissPairings tournamentId={tournamentId} />
+                <div className="overflow-x-auto">
+                  <SwissPairings tournamentId={tournamentId} />
+                </div>
               ) : (
-                <div className="text-center py-8">
-                  <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <div className="py-8 text-center">
+                  <Calendar className="mx-auto mb-4 h-12 w-12 text-gray-400" />
                   <p className="text-gray-600">Pairings will be available once the tournament starts.</p>
                 </div>
               )}
             </CardContent>
           </Card>
+
+          {tournament.format === 'knockout' && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <Trophy className="h-5 w-5" />
+                  <span>Bracket</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <KnockoutBracket tournamentId={tournamentId} />
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         <TabsContent value="standings" className="mt-6">
@@ -281,30 +329,25 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <Standings tournamentId={tournamentId} />
+                <div className="overflow-x-auto">
+                  <Standings tournamentId={tournamentId} />
+                </div>
               </CardContent>
             </Card>
           )}
         </TabsContent>
 
-
-
-        {tournament.format === 'knockout' && (
-          <TabsContent value="bracket" className="mt-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Trophy className="h-5 w-5" />
-                  <span>Tournament Bracket</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <KnockoutBracket tournamentId={tournamentId} />
-              </CardContent>
-            </Card>
-          </TabsContent>
-        )}
+        <TabsContent value="contact" className="mt-6 space-y-8">
+          <TournamentContactManager
+            tournament={tournament}
+            onUpdated={() => {
+              queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}`] });
+            }}
+          />
+          <RegistrationManagement tournamentId={tournamentId} />
+        </TabsContent>
       </Tabs>
+    </div>
     </div>
   );
 }

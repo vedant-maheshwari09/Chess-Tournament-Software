@@ -44,6 +44,16 @@ export interface FideRegistrationData {
   ageLimit?: string;
   arbiterSurname?: string;
   arbiterRole?: string;
+  arbiterFederation?: string;
+  eventCodes?: string;
+  normLastName?: string;
+  normFirstName?: string;
+  normFideId?: string;
+  normFederation?: string;
+  signedName?: string;
+  signedRole?: string;
+  signedFederation?: string;
+  signedDate?: string;
   remarks?: string;
 }
 
@@ -173,7 +183,33 @@ export function createDefaultConfig(format: Tournament["format"], mode: Tourname
       hideTeams: false,
       passwordPin: "",
     },
-    fide: {},
+    fide: {
+      prizeFund: "",
+      nationalChampionship: false,
+      titleNormsAvailable: false,
+      femaleOnly: false,
+      allDigitalClocks: false,
+      officialCalendar: false,
+      gmNormsAvailable: false,
+      willProvidePgn: false,
+      internetTransmission: false,
+      expectedPlayers: "",
+      maxRating: "",
+      ageLimit: "None",
+      arbiterSurname: "",
+      arbiterRole: "",
+      arbiterFederation: "",
+      eventCodes: "",
+      normLastName: "",
+      normFirstName: "",
+      normFideId: "",
+      normFederation: "United States",
+      signedName: "",
+      signedRole: "Chief Arbiter",
+      signedFederation: "United States",
+      signedDate: "",
+      remarks: "",
+    },
     uscf: {
       state: "",
       zipCode: "",
