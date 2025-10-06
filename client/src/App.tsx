@@ -14,6 +14,7 @@ import TournamentManagement from "@/pages/tournament-management";
 import TournamentView from "@/pages/tournament-view";
 import NotFound from "@/pages/not-found";
 import SettingsPage from "@/pages/settings";
+import AddPlayerPage from "@/pages/add-player";
 
 function AuthenticatedApp() {
   const { user, isLoading } = useAuth();
@@ -50,6 +51,9 @@ function AuthenticatedApp() {
             <Route path="/tournaments/new" component={TournamentCreation} />
             <Route path="/tournaments/:id/manage">
               {(params) => <TournamentManagement tournamentId={parseInt(params.id)} />}
+            </Route>
+            <Route path="/tournaments/:id/players/new">
+              {(params) => <AddPlayerPage tournamentId={parseInt(params.id)} />}
             </Route>
             <Route path="/tournaments/:id">
               {(params) => <TournamentView tournamentId={parseInt(params.id)} />}
