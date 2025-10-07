@@ -592,8 +592,8 @@ function StepTwo({ format, mode, config, onConfigChange, onBack, onCancel, onSav
   const uscfEnabled = config.registers.uscfRated;
   const shortcutOptions: Array<{ id: SettingsShortcutTab; label: string; visible: boolean; disabled: boolean }> = [
     { id: "registers", label: "Registers", visible: true, disabled: false },
-    { id: "fide", label: "Data for FIDE", visible: fideEnabled, disabled: !tournament },
-    { id: "uscf", label: "Data for USCF", visible: uscfEnabled, disabled: !tournament },
+    { id: "fide", label: "FIDE", visible: true, disabled: !fideEnabled || !tournament },
+    { id: "uscf", label: "USCF", visible: true, disabled: !uscfEnabled || !tournament },
     { id: "chess-results", label: "Chess-Results", visible: true, disabled: !tournament },
   ];
 
@@ -1132,14 +1132,14 @@ function StepTwo({ format, mode, config, onConfigChange, onBack, onCancel, onSav
           </CardContent>
         </Card>
 
-        <Card className="h-fit border border-slate-200 shadow-sm">
+        <Card className="h-fit border border-slate-200 bg-slate-50 shadow-sm">
           <Tabs
             value={settingsShortcut}
             onValueChange={(value) => handleShortcutChange(value as SettingsShortcutTab)}
             className="w-full"
           >
-            <CardHeader className="pb-0">
-              <TabsList className="grid w-full gap-2 rounded-md bg-slate-100 p-1 sm:grid-cols-2 lg:grid-cols-4">
+            <CardHeader className="pb-3">
+              <TabsList className="flex w-full gap-1.5 rounded-lg bg-slate-100 p-2.5 shadow-sm">
                 {shortcutOptions
                   .filter((option) => option.visible)
                   .map((option) => (
@@ -1147,7 +1147,7 @@ function StepTwo({ format, mode, config, onConfigChange, onBack, onCancel, onSav
                       key={option.id}
                       value={option.id}
                       disabled={option.disabled}
-                      className="rounded-md px-3 py-2 text-sm font-semibold text-slate-600 data-[state=active]:bg-white data-[state=active]:text-indigo-700"
+                      className="flex min-w-0 basis-1/4 items-center justify-center rounded-md px-3 py-2 text-center text-sm font-semibold text-slate-600 whitespace-nowrap transition hover:bg-indigo-100 data-[state=active]:bg-indigo-500 data-[state=active]:text-white disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
                     >
                       {option.label}
                     </TabsTrigger>
@@ -1161,9 +1161,9 @@ function StepTwo({ format, mode, config, onConfigChange, onBack, onCancel, onSav
                   return (
                     <div
                       key={switchId}
-                      className="flex items-start justify-between gap-4 rounded-lg border border-slate-200 bg-white px-4 py-3"
+                      className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3"
                     >
-                      <div>
+                      <div className="min-w-[180px]">
                         <Label htmlFor={switchId} className="text-sm font-medium text-slate-700">
                           {label}
                         </Label>
@@ -1202,7 +1202,7 @@ function StepTwo({ format, mode, config, onConfigChange, onBack, onCancel, onSav
             </CardContent>
           </Tabs>
 
-          <div className="flex gap-2 border-t border-slate-200 bg-slate-50 p-4">
+          <div className="flex gap-2 border-t border-slate-200 bg-white/70 p-4">
             <Button variant="outline" className="flex-1" disabled>
               Export
             </Button>
