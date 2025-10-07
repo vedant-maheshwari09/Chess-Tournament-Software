@@ -26,6 +26,13 @@ import {
 import { generateRoundRobinSchedule, validateRoundRobinSchedule } from "./round-robin";
 import { notificationService } from "./notifications";
 import { searchUSCF, searchFide, type LocalRatingResult, type LocalSearchParams } from "./lib/localRatings";
+import {
+  initializeChessResultsSchedulers,
+  syncChessResults,
+  testChessResultsConnection,
+  updateChessResultsScheduler,
+} from "./services/chessResults";
+import { parseTournamentConfig } from "@shared/tournament-config";
 
 type RatingSource = "uscf" | "fide";
 
@@ -1035,11 +1042,77 @@ Close with a friendly call-to-action for players or parents.`;
       if (!tournament) {
         return res.status(404).json({ message: "Tournament not found" });
       }
+
+      try {
+        const config = parseTournamentConfig(tournament);
+        updateChessResultsScheduler(storage, tournament.id, config);
+      } catch (error) {
+        console.warn("Failed to update Chess-Results scheduler", error);
+      }
+
       res.json(tournament);
     } catch (error) {
       res.status(500).json({ message: "Failed to update tournament" });
     }
   });
+
+  app.post(
+    "/api/tournaments/:id/chess-results/test",
+    requireAuth,
+    requireRole('tournament_director'),
+    requireTournamentAccess,
+    async (req, res) => {
+      try {
+        const id = parseInt(req.params.id);
+        const tournament = await storage.getTournament(id);
+        if (!tournament) {
+          return res.status(404).json({ message: "Tournament not found" });
+        }
+
+        const requestConfig = req.body?.config;
+        const config = requestConfig ?? parseTournamentConfig(tournament);
+        const result = await testChessResultsConnection({ storage, tournament, config });
+
+        if (!result.success) {
+          return res.status(result.status).json({ message: result.message });
+        }
+
+        res.json({ success: true });
+      } catch (error) {
+        console.error("Chess-Results test error:", error);
+        res.status(500).json({ message: "Failed to test Chess-Results connection" });
+      }
+    }
+  );
+
+  app.post(
+    "/api/tournaments/:id/chess-results/sync",
+    requireAuth,
+    requireRole('tournament_director'),
+    requireTournamentAccess,
+    async (req, res) => {
+      try {
+        const id = parseInt(req.params.id);
+        const tournament = await storage.getTournament(id);
+        if (!tournament) {
+          return res.status(404).json({ message: "Tournament not found" });
+        }
+
+        const config = parseTournamentConfig(tournament);
+        const result = await syncChessResults({ storage, tournament, config, reason: "manual" });
+        updateChessResultsScheduler(storage, tournament.id, result.config);
+
+        if (!result.success) {
+          return res.status(result.status).json({ message: result.message, config: result.config });
+        }
+
+        res.json(result);
+      } catch (error) {
+        console.error("Chess-Results sync error:", error);
+        res.status(500).json({ message: "Failed to synchronize with Chess-Results" });
+      }
+    }
+  );
 
   // Delete tournament
   app.delete("/api/tournaments/:id", requireAuth, requireRole('tournament_director'), requireTournamentAccess, async (req, res) => {
@@ -2252,6 +2325,12 @@ Close with a friendly call-to-action for players or parents.`;
       res.status(500).json({ message: "Failed to swap players" });
     }
   });
+
+  try {
+    await initializeChessResultsSchedulers(storage);
+  } catch (error) {
+    console.error("Failed to initialize Chess-Results schedulers", error);
+  }
 
   const httpServer = createServer(app);
   return httpServer;
