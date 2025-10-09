@@ -199,6 +199,8 @@ interface FideRegistrationSectionProps {
   tournamentName?: string;
   tournamentCity?: string;
   federationName?: string;
+  onDownloadRegistration?: () => void;
+  onDownloadNorm?: () => void;
 }
 
 const fideToggleFields: Array<{ key: keyof FideRegistrationData; label: string }> = [
@@ -279,7 +281,15 @@ const US_STATES: Array<{ code: string; name: string }> = [
   { code: "WY", name: "Wyoming" },
 ];
 
-export function FideRegistrationSection({ value, onChange, tournamentName, tournamentCity, federationName }: FideRegistrationSectionProps) {
+export function FideRegistrationSection({
+  value,
+  onChange,
+  tournamentName,
+  tournamentCity,
+  federationName,
+  onDownloadRegistration,
+  onDownloadNorm,
+}: FideRegistrationSectionProps) {
   const [activeTab, setActiveTab] = useState<"registration" | "norm">("registration");
   const toggleColumns = useMemo(() => {
     const midpoint = Math.ceil(fideToggleFields.length / 2);
@@ -475,10 +485,20 @@ export function FideRegistrationSection({ value, onChange, tournamentName, tourn
             </section>
 
             <div className="flex flex-wrap justify-end gap-3">
-              <Button type="button" variant="outline" className="bg-indigo-50 text-indigo-700 hover:bg-indigo-100">
+              <Button
+                type="button"
+                variant="outline"
+                className="bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
+                onClick={onDownloadRegistration}
+              >
                 <Download className="mr-2 h-4 w-4" /> Download FA1 Form
               </Button>
-              <Button type="button" variant="outline" className="bg-indigo-600 text-white hover:bg-indigo-700">
+              <Button
+                type="button"
+                variant="outline"
+                className="bg-indigo-600 text-white hover:bg-indigo-700"
+                onClick={onDownloadNorm}
+              >
                 <Download className="mr-2 h-4 w-4" /> Download IA1 Form
               </Button>
             </div>
@@ -492,9 +512,10 @@ export function FideRegistrationSection({ value, onChange, tournamentName, tourn
 interface UscfReportSectionProps {
   value: UscfReportData;
   onChange: (update: Partial<UscfReportData>) => void;
+  onDownload?: () => void;
 }
 
-export function UscfReportSection({ value, onChange }: UscfReportSectionProps) {
+export function UscfReportSection({ value, onChange, onDownload }: UscfReportSectionProps) {
   return (
     <Card className="shadow-sm">
       <CardHeader className="border-b pb-6">
@@ -604,7 +625,12 @@ export function UscfReportSection({ value, onChange }: UscfReportSectionProps) {
         </div>
 
         <div className="flex justify-end">
-          <Button type="button" variant="outline" className="bg-indigo-600 text-white hover:bg-indigo-700">
+          <Button
+            type="button"
+            variant="outline"
+            className="bg-indigo-600 text-white hover:bg-indigo-700"
+            onClick={onDownload}
+          >
             <Download className="mr-2 h-4 w-4" />
             Download
           </Button>
@@ -622,6 +648,7 @@ interface ChessResultsSettingsCardProps {
   testing: boolean;
   syncing: boolean;
   disabled?: boolean;
+  onDownload?: () => void;
 }
 
 export function ChessResultsSettingsCard({
@@ -632,6 +659,7 @@ export function ChessResultsSettingsCard({
   testing,
   syncing,
   disabled,
+  onDownload,
 }: ChessResultsSettingsCardProps) {
   const syncDisabled = value.syncMode === "disabled" || disabled;
   const trimmedTournamentId = value.tournamentId?.trim();
@@ -854,6 +882,9 @@ export function ChessResultsSettingsCard({
             disabled={!trimmedTournamentId}
           >
             <ExternalLink className="mr-2 h-4 w-4" /> View event on Chess-Results
+          </Button>
+          <Button type="button" variant="outline" onClick={onDownload}>
+            <Download className="mr-2 h-4 w-4" /> Download configuration
           </Button>
         </div>
       </CardContent>

@@ -3,7 +3,6 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import SettingsMenu from "@/components/settings-menu";
 import { useAuth } from "@/hooks/useAuth";
 import AuthForm from "@/components/auth-form";
 import TournamentDirectorDashboard from "@/pages/tournament-director-dashboard";
@@ -16,6 +15,7 @@ import NotFound from "@/pages/not-found";
 import SettingsPage from "@/pages/settings";
 import AddPlayerPage from "@/pages/add-player";
 import TournamentSettingsPage from "@/pages/tournament-settings";
+import TournamentActionsPage from "@/pages/tournament-actions";
 
 function AuthenticatedApp() {
   const { user, isLoading } = useAuth();
@@ -37,11 +37,6 @@ function AuthenticatedApp() {
 
   return (
     <div className="min-h-screen">
-      {/* Global Navigation Bar */}
-      <div className="fixed top-0 right-0 z-50 p-4">
-        <SettingsMenu />
-      </div>
-
       {/* Role-based Routing */}
       <Switch>
         <Route path="/settings" component={SettingsPage} />
@@ -63,6 +58,9 @@ function AuthenticatedApp() {
             </Route>
             <Route path="/tournaments/:id/settings">
               {(params) => <TournamentSettingsPage tournamentId={parseInt(params.id)} />}
+            </Route>
+            <Route path="/tournaments/:id/actions">
+              {(params) => <TournamentActionsPage tournamentId={parseInt(params.id)} />}
             </Route>
             <Route path="/tournaments/:id/players/new">
               {(params) => <AddPlayerPage tournamentId={parseInt(params.id)} />}

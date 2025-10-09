@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Tournament } from "@shared/schema";
@@ -35,6 +35,18 @@ interface TournamentSettingsPageProps {
 
 function cloneConfig(config: TournamentConfig): TournamentConfig {
   return JSON.parse(JSON.stringify(config)) as TournamentConfig;
+}
+
+function downloadJson(filename: string, data: unknown) {
+  if (typeof window === "undefined") return;
+  const payload = JSON.stringify(data, null, 2);
+  const blob = new Blob([payload], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
 }
 
 export default function TournamentSettingsPage({ tournamentId, section }: TournamentSettingsPageProps) {
@@ -235,6 +247,48 @@ export default function TournamentSettingsPage({ tournamentId, section }: Tourna
     }
   }, [allowedSections, config, currentSection, setLocation, tournamentId]);
 
+  const unsavedChanges = isDirty || JSON.stringify(config) !== JSON.stringify(baseline);
+
+  const handleDownloadFideRegistration = useCallback(() => {
+    if (!config) return;
+    downloadJson(`tournament-${tournamentId}-fide-registration.json`, {
+      tournamentId,
+      tournamentName: tournament?.name,
+      form: "FA1",
+      data: config.fide,
+    });
+  }, [config, tournament?.name, tournamentId]);
+
+  const handleDownloadFideNorm = useCallback(() => {
+    if (!config) return;
+    downloadJson(`tournament-${tournamentId}-fide-norm.json`, {
+      tournamentId,
+      tournamentName: tournament?.name,
+      form: "IA1",
+      data: config.fide,
+    });
+  }, [config, tournament?.name, tournamentId]);
+
+  const handleDownloadUscf = useCallback(() => {
+    if (!config) return;
+    downloadJson(`tournament-${tournamentId}-uscf-report.json`, {
+      tournamentId,
+      tournamentName: tournament?.name,
+      form: "USCF",
+      data: config.uscf,
+    });
+  }, [config, tournament?.name, tournamentId]);
+
+  const handleDownloadChessResults = useCallback(() => {
+    if (!config) return;
+    downloadJson(`tournament-${tournamentId}-chess-results.json`, {
+      tournamentId,
+      tournamentName: tournament?.name,
+      form: "ChessResults",
+      data: config.chessResults,
+    });
+  }, [config, tournament?.name, tournamentId]);
+
   if (authLoading || tournamentLoading || !config || !baseline) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50">
@@ -245,20 +299,6 @@ export default function TournamentSettingsPage({ tournamentId, section }: Tourna
       </div>
     );
   }
-
-  const NAV_LABELS: Record<SettingsSection, string> = {
-    registers: "Registers",
-    fide: "Data for FIDE",
-    uscf: "Data for USCF",
-    "chess-results": "Chess-Results",
-  };
-
-  const goToSection = (id: SettingsSection) => {
-    if (!allowedSections.includes(id)) return;
-    setLocation(`/tournaments/${tournamentId}/settings/${id}`);
-  };
-
-  const unsavedChanges = isDirty || JSON.stringify(config) !== JSON.stringify(baseline);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -296,24 +336,6 @@ export default function TournamentSettingsPage({ tournamentId, section }: Tourna
           </div>
         </div>
 
-        {currentSection === "registers" && (
-          <div className="flex flex-wrap gap-2">
-            {["registers", "fide", "uscf", "chess-results"].map((sectionId) => {
-              const id = sectionId as SettingsSection;
-              if (!allowedSections.includes(id)) return null;
-              return (
-                <Button
-                  key={id}
-                  variant={currentSection === id ? "default" : "outline"}
-                  onClick={() => goToSection(id)}
-                >
-                  {NAV_LABELS[id]}
-                </Button>
-              );
-            })}
-          </div>
-        )}
-
         <Separator />
 
         <div className="space-y-6 pb-12">
@@ -324,11 +346,16 @@ export default function TournamentSettingsPage({ tournamentId, section }: Tourna
           )}
 
           {currentSection === "fide" && allowedSections.includes("fide") && (
-            <FideRegistrationSection value={config.fide} onChange={updateFide} />
+            <FideRegistrationSection
+              value={config.fide}
+              onChange={updateFide}
+              onDownloadRegistration={handleDownloadFideRegistration}
+              onDownloadNorm={handleDownloadFideNorm}
+            />
           )}
 
           {currentSection === "uscf" && allowedSections.includes("uscf") && (
-            <UscfReportSection value={config.uscf} onChange={updateUscf} />
+            <UscfReportSection value={config.uscf} onChange={updateUscf} onDownload={handleDownloadUscf} />
           )}
 
           {currentSection === "chess-results" && allowedSections.includes("chess-results") && (
@@ -340,6 +367,7 @@ export default function TournamentSettingsPage({ tournamentId, section }: Tourna
               testing={testMutation.isPending}
               syncing={syncMutation.isPending}
               disabled={config.chessResults.syncMode === "disabled"}
+              onDownload={handleDownloadChessResults}
             />
           )}
         </div>

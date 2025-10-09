@@ -5,12 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Trophy, Users, Calendar } from "lucide-react";
+import { ArrowLeft, Trophy, Users, Calendar, Settings as SettingsIcon } from "lucide-react";
 import SwissStandings from "@/components/swiss-standings";
 import SwissPairings from "@/components/swiss-pairings";
 import RoundRobinCrosstable from "@/components/round-robin-crosstable";
 import PairingPredictor from "@/components/pairing-predictor";
 import type { Tournament } from "@shared/schema";
+import { useAuth } from "@/hooks/useAuth";
 
 interface TournamentViewProps {
   tournamentId: number;
@@ -19,13 +20,14 @@ interface TournamentViewProps {
 export default function TournamentView({ tournamentId }: TournamentViewProps) {
   const [, setLocation] = useLocation();
   const [activeTab, setActiveTab] = useState("info");
+  const { user, isLoading: authLoading } = useAuth();
 
   // Fetch tournament details
   const { data: tournament, isLoading: tournamentLoading } = useQuery<Tournament>({
     queryKey: [`/api/tournaments/${tournamentId}`],
   });
 
-  if (tournamentLoading) {
+  if (tournamentLoading || authLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
@@ -53,6 +55,8 @@ export default function TournamentView({ tournamentId }: TournamentViewProps) {
     );
   }
 
+  const canManageTournament = Boolean(user && user.role === "tournament_director");
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Header with Back Button */}
@@ -78,6 +82,16 @@ export default function TournamentView({ tournamentId }: TournamentViewProps) {
               </div>
             </div>
             <div className="flex items-center gap-4">
+              {canManageTournament && (
+                <Button
+                  variant="outline"
+                  onClick={() => setLocation(`/tournaments/${tournamentId}/actions`)}
+                  className="flex items-center gap-2"
+                >
+                  <SettingsIcon className="h-4 w-4" />
+                  Settings
+                </Button>
+              )}
               <Badge variant={tournament.status === 'active' ? 'default' : tournament.status === 'completed' ? 'secondary' : 'outline'}>
                 {tournament.status.charAt(0).toUpperCase() + tournament.status.slice(1)}
               </Badge>

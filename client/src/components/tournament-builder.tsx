@@ -250,6 +250,9 @@ interface StepOneProps {
   onConfigChange: (config: TournamentConfig) => void;
   onContinue: () => void;
   onCancel?: () => void;
+  isProcessing?: boolean;
+  continueLabel?: string;
+  processingLabel?: string;
 }
 
 function StepOne({
@@ -261,6 +264,9 @@ function StepOne({
   onConfigChange,
   onContinue,
   onCancel,
+  isProcessing,
+  continueLabel,
+  processingLabel,
 }: StepOneProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const { toast } = useToast();
@@ -314,6 +320,10 @@ function StepOne({
   const handleContinue = () => {
     onContinue();
   };
+
+  const continueText = isProcessing
+    ? processingLabel ?? "Processing..."
+    : continueLabel ?? "Continue";
 
   return (
     <div className="space-y-6">
@@ -417,8 +427,8 @@ function StepOne({
               Cancel
             </Button>
           )}
-          <Button onClick={handleContinue}>
-            Continue
+          <Button onClick={handleContinue} disabled={isProcessing}>
+            {continueText}
             <ChevronRight className="h-4 w-4 ml-2" />
           </Button>
         </div>
@@ -439,7 +449,7 @@ interface StepTwoProps {
   tournament?: Tournament;
 }
 
-function StepTwo({ format, mode, config, onConfigChange, onBack, onCancel, onSave, saving, tournament }: StepTwoProps) {
+function StepTwo({ format, mode, config, onConfigChange, onBack: _onBack, onCancel, onSave, saving, tournament }: StepTwoProps) {
   const scheduleTemplateOptions = SCHEDULE_EVENT_OPTIONS;
   const updateDetails = (updates: Partial<TournamentConfig["details"]>) =>
     onConfigChange({ ...config, details: { ...config.details, ...updates } });
@@ -639,6 +649,14 @@ function StepTwo({ format, mode, config, onConfigChange, onBack, onCancel, onSav
     setLocation(target);
   };
 
+  const renderTabSaveButton = () => (
+    <div className="flex justify-end pt-4">
+      <Button onClick={onSave} disabled={saving}>
+        {saving ? "Saving..." : "Save"}
+      </Button>
+    </div>
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -663,8 +681,9 @@ function StepTwo({ format, mode, config, onConfigChange, onBack, onCancel, onSav
                 <TabsTrigger value="contacts">Contacts</TabsTrigger>
                 <TabsTrigger value="playerSignup">Player sign up</TabsTrigger>
               </TabsList>
-              <TabsContent value="basic" className="bg-white p-6">
+              <TabsContent value="basic" className="bg-white p-6 space-y-4">
                 <BasicInformationFields config={config} onConfigChange={onConfigChange} />
+                {renderTabSaveButton()}
               </TabsContent>
 
               <TabsContent value="details" className="bg-white p-6 space-y-4">
@@ -849,6 +868,8 @@ function StepTwo({ format, mode, config, onConfigChange, onBack, onCancel, onSav
                     </SelectContent>
                   </Select>
                 </div>
+
+                {renderTabSaveButton()}
               </TabsContent>
 
               <TabsContent value="schedule" className="bg-white p-6 space-y-3">
@@ -915,6 +936,8 @@ function StepTwo({ format, mode, config, onConfigChange, onBack, onCancel, onSav
                     </div>
                   ))}
                 </div>
+
+                {renderTabSaveButton()}
               </TabsContent>
 
               <TabsContent value="contacts" className="bg-white p-6 space-y-4">
@@ -1016,6 +1039,8 @@ function StepTwo({ format, mode, config, onConfigChange, onBack, onCancel, onSav
                     </div>
                   ))}
                 </div>
+
+                {renderTabSaveButton()}
               </TabsContent>
 
               <TabsContent value="playerSignup" className="bg-white p-6 space-y-4">
@@ -1127,6 +1152,8 @@ function StepTwo({ format, mode, config, onConfigChange, onBack, onCancel, onSav
                     placeholder="Provide payment methods, account references, or onsite instructions."
                   />
                 </div>
+
+                {renderTabSaveButton()}
               </TabsContent>
             </Tabs>
           </CardContent>
@@ -1213,21 +1240,13 @@ function StepTwo({ format, mode, config, onConfigChange, onBack, onCancel, onSav
         </Card>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex gap-2">
-          <Button variant="ghost" onClick={onBack}>
-            Back
+      {onCancel && (
+        <div className="flex justify-start">
+          <Button variant="outline" onClick={onCancel}>
+            Cancel
           </Button>
-          {onCancel && (
-            <Button variant="outline" onClick={onCancel}>
-              Cancel
-            </Button>
-          )}
         </div>
-        <Button onClick={onSave} disabled={saving}>
-          {saving ? "Saving..." : "Save"}
-        </Button>
-      </div>
+      )}
     </div>
   );
 }
@@ -1320,8 +1339,19 @@ export function TournamentBuilder({ mode, format: initialFormat, tournament, onC
       onFormatChange={handleFormatChange}
       onModeChange={handleModeChange}
       onConfigChange={(nextConfig) => setConfig(nextConfig)}
-      onContinue={() => setStep(2)}
+      onContinue={() => {
+        if (mode === "create") {
+          if (!mutation.isPending) {
+            mutation.mutate();
+          }
+        } else {
+          setStep(2);
+        }
+      }}
       onCancel={onCancel}
+      isProcessing={mutation.isPending}
+      continueLabel={mode === "create" ? "Create tournament" : "Continue"}
+      processingLabel={mode === "create" ? "Creating..." : "Processing..."}
     />
   ) : (
     <StepTwo

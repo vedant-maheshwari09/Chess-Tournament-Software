@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/useAuth";
 import type { Tournament } from "@shared/schema";
+import SettingsMenu from "@/components/settings-menu";
 
 export default function TournamentDirectorDashboard() {
   const { user } = useAuth();
@@ -57,12 +58,15 @@ export default function TournamentDirectorDashboard() {
                 Welcome back, {user?.firstName} {user?.lastName}
               </p>
             </div>
-            <Link href="/tournaments/new">
-              <Button className="flex items-center gap-2">
-                <Plus className="h-4 w-4" />
-                Host New Tournament
-              </Button>
-            </Link>
+            <div className="flex items-center gap-4">
+              <SettingsMenu />
+              <Link href="/tournaments/new">
+                <Button className="flex items-center gap-2">
+                  <Plus className="h-4 w-4" />
+                  Host New Tournament
+                </Button>
+              </Link>
+            </div>
           </div>
         </div>
       </div>

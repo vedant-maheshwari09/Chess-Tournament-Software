@@ -69,10 +69,10 @@ app.use((req, res, next) => {
     serveStatic(app);
   }
 
-  // Always serve the app on PORT env (default 5009)
+  // Always serve the app on PORT env (default 5010)
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
-  const port = Number(process.env.PORT ?? 5009);
+  const port = Number(process.env.PORT ?? 5010);
 
   server.on("error", (error: NodeJS.ErrnoException) => {
     if (error.code === "EADDRINUSE") {
