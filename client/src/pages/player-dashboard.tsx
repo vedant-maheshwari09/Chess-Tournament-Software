@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Trophy, Clock, Users, Eye, ArrowLeft, Medal, Target, Info, Calculator } from "lucide-react";
+import { Trophy, Users, Eye, ArrowLeft, Medal, Info, Calculator } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import SettingsMenu from "@/components/settings-menu";
 import { useAuth } from "@/hooks/useAuth";
 import type { Tournament, Player, PlayerRegistration as PlayerRegistrationType } from "@shared/schema";
@@ -16,10 +17,31 @@ import KnockoutBracket from "@/components/knockout-bracket";
 import PairingPredictor from "@/components/pairing-predictor";
 import PlayerRegistration from "@/components/player-registration";
 import { parseTournamentConfig } from "@/lib/tournament-config";
+import { apiRequest } from "@/lib/queryClient";
+
+type SortKey = "players" | "date" | "state";
+
+interface TournamentRow {
+  tournament: Tournament;
+  playersCount: number;
+  sectionsCount: number | null;
+  startDate: Date | null;
+  endDate: Date | null;
+  state: string;
+}
+
+interface SectionData {
+  key: string;
+  label: string;
+  description: string;
+  items: TournamentRow[];
+  empty: string;
+}
 
 export default function PlayerDashboard() {
   const { user } = useAuth();
   const [selectedTournament, setSelectedTournament] = useState<Tournament | null>(null);
+  const [activeTab, setActiveTab] = useState<string>("ongoing");
 
   const { data: tournaments = [], isLoading } = useQuery<Tournament[]>({
     queryKey: ["/api/tournaments"],
@@ -28,6 +50,119 @@ export default function PlayerDashboard() {
   const { data: myRegistrations = [] } = useQuery<PlayerRegistrationType[]>({
     queryKey: ["/api/my-registrations"],
   });
+
+  const registrationMap = useMemo(() => {
+    const map = new Map<number, PlayerRegistrationType>();
+    myRegistrations.forEach((registration) => {
+      map.set(registration.tournamentId, registration);
+    });
+    return map;
+  }, [myRegistrations]);
+
+  const [sortKey, setSortKey] = useState<SortKey>("date");
+
+  const { data: statsData = [], isLoading: statsLoading } = useQuery<TournamentRow[]>({
+    queryKey: ["tournament-stats", tournaments.map((tournament) => tournament.id)],
+    enabled: tournaments.length > 0,
+    queryFn: async () => {
+      return Promise.all(
+        tournaments.map(async (tournament) => {
+          let players: Player[] = [];
+          try {
+            players = (await apiRequest(`/api/tournaments/${tournament.id}/players`)) as Player[];
+          } catch (error) {
+            console.error("Failed to fetch players for tournament", tournament.id, error);
+          }
+
+          const config = parseTournamentConfig(tournament);
+          const sectionsCandidate = (config as any)?.sections ?? (config as any)?.sectionDefinitions;
+          const sectionsCount = Array.isArray(sectionsCandidate) ? sectionsCandidate.length : null;
+          const state =
+            (config.uscf?.state?.trim() || tournament.location?.split(",").pop()?.trim() || "") || "N/A";
+
+          return {
+            tournament,
+            playersCount: players.length,
+            sectionsCount,
+            startDate: config.basic.startDate ? new Date(config.basic.startDate) : null,
+            endDate: config.basic.endDate ? new Date(config.basic.endDate) : null,
+            state,
+          } as TournamentRow;
+        })
+      );
+    },
+  });
+
+  const statsRows = useMemo<TournamentRow[]>(() => {
+    if (statsData.length === tournaments.length && statsData.length > 0) {
+      return statsData;
+    }
+
+    return tournaments.map((tournament) => {
+      const config = parseTournamentConfig(tournament);
+      const state =
+        (config.uscf?.state?.trim() || tournament.location?.split(",").pop()?.trim() || "") || "N/A";
+
+      return {
+        tournament,
+        playersCount: typeof (tournament as any).playerCount === "number" ? (tournament as any).playerCount : 0,
+        sectionsCount: null,
+        startDate: config.basic.startDate ? new Date(config.basic.startDate) : null,
+        endDate: config.basic.endDate ? new Date(config.basic.endDate) : null,
+        state,
+      } as TournamentRow;
+    });
+  }, [statsData, tournaments]);
+
+  const sectionsRaw = useMemo(() => ({
+    past: statsRows.filter((entry) => entry.tournament.status === "completed"),
+    upcoming: statsRows.filter((entry) => entry.tournament.status === "upcoming"),
+    ongoing: statsRows.filter((entry) => entry.tournament.status === "active"),
+  }), [statsRows]);
+
+  const comparator = useMemo(() => {
+    return (a: TournamentRow, b: TournamentRow) => {
+      switch (sortKey) {
+        case "players":
+          return b.playersCount - a.playersCount;
+        case "state":
+          return (a.state || "").localeCompare(b.state || "");
+        case "date":
+        default: {
+          const aTime = a.startDate ? a.startDate.getTime() : Number.POSITIVE_INFINITY;
+          const bTime = b.startDate ? b.startDate.getTime() : Number.POSITIVE_INFINITY;
+          return aTime - bTime;
+        }
+      }
+    };
+  }, [sortKey]);
+
+  const sectionsData = useMemo<SectionData[]>(
+    () => [
+      {
+        key: "past",
+        label: "Past Tournaments",
+        description: "Completed events you can revisit.",
+        items: [...sectionsRaw.past].sort(comparator),
+        empty: "You haven't viewed any completed tournaments yet.",
+      },
+      {
+        key: "upcoming",
+        label: "Upcoming Tournaments",
+        description: "Events that are scheduled to start soon.",
+        items: [...sectionsRaw.upcoming].sort(comparator),
+        empty: "No upcoming tournaments are available right now.",
+      },
+      {
+        key: "ongoing",
+        label: "Ongoing Tournaments",
+        description: "Live events happening right now.",
+        items: [...sectionsRaw.ongoing].sort(comparator),
+        empty: "No tournaments are currently live.",
+      },
+    ],
+    [sectionsRaw, comparator]
+  );
 
   const getFormatIcon = (format: string) => {
     switch (format) {
@@ -56,7 +191,110 @@ export default function PlayerDashboard() {
     }
   };
 
-  if (isLoading) {
+  const formatDateRange = (start: Date | null, end: Date | null) => {
+    const format = (date: Date | null) =>
+      date ? new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" }).format(date) : "TBD";
+
+    if (!start && !end) return "TBD";
+    if (!start) return `TBD - ${format(end)}`;
+    if (!end) return `${format(start)} - TBD`;
+    return `${format(start)} - ${format(end)}`;
+  };
+
+  const renderTournamentRow = (entry: TournamentRow) => {
+    const { tournament, playersCount, sectionsCount, startDate, endDate, state } = entry;
+    const registration = registrationMap.get(tournament.id);
+
+    let registerLabel = "Register Now";
+    let registerDisabled = tournament.status !== "upcoming";
+
+    if (registration) {
+      if (registration.status === "approved") {
+        registerLabel = "Registered";
+        registerDisabled = true;
+      } else if (registration.status === "pending") {
+        registerLabel = "Pending Approval";
+        registerDisabled = true;
+      } else if (registration.status === "declined") {
+        registerLabel = "Registration Declined";
+        registerDisabled = true;
+      }
+    } else if (tournament.status !== "upcoming") {
+      registerLabel = "Registration Closed";
+    }
+
+    return (
+      <tr key={tournament.id} className="border-b border-slate-200 bg-white transition hover:bg-slate-50 last:border-b-0">
+        <td className="px-4 py-4 align-middle">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 font-semibold text-slate-900 dark:text-slate-100">
+              <span>{getFormatIcon(tournament.format)}</span>
+              <span>{tournament.name}</span>
+            </div>
+            <div className="text-xs text-slate-500">{getFormatName(tournament.format)}</div>
+          </div>
+        </td>
+        <td className="px-4 py-4 text-center align-middle text-sm text-slate-700 dark:text-slate-300">{state || "N/A"}</td>
+        <td className="px-4 py-4 text-center align-middle text-sm text-slate-700 dark:text-slate-300">
+          {playersCount} player{playersCount === 1 ? "" : "s"}
+        </td>
+        <td className="px-4 py-4 text-center align-middle text-sm text-slate-700 dark:text-slate-300">{formatDateRange(startDate, endDate)}</td>
+        <td className="px-4 py-4 text-center align-middle text-sm text-slate-700 dark:text-slate-300">{sectionsCount ?? "—"}</td>
+        <td className="px-4 py-4 align-middle text-right">
+          <Button variant="outline" size="sm" onClick={() => setSelectedTournament(tournament)} className="inline-flex items-center gap-2">
+            <Eye className="h-4 w-4" />
+            View
+          </Button>
+        </td>
+        <td className="px-4 py-4 align-middle text-right">
+          <Button size="sm" disabled={registerDisabled} onClick={() => setSelectedTournament(tournament)}>
+            {registerLabel}
+          </Button>
+        </td>
+      </tr>
+    );
+  };
+
+  const renderSection = (section: SectionData) => {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>{section.label}</CardTitle>
+          <CardDescription>{section.description}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {section.items.length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-4 py-12 text-center">
+              <Trophy className="h-12 w-12 text-gray-400" />
+              <div className="space-y-2">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Nothing here yet</h3>
+                <p className="text-gray-600 dark:text-gray-300">{section.empty}</p>
+              </div>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-[960px] w-full border-collapse overflow-hidden rounded-xl">
+                <thead className="bg-slate-50">
+                  <tr className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    <th className="px-4 py-3 text-left">Tournament Name</th>
+                    <th className="px-4 py-3 text-center">State</th>
+                    <th className="px-4 py-3 text-center">Players</th>
+                    <th className="px-4 py-3 text-center">Start Date – End Date</th>
+                    <th className="px-4 py-3 text-center">Sections</th>
+                    <th className="px-4 py-3 text-right">View</th>
+                    <th className="px-4 py-3 text-right">Register</th>
+                  </tr>
+                </thead>
+                <tbody>{section.items.map((entry) => renderTournamentRow(entry))}</tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    );
+  };
+
+  if (isLoading || statsLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -71,16 +309,13 @@ export default function PlayerDashboard() {
   if (!selectedTournament) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-        {/* Header */}
         <div className="bg-white dark:bg-gray-800 shadow">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between items-center py-6">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center justify-between py-6">
               <div>
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                  Live Tournaments
-                </h1>
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Tournament Dashboard</h1>
                 <p className="text-gray-600 dark:text-gray-300">
-                  Welcome, {user?.username} - Find tournaments to join and spectate
+                  Welcome, {user?.username}. Explore tournaments to follow or join.
                 </p>
               </div>
               <div className="flex items-center gap-4">
@@ -94,120 +329,45 @@ export default function PlayerDashboard() {
           </div>
         </div>
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          {/* Stats Overview */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Live Tournaments</CardTitle>
-                <Trophy className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{tournaments.length}</div>
-                <p className="text-xs text-muted-foreground">
-                  Active tournaments you can view
-                </p>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Active Events</CardTitle>
-                <Clock className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {tournaments.filter(t => t.status === 'active').length}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Currently in progress
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Upcoming</CardTitle>
-                <Target className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {tournaments.filter(t => t.status === 'upcoming').length}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Starting soon
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Tournament List */}
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                Available Tournaments
-              </h2>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                Select a tournament to view live standings and pairings
-              </p>
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-6 pb-10">
+          {tournaments.length > 0 ? (
+            <div className="mb-6 flex flex-wrap items-center justify-end gap-3">
+              <span className="text-sm text-slate-500">Sort by:</span>
+              <Select value={sortKey} onValueChange={(value) => setSortKey(value as SortKey)}>
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="Sort tournaments" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="date">Start Date</SelectItem>
+                  <SelectItem value="players">Players</SelectItem>
+                  <SelectItem value="state">State</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
+          ) : null}
 
-            {tournaments.length === 0 ? (
-              <Card>
-                <CardContent className="flex flex-col items-center justify-center py-12">
-                  <Trophy className="h-12 w-12 text-gray-400 mb-4" />
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                    No tournaments available
-                  </h3>
-                  <p className="text-gray-600 dark:text-gray-400 text-center">
-                    No tournaments are currently running. Check back later for live events.
-                  </p>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {tournaments.map((tournament) => (
-                  <Card key={tournament.id} className="hover:shadow-md transition-shadow cursor-pointer">
-                    <CardHeader>
-                      <div className="flex items-start justify-between">
-                        <div className="space-y-1">
-                          <CardTitle className="text-lg">
-                            {getFormatIcon(tournament.format)} {tournament.name}
-                          </CardTitle>
-                          <CardDescription>
-                            {getFormatName(tournament.format)} • {tournament.rounds} rounds
-                          </CardDescription>
-                        </div>
-                        <Badge className={getStatusColor(tournament.status)}>
-                          {tournament.status}
-                        </Badge>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-3">
-                        <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                          <Clock className="h-4 w-4" />
-                          {tournament.status === 'active' ? 'In Progress' : 
-                           tournament.status === 'upcoming' ? 'Starting Soon' : 'Completed'}
-                        </div>
-                        <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                          <Users className="h-4 w-4" />
-                          Tournament event
-                        </div>
-                        <Button 
-                          className="w-full" 
-                          onClick={() => setSelectedTournament(tournament)}
-                        >
-                          <Eye className="h-4 w-4 mr-2" />
-                          View Live Tournament
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </div>
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="flex w-full flex-wrap flex-row-reverse gap-3 bg-transparent">
+              {sectionsData.map((section) => (
+                <TabsTrigger
+                  key={section.key}
+                  value={section.key}
+                  className="flex min-w-[200px] flex-1 flex-col items-center justify-center gap-1 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-center text-sm font-medium text-slate-600 shadow-sm transition whitespace-normal break-words data-[state=active]:border-indigo-200 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-900"
+                >
+                  <span className="leading-tight">{section.label}</span>
+                  <span className="text-xs text-slate-500 leading-tight">
+                    {section.items.length} tournament{section.items.length === 1 ? "" : "s"}
+                  </span>
+                </TabsTrigger>
+              ))}
+            </TabsList>
+
+            {sectionsData.map((section) => (
+              <TabsContent key={section.key} value={section.key} className="mt-8 space-y-6">
+                {renderSection(section)}
+              </TabsContent>
+            ))}
+          </Tabs>
         </div>
       </div>
     );
@@ -245,7 +405,6 @@ export default function PlayerDashboard() {
               <Badge className={getStatusColor(selectedTournament.status)}>
                 {selectedTournament.status}
               </Badge>
-              <SettingsMenu />
             </div>
           </div>
         </div>

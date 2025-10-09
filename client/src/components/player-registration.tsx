@@ -102,6 +102,24 @@ export default function PlayerRegistration({ tournament, existingRegistration }:
 
   // Show existing registration status
   if (existingRegistration) {
+    const detailRows = [
+      existingRegistration.playerName
+        ? { label: "Player Name", value: existingRegistration.playerName }
+        : null,
+      existingRegistration.uscfRating
+        ? { label: "USCF Rating", value: existingRegistration.uscfRating.toString() }
+        : null,
+      existingRegistration.phoneNumber
+        ? { label: "Phone", value: existingRegistration.phoneNumber }
+        : null,
+      existingRegistration.email
+        ? { label: "Email", value: existingRegistration.email }
+        : null,
+      existingRegistration.arrivalTime
+        ? { label: "Arrival Time", value: existingRegistration.arrivalTime }
+        : null,
+    ].filter(Boolean) as { label: string; value: string }[];
+
     return (
       <Card>
         <CardHeader>
@@ -112,46 +130,22 @@ export default function PlayerRegistration({ tournament, existingRegistration }:
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium">Status:</span>
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm font-medium text-slate-600">Status</span>
               {getStatusBadge(existingRegistration.status)}
             </div>
-            
-            {existingRegistration.playerName && (
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Player Name:</span>
-                <span className="text-sm">{existingRegistration.playerName}</span>
-              </div>
-            )}
-            
-            {existingRegistration.uscfRating && (
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">USCF Rating:</span>
-                <span className="text-sm">{existingRegistration.uscfRating}</span>
-              </div>
-            )}
-            
-            {existingRegistration.phoneNumber && (
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Phone:</span>
-                <span className="text-sm">{existingRegistration.phoneNumber}</span>
-              </div>
-            )}
-            
-            {existingRegistration.email && (
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Email:</span>
-                <span className="text-sm">{existingRegistration.email}</span>
-              </div>
-            )}
-            
-            {existingRegistration.arrivalTime && (
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Arrival Time:</span>
-                <span className="text-sm">{existingRegistration.arrivalTime}</span>
-              </div>
-            )}
-            
+
+            {detailRows.length > 0 ? (
+              <dl className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-x-4 gap-y-3 text-sm">
+                {detailRows.map((row) => (
+                  <div key={row.label} className="contents">
+                    <dt className="font-medium text-slate-600">{row.label}</dt>
+                    <dd className="text-right text-slate-900 dark:text-slate-100">{row.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            ) : null}
+
             <div className="text-xs text-muted-foreground">
               Registered on {existingRegistration.createdAt ? new Date(existingRegistration.createdAt).toLocaleDateString() : "Unknown"}
             </div>

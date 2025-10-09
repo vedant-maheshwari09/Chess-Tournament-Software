@@ -721,9 +721,10 @@ Close with a friendly call-to-action for players or parents.`;
   app.get("/api/tournaments", async (req, res) => {
     try {
       const tournaments = await storage.getAllTournaments();
-      // Filter to only show active tournaments for general viewing
-      const liveTournaments = tournaments.filter(t => t.status === 'active');
-      res.json(liveTournaments);
+      const visibleTournaments = tournaments.filter((tournament) =>
+        ["active", "upcoming", "completed"].includes(tournament.status)
+      );
+      res.json(visibleTournaments);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch tournaments" });
     }
@@ -899,17 +900,18 @@ Close with a friendly call-to-action for players or parents.`;
         return res.status(404).json({ message: "Tournament not found" });
       }
 
-      if (tournament.status !== "draft") {
-        return res.status(400).json({ message: "Tournament is already started" });
+      if (tournament.status !== "draft" && tournament.status !== "upcoming") {
+        return res.status(400).json({ message: "Tournament cannot be started" });
       }
 
+      const forceStart = req.body?.force === true;
       const players = await storage.getPlayersByTournament(tournamentId);
-      if (players.length < 2) {
+      if (players.length < 2 && !forceStart) {
         return res.status(400).json({ message: "Need at least 2 players to start tournament" });
       }
 
       let rounds = tournament.rounds;
-      if (tournament.format === "roundrobin") {
+      if (tournament.format === "roundrobin" && players.length >= 2) {
         rounds = players.length % 2 === 0 ? players.length - 1 : players.length;
       }
 
@@ -919,7 +921,7 @@ Close with a friendly call-to-action for players or parents.`;
         rounds,
       });
 
-      if (tournament.format === "roundrobin") {
+      if (tournament.format === "roundrobin" && players.length >= 2) {
         const { generateRoundRobinSchedule, validateRoundRobinSchedule } = await import("./round-robin");
         console.log(`Generating Round Robin schedule for ${players.length} players`);
         const roundRobinPairings = generateRoundRobinSchedule(players);
@@ -971,7 +973,7 @@ Close with a friendly call-to-action for players or parents.`;
             });
           }
         }
-      } else {
+      } else if (players.length >= 1) {
         await generatePairings(tournament, players, [], 1);
       }
 
@@ -981,6 +983,63 @@ Close with a friendly call-to-action for players or parents.`;
       res.status(500).json({ message: "Failed to start tournament" });
     }
   });
+
+  // Mark tournament as upcoming
+  app.post(
+    "/api/tournaments/:id/upcoming",
+    requireAuth,
+    requireRole('tournament_director'),
+    requireTournamentAccess,
+    async (req, res) => {
+      try {
+        const tournamentId = parseInt(req.params.id);
+        const tournament = await storage.getTournament(tournamentId);
+
+        if (!tournament) {
+          return res.status(404).json({ message: "Tournament not found" });
+        }
+
+        if (tournament.status === "active") {
+          return res.status(400).json({ message: "Tournament already started" });
+        }
+
+        if (tournament.status === "completed") {
+          return res.status(400).json({ message: "Tournament already completed" });
+        }
+
+        const autoStartMode = req.body?.autoStartMode === "auto" ? "auto" : "manual";
+
+        const updatedTournament = await storage.updateTournament(tournamentId, {
+          status: "upcoming",
+          currentRound: tournament.currentRound ?? 0,
+          updatedAt: new Date(),
+        });
+
+        if (!updatedTournament) {
+          return res.status(404).json({ message: "Tournament not found" });
+        }
+
+        if (req.user) {
+          await storage.createHistoryEntry({
+            tournamentId,
+            action: "status_change",
+            description:
+              autoStartMode === "auto"
+                ? "Marked tournament as upcoming with automatic go-live scheduling"
+                : "Marked tournament as upcoming for manual start",
+            changedBy: req.user.id,
+            previousState: JSON.stringify({ status: tournament.status }),
+            newState: JSON.stringify({ status: "upcoming", autoStartMode }),
+          });
+        }
+
+        res.json(updatedTournament);
+      } catch (error) {
+        console.error("Set upcoming tournament error:", error);
+        res.status(500).json({ message: "Failed to mark tournament as upcoming" });
+      }
+    }
+  );
 
   // Generate next round
   app.post("/api/tournaments/:id/next-round", requireAuth, requireRole('tournament_director'), requireTournamentAccess, async (req, res) => {

@@ -5,11 +5,23 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Users, Trophy, Calendar, Play, Plus, Undo, UserCircle2, FileText, Settings as SettingsIcon } from "lucide-react";
+import { Users, Trophy, Calendar, Play, Plus, Undo, FileText, Settings as SettingsIcon, CalendarClock } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { apiRequest } from "@/lib/queryClient";
-import RegistrationManagement from "@/components/registration-management";
 import SwissPairings from "@/components/swiss-pairings";
 import Standings from "@/components/standings";
 import SwissStandings from "@/components/swiss-standings";
@@ -18,7 +30,6 @@ import KnockoutBracket from "@/components/knockout-bracket";
 import TournamentBuilder from "@/components/tournament-builder";
 import type { Tournament, Player } from "@shared/schema";
 import PlayerManager from "@/components/player-manager";
-import TournamentContactManager from "@/components/tournament-contact-manager";
 import TournamentPagePanel from "@/components/tournament-page-panel";
 
 interface TournamentManagementProps {
@@ -58,11 +69,16 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
     setActiveTab(value);
   };
 
+  const [upcomingDialogOpen, setUpcomingDialogOpen] = useState(false);
+  const [upcomingMode, setUpcomingMode] = useState<"manual" | "auto">("manual");
+
   // Start tournament mutation
   const startTournamentMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (options?: { force?: boolean }) => {
+      const body = options?.force ? JSON.stringify({ force: true }) : undefined;
       await apiRequest(`/api/tournaments/${tournamentId}/start`, {
         method: "POST",
+        body,
       });
     },
     onSuccess: () => {
@@ -74,10 +90,11 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
       queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/players`] });
       selectTab("rounds");
     },
-    onError: () => {
+    onError: (error: unknown) => {
       toast({
         title: "Error",
-        description: "Failed to start tournament. Ensure you have at least 2 players.",
+        description:
+          error instanceof Error ? error.message : "Failed to start tournament. Please try again.",
         variant: "destructive",
       });
     },
@@ -105,6 +122,36 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
         description: "Failed to generate next round. Ensure all current round matches are completed.",
         variant: "destructive",
       });
+    },
+  });
+
+  const setUpcomingMutation = useMutation({
+    mutationFn: async (mode: "manual" | "auto") => {
+      await apiRequest(`/api/tournaments/${tournamentId}/upcoming`, {
+        method: "POST",
+        body: JSON.stringify({ autoStartMode: mode }),
+      });
+    },
+    onSuccess: (_data, mode) => {
+      toast({
+        title: "Tournament Updated",
+        description:
+          mode === "auto"
+            ? "Tournament marked as upcoming. It will go live automatically on the start date."
+            : "Tournament marked as upcoming. Start it manually when you're ready.",
+      });
+      queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}`] });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Unable to mark tournament as upcoming. Please try again.",
+        variant: "destructive",
+      });
+    },
+    onSettled: () => {
+      setUpcomingDialogOpen(false);
+      setUpcomingMode("manual");
     },
   });
 
@@ -137,7 +184,7 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
     );
   }
 
-  const canStartTournament = tournament?.status === 'draft' && players.length >= 2;
+  const isStartStatus = tournament && ["draft", "upcoming"].includes(tournament.status);
 
   const canGenerateNextRound = tournament?.status === 'active' && (tournament?.currentRound || 0) > 0;
 
@@ -163,53 +210,134 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
                 <span>{players.length} players</span>
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-3">
-            {canStartTournament && (
-              <Button
-                onClick={() => startTournamentMutation.mutate()}
-                disabled={startTournamentMutation.isPending}
-                  className="bg-green-600 hover:bg-green-700"
-              >
-                <Play className="h-4 w-4 mr-2" />
-                {startTournamentMutation.isPending ? "Starting..." : "Start Tournament"}
-              </Button>
-            )}
-            {canGenerateNextRound && (
-              <Button
-                onClick={() => nextRoundMutation.mutate()}
-                disabled={nextRoundMutation.isPending}
-                className="bg-blue-600 hover:bg-blue-700"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                {nextRoundMutation.isPending ? "Generating..." : "Generate Next Round"}
-              </Button>
-            )}
-            {tournament.status === 'active' && (
-              <Button
-                variant="outline"
-                className="text-orange-600 border-orange-200 hover:bg-orange-50"
-              >
-                <Undo className="h-4 w-4 mr-2" />
-                Undo Last Action
-              </Button>
-            )}
-              <div className="flex gap-2">
-                {isOwner && (
-                  <Button
-                    variant="outline"
-                    onClick={() => setLocation(`/tournaments/${tournamentId}/actions`)}
-                  >
-                    <SettingsIcon className="h-4 w-4 mr-2" />
-                    Settings
-                  </Button>
-                )}
+            <div className="flex flex-wrap items-center justify-end gap-3">
+              {tournament.status === 'active' && (
                 <Button
                   variant="outline"
-                  onClick={() => setLocation("/dashboard")}
+                  className="text-orange-600 border-orange-200 hover:bg-orange-50"
                 >
-                  Back to Dashboard
+                  <Undo className="h-4 w-4 mr-2" />
+                  Undo Last Action
                 </Button>
-              </div>
+              )}
+              {canGenerateNextRound && (
+                <Button
+                  onClick={() => nextRoundMutation.mutate()}
+                  disabled={nextRoundMutation.isPending}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  {nextRoundMutation.isPending ? "Generating..." : "Generate Next Round"}
+                </Button>
+              )}
+              {isStartStatus && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      disabled={startTournamentMutation.isPending}
+                      className="bg-green-600 hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      <Play className="h-4 w-4 mr-2" />
+                      {startTournamentMutation.isPending ? "Starting..." : "Start Tournament"}
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Start this tournament?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        {players.length === 0
+                          ? "This tournament currently has no registered players. You can still start it now."
+                          : `This tournament has ${players.length} player${players.length === 1 ? "" : "s"}. Are you sure you want to start round 1?`}
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={() => startTournamentMutation.mutate({ force: players.length < 2 })}>
+                        Confirm Start
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
+              {isOwner && tournament.status === "draft" && (
+                <AlertDialog
+                  open={upcomingDialogOpen}
+                  onOpenChange={(open) => {
+                    setUpcomingDialogOpen(open);
+                    if (!open) {
+                      setUpcomingMode("manual");
+                    }
+                  }}
+                >
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="outline"
+                      onClick={() => setUpcomingDialogOpen(true)}
+                      disabled={setUpcomingMutation.isPending || startTournamentMutation.isPending}
+                      className="flex items-center"
+                    >
+                      <CalendarClock className="h-4 w-4 mr-2" />
+                      {setUpcomingMutation.isPending ? "Setting..." : "Set Upcoming Tournament"}
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Mark as upcoming?</AlertDialogTitle>
+                    </AlertDialogHeader>
+                    <div className="space-y-4 py-2">
+                      <RadioGroup
+                        value={upcomingMode}
+                        onValueChange={(value) => setUpcomingMode(value as "manual" | "auto")}
+                        className="grid gap-3"
+                      >
+                        <div className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 p-3 transition hover:border-indigo-300">
+                          <RadioGroupItem id="upcoming-manual" value="manual" className="mt-1" />
+                          <div>
+                            <Label htmlFor="upcoming-manual" className="font-medium">
+                              Start Tournament Manually
+                            </Label>
+                            <p className="text-sm text-slate-500">You will move it live yourself when you're ready.</p>
+                          </div>
+                        </div>
+                        <div className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 p-3 transition hover:border-indigo-300">
+                          <RadioGroupItem id="upcoming-auto" value="auto" className="mt-1" />
+                          <div>
+                            <Label htmlFor="upcoming-auto" className="font-medium">
+                              Auto Set Tournament Live
+                            </Label>
+                            <p className="text-sm text-slate-500">We will automatically start it on the scheduled start date.</p>
+                          </div>
+                        </div>
+                      </RadioGroup>
+                      <p className="text-sm text-slate-600">Are you sure you want to mark this tournament as upcoming?</p>
+                    </div>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => setUpcomingMutation.mutate(upcomingMode)}
+                        disabled={setUpcomingMutation.isPending}
+                      >
+                        Confirm
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
+              {isOwner && (
+                <Button
+                  variant="outline"
+                  onClick={() => setLocation(`/tournaments/${tournamentId}/actions`)}
+                >
+                  <SettingsIcon className="h-4 w-4 mr-2" />
+                  Settings
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                onClick={() => setLocation("/dashboard")}
+              >
+                Back to Dashboard
+              </Button>
             </div>
           </div>
         </CardContent>
@@ -217,7 +345,7 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
 
       {/* Tournament Management Tabs */}
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-        <TabsList className="grid w-full grid-cols-6 items-stretch gap-0 overflow-hidden rounded-xl border border-slate-200 bg-white p-0">
+        <TabsList className="grid w-full grid-cols-5 items-stretch gap-0 overflow-hidden rounded-xl border border-slate-200 bg-white p-0">
           <TabsTrigger
             value="dashboard"
             className="flex h-full w-full items-center justify-center gap-2 px-6 py-4 text-center text-sm font-medium text-slate-600 transition data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-900 data-[state=active]:shadow-none"
@@ -252,13 +380,6 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
           >
             <Trophy className="h-5 w-5 -translate-y-[2px]" />
             <span className="capitalize -translate-y-[4px]">Standings</span>
-          </TabsTrigger>
-          <TabsTrigger
-            value="contact"
-            className="flex h-full w-full items-center justify-center gap-2 px-6 py-4 text-center text-sm font-medium text-slate-600 transition data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-900 data-[state=active]:shadow-none"
-          >
-            <UserCircle2 className="h-5 w-5 -translate-y-[2px]" />
-            <span className="capitalize -translate-y-[4px]">Contact</span>
           </TabsTrigger>
         </TabsList>
 
@@ -349,15 +470,6 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
           )}
         </TabsContent>
 
-        <TabsContent value="contact" className="mt-6 space-y-8">
-          <TournamentContactManager
-            tournament={tournament}
-            onUpdated={() => {
-              queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}`] });
-            }}
-          />
-          <RegistrationManagement tournamentId={tournamentId} />
-        </TabsContent>
       </Tabs>
     </div>
     </div>

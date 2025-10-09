@@ -1,43 +1,202 @@
+import { useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Plus, Settings, Users, Trophy, Calendar } from "lucide-react";
+import { Plus, Trophy, Users } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/useAuth";
 import type { Tournament } from "@shared/schema";
 import SettingsMenu from "@/components/settings-menu";
 
 export default function TournamentDirectorDashboard() {
   const { user } = useAuth();
+  const [activeTab, setActiveTab] = useState<string>("drafts");
 
   const { data: tournaments = [], isLoading } = useQuery<Tournament[]>({
     queryKey: ["/api/my-tournaments"],
   });
 
+  const categorized = useMemo(
+    () => ({
+      past: tournaments.filter((tournament) => tournament.status === "completed"),
+      live: tournaments.filter((tournament) => tournament.status === "active"),
+      upcoming: tournaments.filter((tournament) => tournament.status === "upcoming"),
+      drafts: tournaments.filter((tournament) => tournament.status === "draft"),
+    }),
+    [tournaments]
+  );
+
+
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'active': return 'bg-green-500';
-      case 'draft': return 'bg-yellow-500';
-      case 'completed': return 'bg-gray-500';
-      default: return 'bg-gray-500';
+      case "active":
+        return "bg-green-500 text-white";
+      case "upcoming":
+        return "bg-blue-500 text-white";
+      case "draft":
+        return "bg-yellow-500 text-gray-900";
+      case "completed":
+        return "bg-gray-500 text-white";
+      default:
+        return "bg-gray-500 text-white";
     }
   };
 
   const getStatusText = (status: string) => {
     switch (status) {
-      case 'active': return 'Live';
-      case 'draft': return 'Draft';
-      case 'completed': return 'Completed';
-      default: return status;
+      case "active":
+        return "Live";
+      case "upcoming":
+        return "Upcoming";
+      case "draft":
+        return "Draft";
+      case "completed":
+        return "Completed";
+      default:
+        return status;
     }
   };
+
+  const formatLabel = (format: string) => {
+    if (!format) return "";
+    return format.charAt(0).toUpperCase() + format.slice(1);
+  };
+
+  const renderActions = (tournament: Tournament) => {
+    const actions: ReactNode[] = [];
+    if (tournament.status === "draft") {
+      actions.push(
+        <Link key="manage" href={`/tournaments/${tournament.id}/manage`}>
+          <Button variant="secondary" size="sm">
+            Manage
+          </Button>
+        </Link>
+      );
+    } else if (tournament.status === "upcoming") {
+      actions.push(
+        <Link key="manage" href={`/tournaments/${tournament.id}/manage`}>
+          <Button variant="outline" size="sm">
+            Manage
+          </Button>
+        </Link>
+      );
+    } else if (tournament.status === "active") {
+      actions.push(
+        <Link key="manage" href={`/tournaments/${tournament.id}/manage`}>
+          <Button size="sm">Manage</Button>
+        </Link>
+      );
+      actions.push(
+        <Link key="view" href={`/tournaments/${tournament.id}`}>
+          <Button variant="outline" size="sm">
+            View Live
+          </Button>
+        </Link>
+      );
+    } else if (tournament.status === "completed") {
+      actions.push(
+        <Link key="view" href={`/tournaments/${tournament.id}`}>
+          <Button variant="outline" size="sm">
+            View Results
+          </Button>
+        </Link>
+      );
+    }
+
+    return actions;
+  };
+
+  const renderSection = (items: Tournament[], emptyMessage: string, cta?: ReactNode) => {
+    if (items.length === 0) {
+      return (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center gap-4 py-12 text-center">
+            <Trophy className="h-12 w-12 text-gray-400" />
+            <div className="space-y-2">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Nothing here yet</h3>
+              <p className="text-gray-600 dark:text-gray-300">{emptyMessage}</p>
+            </div>
+            {cta}
+          </CardContent>
+        </Card>
+      );
+    }
+
+    return (
+      <div className="grid gap-3">
+        {items.map((tournament) => (
+          <Card key={tournament.id} className="hover:shadow-md transition-shadow">
+            <CardContent className="flex flex-wrap items-center justify-between gap-4 p-5">
+              <div className="space-y-1">
+                <h3 className="text-lg font-semibold">{tournament.name}</h3>
+                <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600 dark:text-gray-300">
+                  <span className="flex items-center gap-2">
+                    <Users className="h-4 w-4" />
+                    Format: {formatLabel(tournament.format)}
+                  </span>
+                  {typeof tournament.rounds === "number" && tournament.rounds > 0 ? (
+                    <span>Rounds: {tournament.rounds}</span>
+                  ) : null}
+                  <span>Round: {tournament.currentRound ?? 0}</span>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <Badge className={getStatusColor(tournament.status)}>{getStatusText(tournament.status)}</Badge>
+                <div className="flex flex-wrap justify-end gap-2">{renderActions(tournament)}</div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    );
+  };
+
+  const sections = [
+    {
+      key: "past",
+      label: "Past Tournaments",
+      description: "Completed events and archived results.",
+      items: categorized.past,
+      empty: "Finish a tournament to see it listed here.",
+    },
+    {
+      key: "live",
+      label: "Live Tournaments",
+      description: "Active events running right now.",
+      items: categorized.live,
+      empty: "Start a tournament to move it into the live section.",
+    },
+    {
+      key: "upcoming",
+      label: "Upcoming Tournaments",
+      description: "Events scheduled and ready to start soon.",
+      items: categorized.upcoming,
+      empty: "Open a draft tournament and mark it as upcoming from the management view.",
+    },
+    {
+      key: "drafts",
+      label: "Tournament Drafts",
+      description: "Keep refining your tournament setup before launch.",
+      items: categorized.drafts,
+      empty: "Create a new tournament or continue editing your drafts.",
+      cta: (
+        <Link href="/tournaments/new">
+          <Button className="flex items-center gap-2">
+            <Plus className="h-4 w-4" />
+            Create Tournament
+          </Button>
+        </Link>
+      ),
+    },
+  ];
 
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <div className="mx-auto h-12 w-12 animate-spin rounded-full border-b-2 border-primary"></div>
           <p className="mt-4 text-gray-600">Loading your tournaments...</p>
         </div>
       </div>
@@ -46,14 +205,11 @@ export default function TournamentDirectorDashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      {/* Header */}
       <div className="bg-white dark:bg-gray-800 shadow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-6">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between py-6">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                Tournament Director Dashboard
-              </h1>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Tournament Director Dashboard</h1>
               <p className="text-gray-600 dark:text-gray-300">
                 Welcome back, {user?.firstName} {user?.lastName}
               </p>
@@ -71,120 +227,35 @@ export default function TournamentDirectorDashboard() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Stats Overview */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Tournaments</CardTitle>
-              <Trophy className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{tournaments.length}</div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Active Tournaments</CardTitle>
-              <Calendar className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {tournaments.filter(t => t.status === 'active').length}
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Draft Tournaments</CardTitle>
-              <Settings className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {tournaments.filter(t => t.status === 'draft').length}
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Completed</CardTitle>
-              <Trophy className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {tournaments.filter(t => t.status === 'completed').length}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-1 gap-3 bg-transparent sm:grid-cols-2 lg:grid-cols-4 mb-6">
+            {sections.map((section) => (
+              <TabsTrigger
+                key={section.key}
+                value={section.key}
+                className="flex h-full w-full flex-col items-center justify-center gap-1 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-center text-sm font-medium text-slate-600 shadow-sm transition whitespace-normal break-words data-[state=active]:border-indigo-200 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-900"
+              >
+                <span className="leading-tight">{section.label}</span>
+                <span className="text-xs text-slate-500 leading-tight">{section.items.length} tournament{section.items.length === 1 ? "" : "s"}</span>
+              </TabsTrigger>
+            ))}
+          </TabsList>
 
-        {/* Tournaments List */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Your Tournaments</CardTitle>
-            <CardDescription>
-              Manage and monitor all your hosted tournaments
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {tournaments.length === 0 ? (
-              <div className="text-center py-12">
-                <Trophy className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                  No tournaments yet
-                </h3>
-                <p className="text-gray-600 dark:text-gray-300 mb-4">
-                  Get started by hosting your first tournament
-                </p>
-                <Link href="/tournaments/new">
-                  <Button>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Host Your First Tournament
-                  </Button>
-                </Link>
-              </div>
-            ) : (
-              <div className="grid gap-4">
-                {tournaments.map((tournament) => (
-                  <Card key={tournament.id} className="hover:shadow-md transition-shadow">
-                    <CardContent className="p-6">
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2">
-                            <h3 className="text-lg font-semibold">{tournament.name}</h3>
-                            <Badge className={getStatusColor(tournament.status)}>
-                              {getStatusText(tournament.status)}
-                            </Badge>
-                          </div>
-                          <div className="flex items-center gap-6 text-sm text-gray-600 dark:text-gray-300">
-                            <span className="flex items-center gap-1">
-                              <Users className="h-4 w-4" />
-                              Format: {tournament.format}
-                            </span>
-                            {tournament.rounds && (
-                              <span>Rounds: {tournament.rounds}</span>
-                            )}
-                            <span>Round: {tournament.currentRound}</span>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Link href={`/tournaments/${tournament.id}/manage`}>
-                            <Button variant="outline" size="sm">
-                              Manage
-                            </Button>
-                          </Link>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+          {sections.map((section) => (
+            <TabsContent key={section.key} value={section.key} className="mt-10 space-y-8">
+              <Card>
+                <CardHeader>
+                  <CardTitle>{section.label}</CardTitle>
+                  <CardDescription>{section.description}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {renderSection(section.items, section.empty, section.cta)}
+                </CardContent>
+              </Card>
+            </TabsContent>
+          ))}
+        </Tabs>
       </div>
     </div>
   );
