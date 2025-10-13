@@ -797,6 +797,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
                     paymentIntentError={paymentIntentErrorMessage}
                     canAcceptOnlinePayment={true}
                     tournamentId={tournamentId}
+                    retryPaymentIntent={ensurePaymentIntent}
                   />
                 </Elements>
               ) : (
@@ -815,6 +816,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
                   paymentIntentError={paymentIntentErrorMessage}
                   canAcceptOnlinePayment={false}
                   tournamentId={tournamentId}
+                  retryPaymentIntent={ensurePaymentIntent}
                 />
               )
             )}
@@ -1608,6 +1610,7 @@ interface StepThreeProps {
   paymentIntentError: string | null;
   canAcceptOnlinePayment: boolean;
   tournamentId: number;
+  retryPaymentIntent: () => void;
 }
 
 function StepThree(props: StepThreeProps) {
@@ -1643,6 +1646,7 @@ function StepThreeContent({
   paymentIntentError,
   canAcceptOnlinePayment,
   tournamentId,
+  retryPaymentIntent,
   stripe,
   elements,
 }: StepThreeContentProps) {
@@ -1996,7 +2000,23 @@ function StepThreeContent({
             </div>
           ) : (
             <div className="space-y-3 rounded-lg border border-dashed border-slate-200 bg-slate-50/70 p-4 text-xs text-slate-600">
-              {requiresPayment ? (
+              {paymentIntentError ? (
+                <>
+                  <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-red-600">
+                    <AlertCircle className="mt-0.5 h-4 w-4" />
+                    <span>{paymentIntentError}</span>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={retryPaymentIntent}
+                    disabled={paymentIntentLoading}
+                  >
+                    Retry payment setup
+                  </Button>
+                </>
+              ) : requiresPayment ? (
                 <p className="font-medium text-slate-700">
                   Stripe checkout is unavailable right now. Please contact the tournament director to arrange payment.
                 </p>
