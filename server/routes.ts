@@ -41,6 +41,8 @@ import {
   type EntryFeeRule,
   type AccountPaymentSettings,
 } from "@shared/tournament-config";
+import { generateFideTrf16Report } from "./lib/fideTrf";
+import { lookupFideProfiles } from "./lib/fideDirectory";
 import { getPointsForResult } from "@shared/match-results";
 
 type RatingSource = "uscf" | "fide";
@@ -1290,6 +1292,63 @@ Close with a friendly call-to-action for players or parents.`;
       res.status(500).json({ message: "Failed to fetch tournament" });
     }
   });
+
+  app.get(
+    "/api/tournaments/:id/exports/fide-trf",
+    requireAuth,
+    requireRole("tournament_director"),
+    requireTournamentAccess,
+    async (req, res) => {
+      try {
+        const id = Number.parseInt(req.params.id, 10);
+        if (!Number.isFinite(id)) {
+          return res.status(400).json({ message: "Invalid tournament id" });
+        }
+
+        const tournament = await storage.getTournament(id);
+        if (!tournament) {
+          return res.status(404).json({ message: "Tournament not found" });
+        }
+
+        const [players, matches, pairings] = await Promise.all([
+          storage.getPlayersByTournament(id),
+          storage.getMatchesByTournament(id),
+          storage.getPairingsByTournament(id),
+        ]);
+
+        const config = parseTournamentConfig(tournament);
+        const fideProfiles = await lookupFideProfiles(players);
+        const { content, warnings } = generateFideTrf16Report({
+          tournament,
+          config,
+          players,
+          matches,
+          pairings,
+          fideProfiles,
+        });
+
+        if (!content) {
+          return res.status(400).json({ message: "Unable to generate TRF export" });
+        }
+
+        const filenameBase = tournament.name?.trim().length
+          ? tournament.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")
+          : `tournament-${id}`;
+        const filename = `${filenameBase || `tournament-${id}`}-fide-trf16.trf`;
+
+        if (warnings.length > 0) {
+          res.setHeader("X-Export-Warnings", warnings.join(" | "));
+        }
+
+        res.setHeader("Content-Type", "text/plain; charset=utf-8");
+        res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+        res.send(content);
+      } catch (error) {
+        console.error("TRF generation error", error);
+        res.status(500).json({ message: "Failed to generate TRF export" });
+      }
+    },
+  );
 
   // Start tournament
   // Start tournament

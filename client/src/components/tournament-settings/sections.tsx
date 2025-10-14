@@ -199,8 +199,10 @@ interface FideRegistrationSectionProps {
   tournamentName?: string;
   tournamentCity?: string;
   federationName?: string;
+  onDownloadTrf?: () => void;
   onDownloadRegistration?: () => void;
-  onDownloadNorm?: () => void;
+  onDownloadFa1?: () => void;
+  onDownloadIa1?: () => void;
 }
 
 const fideToggleFields: Array<{ key: keyof FideRegistrationData; label: string }> = [
@@ -287,8 +289,10 @@ export function FideRegistrationSection({
   tournamentName,
   tournamentCity,
   federationName,
+  onDownloadTrf,
   onDownloadRegistration,
-  onDownloadNorm,
+  onDownloadFa1,
+  onDownloadIa1,
 }: FideRegistrationSectionProps) {
   const [activeTab, setActiveTab] = useState<"registration" | "norm">("registration");
   const toggleColumns = useMemo(() => {
@@ -402,6 +406,27 @@ export function FideRegistrationSection({
                 </div>
               </div>
             </section>
+
+            <div className="flex flex-wrap justify-end gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                className="bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
+                onClick={onDownloadRegistration}
+                disabled={!onDownloadRegistration}
+              >
+                <Download className="mr-2 h-4 w-4" /> Download registration data
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="bg-emerald-600 text-white hover:bg-emerald-700"
+                onClick={onDownloadTrf}
+                disabled={!onDownloadTrf}
+              >
+                <Download className="mr-2 h-4 w-4" /> Download FIDE TRF16
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </TabsContent>
@@ -489,7 +514,8 @@ export function FideRegistrationSection({
                 type="button"
                 variant="outline"
                 className="bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
-                onClick={onDownloadRegistration}
+                onClick={onDownloadFa1}
+                disabled={!onDownloadFa1}
               >
                 <Download className="mr-2 h-4 w-4" /> Download FA1 Form
               </Button>
@@ -497,7 +523,8 @@ export function FideRegistrationSection({
                 type="button"
                 variant="outline"
                 className="bg-indigo-600 text-white hover:bg-indigo-700"
-                onClick={onDownloadNorm}
+                onClick={onDownloadIa1}
+                disabled={!onDownloadIa1}
               >
                 <Download className="mr-2 h-4 w-4" /> Download IA1 Form
               </Button>

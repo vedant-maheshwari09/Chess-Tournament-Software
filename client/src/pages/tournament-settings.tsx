@@ -49,6 +49,23 @@ function downloadJson(filename: string, data: unknown) {
   URL.revokeObjectURL(url);
 }
 
+function extractFilenameFromDisposition(disposition: string | null): string | null {
+  if (!disposition) return null;
+  const utf8Match = /filename\*=UTF-8''([^;]+)/i.exec(disposition);
+  if (utf8Match && utf8Match[1]) {
+    try {
+      return decodeURIComponent(utf8Match[1]);
+    } catch (error) {
+      console.warn("Failed to decode UTF-8 filename", error);
+    }
+  }
+  const quotedMatch = /filename="?([^";]+)"?/i.exec(disposition);
+  if (quotedMatch && quotedMatch[1]) {
+    return quotedMatch[1];
+  }
+  return null;
+}
+
 export default function TournamentSettingsPage({ tournamentId, section }: TournamentSettingsPageProps) {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
@@ -254,20 +271,59 @@ export default function TournamentSettingsPage({ tournamentId, section }: Tourna
     downloadJson(`tournament-${tournamentId}-fide-registration.json`, {
       tournamentId,
       tournamentName: tournament?.name,
+      form: "FIDERegistration",
+      data: config.fide,
+    });
+  }, [config, tournament?.name, tournamentId]);
+
+  const handleDownloadFideFa1 = useCallback(() => {
+    if (!config) return;
+    downloadJson(`tournament-${tournamentId}-fa1.json`, {
+      tournamentId,
+      tournamentName: tournament?.name,
       form: "FA1",
       data: config.fide,
     });
   }, [config, tournament?.name, tournamentId]);
 
-  const handleDownloadFideNorm = useCallback(() => {
+  const handleDownloadFideIa1 = useCallback(() => {
     if (!config) return;
-    downloadJson(`tournament-${tournamentId}-fide-norm.json`, {
+    downloadJson(`tournament-${tournamentId}-ia1.json`, {
       tournamentId,
       tournamentName: tournament?.name,
       form: "IA1",
       data: config.fide,
     });
   }, [config, tournament?.name, tournamentId]);
+
+  const handleDownloadFideTrf = useCallback(async () => {
+    try {
+      const response = await apiRequest(`/api/tournaments/${tournamentId}/exports/fide-trf`);
+      if (!(response instanceof Response)) {
+        throw new Error("Unexpected response payload");
+      }
+
+      const blob = await response.blob();
+      const suggestedName = extractFilenameFromDisposition(response.headers.get("content-disposition"));
+      const filename = suggestedName ?? `tournament-${tournamentId}-fide-trf16.trf`;
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = filename;
+      anchor.click();
+      URL.revokeObjectURL(url);
+
+      const warnings = response.headers.get("x-export-warnings");
+      if (warnings) {
+        toast({ title: "TRF exported with warnings", description: warnings, variant: "destructive" });
+      } else {
+        toast({ title: "FIDE TRF16 downloaded" });
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to download TRF export.";
+      toast({ title: "TRF export failed", description: message, variant: "destructive" });
+    }
+  }, [toast, tournamentId]);
 
   const handleDownloadUscf = useCallback(() => {
     if (!config) return;
@@ -349,8 +405,10 @@ export default function TournamentSettingsPage({ tournamentId, section }: Tourna
             <FideRegistrationSection
               value={config.fide}
               onChange={updateFide}
+              onDownloadTrf={handleDownloadFideTrf}
               onDownloadRegistration={handleDownloadFideRegistration}
-              onDownloadNorm={handleDownloadFideNorm}
+              onDownloadFa1={handleDownloadFideFa1}
+              onDownloadIa1={handleDownloadFideIa1}
             />
           )}
 
