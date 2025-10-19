@@ -26,7 +26,7 @@ import {
 } from "@/components/tournament-settings/sections";
 import { Loader2 } from "lucide-react";
 
-type SettingsSection = "registers" | "fide" | "uscf" | "chess-results";
+type SettingsSection = "basic" | "details" | "schedule" | "payments" | "prizes" | "player-signup" | "rate-tournament";
 
 interface TournamentSettingsPageProps {
   tournamentId: number;
@@ -81,10 +81,10 @@ export default function TournamentSettingsPage({ tournamentId, section }: Tourna
   const [isDirty, setIsDirty] = useState(false);
 
   const currentSection: SettingsSection = useMemo(() => {
-    const normalized = (section ?? "registers") as SettingsSection;
-    return normalized === "registers" || normalized === "fide" || normalized === "uscf" || normalized === "chess-results"
+    const normalized = (section ?? "basic") as SettingsSection;
+    return ["basic", "details", "schedule", "payments", "prizes", "player-signup", "rate-tournament"].includes(normalized)
       ? normalized
-      : "registers";
+      : "basic";
   }, [section]);
 
   useEffect(() => {
@@ -242,20 +242,15 @@ export default function TournamentSettingsPage({ tournamentId, section }: Tourna
     },
   });
 
-  const allowedSections = useMemo(() => {
-    const source = baseline ?? config;
-    if (!source) return ["registers", "chess-results"] satisfies SettingsSection[];
-
-    const sections: SettingsSection[] = ["registers"];
-    if (source.registers.fideRated) {
-      sections.push("fide");
-    }
-    if (source.registers.uscfRated) {
-      sections.push("uscf");
-    }
-    sections.push("chess-results");
-    return sections;
-  }, [baseline, config]);
+  const allowedSections = [
+    "basic",
+    "details",
+    "schedule",
+    "payments",
+    "prizes",
+    "player-signup",
+    "rate-tournament",
+  ] satisfies SettingsSection[];
 
   useEffect(() => {
     if (!config) return;
