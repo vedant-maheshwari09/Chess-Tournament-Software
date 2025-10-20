@@ -1,0 +1,5 @@
+*.TXT filter=lfs diff=lfs merge=lfs -text
+*.mjs filter=lfs diff=lfs merge=lfs -text
+players_list-fide-oct-2025.txt filter=lfs diff=lfs merge=lfs -text
+GDQ2510T.TXT filter=lfs diff=lfs merge=lfs -text
+GDB2510T.TXT filter=lfs diff=lfs merge=lfs -text
