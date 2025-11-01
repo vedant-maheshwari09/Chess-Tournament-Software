@@ -2102,8 +2102,8 @@ function StepTwo({ format, mode, config, onConfigChange, onBack: _onBack, onCanc
 
                       return (
                         <div key={fee.id} className="space-y-4 rounded-lg border border-slate-200 bg-slate-50/60 p-4">
-                          <div className="grid gap-3 md:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end">
-                            <div>
+                          <div className="grid gap-3 md:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1fr)_auto] md:items-baseline">
+                            <div className="space-y-2">
                               <Label className="text-xs font-semibold uppercase text-slate-500">Section</Label>
                               <Select
                                 value={activeSection?.id ?? fee.sectionId ?? ""}
@@ -2122,7 +2122,7 @@ function StepTwo({ format, mode, config, onConfigChange, onBack: _onBack, onCanc
                               </Select>
                               <p className="mt-1 text-[11px] text-slate-500">{ratingSummary}</p>
                             </div>
-                            <div>
+                            <div className="space-y-2">
                               <Label className="text-xs font-semibold uppercase text-slate-500">Amount</Label>
                               <Input
                                 type="number"
@@ -2132,7 +2132,7 @@ function StepTwo({ format, mode, config, onConfigChange, onBack: _onBack, onCanc
                                 placeholder="e.g., 120"
                               />
                             </div>
-                            <div>
+                            <div className="space-y-2">
                               <Label className="text-xs font-semibold uppercase text-slate-500">Currency</Label>
                               <Select
                                 value={fee.currency || config.payments.defaultCurrency || "USD"}

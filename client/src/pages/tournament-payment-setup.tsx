@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -284,16 +285,23 @@ export default function TournamentPaymentSetupPage({ tournamentId }: TournamentP
             <CardContent className="space-y-6 bg-white">
               <div className="grid gap-4 md:grid-cols-2">{providerCards}</div>
 
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid gap-4 md:grid-cols-3">
                 <div className="space-y-2">
                   <Label htmlFor="defaultCurrency">Default currency</Label>
-                  <Input
-                    id="defaultCurrency"
+                  <Select
                     value={form.defaultCurrency}
-                    maxLength={3}
-                    onChange={(event) => setForm((prev) => ({ ...prev, defaultCurrency: event.target.value }))}
-                  />
-                  <p className="text-xs text-slate-500">Use 3-letter ISO codes like USD or CAD.</p>
+                    onValueChange={(value) => setForm((prev) => ({ ...prev, defaultCurrency: value }))}
+                  >
+                    <SelectTrigger id="defaultCurrency">
+                      <SelectValue placeholder="Select a currency" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="USD">USD - United States Dollar</SelectItem>
+                      <SelectItem value="CAD">CAD - Canadian Dollar</SelectItem>
+                      <SelectItem value="EUR">EUR - Euro</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-slate-500">Select the primary currency for payments.</p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="processingFee">Processing fee (%)</Label>
@@ -309,89 +317,63 @@ export default function TournamentPaymentSetupPage({ tournamentId }: TournamentP
                   />
                   <p className="text-xs text-slate-500">Leave blank to disable additional fees.</p>
                 </div>
+                {form.provider === "stripe" ? (
+                  <ProviderSection title="Stripe connection">
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <TextField
+                        id="stripeAccountId"
+                        label="Stripe account ID"
+                        value={form.stripeAccountId}
+                        onChange={(value) => setForm((prev) => ({ ...prev, stripeAccountId: value }))}
+                        placeholder="acct_123ABC..."
+                      />
+                      <TextField
+                        id="stripePublishableKey"
+                        label="Publishable key"
+                        value={form.stripePublishableKey}
+                        onChange={(value) => setForm((prev) => ({ ...prev, stripePublishableKey: value }))}
+                        placeholder="pk_live_..."
+                      />
+                    </div>
+                    <TextField
+                      id="stripeDescriptor"
+                      label="Statement descriptor"
+                      value={form.payoutStatementDescriptor}
+                      onChange={(value) => setForm((prev) => ({ ...prev, payoutStatementDescriptor: value }))}
+                      placeholder="Tournament name on bank statements"
+                    />
+                  </ProviderSection>
+                ) : (
+                  <ProviderSection title="PayPal connection">
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <TextField
+                        id="paypalMerchantId"
+                        label="Merchant ID"
+                        value={form.paypalMerchantId}
+                        onChange={(value) => setForm((prev) => ({ ...prev, paypalMerchantId: value }))}
+                        placeholder="Example: ABCDEFG12345"
+                      />
+                      <TextField
+                        id="paypalClientId"
+                        label="Client ID"
+                        value={form.paypalClientId}
+                        onChange={(value) => setForm((prev) => ({ ...prev, paypalClientId: value }))}
+                        placeholder="Live REST client ID"
+                      />
+                    </div>
+                    <TextField
+                      id="paypalEmail"
+                      label="PayPal email"
+                      value={form.paypalEmail}
+                      onChange={(value) => setForm((prev) => ({ ...prev, paypalEmail: value }))}
+                      placeholder="payments@example.com"
+                      type="email"
+                    />
+                  </ProviderSection>
+                )}
               </div>
 
               <div className="grid gap-3 sm:grid-cols-3">
-                <ToggleField
-                  label="Enable online payments"
-                  description="Players can pay as part of registration."
-                  checked={form.onlineEnabled}
-                  onCheckedChange={(checked) => setForm((prev) => ({ ...prev, onlineEnabled: checked }))}
-                />
-                <ToggleField
-                  label="Require payment"
-                  description="Registration is only confirmed after payment."
-                  checked={form.requirePaymentOnRegistration}
-                  onCheckedChange={(checked) =>
-                    setForm((prev) => ({ ...prev, requirePaymentOnRegistration: checked }))
-                  }
-                />
-                <ToggleField
-                  label="Allow contributions"
-                  description="Players can add an optional processing contribution."
-                  checked={form.allowProcessingContribution}
-                  onCheckedChange={(checked) =>
-                    setForm((prev) => ({ ...prev, allowProcessingContribution: checked }))
-                  }
-                />
-              </div>
-
-              {form.provider === "stripe" ? (
-                <ProviderSection title="Stripe connection">
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <TextField
-                      id="stripeAccountId"
-                      label="Stripe account ID"
-                      value={form.stripeAccountId}
-                      onChange={(value) => setForm((prev) => ({ ...prev, stripeAccountId: value }))}
-                      placeholder="acct_123ABC..."
-                    />
-                    <TextField
-                      id="stripePublishableKey"
-                      label="Publishable key"
-                      value={form.stripePublishableKey}
-                      onChange={(value) => setForm((prev) => ({ ...prev, stripePublishableKey: value }))}
-                      placeholder="pk_live_..."
-                    />
-                  </div>
-                  <TextField
-                    id="stripeDescriptor"
-                    label="Statement descriptor"
-                    value={form.payoutStatementDescriptor}
-                    onChange={(value) => setForm((prev) => ({ ...prev, payoutStatementDescriptor: value }))}
-                    placeholder="Tournament name on bank statements"
-                  />
-                </ProviderSection>
-              ) : (
-                <ProviderSection title="PayPal connection">
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <TextField
-                      id="paypalMerchantId"
-                      label="Merchant ID"
-                      value={form.paypalMerchantId}
-                      onChange={(value) => setForm((prev) => ({ ...prev, paypalMerchantId: value }))}
-                      placeholder="Example: ABCDEFG12345"
-                    />
-                    <TextField
-                      id="paypalClientId"
-                      label="Client ID"
-                      value={form.paypalClientId}
-                      onChange={(value) => setForm((prev) => ({ ...prev, paypalClientId: value }))}
-                      placeholder="Live REST client ID"
-                    />
-                  </div>
-                  <TextField
-                    id="paypalEmail"
-                    label="PayPal email"
-                    value={form.paypalEmail}
-                    onChange={(value) => setForm((prev) => ({ ...prev, paypalEmail: value }))}
-                    placeholder="payments@example.com"
-                    type="email"
-                  />
-                </ProviderSection>
-              )}
-
-              <div className="flex flex-col gap-3 border-t border-slate-200 pt-4 sm:flex-row sm:items-center sm:justify-end">
                 <Button
                   variant="outline"
                   onClick={() => setLocation(`/tournaments/${tournamentId}/manage`)}

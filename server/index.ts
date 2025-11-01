@@ -1,6 +1,10 @@
 import path from "path";
+import { fileURLToPath } from 'url';
 import { config as loadEnv } from "dotenv";
 import express, { type Request, Response, NextFunction } from "express";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const envLoaded = loadEnv();
 if (envLoaded.error) {
@@ -28,6 +32,9 @@ app.use(
   }),
 );
 app.use(express.urlencoded({ extended: false }));
+
+// Serve static files from the 'attached_assets' directory
+app.use('/attached_assets', express.static(path.join(__dirname, '..', 'attached_assets')));
 
 // Add CORS headers for development
 app.use((req, res, next) => {
