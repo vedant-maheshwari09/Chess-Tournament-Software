@@ -29,6 +29,7 @@ export interface RegistersConfig {
   hideTeams: boolean;
   notifyPairingsEmail: boolean;
   notifyPairingsSms: boolean;
+  isTeamEvent: boolean;
   playerLimit?: number | null;
   byeLimit?: number | null;
   earlyBirdDetails?: string;
@@ -328,6 +329,7 @@ export function createDefaultConfig(format: Tournament["format"], mode: Tourname
       hideTeams: false,
       notifyPairingsEmail: true,
       notifyPairingsSms: false,
+      isTeamEvent: false,
       playerLimit: null,
       byeLimit: null,
       earlyBirdDetails: "",

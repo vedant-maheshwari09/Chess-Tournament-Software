@@ -83,6 +83,12 @@ const FORMAT_CARDS: Array<{
     description: "Elimination brackets with finals. Perfect for playoffs and quick championships.",
     features: ["Brackets", "Automatic advancement", "Supports seeding"],
   },
+  {
+    id: "arena",
+    title: "Arena",
+    description: "Players are continuously paired in a time-based format. Ideal for quick, high-volume events.",
+    features: ["Time-based pairings", "Continuous play", "High volume"],
+  },
 ];
 
 const MODE_OPTIONS: Array<{ id: TournamentMode; label: string; description: string }> = [
@@ -92,13 +98,8 @@ const MODE_OPTIONS: Array<{ id: TournamentMode; label: string; description: stri
     description: "Optimized for virtual tournaments with quick registration links and remote play workflows.",
   },
   {
-    id: "unrated",
-    label: "Unrated Event",
-    description: "Local or casual events without federation reporting requirements.",
-  },
-  {
     id: "rated",
-    label: "Rated Event",
+    label: "Standard Event",
     description: "Includes federation reporting, USCF/ FIDE forms, and official compliance steps.",
   },
 ];
@@ -261,6 +262,14 @@ function BasicInformationFields({ config, onConfigChange, variant = "full" }: Ba
             onCheckedChange={(checked) => updateRegisters({ uscfRated: checked })}
           />
           <Label htmlFor="uscf-rated">USCF Rated</Label>
+        </div>
+        <div className="flex items-center space-x-2">
+          <Switch
+            id="team-event"
+            checked={config.registers.isTeamEvent}
+            onCheckedChange={(checked) => updateRegisters({ isTeamEvent: checked })}
+          />
+          <Label htmlFor="team-event">Team Event</Label>
         </div>
       </div>
     );
@@ -490,7 +499,7 @@ function StepOne({
           </p>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2">
             {FORMAT_CARDS.map((card) => {
               const isSelected = format === card.id;
               return (

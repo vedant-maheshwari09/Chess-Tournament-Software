@@ -40,7 +40,7 @@ export const passwordResets = pgTable("password_resets", {
 export const tournaments = pgTable("tournaments", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
-  format: text("format").notNull(), // 'swiss', 'roundrobin', 'knockout'
+  format: text("format").notNull(), // 'swiss', 'roundrobin', 'knockout', 'arena'
   status: text("status").notNull().default('draft'), // 'draft', 'active', 'completed'
   rounds: integer("rounds"), // for swiss
   timeControl: text("time_control"),
