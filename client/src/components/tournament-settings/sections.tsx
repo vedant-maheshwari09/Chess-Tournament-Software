@@ -530,23 +530,23 @@ export function ChessResultsSettingsCard({
 
   return (
     <Card className="shadow-sm">
-      <CardHeader className="border-b pb-6 flex flex-row items-center justify-between">
-        <div>
-          <CardTitle className="text-2xl font-semibold text-indigo-900">Chess-Results Server Integration</CardTitle>
-          <CardDescription>
-            <a
-              href="https://chess-results.com"
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-2 text-indigo-700 hover:text-indigo-800 hover:underline"
-            >
-              https://chess-results.com
-              <ExternalLink className="h-4 w-4" />
-            </a>
-          </CardDescription>
-        </div>
-        <Switch checked={enabled} onCheckedChange={onEnabledChange} />
-      </CardHeader>
+          <CardHeader className="border-b pb-6 flex flex-row items-center justify-between">
+            <div>
+              <Label className="text-sm font-medium">Chess-Results Server Integration</Label>
+              <p className="text-xs text-muted-foreground">
+                <a
+                  href="https://chess-results.com"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-2 text-indigo-700 hover:text-indigo-800 hover:underline"
+                >
+                  https://chess-results.com
+                  <ExternalLink className="h-4 w-4" />
+                </a>
+              </p>
+            </div>
+            <Switch checked={enabled} onCheckedChange={onEnabledChange} />
+          </CardHeader>
       {enabled && (
         <CardContent className="space-y-8 pt-6">
           <div className="grid gap-8 md:grid-cols-2">

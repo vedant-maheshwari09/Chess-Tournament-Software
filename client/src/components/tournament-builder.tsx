@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Upload, Check, ChevronRight, Settings, X, ChevronUp, ChevronDown, Plus, CreditCard } from "lucide-react";
+import { ChessResultsSettingsCard } from "@/components/tournament-settings/sections";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
@@ -45,7 +46,7 @@ import {
 } from "@/lib/tournament-templates";
 
 type BuilderMode = "create" | "edit";
-type SettingsShortcutTab = "registers" | "fide" | "uscf" | "chess-results";
+type SettingsShortcutTab = "rate-tournament" | "fide" | "uscf" | "chess-results";
 
 interface TournamentBuilderProps {
   mode: BuilderMode;
@@ -150,6 +151,22 @@ function fileToText(file: File): Promise<string> {
   });
 }
 
+function downloadJson(filename: string, data: unknown) {
+  if (typeof window === "undefined") return;
+  const payload = JSON.stringify(data, null, 2);
+  const blob = new Blob([payload], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+function cloneConfig(config: TournamentConfig): TournamentConfig {
+  return JSON.parse(JSON.stringify(config)) as TournamentConfig;
+}
+
 
 interface BasicInformationFieldsProps {
   config: TournamentConfig;
@@ -162,6 +179,12 @@ function BasicInformationFields({ config, onConfigChange, variant = "full" }: Ba
     onConfigChange({
       ...config,
       basic: { ...config.basic, ...updates },
+    });
+  };
+  const updateRegisters = (updates: Partial<TournamentConfig["registers"]>) => {
+    onConfigChange({
+      ...config,
+      registers: { ...config.registers, ...updates },
     });
   };
   const handleCityStateChange = (raw: string) => {
@@ -220,6 +243,22 @@ function BasicInformationFields({ config, onConfigChange, variant = "full" }: Ba
               onChange={(event) => updateBasic({ endDate: event.target.value || null })}
             />
           </div>
+        </div>
+        <div className="flex items-center space-x-2">
+          <Switch
+            id="fide-rated"
+            checked={config.registers.fideRated}
+            onCheckedChange={(checked) => updateRegisters({ fideRated: checked })}
+          />
+          <Label htmlFor="fide-rated">FIDE Rated</Label>
+        </div>
+        <div className="flex items-center space-x-2">
+          <Switch
+            id="uscf-rated"
+            checked={config.registers.uscfRated}
+            onCheckedChange={(checked) => updateRegisters({ uscfRated: checked })}
+          />
+          <Label htmlFor="uscf-rated">USCF Rated</Label>
         </div>
       </div>
     );
@@ -623,6 +662,9 @@ function StepTwo({ format, mode, config, onConfigChange, onBack: _onBack, onCanc
 
   const updatePayments = (updates: Partial<TournamentConfig["payments"]>) =>
     onConfigChange({ ...config, payments: { ...config.payments, ...updates } });
+
+  const updateChessResults = (updates: Partial<TournamentConfig["chessResults"]>) =>
+    onConfigChange({ ...config, chessResults: { ...config.chessResults, ...updates } });
 
   const addSection = () => {
     const nextSection = createSectionDefinition();
@@ -1104,9 +1146,55 @@ function StepTwo({ format, mode, config, onConfigChange, onBack: _onBack, onCanc
   );
 
   const [, setLocation] = useLocation();
-  const [settingsShortcut, setSettingsShortcut] = useState<SettingsShortcutTab>("registers");
+  const [settingsShortcut, setSettingsShortcut] = useState<SettingsShortcutTab>("rate-tournament");
   const [paymentsDialogOpen, setPaymentsDialogOpen] = useState(false);
   const [paymentSettingsDraft, setPaymentSettingsDraft] = useState(config.payments);
+  const [chessResultsEnabled, setChessResultsEnabled] = useState(false);
+
+  const testMutation = useMutation({
+    mutationFn: async () => {
+      if (!config) throw new Error("Configuration not ready");
+      await apiRequest(`/api/tournaments/${tournamentId}/chess-results/test`, {
+        method: "POST",
+        body: JSON.stringify({ config }),
+      });
+    },
+    onSuccess: () => {
+      toast({ title: "Chess-Results connection successful" });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Connection failed",
+        description: error?.message ?? "Verify credentials and try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const syncMutation = useMutation({
+    mutationFn: async () => {
+      if (!config) throw new Error("Configuration not ready");
+      const response = await apiRequest(`/api/tournaments/${tournamentId}/chess-results/sync`, {
+        method: "POST",
+        body: JSON.stringify({ config }),
+      });
+      return response;
+    },
+    onSuccess: (result) => {
+      if (result?.config) {
+        onConfigChange(cloneConfig(result.config));
+      }
+      toast({ title: "Chess-Results sync complete" });
+      queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}`] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Sync failed",
+        description: error?.message ?? "Check credentials and network access.",
+        variant: "destructive",
+      });
+    },
+  });
 
   useEffect(() => {
     if (paymentsDialogOpen) {
@@ -1158,6 +1246,16 @@ function StepTwo({ format, mode, config, onConfigChange, onBack: _onBack, onCanc
   const handlePaymentSettingsSave = () => {
     commitPaymentSettings(paymentSettingsDraft);
     setPaymentsDialogOpen(false);
+  };
+
+  const handleDownloadChessResults = () => {
+    if (!config) return;
+    downloadJson(`tournament-${tournamentId}-chess-results.json`, {
+      tournamentId,
+      tournamentName: tournament?.name,
+      form: "ChessResults",
+      data: config.chessResults,
+    });
   };
 
   const defaultTimeControlFor = (type: TimeControlType): TimeControlDefinition => {
@@ -1298,61 +1396,23 @@ function StepTwo({ format, mode, config, onConfigChange, onBack: _onBack, onCanc
     });
   };
 
-  const fideEnabled = config.registers.fideRated;
-  const uscfEnabled = config.registers.uscfRated;
-  const shortcutOptions: Array<{ id: SettingsShortcutTab; label: string; visible: boolean; disabled: boolean }> = [
-    { id: "registers", label: "Registers", visible: true, disabled: false },
-    { id: "fide", label: "FIDE", visible: true, disabled: !fideEnabled || !tournament },
-    { id: "uscf", label: "USCF", visible: true, disabled: !uscfEnabled || !tournament },
-    { id: "chess-results", label: "Chess-Results", visible: true, disabled: !tournament },
-  ];
-
-  const registerControls: Array<{
-    key: keyof TournamentConfig["registers"];
-    label: string;
-    description?: string;
-  }> = [
-    {
-      key: "showOnCalendar",
-      label: "Show on Calendar",
-      description: "Publish this event on the public calendar.",
-    },
-    {
-      key: "allowSignup",
-      label: "Allow Online Registration",
-      description: "Players can sign up directly from the portal.",
-    },
-    {
-      key: "fideRated",
-      label: "FIDE Rated Tournament",
-      description: "Toggle to unlock the Data for FIDE page.",
-    },
-    {
-      key: "uscfRated",
-      label: "USCF Rated Tournament",
-      description: "Toggle to unlock the Data for USCF page.",
-    },
-    {
-      key: "enablePairingPredictor",
-      label: "Enable Pairing Predictor",
-      description: "Allow players to simulate upcoming pairings.",
-    },
-  ];
-
   const handleShortcutChange = (next: SettingsShortcutTab) => {
-    if (next === "registers") {
-      setSettingsShortcut("registers");
+    if (next === "rate-tournament") {
+      setSettingsShortcut("rate-tournament");
       return;
     }
     if (!tournament) {
-      setSettingsShortcut("registers");
+      setSettingsShortcut("rate-tournament");
       return;
     }
 
     const target = `/tournaments/${tournament.id}/settings/${next}`;
-    setSettingsShortcut("registers");
+    setSettingsShortcut("rate-tournament");
     setLocation(target);
   };
+
+  const fideEnabled = config.registers.fideRated;
+  
 
   const renderTabSaveButton = () => (
     <div className="flex justify-end pt-4">
@@ -1419,17 +1479,19 @@ function StepTwo({ format, mode, config, onConfigChange, onBack: _onBack, onCanc
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
+      <div className="grid gap-6 lg:grid-cols-1">
         <Card className="overflow-hidden">
           <CardContent className="p-0">
             <Tabs defaultValue="basic" className="w-full">
-            <TabsList className="grid w-full grid-cols-6">
+            <TabsList className="grid w-full grid-cols-8">
                 <TabsTrigger value="basic">Basic information</TabsTrigger>
                 <TabsTrigger value="details">Details</TabsTrigger>
                 <TabsTrigger value="schedule">Schedule</TabsTrigger>
               <TabsTrigger value="payments">Payments</TabsTrigger>
               <TabsTrigger value="prizes">Prizes</TabsTrigger>
                 <TabsTrigger value="playerSignup">Player sign up</TabsTrigger>
+                <TabsTrigger value="rate-tournament">Rate Tournament</TabsTrigger>
+                <TabsTrigger value="options">Options</TabsTrigger>
               </TabsList>
               <TabsContent value="basic" className="bg-white p-6 space-y-4">
                 <BasicInformationFields config={config} onConfigChange={onConfigChange} />
@@ -2271,81 +2333,87 @@ function StepTwo({ format, mode, config, onConfigChange, onBack: _onBack, onCanc
 
                 {renderTabSaveButton()}
               </TabsContent>
+
+              <TabsContent value="rate-tournament" className="bg-white p-6 space-y-4">
+                <div className="space-y-2">
+                  {config.registers.fideRated && (
+                    <Button
+                      variant="outline"
+                      onClick={() => handleShortcutChange("fide")}
+                      disabled={!tournament}
+                    >
+                      FIDE Registration
+                    </Button>
+                  )}
+                  {config.registers.uscfRated && (
+                    <Button
+                      variant="outline"
+                      onClick={() => handleShortcutChange("uscf")}
+                      disabled={!tournament}
+                    >
+                      USCF Report
+                    </Button>
+                  )}
+                </div>
+                {!config.registers.fideRated && !config.registers.uscfRated && (
+                  <p className="text-sm text-muted-foreground">
+                    This tournament is not set to be rated by any federation.
+                  </p>
+                )}
+              </TabsContent>
+
+              <TabsContent value="options" className="bg-white p-6 space-y-4">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between rounded-lg border px-4 py-3">
+                    <div>
+                      <Label className="text-sm font-medium">Enable Pairing Predictor</Label>
+                      <p className="text-xs text-muted-foreground">Allow players to simulate upcoming pairings.</p>
+                    </div>
+                    <Switch
+                      checked={config.registers.enablePairingPredictor}
+                      onCheckedChange={(checked) => updateRegisters({ enablePairingPredictor: checked })}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between rounded-lg border px-4 py-3">
+                    <div>
+                      <Label className="text-sm font-medium">Show on Calendar</Label>
+                      <p className="text-xs text-muted-foreground">Publish this event on the public calendar.</p>
+                    </div>
+                    <Switch
+                      checked={config.registers.showOnCalendar}
+                      onCheckedChange={(checked) => updateRegisters({ showOnCalendar: checked })}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between rounded-lg border px-4 py-3">
+                    <div>
+                      <Label className="text-sm font-medium">Allow Online Registration</Label>
+                      <p className="text-xs text-muted-foreground">Players can sign up directly from the portal.</p>
+                    </div>
+                    <Switch
+                      checked={config.registers.allowSignup}
+                      onCheckedChange={(checked) => updateRegisters({ allowSignup: checked })}
+                    />
+                  </div>
+                  <ChessResultsSettingsCard
+                    value={config.chessResults}
+                    onChange={updateChessResults}
+                    onTest={() => testMutation.mutate()}
+                    onSync={() => syncMutation.mutate()}
+                    testing={testMutation.isPending}
+                    syncing={syncMutation.isPending}
+                    disabled={config.chessResults.syncMode === "disabled"}
+                    onDownload={handleDownloadChessResults}
+                    enabled={chessResultsEnabled}
+                    onEnabledChange={setChessResultsEnabled}
+                  />
+                </div>
+                {renderTabSaveButton()}
+              </TabsContent>
             </Tabs>
           </CardContent>
         </Card>
 
-        <Card className="h-fit border border-slate-200 bg-slate-50 shadow-sm">
-          <Tabs
-            value={settingsShortcut}
-            onValueChange={(value) => handleShortcutChange(value as SettingsShortcutTab)}
-            className="w-full"
-          >
-            <CardHeader className="pb-3">
-              <TabsList className="flex w-full gap-1.5 rounded-lg bg-slate-100 p-2.5 shadow-sm">
-                {shortcutOptions
-                  .filter((option) => option.visible)
-                  .map((option) => (
-                    <TabsTrigger
-                      key={option.id}
-                      value={option.id}
-                      disabled={option.disabled}
-                      className="flex min-w-0 basis-1/4 items-center justify-center rounded-md px-3 py-2 text-center text-sm font-semibold text-slate-600 whitespace-nowrap transition hover:bg-indigo-100 data-[state=active]:bg-indigo-500 data-[state=active]:text-white disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
-                    >
-                      {option.label}
-                    </TabsTrigger>
-                  ))}
-              </TabsList>
-            </CardHeader>
-            <CardContent className="pt-4">
-              <TabsContent value="registers" className="space-y-4">
-                {registerControls.map(({ key, label, description }) => {
-                  const switchId = `registers-${String(key)}`;
-                  return (
-                    <div
-                      key={switchId}
-                      className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3"
-                    >
-                      <div className="min-w-[180px]">
-                        <Label htmlFor={switchId} className="text-sm font-medium text-slate-700">
-                          {label}
-                        </Label>
-                        {description ? (
-                          <p className="text-xs text-muted-foreground">{description}</p>
-                        ) : null}
-                      </div>
-                      <Switch
-                        id={switchId}
-                        checked={Boolean(config.registers[key])}
-                        onCheckedChange={(checked) =>
-                          updateRegisters({ [key]: checked } as Partial<TournamentConfig["registers"]>)
-                        }
-                      />
-                    </div>
-                  );
-                })}
-
-                <div className="rounded-lg border border-dashed border-indigo-200 bg-indigo-50/80 px-4 py-3 text-xs text-indigo-700">
-                  Enable federation switches, save the tournament, and the Data for FIDE / USCF pages open in their own
-                  view. Chess-Results is always available once the tournament is saved.
-                </div>
-
-                {!tournament && (
-                  <div className="rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-xs text-yellow-800">
-                    Save this tournament first to access federation reporting pages.
-                  </div>
-                )}
-              </TabsContent>
-              <TabsContent value="chess-results" className="space-y-3">
-                <p className="text-sm text-muted-foreground">
-                  Chess-Results settings open in a dedicated page. Click the tab to jump there once your tournament is
-                  saved.
-                </p>
-              </TabsContent>
-            </CardContent>
-          </Tabs>
-
-        </Card>
+        
       </div>
 
       {onCancel && (
