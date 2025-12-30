@@ -7,6 +7,12 @@ interface AuthResponse {
   token: string;
 }
 
+interface RegisterResponse {
+  user: User;
+  message?: string;
+  requiresVerification?: boolean;
+}
+
 export function useAuth() {
   const queryClient = useQueryClient();
 
@@ -51,7 +57,7 @@ export function useAuth() {
 
   // Register mutation
   const registerMutation = useMutation({
-    mutationFn: async (registerData: RegisterData): Promise<AuthResponse> => {
+    mutationFn: async (registerData: RegisterData): Promise<RegisterResponse> => {
       const response = await apiRequest("/api/auth/register", {
         method: "POST", 
         body: JSON.stringify(registerData),
@@ -59,9 +65,16 @@ export function useAuth() {
       return response;
     },
     onSuccess: (data) => {
-      localStorage.setItem("auth_token", data.token);
-      queryClient.setQueryData(["/api/auth/me"], data.user);
-      queryClient.invalidateQueries({ queryKey: ["/api"] });
+      // Don't set token or current user if email verification is required
+      if (!data.requiresVerification && 'token' in data) {
+        localStorage.setItem("auth_token", (data as AuthResponse).token);
+        queryClient.setQueryData(["/api/auth/me"], data.user);
+        queryClient.invalidateQueries({ queryKey: ["/api"] });
+      } else {
+        // Do NOT set /api/auth/me data here, otherwise the app thinks we are logged in.
+        // The user object is returned for context (e.g. to show "Sent to email@domain.com") 
+        // but not for authentication state.
+      }
     },
   });
 

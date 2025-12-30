@@ -19,6 +19,8 @@ import {
   type InsertUser,
   type Session,
   type PasswordReset,
+  type VerificationCode,
+  type InsertVerificationCode,
 } from "@shared/schema";
 import { getSupabaseClient } from "../supabaseClient";
 
@@ -230,9 +232,13 @@ export interface IStorage {
   deleteSession(token: string): Promise<boolean>;
   deleteSessionsByUser(userId: number): Promise<boolean>;
 
-  createPasswordReset(userId: number, token: string, expiresAt: Date): Promise<PasswordReset>;
-  getPasswordResetByToken(token: string): Promise<PasswordReset | undefined>;
-  usePasswordReset(token: string): Promise<boolean>;
+  createPasswordReset(userId: number, code: string, expiresAt: Date): Promise<PasswordReset>;
+  getPasswordResetByCode(code: string, userId: number): Promise<PasswordReset | undefined>;
+  usePasswordReset(code: string, userId: number): Promise<boolean>;
+  
+  createVerificationCode(verificationCode: InsertVerificationCode): Promise<VerificationCode>;
+  getVerificationCodeByCode(code: string, userId: number, type?: string): Promise<VerificationCode | undefined>;
+  useVerificationCode(code: string, userId: number, type?: string): Promise<boolean>;
 
   createTournament(tournament: InsertTournament & { createdBy: number }): Promise<Tournament>;
   getTournament(id: number): Promise<Tournament | undefined>;
@@ -342,16 +348,29 @@ class SupabaseStorage implements IStorage {
     return true;
   }
 
-  async createPasswordReset(userId: number, token: string, expiresAt: Date): Promise<PasswordReset> {
-    return insertOne<PasswordReset>("password_resets", { userId, token, expiresAt, used: false } as AnyRecord);
+  async createPasswordReset(userId: number, code: string, expiresAt: Date): Promise<PasswordReset> {
+    return insertOne<PasswordReset>("password_resets", { userId, code, expiresAt, used: false } as AnyRecord);
   }
 
-  async getPasswordResetByToken(token: string): Promise<PasswordReset | undefined> {
-    return fetchOne<PasswordReset>("password_resets", { token });
+  async getPasswordResetByCode(code: string, userId: number): Promise<PasswordReset | undefined> {
+    return fetchOne<PasswordReset>("password_resets", { code, userId });
   }
 
-  async usePasswordReset(token: string): Promise<boolean> {
-    const updated = await updateOne<PasswordReset>("password_resets", { token }, { used: true });
+  async usePasswordReset(code: string, userId: number): Promise<boolean> {
+    const updated = await updateOne<PasswordReset>("password_resets", { code, userId }, { used: true });
+    return Boolean(updated);
+  }
+
+  async createVerificationCode(verificationCode: InsertVerificationCode): Promise<VerificationCode> {
+    return insertOne<VerificationCode>("verification_codes", verificationCode as AnyRecord);
+  }
+
+  async getVerificationCodeByCode(code: string, userId: number, type: string = 'email_verification'): Promise<VerificationCode | undefined> {
+    return fetchOne<VerificationCode>("verification_codes", { code, userId, type });
+  }
+
+  async useVerificationCode(code: string, userId: number, type: string = 'email_verification'): Promise<boolean> {
+    const updated = await updateOne<VerificationCode>("verification_codes", { code, userId, type }, { used: true });
     return Boolean(updated);
   }
 

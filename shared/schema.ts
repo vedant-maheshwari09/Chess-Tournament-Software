@@ -15,6 +15,7 @@ export const users = pgTable("users", {
   carrier: varchar("carrier", { length: 60 }),
   notifyEmail: boolean("notify_email").default(true),
   notifySms: boolean("notify_sms").default(false),
+  emailVerified: boolean("email_verified").default(false).notNull(),
   paymentSettings: jsonb("payment_settings"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -31,7 +32,17 @@ export const sessions = pgTable("sessions", {
 export const passwordResets = pgTable("password_resets", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").notNull(),
-  token: text("token").notNull().unique(),
+  code: varchar("code", { length: 6 }).notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  used: boolean("used").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const verificationCodes = pgTable("verification_codes", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  code: varchar("code", { length: 6 }).notNull(),
+  type: varchar("type", { length: 20 }).notNull().default('email_verification'), // 'email_verification'
   expiresAt: timestamp("expires_at").notNull(),
   used: boolean("used").default(false),
   createdAt: timestamp("created_at").defaultNow(),
@@ -205,8 +216,18 @@ export const forgotUsernameSchema = z.object({
 });
 
 export const resetPasswordSchema = z.object({
-  token: z.string().min(1),
+  email: z.string().email(),
+  code: z.string().length(6).regex(/^\d+$/),
   newPassword: z.string().min(6),
+});
+
+export const verifyEmailSchema = z.object({
+  code: z.string().length(6).regex(/^\d+$/),
+  email: z.string().email().optional(), // Optional: for verification without auth token
+});
+
+export const resendVerificationSchema = z.object({
+  email: z.string().email().optional(),
 });
 
 export const changePasswordSchema = z.object({
@@ -263,9 +284,13 @@ export type RegisterData = z.infer<typeof registerSchema>;
 export type ForgotPasswordData = z.infer<typeof forgotPasswordSchema>;
 export type ForgotUsernameData = z.infer<typeof forgotUsernameSchema>;
 export type ResetPasswordData = z.infer<typeof resetPasswordSchema>;
+export type VerifyEmailData = z.infer<typeof verifyEmailSchema>;
+export type ResendVerificationData = z.infer<typeof resendVerificationSchema>;
 export type ChangePasswordData = z.infer<typeof changePasswordSchema>;
 export type Session = typeof sessions.$inferSelect;
 export type PasswordReset = typeof passwordResets.$inferSelect;
+export type VerificationCode = typeof verificationCodes.$inferSelect;
+export type InsertVerificationCode = typeof verificationCodes.$inferInsert;
 
 // Tournament types
 export type Tournament = typeof tournaments.$inferSelect;

@@ -17,18 +17,23 @@ import {
   forgotPasswordSchema,
   forgotUsernameSchema,
   resetPasswordSchema,
+  verifyEmailSchema,
+  resendVerificationSchema,
   type LoginData, 
   type RegisterData,
   type ForgotPasswordData,
   type ForgotUsernameData,
-  type ResetPasswordData
+  type ResetPasswordData,
+  type VerifyEmailData,
+  type ResendVerificationData
 } from "@shared/schema";
 
-type AuthMode = 'login' | 'register' | 'forgot-password' | 'forgot-username' | 'reset-password';
+type AuthMode = 'login' | 'register' | 'forgot-password' | 'forgot-username' | 'reset-password' | 'verify-email';
 
 export default function AuthForm() {
   const [authMode, setAuthMode] = useState<AuthMode>('login');
-  const [resetToken, setResetToken] = useState('');
+  const [resetEmail, setResetEmail] = useState('');
+  const [pendingUserEmail, setPendingUserEmail] = useState('');
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [showRegisterPassword, setShowRegisterPassword] = useState(false);
   const [showResetPassword, setShowResetPassword] = useState(false);
@@ -187,8 +192,20 @@ export default function AuthForm() {
 
   const resetPasswordForm = useForm<ResetPasswordData>({
     resolver: zodResolver(resetPasswordSchema),
-    defaultValues: { token: "", newPassword: "" },
+    defaultValues: { email: "", code: "", newPassword: "" },
   });
+
+  const verifyEmailForm = useForm<VerifyEmailData>({
+    resolver: zodResolver(verifyEmailSchema),
+    defaultValues: { code: "", email: "" },
+  });
+  
+  // Update email field when pendingUserEmail changes
+  useEffect(() => {
+    if (pendingUserEmail && authMode === 'verify-email') {
+      verifyEmailForm.setValue('email', pendingUserEmail);
+    }
+  }, [pendingUserEmail, authMode, verifyEmailForm]);
 
   // Mutations
   const forgotPasswordMutation = useMutation({
@@ -199,17 +216,15 @@ export default function AuthForm() {
       });
     },
     onSuccess: (data) => {
-      toast({ title: "Reset link sent", description: data.message });
-      if (data.resetToken) {
-        setResetToken(data.resetToken);
-        setAuthMode('reset-password');
-        resetPasswordForm.setValue('token', data.resetToken);
-      }
+      toast({ title: "Reset code sent", description: data.message });
+      setResetEmail(forgotPasswordForm.getValues('email'));
+      setAuthMode('reset-password');
+      resetPasswordForm.setValue('email', forgotPasswordForm.getValues('email'));
     },
     onError: (error) => {
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to send reset link",
+        description: error instanceof Error ? error.message : "Failed to send reset code",
         variant: "destructive",
       });
     },
@@ -253,7 +268,7 @@ export default function AuthForm() {
       });
       setAuthMode('login');
       resetPasswordForm.reset();
-      setResetToken('');
+      setResetEmail('');
     },
     onError: (error) => {
       toast({
@@ -280,8 +295,17 @@ export default function AuthForm() {
   const handleRegister = async (data: RegisterData) => {
     try {
       console.log("Registration data:", data);
-      await register(data);
-      toast({ title: "Welcome to ChessTournament Pro!", description: "Your account has been created successfully." });
+      const response = await register(data);
+      if (response.requiresVerification) {
+        setPendingUserEmail(data.email);
+        setAuthMode('verify-email');
+        toast({ 
+          title: "Account created!", 
+          description: "Please check your email for a verification code." 
+        });
+      } else {
+        toast({ title: "Welcome to ChessTournament Pro!", description: "Your account has been created successfully." });
+      }
     } catch (error) {
       console.error("Registration error:", error);
       toast({
@@ -292,6 +316,57 @@ export default function AuthForm() {
     }
   };
 
+  const verifyEmailMutation = useMutation({
+    mutationFn: async (data: VerifyEmailData) => {
+      const token = localStorage.getItem("auth_token");
+      const payload = { ...data, email: data.email || pendingUserEmail };
+      return apiRequest("/api/auth/verify-email", {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: JSON.stringify(payload),
+      });
+    },
+    onSuccess: (data) => {
+      if (data.token) {
+        localStorage.setItem("auth_token", data.token);
+      }
+      toast({ 
+        title: "Email verified!", 
+        description: "Your email has been verified successfully." 
+      });
+      setAuthMode('login');
+      verifyEmailForm.reset();
+    },
+    onError: (error) => {
+      toast({
+        title: "Verification failed",
+        description: error instanceof Error ? error.message : "Invalid verification code",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const resendVerificationMutation = useMutation({
+    mutationFn: async (data?: ResendVerificationData) => {
+      const token = localStorage.getItem("auth_token");
+      return apiRequest("/api/auth/resend-verification", {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: JSON.stringify(data || { email: pendingUserEmail }),
+      });
+    },
+    onSuccess: (data) => {
+      toast({ title: "Code sent", description: data.message || "Verification code sent to your email" });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to resend verification code",
+        variant: "destructive",
+      });
+    },
+  });
+
   const getTitle = () => {
     switch (authMode) {
       case 'login': return 'Sign in to your account';
@@ -299,6 +374,7 @@ export default function AuthForm() {
       case 'forgot-password': return 'Reset your password';
       case 'forgot-username': return 'Recover your username';
       case 'reset-password': return 'Set new password';
+      case 'verify-email': return 'Verify your email';
     }
   };
 
@@ -567,7 +643,7 @@ export default function AuthForm() {
                 )}
               />
               <Button type="submit" className="w-full" disabled={forgotPasswordMutation.isPending}>
-                {forgotPasswordMutation.isPending ? "Sending..." : "Send Reset Link"}
+                {forgotPasswordMutation.isPending ? "Sending..." : "Send Reset Code"}
               </Button>
             </form>
           </Form>
@@ -603,12 +679,25 @@ export default function AuthForm() {
             <form onSubmit={resetPasswordForm.handleSubmit((data) => resetPasswordMutation.mutate(data))} className="space-y-4">
               <FormField
                 control={resetPasswordForm.control}
-                name="token"
+                name="email"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Reset Token</FormLabel>
+                    <FormLabel>Email</FormLabel>
                     <FormControl>
-                      <Input placeholder="Enter reset token" {...field} />
+                      <Input type="email" placeholder="Enter your email" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={resetPasswordForm.control}
+                name="code"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Reset Code</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Enter 6-digit code" maxLength={6} {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -648,6 +737,57 @@ export default function AuthForm() {
               />
               <Button type="submit" className="w-full" disabled={resetPasswordMutation.isPending}>
                 {resetPasswordMutation.isPending ? "Resetting..." : "Reset Password"}
+              </Button>
+            </form>
+          </Form>
+        );
+
+      case 'verify-email':
+        return (
+          <Form {...verifyEmailForm}>
+            <form onSubmit={verifyEmailForm.handleSubmit((data) => verifyEmailMutation.mutate(data))} className="space-y-4">
+              <div className="text-sm text-muted-foreground text-center mb-4">
+                A verification code has been sent to {pendingUserEmail || 'your email'}. Please enter the 6-digit code below.
+              </div>
+              {!pendingUserEmail && (
+                <FormField
+                  control={verifyEmailForm.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Email</FormLabel>
+                      <FormControl>
+                        <Input type="email" placeholder="Enter your email" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+              <FormField
+                control={verifyEmailForm.control}
+                name="code"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Verification Code</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Enter 6-digit code" maxLength={6} {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <Button type="submit" className="w-full" disabled={verifyEmailMutation.isPending}>
+                {verifyEmailMutation.isPending ? "Verifying..." : "Verify Email"}
+              </Button>
+              <Button 
+                type="button" 
+                variant="outline" 
+                className="w-full" 
+                disabled={resendVerificationMutation.isPending}
+                onClick={() => resendVerificationMutation.mutate(pendingUserEmail ? { email: pendingUserEmail } : undefined)}
+              >
+                {resendVerificationMutation.isPending ? "Sending..." : "Resend Code"}
               </Button>
             </form>
           </Form>

@@ -9,6 +9,11 @@ export function generateSessionToken(): string {
   return crypto.randomBytes(32).toString('hex');
 }
 
+// Generate 6-digit verification code
+export function generateVerificationCode(): string {
+  return crypto.randomInt(100000, 999999).toString();
+}
+
 // Hash password
 export async function hashPassword(password: string): Promise<string> {
   const salt = await bcrypt.genSalt(10);
