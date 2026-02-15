@@ -191,6 +191,8 @@ export interface TournamentConfig {
   };
   details: {
     chiefArbiter: string;
+    organizer: string;
+    assistantTDs: string[];
     timeControl: TimeControlType;
     timeControls: TimeControlDefinition[];
     pairingSystem: string;
@@ -284,6 +286,8 @@ export function createDefaultConfig(format: Tournament["format"], mode: Tourname
     },
     details: {
       chiefArbiter: "",
+      organizer: "",
+      assistantTDs: [],
       timeControl: "standard",
       timeControls: [defaultTimeControl],
       pairingSystem: format === "roundrobin" ? "Round Robin" : "Swiss System",

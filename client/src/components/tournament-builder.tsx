@@ -768,6 +768,22 @@ function StepTwo({ format, mode, config, onConfigChange, onBack: _onBack, onCanc
   const updateDetails = (updates: Partial<TournamentConfig["details"]>) =>
     onConfigChange({ ...config, details: { ...config.details, ...updates } });
 
+  const handleAddAssistantTD = () => {
+    const assistantTDs = config.details.assistantTDs ?? [];
+    updateDetails({ assistantTDs: [...assistantTDs, ""] });
+  };
+
+  const handleUpdateAssistantTD = (index: number, value: string) => {
+    const assistantTDs = [...(config.details.assistantTDs ?? [])];
+    assistantTDs[index] = value;
+    updateDetails({ assistantTDs });
+  };
+
+  const handleRemoveAssistantTD = (index: number) => {
+    const assistantTDs = (config.details.assistantTDs ?? []).filter((_, i) => i !== index);
+    updateDetails({ assistantTDs });
+  };
+
   const updateRegisters = (updates: Partial<TournamentConfig["registers"]>) =>
     onConfigChange({ ...config, registers: { ...config.registers, ...updates } });
 
@@ -1734,12 +1750,19 @@ function StepTwo({ format, mode, config, onConfigChange, onBack: _onBack, onCanc
               </TabsContent>
 
               <TabsContent value="details" className="bg-white p-6 space-y-4">
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-4 md:grid-cols-3">
                   <div className="space-y-2">
                     <Label>Chief Arbiter</Label>
                     <Input
                       value={config.details.chiefArbiter}
                       onChange={(event) => updateDetails({ chiefArbiter: event.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Organizer</Label>
+                    <Input
+                      value={config.details.organizer}
+                      onChange={(event) => updateDetails({ organizer: event.target.value })}
                     />
                   </div>
                   <div className="space-y-2">
@@ -1769,6 +1792,29 @@ function StepTwo({ format, mode, config, onConfigChange, onBack: _onBack, onCanc
                         ))}
                       </SelectContent>
                     </Select>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label>Assistant TDs</Label>
+                    <Button variant="outline" size="sm" onClick={handleAddAssistantTD}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add
+                    </Button>
+                  </div>
+                  <div className="space-y-2">
+                    {(config.details.assistantTDs ?? []).map((td, index) => (
+                      <div key={index} className="flex items-center gap-2">
+                        <Input
+                          value={td}
+                          onChange={(e) => handleUpdateAssistantTD(index, e.target.value)}
+                        />
+                        <Button variant="ghost" size="icon" onClick={() => handleRemoveAssistantTD(index)}>
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
                   </div>
                 </div>
 
