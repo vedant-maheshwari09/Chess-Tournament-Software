@@ -16,10 +16,11 @@ import { HEAD_TO_HEAD_RESULT_OPTIONS, BYE_RESULT_OPTIONS, getPointsForResult } f
 
 interface TournamentPairingsProps {
   tournamentId: number;
+  activeSection: string;
   showExportControls?: boolean;
 }
 
-export default function SwissPairings({ tournamentId, showExportControls = true }: TournamentPairingsProps) {
+export default function SwissPairings({ tournamentId, activeSection, showExportControls = true }: TournamentPairingsProps) {
   const [currentRound, setCurrentRound] = useState(1);
   const [pendingResultChange, setPendingResultChange] = useState<{matchId: number, result: string, isPastRound: boolean} | null>(null);
   const [selectedPlayers, setSelectedPlayers] = useState<{
@@ -46,11 +47,11 @@ export default function SwissPairings({ tournamentId, showExportControls = true 
     if (!tournamentConfig) return [];
     return (tournamentConfig.sections ?? []).filter((section) => section.name.trim().length > 0);
   }, [tournamentConfig]);
-  const [selectedSectionId, setSelectedSectionId] = useState<string>("__all__");
+
   const selectedSectionLabel = useMemo(() => {
-    if (selectedSectionId === "__all__") return "All Sections";
-    return sections.find((section) => section.id === selectedSectionId)?.name ?? "All Sections";
-  }, [sections, selectedSectionId]);
+    if (activeSection === "all") return "All Sections";
+    return sections.find((section) => section.id === activeSection)?.name ?? "All Sections";
+  }, [sections, activeSection]);
 
   // Check if user is a tournament director and owns this tournament
   const isTournamentDirector = user?.role === 'tournament_director';
@@ -64,13 +65,6 @@ export default function SwissPairings({ tournamentId, showExportControls = true 
     userId: user?.id,
     userRole: user?.role 
   });
-
-  useEffect(() => {
-    setSelectedSectionId((prev) => {
-      if (prev === "__all__") return prev;
-      return sections.some((section) => section.id === prev) ? prev : sections[0]?.id ?? "__all__";
-    });
-  }, [sections]);
 
   // Get all matches to determine the current round
   const { data: allMatches } = useQuery<Match[]>({
@@ -150,7 +144,7 @@ export default function SwissPairings({ tournamentId, showExportControls = true 
 
   const matchSectionFilter = useCallback(
     (match: Match, targetSectionId: string) => {
-      if (targetSectionId === "__all__") return true;
+      if (targetSectionId === "all") return true;
       const whiteSectionId = match.whitePlayerId ? playerSectionMap.get(match.whitePlayerId)?.id : undefined;
       const blackSectionId = match.blackPlayerId ? playerSectionMap.get(match.blackPlayerId)?.id : undefined;
       if (!whiteSectionId && !blackSectionId) return false;
@@ -174,15 +168,15 @@ export default function SwissPairings({ tournamentId, showExportControls = true 
 
   const filteredMatches = useMemo(() => {
     if (!matches) return [] as Match[];
-    if (selectedSectionId === "__all__") return [...matches];
-    return matches.filter((match) => matchSectionFilter(match, selectedSectionId));
-  }, [matches, matchSectionFilter, selectedSectionId]);
+    if (activeSection === "all") return [...matches];
+    return matches.filter((match) => matchSectionFilter(match, activeSection));
+  }, [matches, matchSectionFilter, activeSection]);
 
   const roundRobinGroups = useMemo(() => {
     if (!matches || tournament?.format !== 'roundrobin') return [] as Array<{ round: number; matches: Match[] }>;
     const grouped = new Map<number, Match[]>();
     matches.forEach((match) => {
-      if (!matchSectionFilter(match, selectedSectionId)) return;
+      if (!matchSectionFilter(match, activeSection)) return;
       const list = grouped.get(match.round) ?? [];
       list.push(match);
       grouped.set(match.round, list);
@@ -193,7 +187,7 @@ export default function SwissPairings({ tournamentId, showExportControls = true 
         round,
         matches: [...items].sort((a, b) => (a.board || 0) - (b.board || 0)),
       }));
-  }, [matches, matchSectionFilter, selectedSectionId, tournament?.format]);
+  }, [matches, matchSectionFilter, activeSection, tournament?.format]);
 
   const swissMatches = useMemo(() => {
     if (tournament?.format !== 'swiss') return [] as Match[];
@@ -203,9 +197,9 @@ export default function SwissPairings({ tournamentId, showExportControls = true 
   const filteredByes = useMemo(() => {
     if (!pairings) return [] as Pairing[];
     const byes = pairings.filter((pairing) => pairing.isBye);
-    if (selectedSectionId === "__all__") return byes;
-    return byes.filter((pairing) => playerSectionMap.get(pairing.playerId)?.id === selectedSectionId);
-  }, [pairings, playerSectionMap, selectedSectionId]);
+    if (activeSection === "all") return byes;
+    return byes.filter((pairing) => playerSectionMap.get(pairing.playerId)?.id === activeSection);
+  }, [pairings, playerSectionMap, activeSection]);
 
   const pairingGroups = useMemo(() => {
     if (tournament?.format === 'roundrobin') {
@@ -509,7 +503,7 @@ export default function SwissPairings({ tournamentId, showExportControls = true 
 
   const handlePrintPairings = useCallback(() => {
     if (!hasPrintableMatches || typeof window === "undefined") return;
-    const headingSuffix = selectedSectionId === "__all__" ? "" : ` – ${selectedSectionLabel}`;
+    const headingSuffix = activeSection === "all" ? "" : ` – ${selectedSectionLabel}`;
     const title = `${tournament?.name ?? "Tournament"} Pairings${headingSuffix}`;
     const printWindow = window.open("", "_blank");
     if (!printWindow) return;
@@ -552,7 +546,7 @@ export default function SwissPairings({ tournamentId, showExportControls = true 
     printWindow.document.close();
     printWindow.focus();
     printWindow.print();
-  }, [filteredByes, getPlayerName, hasPrintableMatches, pairingGroups, selectedSectionId, selectedSectionLabel, tournament?.name]);
+  }, [filteredByes, getPlayerName, hasPrintableMatches, pairingGroups, activeSection, selectedSectionLabel, tournament?.name]);
 
   const handleDownloadPairings = useCallback(() => {
     if (!hasPrintableMatches || typeof window === "undefined") return;
@@ -593,7 +587,7 @@ export default function SwissPairings({ tournamentId, showExportControls = true 
       )
       .join("\r\n");
 
-    const sectionSlug = selectedSectionId === "__all__"
+    const sectionSlug = activeSection === "all"
       ? "all-sections"
       : selectedSectionLabel.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "section";
     const baseName = (tournament?.name ?? "tournament").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "event";
@@ -607,7 +601,7 @@ export default function SwissPairings({ tournamentId, showExportControls = true 
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-  }, [currentRound, filteredByes, getPlayerName, hasPrintableMatches, pairingGroups, selectedSectionId, selectedSectionLabel, tournament?.format, tournament?.name]);
+  }, [currentRound, filteredByes, getPlayerName, hasPrintableMatches, pairingGroups, activeSection, selectedSectionLabel, tournament?.format, tournament?.name]);
 
   const handleResultChange = (matchId: number, result: string) => {
     console.log(`Attempting to change match ${matchId} result to: ${result}`);
@@ -758,27 +752,6 @@ export default function SwissPairings({ tournamentId, showExportControls = true 
             </p>
           </div>
           <div className="flex flex-col items-end gap-3">
-            {sections.length > 0 && (
-              <div className="flex flex-wrap justify-end gap-2">
-                <Button
-                  variant={selectedSectionId === "__all__" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setSelectedSectionId("__all__")}
-                >
-                  All Sections
-                </Button>
-                {sections.map((section) => (
-                  <Button
-                    key={section.id}
-                    variant={selectedSectionId === section.id ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setSelectedSectionId(section.id)}
-                  >
-                    {section.name}
-                  </Button>
-                ))}
-              </div>
-            )}
             {roundNumbers.length > 0 && (
               <div className="flex flex-col items-end gap-2">
                 <div className="flex flex-wrap justify-end gap-2">

@@ -37,6 +37,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { Input } from "@/components/ui/input";
 import {
   Trash2,
   CheckSquare,
@@ -47,8 +48,14 @@ import {
   Copy,
   CheckCircle2,
   X,
+  ArrowUpDown,
 } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { parseTournamentConfig } from "@/lib/tournament-config";
 import type { Tournament, Player, Pairing } from "@shared/schema";
+
+type SortKey = "name" | "rating";
+type SortDirection = "asc" | "desc";
 
 interface PlayerManagerProps {
   tournament: Tournament;
@@ -75,10 +82,40 @@ export default function PlayerManager({ tournament, tournamentId }: PlayerManage
   const [removingByeIds, setRemovingByeIds] = useState<number[]>([]);
   const [messageChannels, setMessageChannels] = useState({ email: true, sms: false });
   const hasChannelSelected = messageChannels.email || messageChannels.sms;
+  const [activeSection, setActiveSection] = useState("all");
+  const [sortKey, setSortKey] = useState<SortKey>("name");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+
+  const tournamentConfig = useMemo(() => parseTournamentConfig(tournament), [tournament]);
+  const sections = tournamentConfig.sections;
 
   const { data: players = [], isLoading } = useQuery<Player[]>({
     queryKey: [`/api/tournaments/${tournamentId}/players`],
   });
+
+  const processedPlayers = useMemo(() => {
+    let processed = [...players];
+
+    if (activeSection !== "all") {
+      processed = processed.filter(p => p.sectionId === activeSection || p.sectionName === activeSection);
+    }
+    
+    processed.sort((a, b) => {
+      if (sortKey === 'name') {
+        const nameA = `${a.lastName}, ${a.firstName}`;
+        const nameB = `${b.lastName}, ${b.firstName}`;
+        return sortDirection === 'asc' ? nameA.localeCompare(nameB) : nameB.localeCompare(nameA);
+      }
+      if (sortKey === 'rating') {
+        const ratingA = a.rating ?? 0;
+        const ratingB = b.rating ?? 0;
+        return sortDirection === 'asc' ? ratingA - ratingB : ratingB - ratingA;
+      }
+      return 0;
+    });
+
+    return processed;
+  }, [players, activeSection, sortKey, sortDirection]);
 
   const { data: pairings = [], isLoading: pairingsLoading } = useQuery<Pairing[]>({
     queryKey: [`/api/tournaments/${tournamentId}/pairings`],
@@ -392,6 +429,15 @@ export default function PlayerManager({ tournament, tournamentId }: PlayerManage
     }
   }, [messageBody, toast]);
 
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortKey(key);
+      setSortDirection('asc');
+    }
+  };
+
   return (
     <div className="grid gap-4 lg:grid-cols-[240px,1fr]">
       <Card className="self-start">
@@ -420,248 +466,274 @@ export default function PlayerManager({ tournament, tournamentId }: PlayerManage
         </CardContent>
       </Card>
 
-      <Card className="lg:col-span-1">
-        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <CardTitle className="text-xl">Players</CardTitle>
-            <p className="text-sm text-muted-foreground">Overview of everyone registered for this event.</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge variant="secondary">Total: {players.length}</Badge>
-            <Badge variant={hasSelection ? "default" : "outline"}>{selectionSummary}</Badge>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <p className="text-sm text-muted-foreground">Loading players…</p>
-          ) : players.length === 0 ? (
-            <div className="py-12 text-center">
-              <p className="text-sm text-muted-foreground">No players registered yet.</p>
+      <Tabs value={activeSection} onValueChange={setActiveSection} className="lg:col-span-1">
+        <TabsList>
+          <TabsTrigger value="all">All</TabsTrigger>
+          {sections.map(section => (
+            <TabsTrigger key={section.id} value={section.id}>
+              {section.name}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+        <Card className="mt-4">
+          <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <CardTitle className="text-xl">Players</CardTitle>
+              <p className="text-sm text-muted-foreground">Overview of everyone registered for this event.</p>
             </div>
-          ) : (
-            <TooltipProvider>
-              <div className="flex flex-col gap-6 lg:flex-row">
-                <div className="flex-1 overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-12">#</TableHead>
-                        <TableHead>Surname, Name</TableHead>
-                        <TableHead>Rating</TableHead>
-                        <TableHead>Byes</TableHead>
-                        <TableHead className="text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <span>Birthdate</span>
-                            <Checkbox
-                              checked={headerCheckboxValue}
-                              onCheckedChange={(value) => toggleSelectAll(Boolean(value))}
-                              aria-label="Select all players"
-                              disabled={players.length === 0}
-                            />
-                          </div>
-                        </TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {players.map((player, index) => {
-                        const isSelected = selectedIds.includes(player.id);
-                        const isConfirmed = Boolean(confirmedMap[player.id]);
-                        const playerByes = playerByeMap.get(player.id) ?? [];
-                        const rowClasses = isSelected
-                          ? "border-b border-slate-200 cursor-pointer transition bg-indigo-50/40 hover:bg-indigo-100/40 dark:bg-indigo-900/20 dark:hover:bg-indigo-900/30"
-                          : "border-b border-slate-200 cursor-pointer transition hover:bg-slate-50 dark:bg-slate-800/60 dark:hover:bg-slate-700/60";
-                        return (
-                          <TableRow
-                            key={player.id}
-                            className={rowClasses}
-                            onClick={() => setLocation(`/tournaments/${tournamentId}/players/${player.id}`)}
-                          >
-                            <TableCell>
-                              <div className="text-sm font-medium text-gray-900">{index + 1}</div>
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex flex-col">
-                                <span className="text-sm font-medium text-slate-900">
-                                  {player.lastName}, {player.firstName}
-                                </span>
-                              </div>
-                            </TableCell>
-                            <TableCell>{player.rating ?? "-"}</TableCell>
-                            <TableCell>
-                              {pairingsLoading ? (
-                                <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
-                              ) : playerByes.length > 0 ? (
-                                <div className="flex flex-wrap gap-2">
-                                  {playerByes.map((bye) => {
-                                    const isRequested = Boolean(bye.isRequested);
-                                    const isRemoving = removingByeIds.includes(bye.id);
-                                    const byeLabel = bye.byeType === "half_point"
-                                      ? "½ point"
-                                      : bye.byeType === "full_point"
-                                      ? "1 point"
-                                      : bye.byeType === "zero_point"
-                                      ? "0 point"
-                                      : bye.points === 1
-                                      ? "½ point"
-                                      : bye.points === 2
-                                      ? "1 point"
-                                      : "0 point";
-                                    const toneClass = isRequested
-                                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                                      : "border-slate-200 bg-slate-100 text-slate-600";
-                                    return (
-                                      <div
-                                        key={bye.id}
-                                        className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs font-medium ${toneClass}`}
-                                        title={isRequested ? "Manual bye" : "System-assigned"}
-                                      >
-                                        <span>{`Rd ${bye.round}`}</span>
-                                        <span aria-hidden="true">·</span>
-                                        <span>{byeLabel}</span>
-                                        {isRequested ? (
-                                          <button
-                                            type="button"
-                                            onClick={(event) => {
-                                              event.stopPropagation();
-                                              handleRemoveBye(bye.id);
-                                            }}
-                                            className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full text-emerald-700 transition hover:bg-emerald-100 hover:text-emerald-900"
-                                            disabled={isRemoving}
-                                            aria-label={`Remove bye in round ${bye.round}`}
-                                          >
-                                            {isRemoving ? (
-                                              <Loader2 className="h-3 w-3 animate-spin" />
-                                            ) : (
-                                              <X className="h-3 w-3" />
-                                            )}
-                                          </button>
-                                        ) : null}
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              ) : (
-                                <span className="text-xs text-muted-foreground">—</span>
-                              )}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <div className="flex items-center justify-end gap-2">
-                                <span className="text-sm text-muted-foreground">—</span>
-                                {isConfirmed ? (
-                                  <CheckCircle2 className="h-4 w-4 text-emerald-500" aria-label="Confirmed" />
-                                ) : null}
-                                <Checkbox
-                                  checked={isSelected}
-                                  onCheckedChange={(value) => toggleSelectPlayer(player.id, Boolean(value))}
-                                  onClick={(event) => event.stopPropagation()}
-                                  aria-label={`Select ${player.lastName}, ${player.firstName}`}
-                                  disabled={isDeleting || isProcessingStatus}
-                                />
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                </div>
-
-                <div className="flex items-center justify-end gap-2 lg:flex-col lg:items-stretch lg:justify-start">
-          <AlertDialog>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <AlertDialogTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-10 w-10 rounded-lg border border-slate-200"
-                    disabled={!hasSelection || isDeleting || isProcessingStatus}
-                    aria-label="Delete selected players"
-                  >
-                    {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                  </Button>
-                </AlertDialogTrigger>
-              </TooltipTrigger>
-              <TooltipContent>Delete selected</TooltipContent>
-            </Tooltip>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Remove players from this tournament?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This action can&apos;t be undone. The selected player(s) and any matches involving them will be deleted permanently.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={(event) => {
-                    event.preventDefault();
-                    void handleDeleteSelected();
-                  }}
-                >
-                  Confirm removal
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-10 w-10 rounded-lg border border-slate-200"
-                        onClick={handleToggleConfirm}
-                        disabled={!hasSelection || isDeleting || isProcessingStatus}
-                        aria-label={allConfirmed ? "Unconfirm selected players" : "Confirm selected players"}
-                      >
-                        {allConfirmed ? <Check className="h-4 w-4" /> : <CheckSquare className="h-4 w-4" />}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>{allConfirmed ? "Unconfirm" : "Confirm"}</TooltipContent>
-                  </Tooltip>
-
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-10 w-10 rounded-lg border border-slate-200"
-                        onClick={() => setStatusDialogOpen(true)}
-                        disabled={!hasSelection || isProcessingStatus || isDeleting}
-                        aria-label="Set byes or withdraw"
-                      >
-                        <PauseCircle className="h-4 w-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Set byes / withdraw</TooltipContent>
-                  </Tooltip>
-
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-10 w-10 rounded-lg border border-slate-200"
-                        onClick={() => setMessageDialogOpen(true)}
-                        disabled={!hasSelection}
-                        aria-label="Compose message"
-                      >
-                        <Mail className="h-4 w-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Message selected</TooltipContent>
-                  </Tooltip>
-                </div>
+            <div className="flex items-center gap-2">
+              <Badge variant="secondary">Total: {players.length}</Badge>
+              <Badge variant={hasSelection ? "default" : "outline"}>{selectionSummary}</Badge>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <p className="text-sm text-muted-foreground">Loading players…</p>
+            ) : players.length === 0 ? (
+              <div className="py-12 text-center">
+                <p className="text-sm text-muted-foreground">No players registered yet.</p>
               </div>
-            </TooltipProvider>
-          )}
-        </CardContent>
-      </Card>
+            ) : (
+              <TooltipProvider>
+                <div className="flex flex-col gap-6 lg:flex-row">
+                  <div className="flex-1 overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-12">#</TableHead>
+                          <TableHead>
+                            <Button variant="ghost" onClick={() => handleSort('name')}>
+                              Surname, Name
+                              {sortKey === 'name' && <ArrowUpDown className="ml-2 h-4 w-4 inline" />}
+                            </Button>
+                          </TableHead>
+                          <TableHead>
+                            <Button variant="ghost" onClick={() => handleSort('rating')}>
+                              Rating
+                              {sortKey === 'rating' && <ArrowUpDown className="ml-2 h-4 w-4 inline" />}
+                            </Button>
+                          </TableHead>
+                          <TableHead>Byes</TableHead>
+                          <TableHead className="text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <span>Birthdate</span>
+                              <Checkbox
+                                checked={headerCheckboxValue}
+                                onCheckedChange={(value) => toggleSelectAll(Boolean(value))}
+                                aria-label="Select all players"
+                                disabled={players.length === 0}
+                              />
+                            </div>
+                          </TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {processedPlayers.map((player, index) => {
+                          const isSelected = selectedIds.includes(player.id);
+                          const isConfirmed = Boolean(confirmedMap[player.id]);
+                          const playerByes = playerByeMap.get(player.id) ?? [];
+                          const rowClasses = isSelected
+                            ? "border-b border-slate-200 cursor-pointer transition bg-indigo-50/40 hover:bg-indigo-100/40 dark:bg-indigo-900/20 dark:hover:bg-indigo-900/30"
+                            : "border-b border-slate-200 cursor-pointer transition hover:bg-slate-50 dark:bg-slate-800/60 dark:hover:bg-slate-700/60";
+                          return (
+                            <TableRow
+                              key={player.id}
+                              className={rowClasses}
+                              onClick={() => setLocation(`/tournaments/${tournamentId}/players/${player.id}`)}
+                            >
+                              <TableCell>
+                                <div className="text-sm font-medium text-gray-900">{index + 1}</div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  <div className="flex flex-col">
+                                    <span className="text-sm font-medium text-slate-900">
+                                      {player.lastName}, {player.firstName}
+                                    </span>
+                                  </div>
+                                  <span className="text-xs text-muted-foreground">
+                                    ({new Date(player.createdAt).getMonth() + 1}/{new Date(player.createdAt).getDate()})
+                                  </span>
+                                </div>
+                              </TableCell>
+                              <TableCell>{player.rating ?? "-"}</TableCell>
+                              <TableCell>
+                                {pairingsLoading ? (
+                                  <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+                                ) : playerByes.length > 0 ? (
+                                  <div className="flex flex-wrap gap-2">
+                                    {playerByes.map((bye) => {
+                                      const isRequested = Boolean(bye.isRequested);
+                                      const isRemoving = removingByeIds.includes(bye.id);
+                                      const byeLabel = bye.byeType === "half_point"
+                                        ? "½ point"
+                                        : bye.byeType === "full_point"
+                                        ? "1 point"
+                                        : bye.byeType === "zero_point"
+                                        ? "0 point"
+                                        : bye.points === 1
+                                        ? "½ point"
+                                        : bye.points === 2
+                                        ? "1 point"
+                                        : "0 point";
+                                      const toneClass = isRequested
+                                        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                                        : "border-slate-200 bg-slate-100 text-slate-600";
+                                      return (
+                                        <div
+                                          key={bye.id}
+                                          className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs font-medium ${toneClass}`}
+                                          title={isRequested ? "Manual bye" : "System-assigned"}
+                                        >
+                                          <span>{`Rd ${bye.round}`}</span>
+                                          <span aria-hidden="true">·</span>
+                                          <span>{byeLabel}</span>
+                                          {isRequested ? (
+                                            <button
+                                              type="button"
+                                              onClick={(event) => {
+                                                event.stopPropagation();
+                                                handleRemoveBye(bye.id);
+                                              }}
+                                              className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full text-emerald-700 transition hover:bg-emerald-100 hover:text-emerald-900"
+                                              disabled={isRemoving}
+                                              aria-label={`Remove bye in round ${bye.round}`}
+                                            >
+                                              {isRemoving ? (
+                                                <Loader2 className="h-3 w-3 animate-spin" />
+                                              ) : (
+                                                <X className="h-3 w-3" />
+                                              )}
+                                            </button>
+                                          ) : null}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground">—</span>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <div className="flex items-center justify-end gap-2">
+                                  <span className="text-sm text-muted-foreground">—</span>
+                                  {isConfirmed ? (
+                                    <CheckCircle2 className="h-4 w-4 text-emerald-500" aria-label="Confirmed" />
+                                  ) : null}
+                                  <Checkbox
+                                    checked={isSelected}
+                                    onCheckedChange={(value) => toggleSelectPlayer(player.id, Boolean(value))}
+                                    onClick={(event) => event.stopPropagation()}
+                                    aria-label={`Select ${player.lastName}, ${player.firstName}`}
+                                    disabled={isDeleting || isProcessingStatus}
+                                  />
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 lg:flex-col lg:items-stretch lg:justify-start">
+            <AlertDialog>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-10 w-10 rounded-lg border border-slate-200"
+                      disabled={!hasSelection || isDeleting || isProcessingStatus}
+                      aria-label="Delete selected players"
+                    >
+                      {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                    </Button>
+                  </AlertDialogTrigger>
+                </TooltipTrigger>
+                <TooltipContent>Delete selected</TooltipContent>
+              </Tooltip>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Remove players from this tournament?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This action can&apos;t be undone. The selected player(s) and any matches involving them will be deleted permanently.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={(event) => {
+                      event.preventDefault();
+                      void handleDeleteSelected();
+                    }}
+                  >
+                    Confirm removal
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-10 w-10 rounded-lg border border-slate-200"
+                          onClick={handleToggleConfirm}
+                          disabled={!hasSelection || isDeleting || isProcessingStatus}
+                          aria-label={allConfirmed ? "Unconfirm selected players" : "Confirm selected players"}
+                        >
+                          {allConfirmed ? <Check className="h-4 w-4" /> : <CheckSquare className="h-4 w-4" />}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>{allConfirmed ? "Unconfirm" : "Confirm"}</TooltipContent>
+                    </Tooltip>
+
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-10 w-10 rounded-lg border border-slate-200"
+                          onClick={() => setStatusDialogOpen(true)}
+                          disabled={!hasSelection || isProcessingStatus || isDeleting}
+                          aria-label="Set byes or withdraw"
+                        >
+                          <PauseCircle className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Set byes / withdraw</TooltipContent>
+                    </Tooltip>
+
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-10 w-10 rounded-lg border border-slate-200"
+                          onClick={() => setMessageDialogOpen(true)}
+                          disabled={!hasSelection}
+                          aria-label="Compose message"
+                        >
+                          <Mail className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Message selected</TooltipContent>
+                    </Tooltip>
+                  </div>
+                </div>
+              </TooltipProvider>
+            )}
+          </CardContent>
+        </Card>
+      </Tabs>
+
 
     {/* Detail panel removed; players now open dedicated page */}
 

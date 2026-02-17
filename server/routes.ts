@@ -1786,60 +1786,76 @@ ${(config as any).organizerInfo}` : ""}
         rounds,
       });
 
-      if (tournament.format === "roundrobin" && players.length >= 2) {
-        const { generateRoundRobinSchedule, validateRoundRobinSchedule } = await import("./round-robin");
-        console.log(`Generating Round Robin schedule for ${players.length} players`);
-        const roundRobinPairings = generateRoundRobinSchedule(players);
-        const playerIds = players.map((p) => p.id);
-
-        if (!validateRoundRobinSchedule(roundRobinPairings, playerIds)) {
-          throw new Error("Invalid Round Robin schedule generated");
+      // Group players by section
+      const playersBySection = players.reduce((acc, player) => {
+        const sectionKey = player.sectionId || 'default';
+        if (!acc[sectionKey]) {
+          acc[sectionKey] = [];
         }
+        acc[sectionKey].push(player);
+        return acc;
+      }, {} as Record<string, Player[]>);
 
-        for (const pairing of roundRobinPairings) {
-          if (pairing.isBye) {
-            await storage.createPairing({
-              tournamentId,
-              round: pairing.round,
-              playerId: pairing.whitePlayerId!,
-              opponentId: null,
-              color: null,
-              points: 1,
-              isBye: true,
-            });
-          } else {
-            await storage.createPairing({
-              tournamentId,
-              round: pairing.round,
-              playerId: pairing.whitePlayerId!,
-              opponentId: pairing.blackPlayerId!,
-              color: "white",
-              points: 0,
-              isBye: false,
-            });
-            await storage.createPairing({
-              tournamentId,
-              round: pairing.round,
-              playerId: pairing.blackPlayerId!,
-              opponentId: pairing.whitePlayerId!,
-              color: "black",
-              points: 0,
-              isBye: false,
-            });
+      // Generate pairings for each section
+      for (const sectionKey in playersBySection) {
+        const sectionPlayers = playersBySection[sectionKey];
+        if (sectionPlayers.length < 1) continue;
 
-            await storage.createMatch({
-              tournamentId,
-              round: pairing.round,
-              whitePlayerId: pairing.whitePlayerId!,
-              blackPlayerId: pairing.blackPlayerId!,
-              board: pairing.board,
-              result: null,
-              status: "pending",
-            });
+        if (tournament.format === "roundrobin" && sectionPlayers.length >= 2) {
+          const { generateRoundRobinSchedule, validateRoundRobinSchedule } = await import("./round-robin");
+          console.log(`Generating Round Robin schedule for ${sectionPlayers.length} players in section ${sectionKey}`);
+          const roundRobinPairings = generateRoundRobinSchedule(sectionPlayers);
+          const playerIds = sectionPlayers.map((p) => p.id);
+
+          if (!validateRoundRobinSchedule(roundRobinPairings, playerIds)) {
+            throw new Error(`Invalid Round Robin schedule generated for section ${sectionKey}`);
           }
+
+          for (const pairing of roundRobinPairings) {
+            if (pairing.isBye) {
+              await storage.createPairing({
+                tournamentId,
+                round: pairing.round,
+                playerId: pairing.whitePlayerId!,
+                opponentId: null,
+                color: null,
+                points: 1,
+                isBye: true,
+              });
+            } else {
+              await storage.createPairing({
+                tournamentId,
+                round: pairing.round,
+                playerId: pairing.whitePlayerId!,
+                opponentId: pairing.blackPlayerId!,
+                color: "white",
+                points: 0,
+                isBye: false,
+              });
+              await storage.createPairing({
+                tournamentId,
+                round: pairing.round,
+                playerId: pairing.blackPlayerId!,
+                opponentId: pairing.whitePlayerId!,
+                color: "black",
+                points: 0,
+                isBye: false,
+              });
+
+              await storage.createMatch({
+                tournamentId,
+                round: pairing.round,
+                whitePlayerId: pairing.whitePlayerId!,
+                blackPlayerId: pairing.blackPlayerId!,
+                board: pairing.board,
+                result: null,
+                status: "pending",
+              });
+            }
+          }
+        } else if (sectionPlayers.length >= 1) {
+          await generatePairings(tournament, sectionPlayers, [], [], 1);
         }
-      } else if (players.length >= 1) {
-        await generatePairings(tournament, players, [], 1);
       }
 
       res.json(updatedTournament);
@@ -1948,8 +1964,49 @@ ${(config as any).organizerInfo}` : ""}
       if (tournament.format === 'roundrobin') {
         console.log(`Round Robin tournament - advanced to round ${nextRound}. Pairings already exist.`);
       } else {
-        // Generate next round pairings for Swiss
-        await generatePairings(tournament, players, matches, nextRound);
+        const pairings = await storage.getPairingsByTournament(tournament.id);
+        const playerMap = new Map(players.map(p => [p.id, p]));
+        const playersBySection = players.reduce((acc, player) => {
+          const sectionKey = player.sectionId || 'default';
+          if (!acc[sectionKey]) {
+            acc[sectionKey] = [];
+          }
+          acc[sectionKey].push(player);
+          return acc;
+        }, {} as Record<string, Player[]>);
+
+        const matchesBySection = matches.reduce((acc, match) => {
+          const player = playerMap.get(match.whitePlayerId!) ?? playerMap.get(match.blackPlayerId!);
+          if (player) {
+            const sectionKey = player.sectionId || 'default';
+            if (!acc[sectionKey]) {
+              acc[sectionKey] = [];
+            }
+            acc[sectionKey].push(match);
+          }
+          return acc;
+        }, {} as Record<string, Match[]>);
+
+        const pairingsBySection = pairings.reduce((acc, pairing) => {
+          const player = playerMap.get(pairing.playerId);
+          if (player) {
+            const sectionKey = player.sectionId || 'default';
+            if (!acc[sectionKey]) {
+              acc[sectionKey] = [];
+            }
+            acc[sectionKey].push(pairing);
+          }
+          return acc;
+        }, {} as Record<string, Pairing[]>);
+
+        for (const sectionKey in playersBySection) {
+          const sectionPlayers = playersBySection[sectionKey];
+          const sectionMatches = matchesBySection[sectionKey] || [];
+          const sectionPairings = pairingsBySection[sectionKey] || [];
+          if (sectionPlayers.length >= 1) {
+            await generatePairings(tournament, sectionPlayers, sectionMatches, sectionPairings, nextRound);
+          }
+        }
       }
       
       res.json(updatedTournament);
@@ -3032,355 +3089,198 @@ ${(config as any).organizerInfo}` : ""}
 
       // Handle Round Robin tournaments differently - generate all pairings if none exist
       if (tournament.format === 'roundrobin') {
-        const existingPairings = await storage.getPairingsByTournament(tournamentId);
-        const existingMatches = await storage.getMatchesByTournament(tournamentId);
-        
-        // If regenerating, clear existing data first
-        if (regenerate && (existingPairings.length > 0 || existingMatches.length > 0)) {
-          console.log('Regenerating Round Robin tournament - clearing existing data');
-          
-          // Delete all existing pairings and matches
-          for (const pairing of existingPairings) {
-            await storage.deletePairing(pairing.id);
+        const allPairings = await storage.getPairingsByTournament(tournamentId);
+        const allMatches = await storage.getMatchesByTournament(tournamentId);
+
+        // Group players by section
+        const playersBySection = players.reduce((acc, player) => {
+          const sectionKey = player.sectionId || 'default';
+          if (!acc[sectionKey]) {
+            acc[sectionKey] = [];
           }
-          for (const match of existingMatches) {
-            await storage.deleteMatch(match.id);
+          acc[sectionKey].push(player);
+          return acc;
+        }, {} as Record<string, Player[]>);
+
+        const combinedResults = {
+          pairings: [] as Pairing[],
+          matches: [] as Match[],
+          message: "",
+        };
+
+        for (const sectionKey in playersBySection) {
+          const sectionPlayers = playersBySection[sectionKey];
+          if (sectionPlayers.length < 2) continue;
+
+          console.log(`Processing Round Robin for section ${sectionKey} with ${sectionPlayers.length} players`);
+
+          // This logic assumes we regenerate the whole tournament or nothing.
+          // For per-section regeneration, a more granular approach would be needed.
+          if (regenerate) {
+            // For simplicity, we assume a full tournament regeneration.
+            // A production system might need to clear only section-specific data.
           }
-          
-          // Log the regeneration in tournament history
-          await storage.createHistoryEntry({
-            tournamentId,
-            action: 'regenerate_all_rounds',
-            description: `Round Robin tournament regenerated - all rounds recreated`,
-            changedBy: user.id,
-            previousState: JSON.stringify({ pairingsCount: existingPairings.length, matchesCount: existingMatches.length }),
-            newState: JSON.stringify({ regenerated: true }),
-            round: null,
-            canRevert: false
-          });
-        }
-        
-        if (existingPairings.length === 0 && existingMatches.length === 0) {
-          // Generate all Round Robin pairings for all rounds
+
+          // Generate all Round Robin pairings for the section
           const { generateRoundRobinSchedule, validateRoundRobinSchedule } = await import('./round-robin');
-          const roundRobinPairings = generateRoundRobinSchedule(players);
-          const numRounds = players.length % 2 === 0 ? players.length - 1 : players.length;
+          const roundRobinPairings = generateRoundRobinSchedule(sectionPlayers);
+          const numRounds = sectionPlayers.length % 2 === 0 ? sectionPlayers.length - 1 : sectionPlayers.length;
           
-          console.log(`Generating Round Robin schedule: ${players.length} players, ${numRounds} rounds, ${roundRobinPairings.length} total pairings`);
+          console.log(`Generating schedule for section ${sectionKey}: ${sectionPlayers.length} players, ${numRounds} rounds, ${roundRobinPairings.length} total pairings`);
           
-          const playerIds = players.map(p => p.id);
-          const isValid = validateRoundRobinSchedule(roundRobinPairings, playerIds);
-          if (!isValid) {
-            throw new Error('Invalid Round Robin schedule generated');
+          const playerIds = sectionPlayers.map(p => p.id);
+          if (!validateRoundRobinSchedule(roundRobinPairings, playerIds)) {
+            throw new Error(`Invalid Round Robin schedule generated for section ${sectionKey}`);
           }
           
-          const savedPairings = [];
-          const savedMatches = [];
-          
-          // Convert to our pairing format and save all pairings
           for (const pairing of roundRobinPairings) {
             if (pairing.isBye) {
-              // Create bye pairing
               const savedPairing = await storage.createPairing({
-                tournamentId,
-                round: pairing.round,
-                playerId: pairing.whitePlayerId!,
-                opponentId: null,
-                color: null,
-                points: 2, // 1 point for bye (using integer mapping: 2=1pt)
-                isBye: true
+                tournamentId, round: pairing.round, playerId: pairing.whitePlayerId!,
+                opponentId: null, color: null, points: 2, isBye: true
               });
-              savedPairings.push(savedPairing);
+              combinedResults.pairings.push(savedPairing);
             } else {
-              // Create pairings for both players
               const whitePairing = await storage.createPairing({
-                tournamentId,
-                round: pairing.round,
-                playerId: pairing.whitePlayerId!,
-                opponentId: pairing.blackPlayerId!,
-                color: 'white',
-                points: 0,
-                isBye: false
+                tournamentId, round: pairing.round, playerId: pairing.whitePlayerId!,
+                opponentId: pairing.blackPlayerId!, color: 'white', points: 0, isBye: false
               });
-              
               const blackPairing = await storage.createPairing({
-                tournamentId,
-                round: pairing.round,
-                playerId: pairing.blackPlayerId!,
-                opponentId: pairing.whitePlayerId!,
-                color: 'black',
-                points: 0,
-                isBye: false
+                tournamentId, round: pairing.round, playerId: pairing.blackPlayerId!,
+                opponentId: pairing.whitePlayerId!, color: 'black', points: 0, isBye: false
               });
+              combinedResults.pairings.push(whitePairing, blackPairing);
               
-              savedPairings.push(whitePairing, blackPairing);
-              
-              // Create match record
               const match = await storage.createMatch({
-                tournamentId,
-                round: pairing.round,
-                whitePlayerId: pairing.whitePlayerId!,
-                blackPlayerId: pairing.blackPlayerId!,
-                board: pairing.board,
-                result: null,
-                status: 'pending'
+                tournamentId, round: pairing.round, whitePlayerId: pairing.whitePlayerId!,
+                blackPlayerId: pairing.blackPlayerId!, board: pairing.board, result: null, status: 'pending'
               });
-              savedMatches.push(match);
-            }
-          }
-          
-          console.log(`Generated Round Robin tournament: ${savedPairings.length} pairings and ${savedMatches.length} matches for all ${numRounds} rounds`);
-          
-          // Update tournament current round to 1
-          await storage.updateTournament(tournamentId, { currentRound: 1 });
-          
-          return res.json({ 
-            pairings: savedPairings, 
-            matches: savedMatches, 
-            message: `Round Robin tournament started! Generated ${numRounds} rounds with ${savedMatches.length} matches.`,
-            round: 1,
-            totalRounds: numRounds
-          });
-        } else {
-          // Round Robin pairings already exist
-          return res.json({ 
-            pairings: existingPairings, 
-            matches: existingMatches,
-            message: "Round Robin pairings already generated for all rounds.",
-            round: 1
-          });
-        }
-      }
-
-      const existingMatches = await storage.getMatchesByTournament(tournamentId);
-      let currentRound: number;
-
-      if (regenerate && targetRound) {
-        // Regenerating existing round - clear this round and all future rounds
-        currentRound = targetRound;
-        console.log(`Regenerating round ${currentRound}`);
-        
-        // Clear this round and all future rounds to ensure clean state
-        const futureRounds = existingMatches
-          .map(m => m.round)
-          .filter(round => round >= currentRound)
-          .filter((round, index, arr) => arr.indexOf(round) === index); // unique rounds
-        
-        console.log(`Clearing current and future rounds for regeneration: ${futureRounds.join(', ')}`);
-        
-        for (const round of futureRounds) {
-          const existingRoundMatches = await storage.getMatchesByRound(tournamentId, round);
-          const existingRoundPairings = await storage.getPairingsByRound(tournamentId, round);
-          
-          console.log(`Clearing round ${round}: ${existingRoundMatches.length} matches, ${existingRoundPairings.length} pairings`);
-          
-          const pairingsDeleted = await storage.deletePairingsByRound(tournamentId, round);
-          const matchesDeleted = await storage.deleteMatchesByRound(tournamentId, round);
-          
-          console.log(`Round ${round} deletion results: matches=${matchesDeleted}, pairings=${pairingsDeleted}`);
-        }
-      } else {
-        // Generating next round - find the last completed round
-        let lastCompletedRound = 0;
-        
-        if (existingMatches.length > 0) {
-          // Group matches by round and check completion
-          const roundGroups = existingMatches.reduce((acc, match) => {
-            if (!acc[match.round]) acc[match.round] = [];
-            acc[match.round].push(match);
-            return acc;
-          }, {} as Record<number, typeof existingMatches>);
-          
-          // Find the highest completed round
-          for (const round of Object.keys(roundGroups).map(Number).sort((a, b) => a - b)) {
-            const roundMatches = roundGroups[round];
-            const incompleteMatches = roundMatches.filter(m => !m.result || m.result === 'Pending');
-            
-            if (incompleteMatches.length === 0) {
-              lastCompletedRound = round;
-            } else {
-              // This round is incomplete, so we can't go further
-              break;
+              combinedResults.matches.push(match);
             }
           }
         }
         
-        currentRound = lastCompletedRound + 1;
-        console.log(`Generating Round ${currentRound} (last completed: ${lastCompletedRound})`);
-        
-        // Validate that we can generate this round
-        if (lastCompletedRound === 0 && existingMatches.length > 0) {
-          // There are matches but none are completed
-          const incompleteMatches = existingMatches.filter(m => !m.result || m.result === 'Pending');
-          if (incompleteMatches.length > 0) {
-            return res.status(400).json({ 
-              error: `Cannot generate Round ${currentRound}. Complete all matches in Round ${Math.min(...existingMatches.map(m => m.round))} first.`
-            });
-          }
+        if (regenerate) {
+           // If regenerating, clear existing data first
+           console.log('Regenerating Round Robin tournament - clearing existing data');
+           for (const pairing of allPairings) {
+             await storage.deletePairing(pairing.id);
+           }
+           for (const match of allMatches) {
+             await storage.deleteMatch(match.id);
+           }
+           await storage.createHistoryEntry({
+             tournamentId, action: 'regenerate_all_rounds', description: `Round Robin tournament regenerated`,
+             changedBy: user.id, previousState: JSON.stringify({ pairingsCount: allPairings.length, matchesCount: allMatches.length }),
+             newState: JSON.stringify({ regenerated: true }), round: null, canRevert: false
+           });
         }
         
-        // Clear all future rounds (currentRound and higher) to ensure clean state
-        const futureRounds = existingMatches
-          .map(m => m.round)
-          .filter(round => round >= currentRound)
-          .filter((round, index, arr) => arr.indexOf(round) === index); // unique rounds
+        await storage.updateTournament(tournamentId, { currentRound: 1 });
         
-        console.log(`Clearing future rounds: ${futureRounds.join(', ')}`);
+        combinedResults.message = `Round Robin tournament started/regenerated! Generated pairings for ${Object.keys(playersBySection).length} sections.`;
+                return res.json(combinedResults);
+              }
         
-        for (const round of futureRounds) {
-          console.log(`Clearing round ${round}...`);
-          
-          // Preserve explicit bye requests (manual bye requests should not be deleted)
-          // Only delete automatic pairings and matches
-          const roundPairings = await storage.getPairingsByRound(tournamentId, round);
-          const explicitByes = roundPairings.filter(p => 
-            p.isBye && 
-            (p.byeType === 'half_point' || p.byeType === 'zero_point') &&
-            // Exclude automatic byes that were system-generated (these will be regenerated)
-            p.opponentId === null
-          );
-          
-          // Delete all pairings except explicit bye requests
-          for (const pairing of roundPairings) {
-            const isExplicitBye = explicitByes.some(bye => bye.id === pairing.id);
-            if (!isExplicitBye) {
-              await storage.deletePairing(pairing.id);
+              // --- SWISS PAIRING LOGIC ---
+              
+              const allPlayers = await storage.getPlayersByTournament(tournamentId);
+              const allMatches = await storage.getMatchesByTournament(tournamentId);
+              const allPairings = await storage.getPairingsByTournament(tournamentId);
+              
+              const playerMap = new Map(allPlayers.map(p => [p.id, p]));
+              
+              const playersBySection = allPlayers.reduce((acc, player) => {
+                const sectionKey = player.sectionId || 'default';
+                if (!acc[sectionKey]) acc[sectionKey] = [];
+                acc[sectionKey].push(player);
+                return acc;
+              }, {} as Record<string, Player[]>);
+        
+              const matchesBySection = allMatches.reduce((acc, match) => {
+                const player = playerMap.get(match.whitePlayerId!) ?? playerMap.get(match.blackPlayerId!);
+                if (player) {
+                  const sectionKey = player.sectionId || 'default';
+                  if (!acc[sectionKey]) acc[sectionKey] = [];
+                  acc[sectionKey].push(match);
+                }
+                return acc;
+              }, {} as Record<string, Match[]>);
+        
+              const pairingsBySection = allPairings.reduce((acc, pairing) => {
+                const player = playerMap.get(pairing.playerId);
+                if (player) {
+                  const sectionKey = player.sectionId || 'default';
+                  if (!acc[sectionKey]) acc[sectionKey] = [];
+                  acc[sectionKey].push(pairing);
+                }
+                return acc;
+              }, {} as Record<string, Pairing[]>);
+        
+              const finalResults = {
+                pairings: [] as any[],
+                matches: [] as any[],
+                message: "Pairings generated successfully for all sections.",
+              };
+        
+              for (const sectionKey in playersBySection) {
+                const sectionPlayers = playersBySection[sectionKey];
+                const sectionMatches = matchesBySection[sectionKey] || [];
+                const sectionPairings = pairingsBySection[sectionKey] || [];
+        
+                if (sectionPlayers.length < 2) continue;
+        
+                let currentRound: number;
+                if (regenerate && targetRound) {
+                  currentRound = targetRound;
+                  const futureMatches = sectionMatches.filter(m => m.round >= currentRound);
+                  const futurePairings = sectionPairings.filter(p => p.round >= currentRound);
+                  
+                  for (const match of futureMatches) { await storage.deleteMatch(match.id); }
+                  for (const pairing of futurePairings) { await storage.deletePairing(pairing.id); }
+                } else {
+                  currentRound = (tournament.currentRound || 0) + 1;
+                }
+        
+                const isWithdrawn = (playerId: number, allSectionPairings: Pairing[]) => {
+                  return allSectionPairings.some(p => p.playerId === playerId && p.isBye && p.byeType === 'zero_point' && p.round < currentRound);
+                };
+                
+                const activePlayers = sectionPlayers.filter(p => !isWithdrawn(p.id, sectionPairings));
+                const matchesForPairing = sectionMatches.filter(m => m.round < currentRound);
+        
+                const swissPairings = await generateSwissPairings(activePlayers, matchesForPairing, currentRound, sectionPairings);
+        
+                for (const pairing of swissPairings) {
+                  if (pairing.isBye) {
+                    const byePoints = pairing.byeType === 'half_point' ? 1 : 2;
+                    const savedPairing = await storage.createPairing({ tournamentId, round: currentRound, playerId: pairing.whitePlayerId, opponentId: null, color: null, points: byePoints, isBye: true });
+                    finalResults.pairings.push(savedPairing);
+                  } else if (pairing.blackPlayerId === null) {
+                    // Handle "See T.D." matches
+                    const savedMatch = await storage.createMatch({ tournamentId, round: currentRound, board: pairing.board, whitePlayerId: pairing.whitePlayerId, blackPlayerId: null, result: null, status: 'pending' });
+                    finalResults.matches.push(savedMatch);
+                    const whitePairing = await storage.createPairing({ tournamentId, round: currentRound, playerId: pairing.whitePlayerId, opponentId: null, color: 'white', points: 0, isBye: false });
+                    finalResults.pairings.push(whitePairing);
+                  } else {
+                    const whitePairing = await storage.createPairing({ tournamentId, round: currentRound, playerId: pairing.whitePlayerId, opponentId: pairing.blackPlayerId, color: 'white', points: 0, isBye: false });
+                    const blackPairing = await storage.createPairing({ tournamentId, round: currentRound, playerId: pairing.blackPlayerId, opponentId: pairing.whitePlayerId, color: 'black', points: 0, isBye: false });
+                    finalResults.pairings.push(whitePairing, blackPairing);
+        
+                    const match = await storage.createMatch({ tournamentId, round: currentRound, whitePlayerId: pairing.whitePlayerId, blackPlayerId: pairing.blackPlayerId, board: pairing.board, result: null, status: 'pending' });
+                    finalResults.matches.push(match);
+                  }
+                }
+              }
+              
+              await storage.updateTournament(tournamentId, { currentRound: (tournament.currentRound || 0) + 1 });
+              res.json(finalResults);
+        
+            } catch (error) {
+              console.error('Pairing generation error:', error);
+              res.status(500).json({ error: "Failed to generate pairings" });
             }
-          }
-          
-          // Delete all matches (they will be regenerated)
-          await storage.deleteMatchesByRound(tournamentId, round);
-          
-          console.log(`Preserved ${explicitByes.length} explicit bye requests for round ${round}`);
-        }
-      }
-      
-      // Filter out withdrawn players who have future zero-point byes
-      const allPairings = await storage.getPairingsByTournament(tournamentId);
-      const withdrawnPlayerIds = new Set();
-      
-      // Identify withdrawn players (those with zero-point byes for future rounds)
-      for (const pairing of allPairings) {
-        if (pairing.isBye && pairing.byeType === 'zero_point' && pairing.round >= currentRound) {
-          withdrawnPlayerIds.add(pairing.playerId);
-        }
-      }
-      
-      // Filter out withdrawn players from active player list
-      const activePlayers = players.filter(player => !withdrawnPlayerIds.has(player.id));
-      console.log(`Active players for round ${currentRound}: ${activePlayers.length} (${withdrawnPlayerIds.size} withdrawn)`);
-
-      // Generate Swiss pairings directly (excluding matches from the round being regenerated)
-      const matchesForPairing = existingMatches.filter(m => m.round !== currentRound);
-      const pairingsForStats = allPairings.filter(p => p.round < currentRound);
-      const swissPairings = await generateSwissPairings(activePlayers, matchesForPairing, currentRound, pairingsForStats);
-      
-      // Create both pairings and matches from the Swiss algorithm
-      const savedPairings = [];
-      const matches = [];
-      
-      for (const pairing of swissPairings) {
-        if (pairing.isBye) {
-          // Create pairing for bye (use integer mapping: 0=0pts, 1=0.5pts, 2=1pt)
-          const byePoints = pairing.byeType === 'half_point' ? 1 : 2;
-          const savedPairing = await storage.createPairing({
-            tournamentId: tournament.id,
-            round: currentRound,
-            playerId: pairing.whitePlayerId,
-            opponentId: null,
-            color: null,
-            points: byePoints, // Half-point for odd number, full-point for other byes
-            isBye: true,
-            byeType: pairing.byeType || 'half_point',
           });
-          savedPairings.push(savedPairing);
-        } else if (pairing.blackPlayerId === null) {
-          // Handle "See T.D." matches - create match and single pairing
-          const match = await storage.createMatch({
-            tournamentId: tournament.id,
-            round: currentRound,
-            board: pairing.board,
-            whitePlayerId: pairing.whitePlayerId,
-            blackPlayerId: null, // "See T.D." match
-            result: null,
-            status: 'pending'
-          });
-          matches.push(match);
-          
-          // Create only white pairing for "See T.D." matches
-          const whitePairing = await storage.createPairing({
-            tournamentId: tournament.id,
-            round: currentRound,
-            playerId: pairing.whitePlayerId,
-            opponentId: null,
-            color: 'white',
-            points: 0,
-            isBye: false, // Not a bye, just "See T.D."
-          });
-          
-          savedPairings.push(whitePairing);
-        } else {
-          // Create regular match with both players
-          const match = await storage.createMatch({
-            tournamentId: tournament.id,
-            round: currentRound,
-            board: pairing.board,
-            whitePlayerId: pairing.whitePlayerId,
-            blackPlayerId: pairing.blackPlayerId,
-            result: null,
-            status: 'pending'
-          });
-          matches.push(match);
-          
-          // Create pairings for both players
-          const whitePairing = await storage.createPairing({
-            tournamentId: tournament.id,
-            round: currentRound,
-            playerId: pairing.whitePlayerId,
-            opponentId: pairing.blackPlayerId,
-            color: 'white',
-            points: 0,
-            isBye: false,
-          });
-          
-          const blackPairing = await storage.createPairing({
-            tournamentId: tournament.id,
-            round: currentRound,
-            playerId: pairing.blackPlayerId,
-            opponentId: pairing.whitePlayerId,
-            color: 'black',
-            points: 0,
-            isBye: false,
-          });
-          
-          savedPairings.push(whitePairing, blackPairing);
-        }
-      }
-      
-      // Log pairing generation in tournament history
-      const action = regenerate ? 'pairing_regeneration' : 'pairing_generation';
-      const description = regenerate 
-        ? `Round ${currentRound} pairings regenerated (${savedPairings.length} pairings created)`
-        : `Round ${currentRound} pairings generated (${savedPairings.length} pairings created)`;
-      
-      await storage.createHistoryEntry({
-        tournamentId: tournament.id,
-        action,
-        description,
-        changedBy: user.id,
-        previousState: null,
-        newState: JSON.stringify({ round: currentRound, pairingsCount: savedPairings.length }),
-        round: currentRound,
-        canRevert: false
-      });
-      
-      res.json({ pairings: savedPairings, matches, round: currentRound });
-    } catch (error) {
-      console.error('Pairing generation error:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      res.status(500).json({ message: "Failed to generate pairings", error: errorMessage });
-    }
-  });
 
   // Regenerate future rounds endpoint
   app.post("/api/tournaments/:tournamentId/regenerate-future-rounds", async (req, res) => {
@@ -3720,13 +3620,10 @@ ${(config as any).organizerInfo}` : ""}
   return httpServer;
 }
 
-async function generatePairings(tournament: any, players: any[], matches: any[], round: number) {
+async function generatePairings(tournament: any, players: any[], matches: any[], existingPairings: any[], round: number) {
   const pairings = [];
   
   if (tournament.format === 'swiss') {
-    // Get existing pairings for bye points calculation
-    const existingPairings = await storage.getPairingsByTournament(tournament.id);
-    
     // Use proper Swiss pairing algorithm
     const swissPairings = await generateSwissPairings(players, matches, round, existingPairings);
     

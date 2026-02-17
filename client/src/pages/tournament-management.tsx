@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -31,6 +31,7 @@ import TournamentBuilder from "@/components/tournament-builder";
 import type { Tournament, Player } from "@shared/schema";
 import PlayerManager from "@/components/player-manager";
 import TournamentPagePanel from "@/components/tournament-page-panel";
+import { parseTournamentConfig } from "@/lib/tournament-config";
 
 interface TournamentManagementProps {
   tournamentId: number;
@@ -63,6 +64,9 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
     queryKey: [`/api/tournaments/${tournamentId}/players`],
   });
 
+  const [activeRoundSection, setActiveRoundSection] = useState("all");
+  const tournamentConfig = useMemo(() => tournament ? parseTournamentConfig(tournament) : null, [tournament]);
+  const sections = useMemo(() => tournamentConfig?.sections ?? [], [tournamentConfig]);
 
 
   const selectTab = (value: string) => {
@@ -409,29 +413,39 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
 
 
         <TabsContent value="rounds" className="mt-6 space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Calendar className="h-5 w-5" />
-                <span>Tournament Pairings</span>
-                {(tournament.currentRound || 0) > 0 && (
-                  <Badge>Round {tournament.currentRound || 0}</Badge>
+          <Tabs value={activeRoundSection} onValueChange={setActiveRoundSection}>
+            <TabsList>
+              <TabsTrigger value="all">All</TabsTrigger>
+              {sections.map(section => (
+                <TabsTrigger key={section.id} value={section.id}>
+                  {section.name}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+            <Card className="mt-4">
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <Calendar className="h-5 w-5" />
+                  <span>Tournament Pairings</span>
+                  {(tournament.currentRound || 0) > 0 && (
+                    <Badge>Round {tournament.currentRound || 0}</Badge>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {tournament.format === 'swiss' || tournament.format === 'roundrobin' ? (
+                  <div className="overflow-x-auto">
+                    <SwissPairings tournamentId={tournamentId} activeSection={activeRoundSection} />
+                  </div>
+                ) : (
+                  <div className="py-8 text-center">
+                    <Calendar className="mx-auto mb-4 h-12 w-12 text-gray-400" />
+                    <p className="text-gray-600">Pairings will be available once the tournament starts.</p>
+                  </div>
                 )}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {tournament.format === 'swiss' || tournament.format === 'roundrobin' ? (
-                <div className="overflow-x-auto">
-                  <SwissPairings tournamentId={tournamentId} />
-                </div>
-              ) : (
-                <div className="py-8 text-center">
-                  <Calendar className="mx-auto mb-4 h-12 w-12 text-gray-400" />
-                  <p className="text-gray-600">Pairings will be available once the tournament starts.</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </Tabs>
 
           {tournament.format === 'knockout' && (
             <Card>

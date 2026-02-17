@@ -38,6 +38,7 @@ if (!process.env.GEMINI_API_KEY) {
 }
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { preloadRatingData } from "./lib/localRatings";
 
 const app = express();
 app.use(
@@ -98,6 +99,10 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  log("Pre-loading rating data...", "express");
+  await preloadRatingData();
+  log("Rating data loaded.", "express");
+
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {

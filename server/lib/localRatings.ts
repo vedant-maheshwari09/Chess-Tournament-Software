@@ -459,3 +459,7 @@ function hasSufficientInput(query: string) {
   if (trimmed.length >= 2) return true;
   return /^\d+$/.test(trimmed) && trimmed.length > 0;
 }
+
+export async function preloadRatingData() {
+  await Promise.all([ensureUSCFData(), ensureFideData()]);
+}
