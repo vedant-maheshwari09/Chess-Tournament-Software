@@ -67,7 +67,18 @@ This file defines the project's dependencies, scripts, and metadata.
 ```
 
 *   **`scripts`**: Defines the commands for running, building, and developing the application.
-*   **`dependencies`**: Lists the libraries used in the application, such as `express` for the backend, `react` for the frontend, `drizzle-orm` for the database, and `zod` for validation.
+*   **`dependencies`**: Lists the libraries used in the application, providing core functionalities:
+    *   `express`: The fast, unopinionated, minimalist web framework for Node.js, forming the backbone of the backend API.
+    *   `react`, `react-dom`: Libraries for building the user interface, enabling a component-based frontend architecture.
+    *   `drizzle-orm`, `pg`: Drizzle ORM is a type-safe TypeScript ORM for relational databases, here used with `pg` (Node.js PostgreSQL client) to interact with the PostgreSQL database.
+    *   `zod`, `drizzle-zod`: Zod is a TypeScript-first schema declaration and validation library. `drizzle-zod` provides utilities to generate Zod schemas directly from Drizzle schemas, ensuring type-safety and validation consistency between the database and API.
+    *   `bcryptjs`: A library used for hashing passwords, crucial for securely storing user credentials.
+    *   `passport`, `passport-local`: Authentication middleware for Node.js. `passport` provides the overall authentication framework, while `passport-local` implements username/password-based authentication strategy.
+    *   `stripe`: Integration for handling payment processing, allowing for secure transactions within the application.
+    *   `@hookform/resolvers`, `react-hook-form`: Libraries for building and validating forms in React. `react-hook-form` simplifies form state management, and `@hookform/resolvers` integrates with validation libraries like Zod.
+    *   `@radix-ui/react-accordion`, `@radix-ui/react-alert-dialog`: Components from Radix UI, a collection of unstyled, accessible UI components, used for building rich and interactive user interfaces.
+    *   `@tanstack/react-query`: A powerful library for fetching, caching, synchronizing, and updating server state in React applications, improving performance and user experience.
+    *   `wouter`: A tiny, fast, and modern client-side router for React and Preact, used for declarative routing in the frontend.
 *   **`devDependencies`**: Lists the tools used for development, such as `typescript`, `vite`, and `drizzle-kit`.
 
 ### 2.2. `server/index.ts`
@@ -103,21 +114,32 @@ app.use(express.json());
 
 ### 2.3. `server/routes.ts`
 
-This file defines all the API endpoints for the application.
+This file defines all the API endpoints for the application, organizing them logically and applying necessary middleware for authentication and authorization.
 
 #### Authentication Routes
 
-*   **`POST /api/auth/register`**: Handles new user registration. It uses `zod` to validate the request body, hashes the password with `bcrypt`, and creates a new user in the database.
+*   **`POST /api/auth/register`**: Handles new user registration.
+    *   **Details**: This endpoint receives user credentials (username, email, password). It uses `zod` to validate the incoming request body against `registerSchema` (defined in `shared/schema.ts`) to ensure data integrity and correct format. The password is then securely hashed using `bcryptjs` before the new user record is created in the database via `storage` functions.
 *   **`POST /api/auth/login`**: Authenticates a user by verifying their password and creates a session.
+    *   **Details**: This route utilizes `passport` middleware (`passport.authenticate('local', ...)`). Upon successful authentication, a user session is established, typically storing minimal user information (like user ID) in the session to maintain login state. The `bcryptjs` library is used internally by the local strategy to compare the provided password with the stored hashed password.
 
 #### Tournament Routes
 
-*   **`POST /api/tournaments`**: Creates a new tournament. This route is protected by the `requireAuth` and `requireRole('tournament_director')` middleware.
-*   **`POST /api/tournaments/:id/start`**: Starts a tournament. It changes the tournament's status to `active` and generates the first round of pairings.
+Tournament routes often require authentication and specific user roles (e.g., `tournament_director`) to ensure only authorized users can perform sensitive operations. This is enforced using custom middleware.
+
+*   **`requireAuth` Middleware**: Ensures that only authenticated users can access the route. If a user is not authenticated, the request is rejected.
+*   **`requireRole(roleName: string)` Middleware**: Checks if the authenticated user possesses the specified `roleName`. This provides role-based access control (RBAC).
+
+*   **`POST /api/tournaments`**: Creates a new tournament.
+    *   **Details**: This route is protected by both `requireAuth` and `requireRole('tournament_director')` middleware. It expects a request body containing tournament details, which are validated using a Zod schema (e.g., `createTournamentSchema`). The validated data is then passed to `storage.createTournament` to persist the new tournament in the database.
+*   **`POST /api/tournaments/:id/start`**: Starts a tournament.
+    *   **Details**: Protected by `requireAuth` and `requireRole('tournament_director')`. This endpoint triggers the logic to transition a tournament's status to `active`. Crucially, it initiates the generation of the first round of pairings based on the tournament format (e.g., Swiss, Round Robin) and the registered players. This involves complex logic often residing in functions like `generatePairings` or `generateSwissPairings`, which interact with the `storage` layer to create `pairing` and `match` records.
 
 ### 2.4. `shared/schema.ts`
 
-This file defines the database schema using Drizzle ORM. It also defines Zod schemas for validating data.
+This file serves as the single source of truth for both database schema definition and API data validation, ensuring type safety and consistency across the full stack.
+
+**Drizzle ORM Schemas**: These define the structure of the PostgreSQL database tables.
 
 ```typescript
 import { pgTable, text, serial, integer, boolean, timestamp } from "drizzle-orm/pg-core";
@@ -126,20 +148,60 @@ import { z } from "zod";
 
 // users table
 export const users = pgTable("users", {
-  id: serial("id").primaryKey(),
-  username: text("username").notNull().unique(),
-  // ... other columns
+  id: serial("id").primaryKey(), // 'serial' for auto-incrementing integer primary key
+  username: text("username").notNull().unique(), // 'text' for string, must be unique and not null
+  email: text("email").notNull().unique(), // Email field, unique and required
+  hashedPassword: text("hashed_password").notNull(), // Stores the bcrypt-hashed password
+  role: text("role").notNull().default("player"), // User role, e.g., 'player', 'tournament_director'
+  createdAt: timestamp("created_at").defaultNow().notNull(), // Timestamp for creation, defaults to now
+  // ... other columns relevant to a user
 });
 
-// Zod schema for user registration
-export const registerSchema = z.object({
-  username: z.string().min(3).max(50),
-  email: z.string().email(),
-  password: z.string().min(6),
-  // ... other fields
+// tournaments table
+export const tournaments = pgTable("tournaments", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  format: text("format").notNull(), // e.g., 'swiss', 'roundrobin'
+  status: text("status").notNull().default("registration"), // e.g., 'registration', 'active', 'completed'
+  directorId: integer("director_id").notNull().references(() => users.id), // Foreign key to users table
+  // ... other columns
 });
 ```
 
+**Zod Validation Schemas**: These are used for runtime validation of API request bodies, query parameters, and other data inputs. `drizzle-zod` allows for easy generation of Zod schemas directly from Drizzle schemas, reducing duplication and potential for inconsistencies.
+
+```typescript
+// Zod schema for user registration, derived manually for specific input validation
+export const registerSchema = z.object({
+  username: z.string().min(3, "Username must be at least 3 characters").max(50, "Username must be at most 50 characters"),
+  email: z.string().email("Invalid email address"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+});
+
+// Zod schema for tournament creation, often derived from Drizzle schema for consistency
+export const insertTournamentSchema = createInsertSchema(tournaments, {
+  name: z.string().min(1, "Tournament name cannot be empty"),
+  format: z.enum(["swiss", "roundrobin"], { message: "Invalid tournament format" }),
+  // directorId is typically inferred from the authenticated user, not provided by client
+}).omit({ id: true, directorId: true, createdAt: true });
+
+// Example of how a Zod schema is used in an Express route:
+/*
+import { registerSchema } from "@/shared/schema";
+
+app.post("/api/auth/register", async (req, res) => {
+  try {
+    const userData = registerSchema.parse(req.body); // Zod validation
+    // ... further processing with validated userData
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ issues: error.flatten() });
+    }
+    // ...
+  }
+});
+*/
+```
 ### 2.5. `client/src/App.tsx`
 
 This is the main component of the frontend application. It sets up the routing and authentication.

@@ -1796,6 +1796,22 @@ ${(config as any).organizerInfo}` : ""}
         return acc;
       }, {} as Record<string, Player[]>);
 
+      // Pre-calculate total matches for board numbering
+      let totalMatches = 0;
+      for (const sectionKey in playersBySection) {
+        const sectionPlayers = playersBySection[sectionKey];
+        if (sectionPlayers.length < 1) continue;
+        if (tournament.format === 'swiss') {
+          totalMatches += Math.floor(sectionPlayers.length / 2);
+          if (sectionPlayers.length % 2 === 1) {
+            totalMatches++;
+          }
+        }
+      }
+
+      const allBoardNumbers = generateBoardNumberSequence(tournament.boardNumberingSettings, totalMatches);
+      let boardNumberOffset = 0;
+
       // Generate pairings for each section
       for (const sectionKey in playersBySection) {
         const sectionPlayers = playersBySection[sectionKey];
@@ -1854,7 +1870,10 @@ ${(config as any).organizerInfo}` : ""}
             }
           }
         } else if (sectionPlayers.length >= 1) {
-          await generatePairings(tournament, sectionPlayers, [], [], 1);
+          const numSectionMatches = Math.floor(sectionPlayers.length / 2) + (sectionPlayers.length % 2);
+          const boardNumbersForSection = allBoardNumbers.slice(boardNumberOffset, boardNumberOffset + numSectionMatches);
+          boardNumberOffset += numSectionMatches;
+          await generatePairings(tournament, sectionPlayers, [], [], 1, boardNumbersForSection);
         }
       }
 
@@ -1985,7 +2004,7 @@ ${(config as any).organizerInfo}` : ""}
             acc[sectionKey].push(match);
           }
           return acc;
-        }, {} as Record<string, Match[]>);
+        }, {} as Record<string, any[]>);
 
         const pairingsBySection = pairings.reduce((acc, pairing) => {
           const player = playerMap.get(pairing.playerId);
@@ -1997,15 +2016,39 @@ ${(config as any).organizerInfo}` : ""}
             acc[sectionKey].push(pairing);
           }
           return acc;
-        }, {} as Record<string, Pairing[]>);
+        }, {} as Record<string, any[]>);
+
+        // Pre-calculate total matches for board numbering
+        let totalMatches = 0;
+        for (const sectionKey in playersBySection) {
+          const sectionPlayers = playersBySection[sectionKey];
+          const sectionPairings = pairingsBySection[sectionKey] || [];
+          const isWithdrawn = (playerId: number) => sectionPairings.some(p => p.playerId === playerId && p.isBye && p.byeType === 'zero_point' && p.round < nextRound);
+          const activePlayers = sectionPlayers.filter(p => !isWithdrawn(p.id));
+          if (activePlayers.length < 1) continue;
+
+          totalMatches += Math.floor(activePlayers.length / 2);
+          if (activePlayers.length % 2 === 1) {
+            totalMatches++;
+          }
+        }
+
+        const allBoardNumbers = generateBoardNumberSequence(tournament.boardNumberingSettings, totalMatches);
+        let boardNumberOffset = 0;
 
         for (const sectionKey in playersBySection) {
           const sectionPlayers = playersBySection[sectionKey];
           const sectionMatches = matchesBySection[sectionKey] || [];
           const sectionPairings = pairingsBySection[sectionKey] || [];
-          if (sectionPlayers.length >= 1) {
-            await generatePairings(tournament, sectionPlayers, sectionMatches, sectionPairings, nextRound);
-          }
+          const isWithdrawn = (playerId: number) => sectionPairings.some(p => p.playerId === playerId && p.isBye && p.byeType === 'zero_point' && p.round < nextRound);
+          const activePlayers = sectionPlayers.filter(p => !isWithdrawn(p.id));
+          if (activePlayers.length < 1) continue;
+
+          const numSectionMatches = Math.floor(activePlayers.length / 2) + (activePlayers.length % 2);
+          const boardNumbersForSection = allBoardNumbers.slice(boardNumberOffset, boardNumberOffset + numSectionMatches);
+          boardNumberOffset += numSectionMatches;
+
+          await generatePairings(tournament, activePlayers, sectionMatches, sectionPairings, nextRound, boardNumbersForSection);
         }
       }
       
@@ -3049,6 +3092,8 @@ ${(config as any).organizerInfo}` : ""}
     }
   });
 
+
+
   // Pairing routes
   app.get("/api/tournaments/:tournamentId/pairings", async (req, res) => {
     try {
@@ -3205,7 +3250,7 @@ ${(config as any).organizerInfo}` : ""}
                   acc[sectionKey].push(match);
                 }
                 return acc;
-              }, {} as Record<string, Match[]>);
+              }, {} as Record<string, any[]>);
         
               const pairingsBySection = allPairings.reduce((acc, pairing) => {
                 const player = playerMap.get(pairing.playerId);
@@ -3215,14 +3260,38 @@ ${(config as any).organizerInfo}` : ""}
                   acc[sectionKey].push(pairing);
                 }
                 return acc;
-              }, {} as Record<string, Pairing[]>);
+              }, {} as Record<string, any[]>);
         
               const finalResults = {
                 pairings: [] as any[],
                 matches: [] as any[],
                 message: "Pairings generated successfully for all sections.",
               };
+
+              let currentRound: number;
+              if (regenerate && targetRound) {
+                currentRound = targetRound;
+              } else {
+                currentRound = (tournament.currentRound || 0) + 1;
+              }
         
+              // Pre-calculate total matches for board numbering
+              let totalMatches = 0;
+              for (const sectionKey in playersBySection) {
+                  const sectionPlayers = playersBySection[sectionKey];
+                  const sectionPairings = pairingsBySection[sectionKey] || [];
+                  const isWithdrawn = (playerId: number) => sectionPairings.some(p => p.playerId === playerId && p.isBye && p.byeType === 'zero_point' && p.round < currentRound);
+                  const activePlayers = sectionPlayers.filter(p => !isWithdrawn(p.id));
+                  if (activePlayers.length < 2) continue;
+                  totalMatches += Math.floor(activePlayers.length / 2);
+                  if (activePlayers.length % 2 === 1) {
+                      totalMatches++;
+                  }
+              }
+
+              const allBoardNumbers = generateBoardNumberSequence(tournament.boardNumberingSettings, totalMatches);
+              let boardNumberOffset = 0;
+
               for (const sectionKey in playersBySection) {
                 const sectionPlayers = playersBySection[sectionKey];
                 const sectionMatches = matchesBySection[sectionKey] || [];
@@ -3230,26 +3299,24 @@ ${(config as any).organizerInfo}` : ""}
         
                 if (sectionPlayers.length < 2) continue;
         
-                let currentRound: number;
                 if (regenerate && targetRound) {
-                  currentRound = targetRound;
                   const futureMatches = sectionMatches.filter(m => m.round >= currentRound);
                   const futurePairings = sectionPairings.filter(p => p.round >= currentRound);
                   
                   for (const match of futureMatches) { await storage.deleteMatch(match.id); }
                   for (const pairing of futurePairings) { await storage.deletePairing(pairing.id); }
-                } else {
-                  currentRound = (tournament.currentRound || 0) + 1;
                 }
         
-                const isWithdrawn = (playerId: number, allSectionPairings: Pairing[]) => {
-                  return allSectionPairings.some(p => p.playerId === playerId && p.isBye && p.byeType === 'zero_point' && p.round < currentRound);
-                };
+                const isWithdrawn = (playerId: number) => sectionPairings.some(p => p.playerId === playerId && p.isBye && p.byeType === 'zero_point' && p.round < currentRound);
                 
-                const activePlayers = sectionPlayers.filter(p => !isWithdrawn(p.id, sectionPairings));
+                const activePlayers = sectionPlayers.filter(p => !isWithdrawn(p.id));
                 const matchesForPairing = sectionMatches.filter(m => m.round < currentRound);
+
+                const numSectionMatches = Math.floor(activePlayers.length / 2) + (activePlayers.length % 2);
+                const boardNumbersForSection = allBoardNumbers.slice(boardNumberOffset, boardNumberOffset + numSectionMatches);
+                boardNumberOffset += numSectionMatches;
         
-                const swissPairings = await generateSwissPairings(activePlayers, matchesForPairing, currentRound, sectionPairings);
+                const swissPairings = await generateSwissPairings(tournament, activePlayers, matchesForPairing, currentRound, sectionPairings, boardNumbersForSection);
         
                 for (const pairing of swissPairings) {
                   if (pairing.isBye) {
@@ -3273,7 +3340,7 @@ ${(config as any).organizerInfo}` : ""}
                 }
               }
               
-              await storage.updateTournament(tournamentId, { currentRound: (tournament.currentRound || 0) + 1 });
+              await storage.updateTournament(tournamentId, { currentRound: currentRound });
               res.json(finalResults);
         
             } catch (error) {
@@ -3331,115 +3398,116 @@ ${(config as any).organizerInfo}` : ""}
         
         if (fromRound <= maxExistingRound + 1) {
           // Generate the requested round (could be next round or replacing existing rounds)
-          console.log(`Generating Round ${fromRound}. MaxExisting: ${maxExistingRound}, Requested: ${fromRound}`);
+                  
+                  console.log(`Generating Round ${fromRound}. MaxExisting: ${maxExistingRound}, Requested: ${fromRound}`);
+                    
+                    const baseMatches = existingMatches; // Use all existing matches for pairing
+                    const swissPairings = await generateSwissPairings(tournament, players, baseMatches, fromRound);
+                    
+                    let allNewPairings = [];
+                    let allNewMatches = [];
+                    
+                    // Save matches and pairings for the new round
+                    for (const pairing of swissPairings) {
+                      // Create match
+                      const match = await storage.createMatch({
+                        tournamentId,
+                        round: fromRound,
+                        board: pairing.board,
+                        whitePlayerId: pairing.whitePlayerId,
+                        blackPlayerId: pairing.blackPlayerId || null,
+                        result: null,
+                        status: 'pending'
+                      });
+                      allNewMatches.push(match);
           
-          const baseMatches = existingMatches; // Use all existing matches for pairing
-          const swissPairings = await generateSwissPairings(players, baseMatches, fromRound);
+                      // Create pairings for both players
+                      if (pairing.whitePlayerId) {
+                        const whitePairing = await storage.createPairing({
+                          tournamentId,
+                          round: fromRound,
+                          playerId: pairing.whitePlayerId,
+                          opponentId: pairing.blackPlayerId || null,
+                          color: 'white',
+                          points: pairing.isBye ? (pairing.byeType === 'full_point' ? 2 : 1) : 0,
+                          isBye: pairing.isBye || false,
+                          byeType: pairing.byeType || null,
+                          isRequested: pairing.isRequested || false,
+                        });
+                        allNewPairings.push(whitePairing);
+                      }
           
-          let allNewPairings = [];
-          let allNewMatches = [];
+                      if (pairing.blackPlayerId) {
+                        const blackPairing = await storage.createPairing({
+                          tournamentId,
+                          round: fromRound,
+                          playerId: pairing.blackPlayerId,
+                          opponentId: pairing.whitePlayerId,
+                          color: 'black',
+                          points: 0,
+                          isBye: false,
+                          byeType: null,
+                          isRequested: false,
+                        });
+                        allNewPairings.push(blackPairing);
+                      }
+                    }
+                    
+                    console.log(`Generated Round ${fromRound} with ${allNewMatches.length} matches and ${allNewPairings.length} pairings`);
+                    
+                    return res.json({ 
+                      message: `Generated Round ${fromRound} successfully`,
+                      roundsAffected: 1,
+                      roundsRegenerated: [fromRound],
+                      matchesCreated: allNewMatches.length,
+                      pairingsCreated: allNewPairings.length
+                    });
+                  }
+                  
+                  console.log(`=== REGENERATION FAILED - No rounds generated ===`);
+                  console.log(`MaxExisting: ${maxExistingRound}, FromRound: ${fromRound}, Condition: ${fromRound} <= ${maxExistingRound + 1} = ${fromRound <= maxExistingRound + 1}`);
+                  return res.status(200).json({ 
+                    message: "No future rounds found to regenerate",
+                    roundsAffected: 0,
+                    roundsRegenerated: [],
+                    matchesCreated: 0,
+                    pairingsCreated: 0
+                  });
+                }
           
-          // Save matches and pairings for the new round
-          for (const pairing of swissPairings) {
-            // Create match
-            const match = await storage.createMatch({
-              tournamentId,
-              round: fromRound,
-              board: pairing.board,
-              whitePlayerId: pairing.whitePlayerId,
-              blackPlayerId: pairing.blackPlayerId || null,
-              result: null,
-              status: 'pending'
-            });
-            allNewMatches.push(match);
-
-            // Create pairings for both players
-            if (pairing.whitePlayerId) {
-              const whitePairing = await storage.createPairing({
-                tournamentId,
-                round: fromRound,
-                playerId: pairing.whitePlayerId,
-                opponentId: pairing.blackPlayerId || null,
-                color: 'white',
-                points: pairing.isBye ? (pairing.byeType === 'full_point' ? 2 : 1) : 0,
-                isBye: pairing.isBye || false,
-                byeType: pairing.byeType || null,
-                isRequested: pairing.isRequested || false,
-              });
-              allNewPairings.push(whitePairing);
-            }
-
-            if (pairing.blackPlayerId) {
-              const blackPairing = await storage.createPairing({
-                tournamentId,
-                round: fromRound,
-                playerId: pairing.blackPlayerId,
-                opponentId: pairing.whitePlayerId,
-                color: 'black',
-                points: 0,
-                isBye: false,
-                byeType: null,
-                isRequested: false,
-              });
-              allNewPairings.push(blackPairing);
-            }
-          }
+                // Clear all future rounds
+                for (const round of roundsToRegenerate) {
+                  console.log(`Clearing round ${round}...`);
+                  await storage.deletePairingsByRound(tournamentId, round);
+                  await storage.deleteMatchesByRound(tournamentId, round);
+                }
           
-          console.log(`Generated Round ${fromRound} with ${allNewMatches.length} matches and ${allNewPairings.length} pairings`);
-          
-          return res.json({ 
-            message: `Generated Round ${fromRound} successfully`,
-            roundsAffected: 1,
-            roundsRegenerated: [fromRound],
-            matchesCreated: allNewMatches.length,
-            pairingsCreated: allNewPairings.length
-          });
-        }
-        
-        console.log(`=== REGENERATION FAILED - No rounds generated ===`);
-        console.log(`MaxExisting: ${maxExistingRound}, FromRound: ${fromRound}, Condition: ${fromRound} <= ${maxExistingRound + 1} = ${fromRound <= maxExistingRound + 1}`);
-        return res.status(200).json({ 
-          message: "No future rounds found to regenerate",
-          roundsAffected: 0,
-          roundsRegenerated: [],
-          matchesCreated: 0,
-          pairingsCreated: 0
-        });
-      }
-
-      // Clear all future rounds
-      for (const round of roundsToRegenerate) {
-        console.log(`Clearing round ${round}...`);
-        await storage.deletePairingsByRound(tournamentId, round);
-        await storage.deleteMatchesByRound(tournamentId, round);
-      }
-
-      // Get matches up to the last completed round (before fromRound)
-      const baseMatches = existingMatches.filter(m => m.round < fromRound);
-      
-      // Regenerate each round sequentially
-      let allNewPairings = [];
-      let allNewMatches = [];
-      
-      for (const round of roundsToRegenerate) {
-        console.log(`Regenerating round ${round}...`);
-        
-        // Use all previous matches (base + already regenerated) for pairing calculation
-        const matchesForPairing = [...baseMatches, ...allNewMatches];
-        const swissPairings = await generateSwissPairings(players, matchesForPairing, round);
-        
-        // Save matches and pairings for this round
-        for (const pairing of swissPairings) {
-          // Create match
-          const match = await storage.createMatch({
-            tournamentId,
-            round,
-            board: pairing.board,
-            whitePlayerId: pairing.whitePlayerId,
-            blackPlayerId: pairing.blackPlayerId || null,
-            result: null,
-            status: 'pending'
-          });
+                // Get matches up to the last completed round (before fromRound)
+                const baseMatches = existingMatches.filter(m => m.round < fromRound);
+                
+                // Regenerate each round sequentially
+                let allNewPairings = [];
+                let allNewMatches = [];
+                
+                for (const round of roundsToRegenerate) {
+                  console.log(`Regenerating round ${round}...`);
+                  
+                  // Use all previous matches (base + already regenerated) for pairing calculation
+                  const matchesForPairing = [...baseMatches, ...allNewMatches];
+                  const swissPairings = await generateSwissPairings(tournament, players, matchesForPairing, round);
+                  
+                  // Save matches and pairings for this round
+                  for (const pairing of swissPairings) {
+                    // Create match
+                    const match = await storage.createMatch({
+                      tournamentId,
+                      round,
+                      board: pairing.board,
+                      whitePlayerId: pairing.whitePlayerId,
+                      blackPlayerId: pairing.blackPlayerId || null,
+                      result: null,
+                      status: 'pending'
+                    });
           allNewMatches.push(match);
 
           // Create pairings for both players
@@ -3620,12 +3688,12 @@ ${(config as any).organizerInfo}` : ""}
   return httpServer;
 }
 
-async function generatePairings(tournament: any, players: any[], matches: any[], existingPairings: any[], round: number) {
+async function generatePairings(tournament: any, players: any[], matches: any[], existingPairings: any[], round: number, boardNumbers?: number[]) {
   const pairings = [];
   
   if (tournament.format === 'swiss') {
     // Use proper Swiss pairing algorithm
-    const swissPairings = await generateSwissPairings(players, matches, round, existingPairings);
+    const swissPairings = await generateSwissPairings(tournament, players, matches, round, existingPairings, boardNumbers);
     
     // Convert to our pairing format
     for (const pairing of swissPairings) {
@@ -3827,7 +3895,7 @@ function determineSwissColors(player1: any, player2: any): { whitePlayer: any, b
   }
 }
 
-async function generateSwissPairings(players: any[], matches: any[], round: number, existingPairings: any[] = []) {
+async function generateSwissPairings(tournament: any, players: any[], matches: any[], round: number, existingPairings: any[] = [], boardNumbers?: number[]) {
   console.log(`=== CLEAN SWISS PAIRING: ROUND ${round} ===`);
   const pairings: any[] = [];
   
@@ -3860,11 +3928,11 @@ async function generateSwissPairings(players: any[], matches: any[], round: numb
     const sortedPlayers = [...activePlayers].sort((a, b) => (b.rating || 0) - (a.rating || 0));
     const isOdd = sortedPlayers.length % 2 === 1;
     const numPairs = Math.floor(sortedPlayers.length / 2);
+    const resolvedBoardNumbers = boardNumbers ?? generateBoardNumberSequence(tournament.boardNumberingSettings, numPairs + (isOdd ? 1 : 0));
     
     const upperHalf = sortedPlayers.slice(0, numPairs);
     const lowerHalf = sortedPlayers.slice(numPairs, isOdd ? -1 : sortedPlayers.length);
     
-    let boardNumber = 1;
     const firstBoardWhiteIsUpper = Math.random() < 0.5;
     
     for (let i = 0; i < upperHalf.length && i < lowerHalf.length; i++) {
@@ -3875,7 +3943,7 @@ async function generateSwissPairings(players: any[], matches: any[], round: numb
       pairings.push({
         whitePlayerId: upperPlayerIsWhite ? upperPlayer.id : lowerPlayer.id,
         blackPlayerId: upperPlayerIsWhite ? lowerPlayer.id : upperPlayer.id,
-        board: boardNumber++,
+        board: resolvedBoardNumbers[i],
         isBye: false,
       });
     }
@@ -3886,7 +3954,7 @@ async function generateSwissPairings(players: any[], matches: any[], round: numb
       pairings.push({
         whitePlayerId: byePlayer.id,
         blackPlayerId: null,
-        board: boardNumber++,
+        board: resolvedBoardNumbers[numPairs],
         isBye: false, // Not a bye - it's a pairing with "See T.D."
         opponentName: "See T.D.",
       });
@@ -4023,14 +4091,15 @@ async function generateSwissPairings(players: any[], matches: any[], round: numb
       
       // Sort by combined points (highest first) for proper board ordering
       round3Pairings.sort((a, b) => b.combined - a.combined);
+      const resolvedBoardNumbers = boardNumbers ?? generateBoardNumberSequence(tournament.boardNumberingSettings, round3Pairings.length);
       
-      let boardNum = 1;
-      for (const pairing of round3Pairings) {
+      for (let i = 0; i < round3Pairings.length; i++) {
+        const pairing = round3Pairings[i];
         const colors = assignColors(pairing.p1, pairing.p2);
         pairings.push({
           whitePlayerId: colors.whitePlayer.id,
           blackPlayerId: colors.blackPlayer.id,
-          board: boardNum++,
+          board: resolvedBoardNumbers[i],
           isBye: false,
         });
       }
@@ -4122,13 +4191,14 @@ async function generateSwissPairings(players: any[], matches: any[], round: numb
       
       // Sort pairings by combined points and assign board numbers
       tempPairings.sort((a, b) => b.combined - a.combined);
-      let boardNum = 1;
-      for (const pairing of tempPairings) {
+      const resolvedBoardNumbers = boardNumbers ?? generateBoardNumberSequence(tournament.boardNumberingSettings, tempPairings.length + (seeTableDirectorPlayer ? 1 : 0));
+      for (let i = 0; i < tempPairings.length; i++) {
+        const pairing = tempPairings[i];
         const colors = assignColors(pairing.p1, pairing.p2);
         pairings.push({
           whitePlayerId: colors.whitePlayer.id,
           blackPlayerId: colors.blackPlayer.id,
-          board: boardNum++,
+          board: resolvedBoardNumbers[i],
           isBye: false,
         });
       }
@@ -4138,7 +4208,7 @@ async function generateSwissPairings(players: any[], matches: any[], round: numb
         pairings.push({
           whitePlayerId: seeTableDirectorPlayer.player.id,
           blackPlayerId: null,
-          board: boardNum++,
+          board: resolvedBoardNumbers[tempPairings.length],
           isBye: false, // Not a bye - it's a pairing with "See T.D."
           opponentName: "See T.D.",
         });
@@ -4147,5 +4217,48 @@ async function generateSwissPairings(players: any[], matches: any[], round: numb
   }
   
   return pairings;
+}
+
+// ============== BOARD NUMBERING ==============
+
+type BoardNumberingSettings = {
+  start?: number;
+  increment?: number;
+  gaps?: { afterBoard: number; skip: number }[];
+  customSequence?: number[];
+};
+
+function generateBoardNumberSequence(
+  settings: BoardNumberingSettings | null | undefined,
+  count: number,
+): number[] {
+  if (!settings) {
+    // Default: 1, 2, 3, ...
+    return Array.from({ length: count }, (_, i) => i + 1);
+  }
+
+  if (settings.customSequence && settings.customSequence.length > 0) {
+    return settings.customSequence.slice(0, count);
+  }
+
+  const sequence: number[] = [];
+  let currentBoard = settings.start ?? 1;
+  const increment = settings.increment ?? 1;
+  const gaps = settings.gaps ? [...settings.gaps].sort((a, b) => a.afterBoard - b.afterBoard) : [];
+
+  while (sequence.length < count) {
+    sequence.push(currentBoard);
+
+    // Apply gap if needed
+    const applicableGap = gaps.find((g) => g.afterBoard === currentBoard);
+    if (applicableGap) {
+      currentBoard += applicableGap.skip;
+    }
+
+    // Increment for the next board
+    currentBoard += increment;
+  }
+
+  return sequence;
 }
 

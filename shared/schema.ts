@@ -68,6 +68,7 @@ export const tournaments = pgTable("tournaments", {
   allowOnlineRegistration: boolean("allow_online_registration").default(false),
   enablePairingPredictor: boolean("enable_pairing_predictor").default(false),
   chessResultsUrl: text("chess_results_url"),
+  boardNumberingSettings: jsonb("board_numbering_settings"),
   createdBy: integer("created_by").notNull(), // User ID of tournament director
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
