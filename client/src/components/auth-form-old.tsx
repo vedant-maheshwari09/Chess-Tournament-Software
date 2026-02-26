@@ -82,7 +82,7 @@ export default function AuthForm() {
 
   const resetPasswordForm = useForm<ResetPasswordData>({
     resolver: zodResolver(resetPasswordSchema),
-    defaultValues: { token: "", newPassword: "" },
+    defaultValues: { email: "", code: "", newPassword: "" },
   });
 
   // Forgot password mutation
@@ -99,10 +99,11 @@ export default function AuthForm() {
         description: data.message,
       });
       // For demo purposes only - show the reset token
-      if (data.resetToken) {
+      if (data.resetToken) { // This should ideally be 'data.code'
         setResetToken(data.resetToken);
         setAuthMode('reset-password');
-        resetPasswordForm.setValue('token', data.resetToken);
+        resetPasswordForm.setValue('code', data.resetToken);
+        resetPasswordForm.setValue('email', forgotPasswordForm.getValues('email'));
       }
     },
     onError: (error) => {

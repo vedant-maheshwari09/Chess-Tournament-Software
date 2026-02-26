@@ -2136,7 +2136,7 @@ ${(config as any).organizerInfo}` : ""}
 
         const config = parseTournamentConfig(tournament);
         const result = await syncChessResults({ storage, tournament, config, reason: "manual" });
-        updateChessResultsScheduler(storage, tournament.id, result.config);
+        await updateChessResultsScheduler(storage, tournament.id, result.config);
 
         if (!result.success) {
           return res.status(result.status).json({ message: result.message, config: result.config });
