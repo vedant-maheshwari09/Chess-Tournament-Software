@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Eye, EyeOff, Check, X, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -68,6 +68,7 @@ export default function AuthForm() {
   
   const { login, register, isLoggingIn, isRegistering } = useAuth();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const loginForm = useForm<LoginData>({
     resolver: zodResolver(loginSchema),
@@ -346,12 +347,8 @@ export default function AuthForm() {
     onSuccess: (data) => {
       if (data.token) {
         localStorage.setItem("auth_token", data.token);
-        // Force a query invalidation to ensure user data is fetched immediately
-        // The useAuth hook will then update the user state and cause a re-render
-        // triggering the redirect in App.tsx
-        login(data as any).then(() => {
-          setLocation("/dashboard");
-        });
+        // Invalidate queries to refetch user data, which will trigger redirect
+        queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
       } else {
         // Fallback if no token (shouldn't happen with updated API)
         setAuthMode('login');
