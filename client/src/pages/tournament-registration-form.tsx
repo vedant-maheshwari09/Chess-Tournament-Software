@@ -287,6 +287,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
   };
 
   const [playerDrafts, setPlayerDrafts] = useState<PlayerDraft[]>([]);
+  const [editingDraftId, setEditingDraftId] = useState<string | null>(null);
   const stripePromise = useMemo(() => {
     if (!paymentsConfigResponse?.publishableKey) {
       return null;
@@ -486,6 +487,56 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
     paymentSubmitRef.current = fn;
   }, []);
 
+  const groupRegisterMutation = useMutation({
+    mutationFn: async (players: RegistrationFormValues[]) => {
+      for (const values of players) {
+        const payload = {
+          playerName: `${values.firstName} ${values.lastName}`.trim(),
+          uscfRating: Number.isFinite(Number(values.uscfRating)) ? Number(values.uscfRating) : undefined,
+          sectionChoice: values.sectionChoice,
+          phoneNumber: values.phoneNumber,
+          email: values.email,
+          arrivalTime: buildArrivalNotes(values, entryFees),
+          entryFeeId: values.entryFeeId,
+          processingContribution: parseContribution(values.processingContribution),
+          paymentIntentId: values.paymentIntentId,
+          paymentStatus: values.paymentStatus,
+          paymentReceiptUrl: values.paymentReceiptUrl,
+          paymentMethod: values.paymentMethod,
+          currency: values.currency,
+          amountDue: typeof values.amountDue === "number" ? values.amountDue : undefined,
+          amountPaid: typeof values.amountPaid === "number" ? values.amountPaid : undefined,
+        };
+
+        await apiRequest(`/api/tournaments/${tournamentId}/register`, {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+      }
+    },
+    onSuccess: () => {
+      toast({
+        title: "Registrations submitted",
+        description: "Your registration requests have been sent to the tournament director.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/my-registrations"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/players`] });
+      setPlayerDrafts([]);
+      setEditingDraftId(null);
+      paymentSubmitRef.current = null;
+      setClientSecret(null);
+      paymentIntentRequestKeyRef.current = null;
+      setCurrentStep(3);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Registration failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleFinalSubmit = useCallback(async () => {
     const valid = await form.trigger(undefined, { shouldFocus: true });
     if (!valid) {
@@ -498,8 +549,24 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
       }
     }
     const values = form.getValues();
+    if (multiPlayerAllowed && !requiresPayment && playerDrafts.length > 0) {
+      const list = playerDrafts.map((entry) => entry.values);
+      if (editingDraftId) {
+        const index = playerDrafts.findIndex((entry) => entry.id === editingDraftId);
+        if (index >= 0) {
+          list[index] = values;
+        } else {
+          list.push(values);
+        }
+      } else {
+        list.push(values);
+      }
+      groupRegisterMutation.mutate(list);
+      return;
+    }
+
     registerMutation.mutate(values);
-  }, [form, registerMutation]);
+  }, [editingDraftId, form, groupRegisterMutation, multiPlayerAllowed, playerDrafts, registerMutation, requiresPayment]);
 
   const paymentIntentErrorMessage = createPaymentIntent.error
     ? createPaymentIntent.error instanceof Error
@@ -507,7 +574,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
       : "Unable to prepare payment session"
     : null;
 
-  const submitButtonLabel = registerMutation.isPending
+  const submitButtonLabel = registerMutation.isPending || groupRegisterMutation.isPending
     ? "Submitting..."
     : isPaymentBusy
     ? "Processing payment..."
@@ -517,6 +584,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
 
   const disableSubmitButton =
     registerMutation.isPending ||
+    groupRegisterMutation.isPending ||
     isPaymentBusy ||
     (requiresPayment && canProcessOnline && (!clientSecret || createPaymentIntent.isPending || !isPaymentElementReady));
 
@@ -714,12 +782,18 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
     }
 
     const currentValues = form.getValues();
-    const draftId =
-      typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
-        ? crypto.randomUUID()
-        : `player-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-
-    setPlayerDrafts((prev) => [...prev, { id: draftId, values: currentValues }]);
+    if (editingDraftId) {
+      setPlayerDrafts((prev) =>
+        prev.map((entry) => (entry.id === editingDraftId ? { ...entry, values: currentValues } : entry)),
+      );
+      setEditingDraftId(null);
+    } else {
+      const draftId =
+        typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+          ? crypto.randomUUID()
+          : `player-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      setPlayerDrafts((prev) => [...prev, { id: draftId, values: currentValues }]);
+    }
 
     // Reset for the next player, keeping some sensible defaults like email
     form.reset({
@@ -751,16 +825,22 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
   const handleEditDraft = (draftId: string) => {
     const draft = playerDrafts.find((entry) => entry.id === draftId);
     if (!draft) return;
-    setPlayerDrafts((prev) => prev.filter((entry) => entry.id !== draftId));
+    setEditingDraftId(draftId);
     form.reset(draft.values);
     setCurrentStep(1);
   };
 
   const handleRemoveDraft = (draftId: string) => {
+    if (editingDraftId === draftId) {
+      setEditingDraftId(null);
+    }
     setPlayerDrafts((prev) => prev.filter((entry) => entry.id !== draftId));
   };
 
   const allDraftValues: RegistrationFormValues[] = playerDrafts.map((entry) => entry.values);
+  const currentPlayerLabel =
+    `${form.getValues("firstName") ?? ""} ${form.getValues("lastName") ?? ""}`.trim() || "Current player";
+  const currentPlayerSection = form.getValues("sectionChoice") || "Not selected";
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-white">
@@ -869,7 +949,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
       <div className="mx-auto max-w-6xl space-y-12 px-4 py-12 sm:px-6 lg:px-8">
         <FormProvider {...form}>
           <form onSubmit={(event) => event.preventDefault()} className="space-y-10">
-            {multiPlayerAllowed && !requiresPayment && allDraftValues.length > 0 && (
+            {multiPlayerAllowed && !requiresPayment && (allDraftValues.length > 0 || currentStep > 1) && (
               <Card className="border-0 bg-white/90 shadow-xl ring-1 ring-indigo-100/70 backdrop-blur">
                 <CardHeader className="border-b border-indigo-100/70 bg-gradient-to-r from-indigo-50/80 to-white">
                   <CardTitle>Players in this registration</CardTitle>
@@ -887,13 +967,22 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
                       const contribution = parseContribution(values.processingContribution);
                       const totals = computePaymentTotals(entryFee, contribution, paymentSettings);
 
+                      const isEditing = editingDraftId === entry.id;
+
                       return (
                         <div
                           key={entry.id}
                           className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white/80 px-3 py-2"
                         >
                           <div className="space-y-1">
-                            <p className="font-medium text-slate-900">{name}</p>
+                            <p className="font-medium text-slate-900">
+                              {name}
+                              {isEditing && (
+                                <span className="ml-2 text-xs font-semibold text-indigo-600">
+                                  Editing
+                                </span>
+                              )}
+                            </p>
                             <p className="text-xs text-slate-500">
                               Section: {values.sectionChoice || "Not selected"}
                               {entryFee && ` · ${entryFee.section}`}
@@ -910,6 +999,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
                               variant="outline"
                               size="sm"
                               onClick={() => handleEditDraft(entry.id)}
+                              disabled={isEditing}
                             >
                               Edit
                             </Button>
@@ -925,6 +1015,19 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
                         </div>
                       );
                     })}
+
+                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed border-slate-200 bg-white/70 px-3 py-2">
+                      <div className="space-y-1">
+                        <p className="font-medium text-slate-900">
+                          {currentPlayerLabel}
+                          <span className="ml-2 text-xs font-semibold text-slate-500">In progress</span>
+                        </p>
+                        <p className="text-xs text-slate-500">Section: {currentPlayerSection}</p>
+                      </div>
+                      <span className="text-sm font-semibold text-indigo-700">
+                        {formatCurrency(paymentTotals.total, paymentTotals.currency)}
+                      </span>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
