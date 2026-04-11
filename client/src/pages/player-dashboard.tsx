@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import SettingsMenu from "@/components/settings-menu";
-import { Breadcrumbs } from "@/components/breadcrumbs";
+
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import type { Tournament, Player, PlayerRegistration as PlayerRegistrationType, TournamentStar } from "@shared/schema";
@@ -321,24 +321,6 @@ export default function PlayerDashboard() {
     const isStarred = starredIds.has(tournament.id);
     const isPendingStar = pendingStarId === tournament.id && toggleStar.isPending;
 
-    let registerLabel = "Register Now";
-    let registerDisabled = tournament.status !== "upcoming";
-
-    if (registration) {
-      if (registration.status === "approved") {
-        registerLabel = "Registered";
-        registerDisabled = true;
-      } else if (registration.status === "pending") {
-        registerLabel = "Pending Approval";
-        registerDisabled = true;
-      } else if (registration.status === "declined") {
-        registerLabel = "Registration Declined";
-        registerDisabled = true;
-      }
-    } else if (tournament.status !== "upcoming") {
-      registerLabel = "Registration Closed";
-    }
-
     const rowClass = isStarred
       ? "border-b border-slate-200 bg-blue-50/60 transition last:border-b-0 hover:bg-blue-100/60 dark:bg-blue-900/20 dark:hover:bg-blue-900/30"
       : "border-b border-slate-200 bg-white transition last:border-b-0 hover:bg-slate-50 dark:bg-slate-800/60 dark:hover:bg-slate-700/60";
@@ -398,15 +380,6 @@ export default function PlayerDashboard() {
             View
           </Button>
         </td>
-        <td className="px-4 py-4 align-middle text-center">
-          <Button
-            size="sm"
-            disabled={registerDisabled}
-            onClick={() => setLocation(`/tournaments/${tournament.id}/register/form`)}
-          >
-            {registerLabel}
-          </Button>
-        </td>
       </tr>
     );
   };
@@ -439,7 +412,6 @@ export default function PlayerDashboard() {
                     <th className="px-4 py-3 text-center">Start Date – End Date</th>
                     <th className="px-4 py-3 text-center">Sections</th>
                     <th className="px-4 py-3 text-center">View</th>
-                    <th className="px-4 py-3 text-center">Register</th>
                   </tr>
                 </thead>
                 <tbody>{section.items.map((entry) => renderTournamentRow(entry))}</tbody>
@@ -487,7 +459,7 @@ export default function PlayerDashboard() {
       </div>
 
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-6 pb-10">
-        <Breadcrumbs steps={[]} />
+
         {tournaments.length > 0 ? (
           <div className="mb-6 flex flex-wrap items-center justify-end gap-3">
             <span className="text-sm text-slate-500">Sort by:</span>

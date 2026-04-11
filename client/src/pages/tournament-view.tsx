@@ -16,7 +16,7 @@ import { renderTournamentPageContent } from "@/lib/tournament-page";
 import type { Tournament } from "@shared/schema";
 import { useAuth } from "@/hooks/useAuth";
 import type { PlayerRegistration } from "@shared/schema";
-import { Breadcrumbs } from "@/components/breadcrumbs";
+
 
 type TabKey = "pairings" | "standings" | "byes" | "predictor" | "info";
 
@@ -109,9 +109,7 @@ export default function TournamentView({ tournamentId }: TournamentViewProps) {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="mx-auto max-w-7xl px-4 pt-6 sm:px-6 lg:px-8">
-        <Breadcrumbs steps={[{ label: tournament.name }]} />
-      </div>
+
       <div className="bg-white shadow dark:bg-gray-800">
         <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between">

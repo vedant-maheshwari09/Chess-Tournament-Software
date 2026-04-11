@@ -2487,8 +2487,8 @@ ${(config as any).organizerInfo}` : ""}
         event.type === "payment_intent.canceled"
       ) {
         const intent = event.data.object as Stripe.PaymentIntent;
-        const registration = await storage.getPlayerRegistrationByPaymentIntent(intent.id);
-        if (registration) {
+        const registrations = await storage.getPlayerRegistrationsByPaymentIntent(intent.id);
+        if (registrations && registrations.length > 0) {
           const statusMap: Record<string, PaymentStatus> = {
             succeeded: "paid",
             processing: "processing",
@@ -2499,31 +2499,34 @@ ${(config as any).organizerInfo}` : ""}
           };
 
           const mappedStatus = statusMap[intent.status] ?? "processing";
-          const fallbackAmountMinorUnits = Math.round(Number(String(registration.amountDue ?? "0")) * 100);
           const amountReceived = Number(((intent.amount_received ?? 0) / 100).toFixed(2));
-          const amountTotal = Number(
-            (((intent.amount ?? fallbackAmountMinorUnits) as number) / 100).toFixed(2),
-          );
-          const currency = intent.currency ? intent.currency.toUpperCase() : registration.currency ?? "USD";
+          const currency = intent.currency ? intent.currency.toUpperCase() : registrations[0].currency ?? "USD";
           const intentWithCharges = intent as Stripe.PaymentIntent & {
             charges?: Stripe.ApiList<Stripe.Charge>;
           };
           const latestCharge = intentWithCharges.charges?.data?.[0];
-          const notes =
-            intent.last_payment_error?.message ?? intent.cancellation_reason ?? registration.paymentNotes ?? null;
 
-          await storage.updatePlayerRegistration(registration.id, {
-            paymentStatus: mappedStatus,
-            amountPaid: amountReceived.toFixed(2),
-            amountDue: amountTotal.toFixed(2),
-            currency,
-            paymentMethod: latestCharge?.payment_method_details?.type ?? registration.paymentMethod ?? null,
-            paymentReceiptUrl: latestCharge?.receipt_url ?? registration.paymentReceiptUrl ?? null,
-            paymentNotes: notes,
-            paidAt: mappedStatus === "paid"
-              ? new Date((latestCharge?.created ?? Math.floor(Date.now() / 1000)) * 1000)
-              : null,
-          });
+          await Promise.all(registrations.map(async (registration) => {
+            const fallbackAmountMinorUnits = Math.round(Number(String(registration.amountDue ?? "0")) * 100);
+            const amountTotal = Number(
+              (((intent.amount ?? fallbackAmountMinorUnits) as number) / 100).toFixed(2),
+            );
+            const notes =
+              intent.last_payment_error?.message ?? intent.cancellation_reason ?? registration.paymentNotes ?? null;
+
+            return storage.updatePlayerRegistration(registration.id, {
+              paymentStatus: mappedStatus,
+              amountPaid: amountReceived.toFixed(2),
+              amountDue: amountTotal.toFixed(2),
+              currency,
+              paymentMethod: latestCharge?.payment_method_details?.type ?? registration.paymentMethod ?? null,
+              paymentReceiptUrl: latestCharge?.receipt_url ?? registration.paymentReceiptUrl ?? null,
+              paymentNotes: notes,
+              paidAt: mappedStatus === "paid"
+                ? new Date((latestCharge?.created ?? Math.floor(Date.now() / 1000)) * 1000)
+                : null,
+            });
+          }));
         }
       }
     } catch (error) {
@@ -2532,6 +2535,156 @@ ${(config as any).organizerInfo}` : ""}
     }
 
     res.json({ received: true });
+  });
+
+  // Create player registration batch (for multi-player cart checkout)
+  app.post("/api/tournaments/:id/register-batch", requireAuth, async (req, res) => {
+    try {
+      const tournamentId = Number.parseInt(req.params.id, 10);
+      if (!Number.isFinite(tournamentId)) {
+        return res.status(400).json({ error: "Invalid tournament id" });
+      }
+      const user = req.user;
+      if (!user) {
+        return res.status(401).json({ error: "User not found" });
+      }
+      // Check if tournament exists
+      const tournament = await storage.getTournament(tournamentId);
+      if (!tournament) {
+        return res.status(404).json({ error: "Tournament not found" });
+      }
+
+      const config = parseTournamentConfig(tournament);
+      if (!config.registers.allowPlayerToJoin) {
+        return res.status(403).json({ error: "Player registration is not allowed for this tournament" });
+      }
+
+      const multiPlayerAllowed = Boolean(config.registers.allowMultiPlayerSignup);
+      if (!multiPlayerAllowed) {
+        return res.status(400).json({ error: "Multi-player registration is not allowed" });
+      }
+
+      const payments = config.payments;
+      const offlineAllowed = (payments.acceptedOfflineMethods ?? []).length > 0;
+      const mustCompletePayment = payments.onlineEnabled && (payments.requirePaymentOnRegistration || !offlineAllowed);
+
+      // Parse payload as array
+      if (!Array.isArray(req.body) || req.body.length === 0) {
+        return res.status(400).json({ error: "Empty registration payload" });
+      }
+      const payloadArray = z.array(playerRegistrationSchema).parse(req.body);
+
+      // Check payment intent for the whole batch based on the first item since the cart shares it
+      const sampleItem = payloadArray[0];
+      let amountDue = Number.isFinite(sampleItem.amountDue) ? Number(sampleItem.amountDue) : 0;
+      let amountPaid = Number.isFinite(sampleItem.amountPaid) ? Number(sampleItem.amountPaid) : 0;
+      let currency = normalizeCurrency(sampleItem.currency, payments.defaultCurrency ?? "USD");
+      let paymentStatus: PaymentStatus = sampleItem.paymentStatus ?? "unpaid";
+      let paymentMethod = sampleItem.paymentMethod ?? null;
+      let paymentReceiptUrl = sampleItem.paymentReceiptUrl ?? null;
+      let paidAt: Date | null = null;
+      let notes = sampleItem.paymentNotes ?? null;
+
+      if (payments.onlineEnabled && sampleItem.paymentIntentId) {
+        if (!stripe) {
+          return res.status(503).json({ error: "Online payments are not available" });
+        }
+
+        const paymentIntentRaw = await stripe.paymentIntents.retrieve(sampleItem.paymentIntentId, {
+          expand: ["latest_charge"],
+        });
+        const paymentIntent = paymentIntentRaw as Stripe.PaymentIntent & {
+          latest_charge?: string | Stripe.Charge;
+          charges?: Stripe.ApiList<Stripe.Charge>;
+        };
+
+        amountDue = Number(((paymentIntent.amount ?? amountDue * 100) / 100).toFixed(2));
+        amountPaid = Number(((paymentIntent.amount_received ?? 0) / 100).toFixed(2));
+        currency = paymentIntent.currency ? paymentIntent.currency.toUpperCase() : currency;
+
+        const latestCharge = ((): Stripe.Charge | null => {
+          if (paymentIntent.latest_charge && typeof paymentIntent.latest_charge !== "string") {
+            return paymentIntent.latest_charge;
+          }
+          const charges = paymentIntent.charges?.data ?? [];
+          return charges[0] ?? null;
+        })();
+
+        if (latestCharge?.receipt_url && !paymentReceiptUrl) {
+          paymentReceiptUrl = latestCharge.receipt_url;
+        }
+        if (latestCharge?.payment_method_details?.type && !paymentMethod) {
+          paymentMethod = latestCharge.payment_method_details.type;
+        }
+
+        switch (paymentIntent.status) {
+          case "succeeded":
+            paymentStatus = "paid";
+            paidAt = latestCharge?.created ? new Date(latestCharge.created * 1000) : new Date();
+            break;
+          case "processing":
+          case "requires_capture":
+            paymentStatus = "processing";
+            break;
+          case "requires_payment_method":
+            paymentStatus = "unpaid";
+            break;
+          default:
+            paymentStatus = paymentStatus ?? "unpaid";
+        }
+
+        if (mustCompletePayment && paymentIntent.status !== "succeeded") {
+          return res.status(400).json({ error: "Payment must be completed before submitting registration" });
+        }
+      }
+
+      // Process insertions and logging sequentially
+      const results: PlayerRegistration[] = [];
+      for (const payload of payloadArray) {
+        let localNotes = payload.paymentNotes ?? null;
+        if (notes && !localNotes) {
+          localNotes = notes;
+        }
+
+        const newRegistration = await storage.createPlayerRegistration({
+          tournamentId,
+          userId: user.id,
+          playerName: payload.playerName,
+          uscfRating: payload.uscfRating,
+          phoneNumber: payload.phoneNumber,
+          email: payload.email,
+          arrivalTime: payload.arrivalTime,
+          paymentIntentId: sampleItem.paymentIntentId ?? null,
+          paymentStatus: paymentStatus,
+          paymentMethod: paymentMethod,
+          paymentReceiptUrl: paymentReceiptUrl,
+          paymentNotes: localNotes,
+          amountDue: amountDue.toFixed(2),
+          amountPaid: amountPaid.toFixed(2),
+          currency: currency,
+          paidAt: paidAt,
+          status: "pending",
+        });
+
+        results.push(newRegistration);
+
+        await storage.createHistoryEntry({
+          tournamentId,
+          action: "player_added",
+          description: `Registration for ${payload.playerName} submitted via batch.`,
+          changedBy: user.id,
+          newState: JSON.stringify(newRegistration)
+        });
+      }
+
+      res.status(201).json(results);
+    } catch (error) {
+      console.error("Player batch registration error:", error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid registration data", issues: error.flatten() });
+      }
+      res.status(500).json({ error: "Failed to submit batch registration" });
+    }
   });
 
   // Create player registration (for players to register for tournaments)

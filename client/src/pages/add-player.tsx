@@ -631,7 +631,7 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
   return (
     <div className="min-h-screen bg-slate-50 py-10">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4">
-        <Breadcrumbs steps={[{ label: tournament.name, href: `/tournaments/${tournamentId}` }, { label: "Management", href: `/tournaments/${tournamentId}/manage` }, { label: isEditing ? "Edit Player" : "Add Player" }]} />
+
 
         <Card className="overflow-hidden border-0 shadow-lg">
           <CardContent className="flex flex-col p-0">

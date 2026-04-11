@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import { useForm, FormProvider, useFormContext } from "react-hook-form";
 import type { UseFormReturn } from "react-hook-form";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -17,6 +17,7 @@ import {
   MapPin,
   Pencil,
   Plus,
+  Save,
   Search,
   Shield,
   ShieldCheck,
@@ -26,7 +27,6 @@ import {
   Users,
   Wallet,
 } from "lucide-react";
-import { Breadcrumbs } from "@/components/breadcrumbs";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { cn } from "@/lib/utils";
@@ -158,6 +158,48 @@ const SECTION_FALLBACKS: Record<string, string> = {
 };
 const NO_ENTRY_FEE_ID = "offline-entry-fee";
 
+// --- registration types ---
+interface PlayerDraft {
+  id: string;
+  values: RegistrationFormValues;
+}
+
+// --- localStorage draft helpers ---
+interface RegistrationDraft {
+  formValues: Partial<RegistrationFormValues>;
+  playerDrafts: PlayerDraft[];
+  currentStep: number;
+  editingDraftId: string | null;
+}
+
+const DRAFT_KEY_PREFIX = "reg-draft";
+function getDraftKey(tournamentId: number) {
+  return `${DRAFT_KEY_PREFIX}-${tournamentId}`;
+}
+function loadDraft(tournamentId: number): RegistrationDraft | null {
+  try {
+    const raw = localStorage.getItem(getDraftKey(tournamentId));
+    if (!raw) return null;
+    return JSON.parse(raw) as RegistrationDraft;
+  } catch {
+    return null;
+  }
+}
+function saveDraft(tournamentId: number, draft: RegistrationDraft) {
+  try {
+    localStorage.setItem(getDraftKey(tournamentId), JSON.stringify(draft));
+  } catch {
+    // quota exceeded – silently ignore
+  }
+}
+function clearDraft(tournamentId: number) {
+  try {
+    localStorage.removeItem(getDraftKey(tournamentId));
+  } catch {
+    // ignore
+  }
+}
+
 const COUNTRY_OPTIONS = [
   "United States",
   "Canada",
@@ -176,6 +218,8 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [currentStep, setCurrentStep] = useState(1);
+  const [draftRestored, setDraftRestored] = useState(false);
+  const [draftSavedFlash, setDraftSavedFlash] = useState(false);
 
   const { data: tournament, isLoading } = useQuery<Tournament>({
     queryKey: [`/api/tournaments/${tournamentId}`],
@@ -200,7 +244,9 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
     [tournament],
   );
   const multiPlayerAllowed = Boolean(config?.registers?.allowMultiPlayerSignup);
-  const existingRegistration = registrations.find((entry) => entry.tournamentId === tournamentId);
+  const existingRegistration = registrations.find(
+    (entry) => entry.tournamentId === tournamentId && entry.status !== "cancelled" && entry.status !== "declined"
+  );
 
   const entryFees = useMemo(() => config?.entryFees ?? [], [config]);
   const sections = useMemo<SectionOption[]>(() => {
@@ -292,11 +338,6 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
   const [isPaymentBusy, setIsPaymentBusy] = useState(false);
   const [isPaymentElementReady, setIsPaymentElementReady] = useState(false);
 
-  type PlayerDraft = {
-    id: string;
-    values: RegistrationFormValues;
-  };
-
   const [playerDrafts, setPlayerDrafts] = useState<PlayerDraft[]>([]);
   const [editingDraftId, setEditingDraftId] = useState<string | null>(null);
   const allDraftValues: RegistrationFormValues[] = playerDrafts.map((entry) => entry.values);
@@ -337,24 +378,24 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
     if (!multiPlayerAllowed || playerDrafts.length === 0) {
       return paymentTotals;
     }
-    
+
     return playerDrafts.reduce((acc, entry) => {
       const values = entry.values;
       const entryFee = entryFees.find(f => f.id === values.entryFeeId) ?? null;
       const contribution = parseContribution(values.processingContribution);
       const totals = computePaymentTotals(entryFee, contribution, paymentSettings);
-      
+
       return {
         subtotal: acc.subtotal + totals.subtotal,
         feeAmount: acc.feeAmount + totals.feeAmount,
         total: acc.total + totals.total,
         currency: totals.currency
       };
-    }, { 
-      subtotal: 0, 
-      feeAmount: 0, 
-      total: 0, 
-      currency: paymentTotals.currency 
+    }, {
+      subtotal: 0,
+      feeAmount: 0,
+      total: 0,
+      currency: paymentTotals.currency
     });
   }, [playerDrafts, entryFees, paymentSettings, paymentTotals, multiPlayerAllowed]);
 
@@ -401,6 +442,77 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
     }
   }, [existingRegistration, form, editingDraftId, currentStep]);
 
+  // --- Restore draft from localStorage on initial mount ---
+  useEffect(() => {
+    if (draftRestored) return;
+    const draft = loadDraft(tournamentId);
+    if (draft) {
+      const { formValues, playerDrafts: savedRoster, currentStep: savedStep, editingDraftId: savedEditingId } = draft;
+
+      // Check if user has entered something or has players in roster
+      if (formValues.firstName || formValues.lastName || formValues.email || savedRoster.length > 0) {
+        // Merge saved values into form defaults
+        const current = form.getValues();
+        form.reset({ ...current, ...formValues }, { keepDefaultValues: false });
+
+        // Restore step, roster, and editing state
+        if (savedRoster.length > 0) setPlayerDrafts(savedRoster);
+        if (savedStep) setCurrentStep(savedStep);
+        if (savedEditingId) setEditingDraftId(savedEditingId);
+
+        setDraftRestored(true);
+        toast({ title: "Draft restored", description: "Your previously saved progress has been loaded." });
+      } else {
+        setDraftRestored(true);
+      }
+    } else {
+      setDraftRestored(true);
+    }
+  }, [draftRestored, existingRegistration, form, toast, tournamentId]);
+
+  // --- Auto-save form to localStorage on changes (debounced) ---
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const entireFormState = form.watch(); // Watch everything
+
+  useEffect(() => {
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+
+    autoSaveTimerRef.current = setTimeout(() => {
+      const values = form.getValues();
+      // Only save if user has entered something meaningful or has players in roster
+      if (values.firstName || values.lastName || values.email || values.phoneNumber || playerDrafts.length > 0) {
+        saveDraft(tournamentId, {
+          formValues: values,
+          playerDrafts,
+          currentStep,
+          editingDraftId
+        });
+      }
+    }, 1000);
+
+    return () => { if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current); };
+  }, [
+    entireFormState, // Trigger auto-save on any form field change
+    tournamentId,
+    playerDrafts, 
+    currentStep, 
+    editingDraftId
+  ]);
+
+  // --- Manual Save Draft handler ---
+  const handleSaveDraft = useCallback(() => {
+    const values = form.getValues();
+    saveDraft(tournamentId, {
+      formValues: values,
+      playerDrafts,
+      currentStep,
+      editingDraftId
+    });
+    setDraftSavedFlash(true);
+    toast({ title: "Draft saved", description: "Your progress has been saved. You can return later to finish." });
+    setTimeout(() => setDraftSavedFlash(false), 2000);
+  }, [form, tournamentId, toast, playerDrafts, currentStep, editingDraftId]);
+
   const registerMutation = useMutation({
     mutationFn: async (values: RegistrationFormValues) => {
       const payload = {
@@ -427,6 +539,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
       });
     },
     onSuccess: () => {
+      clearDraft(tournamentId);
       toast({
         title: "Registration submitted",
         description: "Your registration request has been sent to the tournament director.",
@@ -579,32 +692,31 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
 
   const groupRegisterMutation = useMutation({
     mutationFn: async (players: RegistrationFormValues[]) => {
-      for (const values of players) {
-        const payload = {
-          playerName: `${values.firstName} ${values.lastName}`.trim(),
-          uscfRating: Number.isFinite(Number(values.uscfRating)) ? Number(values.uscfRating) : undefined,
-          sectionChoice: values.sectionChoice,
-          phoneNumber: values.phoneNumber,
-          email: values.email,
-          arrivalTime: buildArrivalNotes(values, entryFees),
-          entryFeeId: values.entryFeeId,
-          processingContribution: parseContribution(values.processingContribution),
-          paymentIntentId: values.paymentIntentId,
-          paymentStatus: values.paymentStatus,
-          paymentReceiptUrl: values.paymentReceiptUrl,
-          paymentMethod: values.paymentMethod,
-          currency: values.currency,
-          amountDue: typeof values.amountDue === "number" ? values.amountDue : undefined,
-          amountPaid: typeof values.amountPaid === "number" ? values.amountPaid : undefined,
-        };
+      const payloadArray = players.map(values => ({
+        playerName: `${values.firstName} ${values.lastName}`.trim(),
+        uscfRating: Number.isFinite(Number(values.uscfRating)) ? Number(values.uscfRating) : undefined,
+        sectionChoice: values.sectionChoice,
+        phoneNumber: values.phoneNumber,
+        email: values.email,
+        arrivalTime: buildArrivalNotes(values, entryFees),
+        entryFeeId: values.entryFeeId,
+        contribution: parseContribution(values.processingContribution),
+        paymentIntentId: values.paymentIntentId,
+        paymentStatus: values.paymentStatus,
+        paymentReceiptUrl: values.paymentReceiptUrl,
+        paymentMethod: values.paymentMethod,
+        currency: values.currency,
+        amountDue: typeof values.amountDue === "number" ? values.amountDue : undefined,
+        amountPaid: typeof values.amountPaid === "number" ? values.amountPaid : undefined,
+      }));
 
-        await apiRequest(`/api/tournaments/${tournamentId}/register`, {
-          method: "POST",
-          body: JSON.stringify(payload),
-        });
-      }
+      await apiRequest(`/api/tournaments/${tournamentId}/register-batch`, {
+        method: "POST",
+        body: JSON.stringify(payloadArray),
+      });
     },
     onSuccess: () => {
+      clearDraft(tournamentId);
       toast({
         title: "Registrations submitted",
         description: "Your registration requests have been sent to the tournament director.",
@@ -681,14 +793,10 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
 
   if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900">
+      <div className="flex min-h-screen items-center justify-center bg-[#f7f6f3]">
         <div className="text-center">
-          <div className="relative mx-auto h-16 w-16">
-            <div className="absolute inset-0 animate-spin rounded-full border-b-2 border-blue-500"></div>
-            <div className="absolute inset-2 animate-spin rounded-full border-t-2 border-blue-400/30" style={{ animationDuration: '1.5s', animationDirection: 'reverse' }}></div>
-            <Trophy className="absolute inset-0 m-auto h-6 w-6 text-blue-500" />
-          </div>
-          <p className="mt-6 text-sm font-medium text-blue-200/70 tracking-wide uppercase">Preparing registration environment...</p>
+          <div className="mx-auto h-10 w-10 animate-spin rounded-full border-2 border-gray-200 border-t-blue-600"></div>
+          <p className="mt-4 text-sm text-gray-500">Loading registration form...</p>
         </div>
       </div>
     );
@@ -696,21 +804,17 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
 
   if (!tournament || !config) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 to-blue-50/30 px-4">
+      <div className="flex min-h-screen items-center justify-center bg-[#f7f6f3] px-4">
         <div className="w-full max-w-md">
-          <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white/80 shadow-2xl backdrop-blur">
-            <div className="bg-gradient-to-r from-slate-900 to-slate-800 p-8 text-center text-white">
-              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-500 shadow-xl shadow-blue-500/20">
-                <ShieldCheck className="h-7 w-7 text-white" />
-              </div>
-              <h2 className="text-xl font-bold">Tournament unavailable</h2>
-            </div>
+          <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
             <div className="p-8 text-center">
-              <p className="text-sm leading-relaxed text-slate-500">
+              <ShieldCheck className="mx-auto mb-4 h-10 w-10 text-gray-400" />
+              <h2 className="text-lg font-semibold text-gray-900">Tournament unavailable</h2>
+              <p className="mt-2 text-sm leading-relaxed text-gray-500">
                 This registration form could not be loaded. This might happen if the tournament has been archived, paused, or deleted.
               </p>
               <Button
-                className="mt-8 w-full bg-blue-500 font-semibold hover:bg-blue-600 shadow-lg shadow-blue-200"
+                className="mt-6 w-full"
                 onClick={() => setLocation(`/tournaments/${tournamentId}`)}
               >
                 <ArrowLeft className="mr-2 h-4 w-4" />
@@ -725,39 +829,33 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
 
   if (existingRegistration && !multiPlayerAllowed) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-white">
-        <div className="border-b border-slate-200/60 bg-gradient-to-r from-white via-blue-50/30 to-white">
-          <div className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-8 sm:px-6 lg:px-8">
+      <div className="min-h-screen bg-[#f7f6f3]">
+        <div className="border-b border-gray-200 bg-white">
+          <div className="mx-auto flex max-w-4xl flex-col gap-3 px-4 py-5 sm:px-6 lg:px-8">
             <div className="flex items-center gap-3">
               <Button
                 variant="ghost"
                 size="sm"
-                className="gap-1.5 font-medium text-slate-600 hover:bg-blue-50 hover:text-blue-700"
+                className="gap-1.5 text-sm font-medium text-gray-500 hover:text-gray-900"
                 onClick={() => setLocation(`/tournaments/${tournamentId}`)}
               >
-                <ArrowLeft className="h-4 w-4" />
+                <ArrowLeft className="h-3.5 w-3.5" />
                 Back to tournament
               </Button>
-              <span className="text-slate-300">·</span>
-              <Badge className={cn("text-xs border-0", statusStyles[tournament.status] ?? "bg-slate-200 text-slate-700")}>
-                {tournament.status.charAt(0).toUpperCase() + tournament.status.slice(1)}
-              </Badge>
             </div>
-            <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">{tournament.name}</h1>
+            <h1 className="text-xl font-semibold tracking-tight text-gray-900">{tournament.name}</h1>
           </div>
         </div>
 
-        <div className="mx-auto max-w-2xl px-4 py-12 sm:px-6">
-          <div className="overflow-hidden rounded-2xl border border-emerald-200/80 bg-white shadow-xl">
-            <div className="bg-gradient-to-r from-emerald-500 to-emerald-600 px-6 py-5">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20">
-                  <Check className="h-5 w-5 text-white" />
-                </div>
-                <div>
-                  <h2 className="text-base font-semibold text-white">Registration Submitted</h2>
-                  <p className="text-xs text-emerald-100">Your entry is being reviewed by the tournament director.</p>
-                </div>
+        <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6">
+          <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+            <div className="flex items-center gap-3 border-b border-gray-100 bg-emerald-50 px-6 py-4">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100">
+                <Check className="h-4 w-4 text-emerald-600" />
+              </div>
+              <div>
+                <h2 className="text-sm font-semibold text-gray-900">Registration Submitted</h2>
+                <p className="text-xs text-gray-500">Your entry is being reviewed by the tournament director.</p>
               </div>
             </div>
             <div className="p-6">
@@ -934,7 +1032,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
       uscfRating: "",
       fideRating: "",
       // Keep main contact email if it exists as a group default, but clear the rest
-      email: currentValues.email, 
+      email: currentValues.email,
       phoneNumber: currentValues.phoneNumber,
       address1: "",
       address2: "",
@@ -1010,126 +1108,112 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
 
   return (
     <div className="min-h-screen bg-[#f7f6f3]">
-      {/* ===== Hero Header ===== */}
-      <div className="relative overflow-hidden bg-white/80 backdrop-blur-md border-b border-slate-100/60">
-        <div className="relative mx-auto max-w-6xl px-4 pb-6 pt-5 sm:px-6 lg:px-8">
-          <div className="mb-4">
-            <Breadcrumbs steps={[{ label: tournament.name, href: `/tournaments/${tournamentId}` }, { label: "Registration" }]} />
-          </div>
-          {/* top nav row */}
-          <div className="flex items-center justify-between">
-            <button
-              type="button"
-              onClick={() => setLocation(`/tournaments/${tournamentId}`)}
-              className="group flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-slate-600 transition-all hover:bg-slate-100 hover:text-slate-900 active:scale-95"
-            >
-              <ArrowLeft className="h-4 w-4 transition group-hover:-translate-x-0.5" />
-              Back to tournament
-            </button>
-            <Badge
-              className={cn(
-                "border-slate-200 text-xs capitalize",
-                tournament.status === "active"
-                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                  : tournament.status === "upcoming"
-                    ? "bg-blue-50 text-blue-700 border-blue-200"
-                    : "bg-slate-50 text-slate-600 border-slate-200",
-              )}
-              variant="outline"
-            >
-              {tournament.status}
-            </Badge>
-          </div>
-
-          {/* tournament title + meta */}
-          <div className="mt-5 grid gap-6 lg:grid-cols-[1fr,auto] lg:items-end">
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <div className="flex h-6 w-6 items-center justify-center rounded-md bg-blue-500/10">
-                  <Trophy className="h-3.5 w-3.5 text-blue-600" />
-                </div>
-                <span className="text-xs font-bold uppercase tracking-widest text-blue-700/80">Tournament Registration</span>
+      {/* ===== Main Content ===== */}
+      <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
+        <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+          {/* ===== Compact Header Section ===== */}
+          <div className="border-b border-gray-100 px-6 py-5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Link href={`/tournaments/${tournamentId}`}>
+                  <button
+                    type="button"
+                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-blue-300 hover:text-blue-600 active:scale-95"
+                    title="Back to tournament"
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                  </button>
+                </Link>
+                <h1 className="text-xl font-semibold tracking-tight text-gray-900 sm:text-2xl">{tournament.name}</h1>
               </div>
-              <h1 className="text-3xl font-extrabold leading-tight text-slate-900 sm:text-4xl">{tournament.name}</h1>
-              <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-slate-500">
-                <span className="flex items-center gap-1.5">
-                  <Calendar className="h-3.5 w-3.5 text-blue-600/70" />
-                  {startDateText}{endDateText && endDateText !== "TBD" && ` – ${endDateText}`}
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <MapPin className="h-3.5 w-3.5 text-blue-600/70" />
-                  {config.basic.city || tournament.location || "Venue TBA"}
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <Clock className="h-3.5 w-3.5 text-blue-600/70" />
-                  {config.details.timeControl?.toUpperCase()} · {config.details.rounds} rounds
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <Users className="h-3.5 w-3.5 text-blue-600/70" />
-                  {playerCount}{playerLimit ? ` / ${playerLimit}` : ""} players
-                </span>
-              </div>
+              <Badge
+                className={cn(
+                  "border px-2 py-0.5 text-[11px] font-medium capitalize",
+                  tournament.status === "active"
+                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                    : tournament.status === "upcoming"
+                      ? "bg-blue-50 text-blue-700 border-blue-200"
+                      : "bg-gray-100 text-gray-600 border-gray-200",
+                )}
+                variant="outline"
+              >
+                {tournament.status}
+              </Badge>
+            </div>
+            <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-gray-500">
+              <span className="flex items-center gap-1">
+                <Calendar className="h-3.5 w-3.5" />
+                {startDateText}{endDateText && endDateText !== "TBD" && ` – ${endDateText}`}
+              </span>
+              <span className="flex items-center gap-1">
+                <MapPin className="h-3.5 w-3.5" />
+                {config.basic.city || tournament.location || "Venue TBA"}
+              </span>
+              <span className="flex items-center gap-1">
+                <Clock className="h-3.5 w-3.5" />
+                {config.details.timeControl?.toUpperCase()} · {config.details.rounds} rounds
+              </span>
+              <span className="flex items-center gap-1">
+                <Users className="h-3.5 w-3.5" />
+                {playerCount}{playerLimit ? ` / ${playerLimit}` : ""} players
+              </span>
             </div>
 
             {/* Step progress indicator */}
-            <div className="shrink-0">
-              <div className="flex items-center gap-2">
-                {stepMeta.map((meta, index) => {
-                  const step = index + 1;
-                  const isDone = currentStep > step;
-                  const isActive = currentStep === step;
-                  return (
-                    <div key={meta.title} className="flex items-center gap-2">
-                      <div className="flex flex-col items-center gap-1">
-                        <div
-                          className={cn(
-                            "flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold ring-2 transition-all duration-300",
-                            isDone
-                              ? "bg-emerald-500 ring-emerald-100 text-white shadow-sm"
-                              : isActive
-                                ? "bg-blue-500 ring-blue-100 text-white shadow-md shadow-blue-200"
-                                : "bg-slate-100 ring-slate-200 text-slate-400",
-                          )}
-                        >
-                          {isDone ? <Check className="h-4 w-4" /> : step}
-                        </div>
-                        <span className={cn(
-                          "hidden text-[10px] font-bold sm:block uppercase tracking-wider",
-                          isActive ? "text-blue-700" : isDone ? "text-emerald-600" : "text-slate-400"
-                        )}>{meta.title}</span>
+            <div className="mt-5 flex items-center gap-0">
+              {stepMeta.map((meta, index) => {
+                const step = index + 1;
+                const isDone = currentStep > step;
+                const isActive = currentStep === step;
+                return (
+                  <div key={meta.title} className="flex items-center">
+                    <div className="flex items-center gap-2.5">
+                      <div
+                        className={cn(
+                          "flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold transition-all duration-300",
+                          isDone
+                            ? "bg-blue-600 text-white shadow-sm"
+                            : isActive
+                              ? "border-[1.5px] border-blue-600 text-blue-600 bg-blue-50 ring-2 ring-blue-100"
+                              : "border-[1.5px] border-gray-200 text-gray-400 bg-white",
+                        )}
+                      >
+                        {isDone ? <Check className="h-3.5 w-3.5" /> : step}
                       </div>
-                      {index < stepMeta.length - 1 && (
-                        <div
-                          className={cn(
-                            "mb-4 h-px w-10 transition-all duration-500",
-                            currentStep > step ? "bg-emerald-200" : "bg-slate-200",
-                          )}
-                        />
-                      )}
+                      <span className={cn(
+                        "hidden text-[13px] font-medium sm:block",
+                        isDone ? "text-blue-600" : isActive ? "text-gray-900" : "text-gray-400"
+                      )}>{meta.title}</span>
                     </div>
-                  );
-                })}
-              </div>
+                    {index < stepMeta.length - 1 && (
+                      <div
+                        className={cn(
+                          "mx-3 h-px w-10 transition-all duration-500",
+                          currentStep > step ? "bg-blue-600" : "bg-gray-200",
+                        )}
+                      />
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
-        </div>
-      </div>
 
-      {/* ===== Main Content ===== */}
-      <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
-        <FormProvider {...form}>
-          <form onSubmit={(event) => event.preventDefault()} className="space-y-6">
+          {/* ===== Form Content Area ===== */}
+          <div className="p-6 sm:p-8 lg:p-10">
+            <FormProvider {...form}>
+              <form onSubmit={(event) => event.preventDefault()} className="space-y-6">
 
             {/* ===== Multi-player roster panel (Hidden in Step 3 to avoid double summary) ===== */}
             {multiPlayerAllowed && currentStep < 3 && (playerDrafts.length > 0 || editingDraftId) && (
-              <div className="overflow-hidden rounded-2xl border border-blue-200/60 bg-white shadow-md ring-1 ring-black/5">
-                <div className="flex items-center gap-4 border-b border-blue-100/80 bg-gradient-to-r from-blue-50/90 via-indigo-50/40 to-white px-6 py-4">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500 shadow-lg shadow-blue-200">
-                    <Users className="h-5 w-5 text-white" />
+              <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+                <div className="flex items-center gap-4 border-b border-gray-100 bg-gray-50/50 px-6 py-4">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white border border-gray-200 shadow-sm">
+                    <Users className="h-5 w-5 text-gray-600" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-bold leading-tight text-slate-900">Group Registration</h3>
-                    <p className="text-xs font-medium text-blue-700/80">
+                    <h3 className="text-base font-semibold leading-tight text-gray-900">Group Registration</h3>
+                    <p className="text-sm text-gray-500">
                       {playerDrafts.length} player{playerDrafts.length !== 1 ? "s" : ""} saved
                     </p>
                   </div>
@@ -1149,19 +1233,21 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
                           isEditing && "bg-blue-50/60",
                         )}
                       >
-                        <div className={cn(
-                          "flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold",
-                          isEditing
-                            ? "bg-blue-200 text-blue-800"
-                            : "bg-slate-100 text-slate-600",
-                        )}>
-                          {initials || (idx + 1)}
+                        <div
+                          className={cn(
+                            "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-medium",
+                            isEditing
+                              ? "bg-blue-50 text-blue-700 border border-blue-200"
+                              : "bg-gray-50 text-gray-500 border border-gray-100",
+                          )}
+                        >
+                          {idx + 1}
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
-                            <p className="truncate text-sm font-semibold text-slate-900">{name}</p>
+                            <p className="truncate text-sm font-medium text-gray-900">{name}</p>
                             {isEditing && (
-                              <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-blue-700">Editing</span>
+                              <span className="rounded bg-gray-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-gray-600">Editing</span>
                             )}
                           </div>
                           <p className="truncate text-xs text-slate-500">
@@ -1173,16 +1259,16 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
                             type="button"
                             onClick={() => handleEditDraft(entry.id)}
                             disabled={isEditing}
-                            className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:border-blue-300 hover:text-blue-600 disabled:opacity-40"
+                            className="flex h-8 w-8 items-center justify-center rounded-md bg-white text-gray-400 transition hover:bg-gray-50 hover:text-gray-600 disabled:opacity-40"
                           >
-                            <Pencil className="h-3.5 w-3.5" />
+                            <Pencil className="h-4 w-4" />
                           </button>
                           <button
                             type="button"
                             onClick={() => handleRemoveDraft(entry.id)}
-                            className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-400 transition hover:border-red-200 hover:text-red-500"
+                            className="flex h-8 w-8 items-center justify-center rounded-md bg-white text-gray-400 transition hover:bg-red-50 hover:text-red-500"
                           >
-                            <Trash2 className="h-3.5 w-3.5" />
+                            <Trash2 className="h-4 w-4" />
                           </button>
                         </div>
                       </div>
@@ -1191,18 +1277,18 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
 
                   {/* Current in-progress info bar (not in Step 3) */}
                   {!editingDraftId && currentStep < 3 && (
-                    <div className="flex items-center gap-3 bg-blue-50/40 px-5 py-3">
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-dashed border-blue-300 bg-blue-50 text-xs font-bold text-blue-600">
+                    <div className="flex items-center gap-3 bg-gray-50 border-t border-dashed border-gray-200 px-6 py-3">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-dashed border-gray-300 bg-white text-xs font-medium text-gray-400">
                         {playerDrafts.length + 1}
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
-                          <p className="truncate text-sm font-medium text-slate-700">{currentPlayerLabel}</p>
-                          <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-blue-700">
+                          <p className="truncate text-sm font-medium text-gray-700">{currentPlayerLabel}</p>
+                          <span className="rounded bg-gray-200 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-gray-700">
                             In progress
                           </span>
                         </div>
-                        <p className="text-xs text-slate-500">Step {currentStep}: Filling details</p>
+                        <p className="text-xs text-gray-500">Step {currentStep}: Filling details</p>
                       </div>
                     </div>
                   )}
@@ -1224,19 +1310,19 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
               {currentStep === 3 && (
                 <>
                   {multiPlayerAllowed && allDraftValues.length > 0 && (
-                    <div className="mb-6 overflow-hidden rounded-2xl border border-blue-200/60 bg-white shadow-md ring-1 ring-black/5">
-                      <div className="flex items-center gap-4 border-b border-blue-100/80 bg-gradient-to-r from-blue-50/90 via-indigo-50/40 to-white px-6 py-4">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500 shadow-lg shadow-blue-200">
-                          <CreditCard className="h-5 w-5 text-white" />
+                    <div className="mb-6 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+                      <div className="flex items-center gap-4 border-b border-gray-100 bg-gray-50/50 px-6 py-4">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white border border-gray-200 shadow-sm">
+                          <CreditCard className="h-5 w-5 text-gray-600" />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <h3 className="text-lg font-bold leading-tight text-slate-900">Registration Summary</h3>
-                          <p className="text-xs font-medium text-blue-700/80">
+                          <h3 className="text-base font-semibold leading-tight text-gray-900">Registration Summary</h3>
+                          <p className="text-sm text-gray-500">
                             {playerDrafts.length} player{playerDrafts.length !== 1 ? "s" : ""} included
                           </p>
                         </div>
                       </div>
-                      
+
                       <div className="divide-y divide-slate-100">
                         {playerDrafts.map((entry, index) => {
                           const values = entry.values;
@@ -1271,33 +1357,15 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
                                     <span className="text-[10px] text-slate-400">Incl. {formatCurrency(totals.feeAmount, totals.currency)} fee</span>
                                   )}
                                 </div>
-                                <div className="flex items-center gap-1.5 shrink-0">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleEditDraft(entry.id)}
-                                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-blue-300 hover:text-blue-600 active:scale-95"
-                                    title="Edit player"
-                                  >
-                                    <Pencil className="h-3.5 w-3.5" />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleRemoveDraft(entry.id)}
-                                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-400 shadow-sm transition hover:border-red-200 hover:text-red-500 active:scale-95"
-                                    title="Remove player"
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                  </button>
                                 </div>
                               </div>
-                            </div>
-                          );
+                            );
                         })}
                       </div>
 
-                      <div className="flex items-center justify-between border-t border-blue-100 bg-blue-50/40 px-6 py-4">
-                        <span className="text-sm font-bold text-slate-900">Combined registration total</span>
-                        <span className="text-lg font-black text-blue-700">
+                      <div className="flex items-center justify-between border-t border-gray-200 bg-gray-50 px-6 py-4">
+                        <span className="text-sm font-medium text-gray-900">Combined registration total</span>
+                        <span className="text-lg font-bold text-gray-900">
                           {formatCurrency(
                             playerDrafts.reduce((sum, entry) => {
                               const values = entry.values;
@@ -1309,17 +1377,6 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
                             paymentTotals.currency,
                           )}
                         </span>
-                      </div>
-
-                      <div className="border-t border-slate-100 bg-white p-5 text-center">
-                        <button
-                          type="button"
-                          onClick={handleAddAnotherPlayer}
-                          className="inline-flex items-center gap-2 rounded-xl border-2 border-dashed border-blue-200 bg-blue-50/50 px-8 py-3 text-sm font-bold text-blue-700 transition hover:border-blue-400 hover:bg-blue-50 hover:text-blue-800 active:scale-95"
-                        >
-                          <Plus className="h-4 w-4" />
-                          Add another player to this registration
-                        </button>
                       </div>
                     </div>
                   )}
@@ -1376,33 +1433,48 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
             </div>
 
             {/* ===== Navigation Footer ===== */}
-            <div className="mt-2 overflow-hidden rounded-2xl border border-slate-200/70 bg-white shadow-md ring-1 ring-black/5">
+            <div className="mt-2 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
               <div className="flex items-center justify-between gap-4 px-5 py-4">
-                <div className="hidden text-xs text-slate-400 sm:block">
-                  <span className="font-medium text-slate-600">Step {currentStep}</span> of {totalSteps} · {stepMeta[currentStep - 1]?.title}
+                <div className="hidden text-xs text-gray-500 sm:block">
+                  <span className="font-medium text-gray-700">Step {currentStep}</span> of {totalSteps} · {stepMeta[currentStep - 1]?.title}
                 </div>
-                <div className="flex flex-1 items-center justify-end gap-2.5 sm:flex-initial">
-                  {currentStep > 1 && (
+                <div className="flex flex-1 items-center justify-end gap-3 sm:flex-initial">
+                  {currentStep > 1 && currentStep < 3 && (
                     <button
                       type="button"
                       onClick={handlePrevStep}
-                      className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-slate-900 active:scale-95"
+                      className="inline-flex h-9 items-center gap-1.5 rounded-md border border-gray-200 bg-white px-4 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50 active:scale-95"
                     >
-                      <ArrowLeft className="h-3.5 w-3.5" />
+                      <ArrowLeft className="h-4 w-4" />
                       Back
+                    </button>
+                  )}
+
+                  {!existingRegistration && currentStep < 3 && (
+                    <button
+                      type="button"
+                      onClick={handleSaveDraft}
+                      className={cn(
+                        "inline-flex h-9 items-center gap-1.5 rounded-md border px-4 text-sm font-medium shadow-sm transition active:scale-95",
+                        draftSavedFlash
+                          ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+                          : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50",
+                      )}
+                    >
+                      <Save className="h-3.5 w-3.5" />
+                      {draftSavedFlash ? "Saved!" : "Save Draft"}
                     </button>
                   )}
 
                   {currentStep < 3 ? (
                     <div className="flex items-center gap-2">
-                      {/* Add another player button removed from step 2 footer — moved to step 3 */}
                       <button
                         type="button"
                         onClick={handleNextStep}
-                        className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-blue-500 px-5 text-sm font-semibold text-white shadow-md shadow-blue-200 transition hover:bg-blue-600 active:scale-[0.98]"
+                        className="inline-flex h-9 items-center gap-1.5 rounded-md bg-gray-900 px-5 text-sm font-medium text-white shadow-sm transition hover:bg-gray-800 active:scale-[0.98]"
                       >
                         Continue
-                        <ChevronRight className="h-3.5 w-3.5" />
+                        <ChevronRight className="h-4 w-4" />
                       </button>
                     </div>
                   ) : (
@@ -1411,34 +1483,37 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
                       disabled={disableSubmitButton || !paymentAcknowledged}
                       onClick={handleFinalSubmit}
                       className={cn(
-                        "inline-flex h-9 items-center gap-1.5 rounded-lg px-5 text-sm font-semibold text-white shadow-md transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50",
+                        "inline-flex h-9 items-center gap-1.5 rounded-md px-5 text-sm font-medium text-white shadow-sm transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50",
                         requiresPayment
-                          ? "bg-emerald-600 shadow-emerald-200 hover:bg-emerald-700"
-                          : "bg-blue-500 shadow-blue-200 hover:bg-blue-600",
+                          ? "bg-gray-900 hover:bg-gray-800"
+                          : "bg-gray-900 hover:bg-gray-800",
                       )}
                     >
                       {registerMutation.isPending || groupRegisterMutation.isPending ? (
-                        <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Submitting...</>
+                        <><Loader2 className="h-4 w-4 animate-spin" /> Submitting...</>
                       ) : isPaymentBusy ? (
-                        <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Processing...</>
+                        <><Loader2 className="h-4 w-4 animate-spin" /> Processing...</>
                       ) : requiresPayment ? (
-                        <><Shield className="h-3.5 w-3.5" /> Pay & Submit</>
+                        <><Shield className="h-4 w-4" /> Pay & Submit</>
                       ) : (
-                        <><Check className="h-3.5 w-3.5" /> Submit Registration</>
+                        <><Check className="h-4 w-4" /> Submit Registration</>
                       )}
                     </button>
                   )}
                 </div>
               </div>
-              <div className="border-t border-slate-100 bg-slate-50/50 px-5 py-2 text-center text-[11px] text-slate-400">
+              <div className="border-t border-gray-100 bg-gray-50/50 px-5 py-3 text-center text-xs text-gray-500">
                 Registration powered by Chess Tournament Manager · Confirmation sent after director review
               </div>
             </div>
-          </form>
-        </FormProvider>
+              </form>
+            </FormProvider>
+          </div>
+        </div>
       </div>
     </div>
   );
+
 }
 
 type RatingLookupSource = "uscf" | "fide";
@@ -1627,14 +1702,14 @@ function StepOne({
   };
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-md ring-1 ring-black/5">
-      <div className="flex items-center gap-4 border-b border-blue-100/70 bg-gradient-to-r from-blue-50/90 via-indigo-50/40 to-white px-6 py-5">
-        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-500 shadow-lg shadow-blue-200">
-          <Search className="h-6 w-6 text-white" />
+    <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+      <div className="flex items-center gap-4 border-b border-gray-100 bg-gray-50/50 px-6 py-5">
+        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white border border-gray-200 shadow-sm">
+          <Search className="h-5 w-5 text-gray-600" />
         </div>
         <div>
-          <h2 className="text-xl font-bold leading-tight text-slate-900 tracking-tight">Player Lookup</h2>
-          <p className="text-xs font-semibold text-blue-700/80 uppercase">Step 1 of 3: Identity & Verification</p>
+          <h2 className="text-lg font-semibold leading-tight text-gray-900">Player Lookup</h2>
+          <p className="text-sm text-gray-500">Step 1 of 3: Identity & Verification</p>
         </div>
       </div>
 
@@ -1697,23 +1772,23 @@ function StepOne({
                           key={`${result.source}-${result.id}`}
                           type="button"
                           onClick={() => handleSelectLookupResult(result)}
-                          className="group w-full rounded-xl border border-blue-100/80 bg-white p-4 text-left shadow-sm transition-all hover:border-blue-400 hover:bg-blue-50 hover:shadow-md"
+                          className="group w-full rounded-lg border border-gray-200 bg-white p-4 text-left shadow-sm transition-all hover:bg-gray-50"
                         >
                           <div className="flex items-center justify-between gap-4">
                             <div className="flex items-center gap-3">
-                              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 font-bold text-slate-400 group-hover:bg-blue-100 group-hover:text-blue-600 transition">
+                              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-100 font-medium text-gray-500 transition group-hover:text-gray-900">
                                 {result.source === 'uscf' ? 'US' : 'FI'}
                               </div>
                               <div className="space-y-0.5">
-                                <p className="text-sm font-bold text-slate-900">{result.name}</p>
-                                <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
-                                  <span className="font-semibold text-blue-700">{result.source.toUpperCase()} · #{result.id}</span>
-                                  {result.location && <span className="text-slate-300">|</span>}
+                                <p className="text-sm font-semibold text-gray-900">{result.name}</p>
+                                <div className="flex flex-wrap items-center gap-2 text-[11px] text-gray-500">
+                                  <span className="font-medium text-gray-600">{result.source.toUpperCase()} · #{result.id}</span>
+                                  {result.location && <span className="text-gray-300">|</span>}
                                   {result.location && <span>{result.location}</span>}
                                 </div>
                               </div>
                             </div>
-                            <div className="bg-slate-900 text-white rounded-lg px-2.5 py-1.5 text-xs font-bold shadow-lg shadow-black/10">
+                            <div className="bg-gray-900 text-white rounded px-2.5 py-1 text-xs font-medium">
                               {result.ratingDisplay ?? result.rating ?? "No Rating"}
                             </div>
                           </div>
@@ -1732,7 +1807,7 @@ function StepOne({
                           key={player.id}
                           type="button"
                           onClick={() => handleSelectRosterPlayer(player)}
-                          className="w-full rounded-lg border border-blue-100/80 bg-emerald-50/70 p-3 text-left shadow-sm transition hover:border-emerald-300 hover:bg-emerald-100/80"
+                          className="w-full rounded-lg border border-gray-200 bg-white p-3 text-left shadow-sm transition hover:bg-gray-50"
                         >
                           <div className="flex items-center justify-between gap-3">
                             <div>
@@ -1986,14 +2061,14 @@ function StepTwo({
   }, [config?.details.rounds]);
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-md ring-1 ring-black/5">
-      <div className="flex items-center gap-4 border-b border-blue-100/70 bg-gradient-to-r from-blue-50/90 via-indigo-50/40 to-white px-6 py-5">
-        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-500 shadow-lg shadow-blue-200">
-          <Trophy className="h-6 w-6 text-white" />
+    <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+      <div className="flex items-center gap-4 border-b border-gray-100 bg-gray-50/50 px-6 py-5">
+        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white border border-gray-200 shadow-sm">
+          <Trophy className="h-5 w-5 text-gray-600" />
         </div>
         <div>
-          <h2 className="text-xl font-bold leading-tight text-slate-900 tracking-tight">Tournament Options</h2>
-          <p className="text-xs font-semibold text-blue-700/80 uppercase">Step 2 of 3: Section & Preferences</p>
+          <h2 className="text-lg font-semibold leading-tight text-gray-900">Tournament Options</h2>
+          <p className="text-sm text-gray-500">Step 2 of 3: Section & Preferences</p>
         </div>
       </div>
 
@@ -2525,21 +2600,21 @@ function StepThreeContent({
   }, [registerPaymentHandler, handlePaymentConfirmation]);
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
-      <div className="flex items-center gap-4 border-b border-blue-100/70 bg-gradient-to-r from-blue-50/80 to-white px-6 py-4">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 shadow-lg shadow-blue-200">
-          <Wallet className="h-5 w-5 text-white" />
+    <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+      <div className="flex items-center gap-4 border-b border-gray-100 bg-gray-50/50 px-6 py-5">
+        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white border border-gray-200 shadow-sm">
+          <Wallet className="h-5 w-5 text-gray-600" />
         </div>
         <div>
-          <h2 className="text-lg font-bold leading-tight text-slate-900">Payment &amp; Review</h2>
-          <p className="text-xs font-medium text-blue-600/80">
+          <h2 className="text-lg font-semibold leading-tight text-gray-900">Payment &amp; Review</h2>
+          <p className="text-sm text-gray-500">
             Step 3 of 3: {requiresPayment ? "Complete registration with secure checkout" : "Confirm and submit your registration"}
           </p>
         </div>
       </div>
 
       <div className="space-y-6 p-6">
-        <div className="rounded-xl border border-blue-100/70 bg-white/80 p-4 shadow-sm">
+        <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-sm font-semibold text-slate-900">Payment summary</h3>
             <span className={cn("rounded-full px-3 py-1 text-xs font-semibold", statusStyles[paymentStatus])}>
@@ -2604,15 +2679,15 @@ function StepThreeContent({
         </div>
 
         {showPaymentToggle && (
-          <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white/80 p-2 shadow-sm">
+          <div className="flex bg-gray-100/80 p-1.5 rounded-lg">
             <button
               type="button"
               onClick={() => setActivePaymentMode("online")}
               className={cn(
-                "flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
+                "flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-all",
                 activePaymentMode === "online"
-                  ? "bg-blue-600 text-white shadow-md shadow-blue-200"
-                  : "text-slate-600 hover:bg-slate-100",
+                  ? "bg-white text-gray-900 shadow-sm border border-gray-200"
+                  : "text-gray-600 hover:text-gray-900",
               )}
             >
               <CreditCard className="h-4 w-4" />
@@ -2622,10 +2697,10 @@ function StepThreeContent({
               type="button"
               onClick={() => setActivePaymentMode("offline")}
               className={cn(
-                "flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
+                "flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-all",
                 activePaymentMode === "offline"
-                  ? "bg-slate-800 text-white shadow-md shadow-slate-200"
-                  : "text-slate-600 hover:bg-slate-100",
+                  ? "bg-white text-gray-900 shadow-sm border border-gray-200"
+                  : "text-gray-600 hover:text-gray-900",
               )}
             >
               <Wallet className="h-4 w-4" />
@@ -2635,7 +2710,7 @@ function StepThreeContent({
         )}
 
         {(activePaymentMode === "online" || !offlineAllowed) && (
-          <div className="space-y-3 rounded-xl border border-blue-100/70 bg-white/80 p-4 shadow-sm">
+          <div className="space-y-3 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-slate-900">Payment method</h3>
               {requiresPayment && <Badge variant="outline">Required</Badge>}
@@ -2697,7 +2772,7 @@ function StepThreeContent({
         )}
 
         {(activePaymentMode === "offline" || !canAcceptOnlinePayment) && (
-          <div className="space-y-3 rounded-xl border border-blue-100/70 bg-white/80 p-4 shadow-sm">
+          <div className="space-y-3 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-slate-900">Offline payment options</h3>
               {!canAcceptOnlinePayment && <Badge variant="secondary">Alternative</Badge>}
@@ -2737,7 +2812,7 @@ function StepThreeContent({
           </div>
         )}
 
-        <div className="space-y-2 rounded-lg border border-blue-100/70 bg-blue-50/60 p-4">
+        <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50/50 p-4">
           <label className="flex items-start gap-3 text-sm text-slate-700">
             <input
               type="checkbox"
@@ -2765,22 +2840,22 @@ function StepThreeContent({
                   <div className="mb-3 flex items-center justify-between">
                     <p className="font-semibold text-slate-900">Player {idx + 1}: {vals.firstName} {vals.lastName}</p>
                     <div className="flex gap-2">
-                       <button 
-                         type="button" 
-                         onClick={() => onEditDraft?.(draft.id)}
-                         className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700"
-                       >
-                         <Pencil className="h-3 w-3" /> Edit
-                       </button>
-                       {playerDrafts.length > 1 && (
-                         <button 
-                           type="button" 
-                           onClick={() => onRemoveDraft?.(draft.id)}
-                           className="flex items-center gap-1 text-xs font-medium text-red-500 hover:text-red-700"
-                         >
-                           <Trash2 className="h-3 w-3" /> Remove
-                         </button>
-                       )}
+                      <button
+                        type="button"
+                        onClick={() => onEditDraft?.(draft.id)}
+                        className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700"
+                      >
+                        <Pencil className="h-3 w-3" /> Edit
+                      </button>
+                      {playerDrafts.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => onRemoveDraft?.(draft.id)}
+                          className="flex items-center gap-1 text-xs font-medium text-red-500 hover:text-red-700"
+                        >
+                          <Trash2 className="h-3 w-3" /> Remove
+                        </button>
+                      )}
                     </div>
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2">
@@ -2814,8 +2889,8 @@ function StepThreeContent({
                     )}
                     {vals.notes && (
                       <div className="sm:col-span-2">
-                         <p className="text-xs uppercase tracking-wide text-slate-400">Notes</p>
-                         <p className="mt-1 leading-relaxed font-medium text-slate-800">{vals.notes}</p>
+                        <p className="text-xs uppercase tracking-wide text-slate-400">Notes</p>
+                        <p className="mt-1 leading-relaxed font-medium text-slate-800">{vals.notes}</p>
                       </div>
                     )}
                   </div>

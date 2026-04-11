@@ -18,7 +18,7 @@ import { Separator } from "@/components/ui/separator";
 import { parseTournamentConfig } from "@/lib/tournament-config";
 import type { Tournament, Player, PlayerRegistration as PlayerRegistrationType } from "@shared/schema";
 import { useAuth } from "@/hooks/useAuth";
-import { Breadcrumbs } from "@/components/breadcrumbs";
+
 
 interface TournamentRegistrationPageProps {
   tournamentId: number;
@@ -51,12 +51,6 @@ const statusStyles: Record<string, string> = {
 export default function TournamentRegistrationPage({ tournamentId }: TournamentRegistrationPageProps) {
   const [, setLocation] = useLocation();
   const { user, isLoading: authLoading } = useAuth();
-
-  useEffect(() => {
-    if (!authLoading && user?.role === "player") {
-      setLocation(`/tournaments/${tournamentId}/register/form`);
-    }
-  }, [authLoading, setLocation, tournamentId, user?.role]);
 
   const { data: tournament, isLoading: tournamentLoading } = useQuery<Tournament>({
     queryKey: [`/api/tournaments/${tournamentId}`],
@@ -127,7 +121,7 @@ export default function TournamentRegistrationPage({ tournamentId }: TournamentR
     <div className="min-h-screen bg-slate-50">
       <div className="border-b bg-white">
         <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
-          <Breadcrumbs steps={[{ label: tournament.name, href: `/tournaments/${tournamentId}` }, { label: "Registration Info" }]} />
+
           <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-slate-500">
             <div className="flex items-center gap-2">
               <Badge className={statusBadge}>

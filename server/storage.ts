@@ -280,6 +280,7 @@ export interface IStorage {
   createPlayerRegistration(registration: InsertPlayerRegistration): Promise<PlayerRegistration>;
   getPlayerRegistration(id: number): Promise<PlayerRegistration | undefined>;
   getPlayerRegistrationByPaymentIntent(paymentIntentId: string): Promise<PlayerRegistration | undefined>;
+  getPlayerRegistrationsByPaymentIntent(paymentIntentId: string): Promise<PlayerRegistration[]>;
   getPlayerRegistrationsByTournament(tournamentId: number): Promise<PlayerRegistration[]>;
   getPlayerRegistrationsByUser(userId: number): Promise<PlayerRegistration[]>;
   updatePlayerRegistration(id: number, registration: Partial<PlayerRegistration>): Promise<PlayerRegistration | undefined>;
@@ -545,6 +546,10 @@ class SupabaseStorage implements IStorage {
   }
   async getPlayerRegistrationByPaymentIntent(paymentIntentId: string): Promise<PlayerRegistration | undefined> {
     return fetchOne<PlayerRegistration>("player_registrations", { paymentIntentId });
+  }
+
+  async getPlayerRegistrationsByPaymentIntent(paymentIntentId: string): Promise<PlayerRegistration[]> {
+    return fetchMany<PlayerRegistration>("player_registrations", { paymentIntentId });
   }
 
   async getPlayerRegistrationsByTournament(tournamentId: number): Promise<PlayerRegistration[]> {

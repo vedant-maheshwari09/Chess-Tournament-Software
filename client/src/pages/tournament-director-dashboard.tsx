@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/useAuth";
 import type { Tournament } from "@shared/schema";
 import SettingsMenu from "@/components/settings-menu";
-import { Breadcrumbs } from "@/components/breadcrumbs";
+
 
 export default function TournamentDirectorDashboard() {
   const { user } = useAuth();
@@ -231,7 +231,7 @@ export default function TournamentDirectorDashboard() {
       </div>
 
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
-        <Breadcrumbs steps={[]} />
+
         <Tabs value={activeTab} onValueChange={(tab) => setLocation(`/dashboard/${tab}`)} className="w-full">
           <TabsList className="grid w-full grid-cols-1 gap-3 bg-transparent sm:grid-cols-2 lg:grid-cols-4 mb-6">
             {sections.map((section) => (
