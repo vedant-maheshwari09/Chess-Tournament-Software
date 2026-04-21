@@ -18,6 +18,7 @@ import TournamentSettingsPage from "@/pages/tournament-settings";
 import TournamentActionsPage from "@/pages/tournament-actions";
 import TournamentRegistrationFormPage from "@/pages/tournament-registration-form";
 import TournamentPaymentSetupPage from "@/pages/tournament-payment-setup";
+import TournamentReportsPage from "@/pages/tournament-reports";
 
 function AuthenticatedApp() {
   const { user, isLoading } = useAuth();
@@ -57,19 +58,14 @@ function AuthenticatedApp() {
             <Route path="/tournaments/:id/manage">
               {(params) => <TournamentManagement tournamentId={parseInt(params.id)} />}
             </Route>
-            <Route path="/tournaments/:id/settings/:section">
-              {(params) => (
-                <TournamentSettingsPage
-                  tournamentId={parseInt(params.id)}
-                  section={params.section}
-                />
-              )}
-            </Route>
             <Route path="/tournaments/:id/settings">
-              {(params) => <TournamentSettingsPage tournamentId={parseInt(params.id)} />}
-            </Route>
-            <Route path="/tournaments/:id/actions">
               {(params) => <TournamentActionsPage tournamentId={parseInt(params.id)} />}
+            </Route>
+            <Route path="/tournaments/:id/reports/uscf">
+              {(params) => <TournamentReportsPage tournamentId={parseInt(params.id)} type="uscf" />}
+            </Route>
+            <Route path="/tournaments/:id/reports/fide">
+              {(params) => <TournamentReportsPage tournamentId={parseInt(params.id)} type="fide" />}
             </Route>
             <Route path="/tournaments/:id/players/new">
               {(params) => <AddPlayerPage tournamentId={parseInt(params.id)} />}

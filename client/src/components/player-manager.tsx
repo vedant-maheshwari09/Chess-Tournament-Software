@@ -53,6 +53,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { parseTournamentConfig } from "@/lib/tournament-config";
 import type { Tournament, Player, Pairing } from "@shared/schema";
+import RegistrationManagement from "./registration-management";
 
 type SortKey = "name" | "rating";
 type SortDirection = "asc" | "desc";
@@ -457,41 +458,47 @@ export default function PlayerManager({ tournament, tournamentId }: PlayerManage
 
   return (
     <div className="grid gap-4 lg:grid-cols-[240px,1fr]">
-      <Card className="self-start">
-        <CardHeader>
-          <CardTitle className="text-lg">Player tools</CardTitle>
-          <p className="text-sm text-muted-foreground">Manage roster actions for this tournament.</p>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <Button className="w-full" onClick={() => setLocation(`/tournaments/${tournamentId}/players/new`)}>
-            Add Player
-          </Button>
-          <Button variant="outline" className="w-full" disabled>
-            Entry fees
-          </Button>
-          <div className="grid grid-cols-2 gap-2">
-            <Button variant="secondary" className="w-full" disabled>
-              Export
+      <div className="flex flex-col gap-4">
+        <Card className="self-start w-full">
+          <CardHeader>
+            <CardTitle className="text-lg">Player tools</CardTitle>
+            <p className="text-sm text-muted-foreground">Manage roster actions for this tournament.</p>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Button className="w-full" onClick={() => setLocation(`/tournaments/${tournamentId}/players/new`)}>
+              Add Player
             </Button>
-            <Button variant="secondary" className="w-full" disabled>
-              Import
+            <Button variant="outline" className="w-full" disabled>
+              Entry fees
             </Button>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Chess-Results syncing will use these controls once backend automation is enabled.
-          </p>
-        </CardContent>
-      </Card>
+            <div className="grid grid-cols-2 gap-2">
+              <Button variant="secondary" className="w-full" disabled>
+                Export
+              </Button>
+              <Button variant="secondary" className="w-full" disabled>
+                Import
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Chess-Results syncing will use these controls once backend automation is enabled.
+            </p>
+          </CardContent>
+        </Card>
+
+        <RegistrationManagement tournamentId={tournamentId} />
+      </div>
 
       <Tabs value={activeSection} onValueChange={setActiveSection} className="lg:col-span-1">
-        <TabsList>
-          <TabsTrigger value="all">All</TabsTrigger>
-          {sections.map(section => (
-            <TabsTrigger key={section.id} value={section.id}>
-              {section.name}
-            </TabsTrigger>
-          ))}
-        </TabsList>
+        {sections.length > 1 && (
+          <TabsList className="flex items-stretch bg-slate-100/50 p-1 mb-6 rounded-xl border border-slate-200/60 shadow-sm backdrop-blur-sm w-fit">
+            <TabsTrigger value="all" className="data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-black transition-all font-medium rounded-lg px-4 py-2 text-xs xl:text-sm">All</TabsTrigger>
+            {sections.map(section => (
+              <TabsTrigger key={section.id} value={section.id} className="data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-black transition-all font-medium rounded-lg px-4 py-2 text-xs xl:text-sm">
+                {section.name}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        )}
         <Card className="mt-4">
           <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>

@@ -137,6 +137,33 @@ async function updateOne<T>(
   return data ? toCamelCase<T>(data) : undefined;
 }
 
+async function updateMany<T>(
+  table: string,
+  filters: Record<string, unknown>,
+  values: AnyRecord,
+): Promise<T[]> {
+  let builder: any = client().from(table).update(toSnakeCase(values));
+
+  for (const [key, value] of Object.entries(filters)) {
+    builder = builder.eq(toSnakeCaseKey(key), value as any);
+  }
+
+  const { data, error } = await builder.select();
+
+  if (error) {
+    const errorObj = error as any;
+    const errorMessage = errorObj.message || String(error);
+    const enhancedError = new Error(`Failed to update multiple in ${table}: ${errorMessage}`);
+    (enhancedError as any).originalError = errorObj;
+    (enhancedError as any).code = errorObj.code;
+    (enhancedError as any).details = errorObj.details;
+    (enhancedError as any).hint = errorObj.hint;
+    throw enhancedError;
+  }
+
+  return (data || []).map((item: any) => toCamelCase<T>(item));
+}
+
 async function fetchOne<T>(table: string, filters: Record<string, unknown>): Promise<T | undefined> {
   let builder: any = client().from(table).select();
 
@@ -248,6 +275,7 @@ export interface IStorage {
   getTournamentsByUser(userId: number): Promise<Tournament[]>;
   updateTournament(id: number, tournament: Partial<Tournament>): Promise<Tournament | undefined>;
   deleteTournament(id: number): Promise<boolean>;
+  resetTournament(id: number): Promise<void>;
 
   createPlayer(player: InsertPlayer): Promise<Player>;
   getPlayer(id: number): Promise<Player | undefined>;
@@ -412,6 +440,36 @@ class SupabaseStorage implements IStorage {
 
   async deleteTournament(id: number): Promise<boolean> {
     return (await deleteMany("tournaments", { id })) > 0;
+  }
+
+  async resetTournament(id: number): Promise<void> {
+    // Drop all pairing and match data
+    await deleteMany("pairings", { tournamentId: id });
+    await deleteMany("matches", { tournamentId: id });
+    
+    // Reset players back to initial state
+    const { error } = await client()
+      .from("players")
+      .update({
+        arena_status: "lobby",
+        arena_points: "0",
+        arena_streak: 0,
+        on_fire: false,
+        consecutive_color: null,
+        color_delta: 0,
+        last_opponent_id: null
+      })
+      .eq("tournament_id", id);
+      
+    if (error) {
+      throw new Error(`Failed to reset players: ${error.message}`);
+    }
+    
+    // Reset tournament status and timing
+    await this.updateTournament(id, {
+      status: 'draft',
+      arenaStartTime: null as any
+    });
   }
 
   async createPlayer(player: InsertPlayer): Promise<Player> {

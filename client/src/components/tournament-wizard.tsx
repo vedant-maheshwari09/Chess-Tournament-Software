@@ -10,6 +10,8 @@ import { Shuffle, RotateCcw, Target, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Tournament, InsertTournament } from "@shared/schema";
+import { DatePicker } from "@/components/ui/date-picker";
+import { parseISO, format as formatDate } from "date-fns";
 
 interface TournamentWizardProps {
   tournament?: Tournament | null;
@@ -486,23 +488,25 @@ export default function TournamentWizard({ tournament, onTournamentCreated }: To
                     Set dates and times for each round (all optional)
                   </p>
                   <div className="space-y-2">
-                    {roundTimings.map((timing, index) => (
-                      <div key={index} className="flex items-center space-x-2">
-                        <span className="text-sm font-medium w-16">Round {timing.round}:</span>
-                        <Input
-                          type="date"
-                          value={timing.date}
-                          onChange={(e) => updateRoundTiming(index, 'date', e.target.value)}
-                          className="flex-1"
-                        />
-                        <Input
-                          type="time"
-                          value={timing.time}
-                          onChange={(e) => updateRoundTiming(index, 'time', e.target.value)}
-                          className="flex-1"
-                        />
+                      <div key={index} className="flex items-center space-x-3 bg-white p-3 rounded-xl border border-slate-100 shadow-sm transition-all hover:bg-slate-50/50">
+                        <span className="text-sm font-semibold w-20 text-slate-600">Round {timing.round}</span>
+                        <div className="flex-1">
+                          <DatePicker
+                             date={timing.date ? parseISO(timing.date) : null}
+                             setDate={(newDate) => updateRoundTiming(index, 'date', newDate ? formatDate(newDate, "yyyy-MM-dd") : "")}
+                             placeholder="Select date"
+                             className="h-10 border-slate-200"
+                          />
+                        </div>
+                        <div className="flex-1">
+                          <Input
+                            type="time"
+                            value={timing.time}
+                            onChange={(e) => updateRoundTiming(index, 'time', e.target.value)}
+                            className="h-10 border-slate-200 text-sm"
+                          />
+                        </div>
                       </div>
-                    ))}
                   </div>
                 </div>
               </div>

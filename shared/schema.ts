@@ -82,6 +82,11 @@ export const tournaments = pgTable("tournaments", {
   arenaDuration: integer("arena_duration"), // in minutes
   arenaStartTime: timestamp("arena_start_time"),
   arenaScoringConfig: jsonb("arena_scoring_config"), // e.g. { streakThreshold: 2, winBonus: 2, ... }
+  arenaEndStrategy: text("arena_end_strategy").default("wait_for_ongoing").notNull(), // 'force_end', 'wait_for_ongoing'
+  arenaPairingMode: text("arena_pairing_mode").default("manual").notNull(), // 'manual', 'automatic'
+  arenaCutoffMinutes: integer("arena_cutoff_minutes").default(2).notNull(),
+  arenaCountdownSeconds: integer("arena_countdown_seconds").default(10).notNull(),
+  arenaPrePairBeforeStart: boolean("arena_pre_pair_before_start").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -127,6 +132,20 @@ export const players = pgTable("players", {
   arenaPoints: numeric("arena_points", { precision: 10, scale: 2 }).default("0").notNull(),
   arenaStreak: integer("arena_streak").default(0).notNull(),
   onFire: boolean("on_fire").default(false).notNull(),
+  lastOpponentId: integer("last_opponent_id"),
+  colorDelta: integer("color_delta").default(0).notNull(),
+  consecutiveColor: text("consecutive_color"), // e.g. 'WW', 'BB'
+  status: text("status").default('active').notNull(), // 'active', 'withdrawn', 'placeholder'
+  email: text("email"),
+  phone: text("phone"),
+  club: text("club"),
+  title: text("title"),
+  birthdate: text("birthdate"),
+  sex: text("sex"),
+  localId: text("local_id"),
+  ratingLocal: integer("rating_local"),
+  ratingRapid: integer("rating_rapid"),
+  ratingBlitz: integer("rating_blitz"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 

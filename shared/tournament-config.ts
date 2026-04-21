@@ -38,6 +38,8 @@ export interface RegistersConfig {
   allowEditRegistration: boolean;
   enablePairingPredictor: boolean;
   isDoubleElimination: boolean;
+  registrationDeadlineDate?: string | null;
+  registrationDeadlineTime?: string | null;
 }
 
 export interface FideRegistrationData {
@@ -235,6 +237,11 @@ export interface TournamentConfig {
   seedingSource?: "rating" | "uscf" | "fide";
   arena?: {
     durationMinutes: number;
+    arenaEndStrategy?: 'wait_for_ongoing' | 'force_end';
+    arenaPairingMode?: 'automatic' | 'manual';
+    arenaCutoffMinutes?: number;
+    arenaCountdownSeconds?: number;
+    arenaPrePairBeforeStart?: boolean;
     scoring: ArenaScoringConfig;
   };
 }
@@ -447,6 +454,11 @@ export function createDefaultConfig(format: Tournament["format"], mode: Tourname
         onFireWinPoints: 4,
         onFireDrawPoints: 2,
       },
+      arenaEndStrategy: 'wait_for_ongoing',
+      arenaPairingMode: 'automatic',
+      arenaCutoffMinutes: 2,
+      arenaCountdownSeconds: 10,
+      arenaPrePairBeforeStart: false,
     },
   };
 }
@@ -600,8 +612,13 @@ export function parseTournamentConfig(tournament: Tournament): TournamentConfig 
       seedingMethod: (parsed as any)?.seedingMethod ?? tournament.seedingMethod ?? "rating",
       seedingSource: (parsed as any)?.seedingSource ?? "rating",
       arena: {
-        durationMinutes: tournament.arenaDuration ?? parsed.arena?.durationMinutes ?? defaults.arena.durationMinutes,
-        scoring: (tournament.arenaScoringConfig as any) ?? parsed.arena?.scoring ?? defaults.arena.scoring,
+        durationMinutes: tournament.arenaDuration ?? parsed.arena?.durationMinutes ?? defaults.arena!.durationMinutes,
+        arenaEndStrategy: (tournament.arenaEndStrategy as any) ?? parsed.arena?.arenaEndStrategy ?? defaults.arena!.arenaEndStrategy,
+        arenaPairingMode: (tournament.arenaPairingMode as any) ?? parsed.arena?.arenaPairingMode ?? defaults.arena!.arenaPairingMode,
+        arenaCutoffMinutes: tournament.arenaCutoffMinutes ?? parsed.arena?.arenaCutoffMinutes ?? defaults.arena!.arenaCutoffMinutes,
+        arenaCountdownSeconds: tournament.arenaCountdownSeconds ?? parsed.arena?.arenaCountdownSeconds ?? defaults.arena!.arenaCountdownSeconds,
+        arenaPrePairBeforeStart: tournament.arenaPrePairBeforeStart ?? parsed.arena?.arenaPrePairBeforeStart ?? defaults.arena!.arenaPrePairBeforeStart ?? false,
+        scoring: (tournament.arenaScoringConfig as any) ?? parsed.arena?.scoring ?? defaults.arena!.scoring,
       },
     };
   }
@@ -840,7 +857,18 @@ function sanitizeSections(
   }
 
   if (result.length === 0 && (fallbackEntryFees.length > 0 || fallbackPrizes.length > 0)) {
-    return deriveSectionsFromFallback(fallbackEntryFees, fallbackPrizes);
+    const derived = deriveSectionsFromFallback(fallbackEntryFees, fallbackPrizes);
+    if (derived.length > 0) return derived;
+  }
+
+  if (result.length === 0) {
+    return [{
+      id: 'open',
+      name: 'Open',
+      ratingMin: null,
+      ratingMax: null,
+      description: 'Standard tournament section'
+    }];
   }
 
   return result;
@@ -1062,6 +1090,11 @@ export function buildTournamentPayload(
     useQuickSetup: false,
     arenaDuration: serialized.arena?.durationMinutes,
     arenaScoringConfig: serialized.arena?.scoring,
+    arenaCountdownSeconds: serialized.arena?.arenaCountdownSeconds,
+    arenaPrePairBeforeStart: serialized.arena?.arenaPrePairBeforeStart,
+    arenaPairingMode: serialized.arena?.arenaPairingMode,
+    arenaEndStrategy: serialized.arena?.arenaEndStrategy,
+    arenaCutoffMinutes: serialized.arena?.arenaCutoffMinutes,
   };
 }
 

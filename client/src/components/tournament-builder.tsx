@@ -18,6 +18,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useLocation } from "wouter";
 import { cn } from "@/lib/utils";
@@ -49,8 +50,11 @@ import {
   type TemplateSectionKey,
   type TournamentTemplateSnapshot,
 } from "@/lib/tournament-templates";
-import { Upload, Check, ChevronRight, Settings, X, ChevronUp, ChevronDown, Plus, CreditCard, ExternalLink, Trophy, Users, Calculator, Link, QrCode, Printer, Copy } from "lucide-react";
+import { Upload, Check, ChevronRight, Settings, X, ChevronUp, ChevronDown, Plus, CreditCard, ExternalLink, Trophy, Users, Calculator, Link, QrCode, Printer, Copy, Clock, Zap } from "lucide-react";
 import qrcode from "qrcode";
+import TournamentPagePanel from "@/components/tournament-page-panel";
+import { DatePicker } from "@/components/ui/date-picker";
+import { parseISO, format as formatDate } from "date-fns";
 
 type BuilderMode = "create" | "edit";
 type SettingsShortcutTab = "rate-tournament" | "fide" | "uscf" | "chess-results";
@@ -318,20 +322,18 @@ function BasicInformationFields({ config, onConfigChange, variant = "full" }: Ba
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
             <Label htmlFor="basic-start-date">Start Date</Label>
-            <Input
-              id="basic-start-date"
-              type="date"
-              value={config.basic.startDate ?? ""}
-              onChange={(event) => updateBasic({ startDate: event.target.value || null })}
+            <DatePicker
+              date={config.basic.startDate ? parseISO(config.basic.startDate) : null}
+              setDate={(date) => updateBasic({ startDate: date ? formatDate(date, "yyyy-MM-dd") : null })}
+              placeholder="Select start date"
             />
           </div>
           <div className="space-y-2">
             <Label htmlFor="basic-end-date">End Date</Label>
-            <Input
-              id="basic-end-date"
-              type="date"
-              value={config.basic.endDate ?? ""}
-              onChange={(event) => updateBasic({ endDate: event.target.value || null })}
+            <DatePicker
+              date={config.basic.endDate ? parseISO(config.basic.endDate) : null}
+              setDate={(date) => updateBasic({ endDate: date ? formatDate(date, "yyyy-MM-dd") : null })}
+              placeholder="Select end date"
             />
           </div>
         </div>
@@ -458,20 +460,18 @@ function BasicInformationFields({ config, onConfigChange, variant = "full" }: Ba
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="basic-start-date">Start Date</Label>
-          <Input
-            id="basic-start-date"
-            type="date"
-            value={config.basic.startDate ?? ""}
-            onChange={(event) => updateBasic({ startDate: event.target.value || null })}
+          <DatePicker
+            date={config.basic.startDate ? parseISO(config.basic.startDate) : null}
+            setDate={(date) => updateBasic({ startDate: date ? formatDate(date, "yyyy-MM-dd") : null })}
+            placeholder="Select start date"
           />
         </div>
         <div className="space-y-2">
           <Label htmlFor="basic-end-date">End Date</Label>
-          <Input
-            id="basic-end-date"
-            type="date"
-            value={config.basic.endDate ?? ""}
-            onChange={(event) => updateBasic({ endDate: event.target.value || null })}
+          <DatePicker
+            date={config.basic.endDate ? parseISO(config.basic.endDate) : null}
+            setDate={(date) => updateBasic({ endDate: date ? formatDate(date, "yyyy-MM-dd") : null })}
+            placeholder="Select end date"
           />
         </div>
       </div>
@@ -728,6 +728,7 @@ interface PaymentsConfigResponse {
   onlineConfigured: boolean;
 }
 
+
 function ArenaSettingsTab({ config, onConfigChange, onSave, saving }: { config: TournamentConfig; onConfigChange: (c: TournamentConfig) => void; onSave: () => void; saving: boolean }) {
   const arena = config.arena ?? {
     durationMinutes: 60,
@@ -757,11 +758,8 @@ function ArenaSettingsTab({ config, onConfigChange, onSave, saving }: { config: 
   return (
     <div className="bg-white p-6 space-y-6">
       <div className="space-y-4">
-        <div className="flex items-center gap-2">
-          <Settings className="h-4 w-4 text-primary" />
-          <h3 className="font-semibold text-orange-900 uppercase tracking-wider text-sm">Arena Timing</h3>
-        </div>
-        <div className="grid gap-4 md:grid-cols-2">
+        <h3 className="text-base font-medium text-black">Arena Timing</h3>
+        <div className="grid gap-6 md:grid-cols-2">
           <div className="space-y-2">
             <Label>Duration (Minutes)</Label>
             <Input
@@ -771,59 +769,144 @@ function ArenaSettingsTab({ config, onConfigChange, onSave, saving }: { config: 
             />
             <p className="text-xs text-muted-foreground">The arena will automatically conclude after this time.</p>
           </div>
+          
+          <div className="space-y-2">
+            <Label>Cutoff Window (Minutes)</Label>
+            <div className="flex items-center gap-2">
+              <Input 
+                type="number"
+                value={arena.arenaCutoffMinutes || 2}
+                onChange={(e) => updateArena({ arenaCutoffMinutes: parseInt(e.target.value) || 0 })}
+                className="w-24"
+              />
+              <span className="text-sm font-medium">min</span>
+            </div>
+            <p className="text-xs text-muted-foreground">No new matches will start when less than this time remains.</p>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Startup Countdown</Label>
+            <Select 
+              value={String(arena.arenaCountdownSeconds || 10)}
+              onValueChange={(val) => updateArena({ arenaCountdownSeconds: parseInt(val) })}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select Countdown" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="10">10 Seconds</SelectItem>
+                <SelectItem value="30">30 Seconds</SelectItem>
+                <SelectItem value="60">1 Minute</SelectItem>
+                <SelectItem value="120">2 Minutes</SelectItem>
+                <SelectItem value="300">5 Minutes</SelectItem>
+                <SelectItem value="600">10 Minutes</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">Duration of the waiting period after clicking "Start".</p>
+          </div>
+        </div>
+
+        <div className="grid gap-6 md:grid-cols-2 pt-4 border-t">
+          <div className="space-y-4">
+            <Label className="text-[15px] font-medium text-black flex items-center gap-2">
+              End Strategy
+            </Label>
+            <RadioGroup 
+              value={arena.arenaEndStrategy || "wait_for_ongoing"} 
+              onValueChange={(val: 'wait_for_ongoing' | 'force_end') => updateArena({ arenaEndStrategy: val })}
+              className="flex flex-col gap-4"
+            >
+              <div className="flex items-start space-x-3 border-2 border-slate-100 rounded-2xl p-4 hover:border-slate-200 hover:bg-slate-50/50 transition-all cursor-pointer">
+                <RadioGroupItem value="wait_for_ongoing" id="builder-wait" className="mt-1" />
+                <Label htmlFor="builder-wait" className="flex-1 cursor-pointer space-y-0.5">
+                  <span className="block text-base font-semibold text-black leading-tight">Wait for Ongoing Games</span>
+                  <span className="block text-xs text-slate-500 leading-tight">Timer stops pairings, finishes active matches.</span>
+                </Label>
+              </div>
+              <div className="flex items-start space-x-3 border-2 border-slate-100 rounded-2xl p-4 hover:border-slate-200 hover:bg-slate-50/50 transition-all cursor-pointer">
+                <RadioGroupItem value="force_end" id="builder-force" className="mt-1" />
+                <Label htmlFor="builder-force" className="flex-1 cursor-pointer space-y-0.5">
+                  <span className="block text-base font-semibold text-black leading-tight">Force End Immediately</span>
+                  <span className="block text-xs text-slate-500 leading-tight">Tournament completes exactly at 0:00.</span>
+                </Label>
+              </div>
+            </RadioGroup>
+          </div>
+
+          <div className="space-y-4">
+            <div className="flex items-center justify-between border rounded-lg p-4 bg-slate-50/50">
+              <div className="space-y-0.5">
+                <p className="text-[15px] font-medium text-black">Auto-Pairing Engine</p>
+                <p className="text-[10px] text-muted-foreground">Enable automated matching pool</p>
+              </div>
+              <Switch 
+                checked={arena.arenaPairingMode === 'automatic'}
+                onCheckedChange={(checked) => updateArena({ arenaPairingMode: checked ? 'automatic' : 'manual' })}
+              />
+            </div>
+
+            <div className="flex items-center justify-between border rounded-lg p-4 bg-slate-50/50">
+              <div className="space-y-0.5">
+                <p className="text-[15px] font-medium text-black">Pre-pair Before Start</p>
+                <p className="text-[10px] text-muted-foreground">Match all players in lobby immediately</p>
+              </div>
+              <Switch 
+                checked={!!arena.arenaPrePairBeforeStart}
+                onCheckedChange={(checked) => updateArena({ arenaPrePairBeforeStart: checked })}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-4 pt-4 border-t">
+          <h3 className="text-base font-medium text-black">Arena Scoring & Streaks</h3>
+          <div className="grid gap-4 md:grid-cols-3">
+            <ScoreInput
+              id="arena-win"
+              label="Base Win"
+              value={arena.scoring.winPoints}
+              onChange={(v) => updateScoring({ winPoints: parseFloat(v) || 0 })}
+            />
+            <ScoreInput
+              id="arena-draw"
+              label="Base Draw"
+              value={arena.scoring.drawPoints}
+              onChange={(v) => updateScoring({ drawPoints: parseFloat(v) || 0 })}
+            />
+            <ScoreInput
+              id="arena-loss"
+              label="Base Loss"
+              value={arena.scoring.lossPoints}
+              onChange={(v) => updateScoring({ lossPoints: parseFloat(v) || 0 })}
+            />
+          </div>
+          <div className="grid gap-4 md:grid-cols-3 pt-2">
+            <div className="space-y-2">
+              <Label>Streak Threshold</Label>
+              <Input
+                type="number"
+                value={arena.scoring.streakThreshold}
+                onChange={(e) => updateScoring({ streakThreshold: parseInt(e.target.value) || 0 })}
+              />
+              <p className="text-[10px] text-muted-foreground">Consecutive wins to become "On Fire".</p>
+            </div>
+            <ScoreInput
+              id="arena-fire-win"
+              label="Fire Win Bonus"
+              value={arena.scoring.onFireWinPoints}
+              onChange={(v) => updateScoring({ onFireWinPoints: parseFloat(v) || 0 })}
+            />
+            <ScoreInput
+              id="arena-fire-draw"
+              label="Fire Draw Bonus"
+              value={arena.scoring.onFireDrawPoints}
+              onChange={(v) => updateScoring({ onFireDrawPoints: parseFloat(v) || 0 })}
+            />
+          </div>
         </div>
       </div>
 
-      <div className="space-y-4 pt-4 border-t">
-        <div className="flex items-center gap-2">
-          <Calculator className="h-4 w-4 text-primary" />
-          <h3 className="font-semibold text-orange-900 uppercase tracking-wider text-sm">Arena Scoring & Streaks</h3>
-        </div>
-        <div className="grid gap-4 md:grid-cols-3">
-          <ScoreInput
-            id="arena-win"
-            label="Base Win"
-            value={arena.scoring.winPoints}
-            onChange={(v) => updateScoring({ winPoints: parseFloat(v) || 0 })}
-          />
-          <ScoreInput
-            id="arena-draw"
-            label="Base Draw"
-            value={arena.scoring.drawPoints}
-            onChange={(v) => updateScoring({ drawPoints: parseFloat(v) || 0 })}
-          />
-          <ScoreInput
-            id="arena-loss"
-            label="Base Loss"
-            value={arena.scoring.lossPoints}
-            onChange={(v) => updateScoring({ lossPoints: parseFloat(v) || 0 })}
-          />
-        </div>
-        <div className="grid gap-4 md:grid-cols-3 pt-2">
-          <div className="space-y-2">
-            <Label>Streak Threshold</Label>
-            <Input
-              type="number"
-              value={arena.scoring.streakThreshold}
-              onChange={(e) => updateScoring({ streakThreshold: parseInt(e.target.value) || 0 })}
-            />
-            <p className="text-[10px] text-muted-foreground">Consecutive wins to become "On Fire".</p>
-          </div>
-          <ScoreInput
-            id="arena-fire-win"
-            label="Fire Win Bonus"
-            value={arena.scoring.onFireWinPoints}
-            onChange={(v) => updateScoring({ onFireWinPoints: parseFloat(v) || 0 })}
-          />
-          <ScoreInput
-            id="arena-fire-draw"
-            label="Fire Draw Bonus"
-            value={arena.scoring.onFireDrawPoints}
-            onChange={(v) => updateScoring({ onFireDrawPoints: parseFloat(v) || 0 })}
-          />
-        </div>
-      </div>
-      <div className="flex justify-end pt-4">
+      <div className="flex justify-end pt-4 border-t">
         <Button onClick={onSave} disabled={saving}>
           {saving ? "Saving..." : "Save Configuration"}
         </Button>
@@ -1088,8 +1171,8 @@ function StepTwo({ format, mode, config, onConfigChange, onBack: _onBack, onCanc
     updateEntryFee(id, { [field]: Number.isFinite(numeric) ? numeric : null } as Partial<EntryFeeRule>);
   };
 
-  const handleEntryFeeDateChange = (id: string, value: string) => {
-    const trimmed = value.trim();
+  const handleEntryFeeDateChange = (id: string, value: string | null) => {
+    const trimmed = value?.trim();
     updateEntryFee(id, { effectiveAfter: trimmed ? trimmed : null });
   };
 
@@ -1639,59 +1722,6 @@ function StepTwo({ format, mode, config, onConfigChange, onBack: _onBack, onCanc
     });
   };
 
-  const handleSchedulePrint = () => {
-    if (typeof window === "undefined") return;
-
-    const scheduleHtml = config.schedule
-      .map((event) => {
-        const date = formatDate(event.date) ?? "";
-        const time = event.time || "";
-        const label = escapeHtml(event.label || "");
-        return `<tr><td>${date}</td><td>${time}</td><td>${label}</td></tr>`;
-      })
-      .join("");
-
-    const tableHtml = config.schedule.length
-      ? `<table><thead><tr><th>Date</th><th>Time</th><th>Event</th></tr></thead><tbody>${scheduleHtml}</tbody></table>`
-      : `<p>No schedule configured.</p>`;
-
-    const content = `<!doctype html><html><head><title>${escapeHtml(
-      config.basic.name,
-    )}</title><style>
-      body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; padding: 24px; }
-      h1 { font-size: 24px; margin-bottom: 16px; }
-      h2 { font-size: 20px; margin-top: 24px; margin-bottom: 16px; }
-      p { margin-bottom: 16px; }
-      table { width: 100%; border-collapse: collapse; }
-      th, td { border: 1px solid #cbd5f5; padding: 8px 12px; text-align: left; }
-      th { background-color: #eef2ff; }
-    </style></head><body>
-      <h1>${escapeHtml(config.basic.name)}</h1>
-      <p>${escapeHtml(config.basic.description)}</p>
-      <h2>Schedule</h2>
-      ${tableHtml}
-    </body></html>`;
-
-    const iframe = document.createElement("iframe");
-    iframe.style.position = "absolute";
-    iframe.style.width = "0";
-    iframe.style.height = "0";
-    iframe.style.border = "none";
-    document.body.appendChild(iframe);
-
-    const doc = iframe.contentWindow?.document;
-    if (doc) {
-      doc.open();
-      doc.write(content);
-      doc.close();
-      iframe.contentWindow?.focus();
-      iframe.contentWindow?.print();
-    }
-
-    setTimeout(() => {
-      document.body.removeChild(iframe);
-    }, 1000);
-  };
 
 
 
@@ -1847,7 +1877,7 @@ function StepTwo({ format, mode, config, onConfigChange, onBack: _onBack, onCanc
       return;
     }
 
-    const target = `/tournaments/${tournament.id}/settings/${next}`;
+    const target = `/tournaments/${tournament.id}/reports/${next}`;
     setSettingsShortcut("rate-tournament");
     setLocation(target);
   };
@@ -1924,26 +1954,20 @@ function StepTwo({ format, mode, config, onConfigChange, onBack: _onBack, onCanc
         <Card className="overflow-hidden">
           <CardContent className="p-0">
             <Tabs defaultValue="basic" className="w-full">
-            <TabsList className={cn("grid w-full", format === "arena" ? "grid-cols-8" : "grid-cols-7")}>
-                <TabsTrigger value="basic">Basic information</TabsTrigger>
-                <TabsTrigger value="details">Details</TabsTrigger>
-                {format === "arena" && <TabsTrigger value="arena">Arena Settings</TabsTrigger>}
-                <TabsTrigger value="schedule">Schedule</TabsTrigger>
-              <TabsTrigger value="payments">Payments</TabsTrigger>
-              <TabsTrigger value="prizes">Prizes</TabsTrigger>
-                <TabsTrigger value="rate-tournament">Rate Tournament</TabsTrigger>
-                <TabsTrigger value="options">Options</TabsTrigger>
-              </TabsList>
+            <TabsList className="flex w-full min-h-[44px] h-auto flex-wrap items-center bg-slate-100 p-1 mb-8 rounded-xl border border-slate-200/60 shadow-sm backdrop-blur-sm">
+              <TabsTrigger value="basic" className="flex-1 h-full min-h-[36px] data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-black transition-all font-medium rounded-lg px-4 text-xs xl:text-sm">Basic Info</TabsTrigger>
+              <TabsTrigger value="details" className="flex-1 h-full min-h-[36px] data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-black transition-all font-medium rounded-lg px-4 text-xs xl:text-sm">Details</TabsTrigger>
+              <TabsTrigger value="tournamentPage" className="flex-1 h-full min-h-[36px] data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-black transition-all font-medium rounded-lg px-4 text-xs xl:text-sm">Public Page</TabsTrigger>
+              <TabsTrigger value="payments" className="flex-1 h-full min-h-[36px] data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-black transition-all font-medium rounded-lg px-4 text-xs xl:text-sm">Payments</TabsTrigger>
+              <TabsTrigger value="prizes" className="flex-1 h-full min-h-[36px] data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-black transition-all font-medium rounded-lg px-4 text-xs xl:text-sm">Prizes</TabsTrigger>
+              <TabsTrigger value="options" className="flex-1 h-full min-h-[36px] data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-black transition-all font-medium rounded-lg px-4 text-xs xl:text-sm">Options</TabsTrigger>
+            </TabsList>
+
               <TabsContent value="basic" className="bg-white p-6 space-y-4">
                 <BasicInformationFields config={config} onConfigChange={onConfigChange} />
                 {renderTabSaveButton()}
               </TabsContent>
 
-              {format === "arena" && (
-                <TabsContent value="arena" className="p-0">
-                  <ArenaSettingsTab config={config} onConfigChange={onConfigChange} onSave={onSave} saving={saving} />
-                </TabsContent>
-              )}
 
               <TabsContent value="details" className="bg-white p-6 space-y-4">
                 <div className="grid gap-4 md:grid-cols-3">
@@ -1995,55 +2019,6 @@ function StepTwo({ format, mode, config, onConfigChange, onBack: _onBack, onCanc
 
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
-                    <Label>Time Control</Label>
-                    <Select
-                      value={config.details.timeControl}
-                      onValueChange={(value) => {
-                        const defaults = defaultTimeControlFor(value as TimeControlType);
-                        let nextTimeControls = baseTimeControls.length === 0 ? [defaults] : baseTimeControls;
-                        if (nextTimeControls.length === 1) {
-                          nextTimeControls = [{ ...nextTimeControls[0], ...defaults }];
-                        }
-                        updateDetails({
-                          timeControl: value as TimeControlType,
-                          timeControls: nextTimeControls,
-                        });
-                      }}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {TIME_CONTROL_OPTIONS.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label>Rating Type</Label>
-                    <Select
-                      value={config.details.ratingType}
-                      onValueChange={(value) => updateDetails({ ratingType: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {RATING_TYPE_OPTIONS.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
                     <Label>Primary Rating System</Label>
                     <Select
                       value={config.details.primaryRatingSystem ?? "uscf"}
@@ -2063,7 +2038,7 @@ function StepTwo({ format, mode, config, onConfigChange, onBack: _onBack, onCanc
 
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <Label className="text-base font-semibold">Clock Settings</Label>
+                    <Label className="text-base font-medium text-black">Clock Settings</Label>
                     <Button variant="outline" onClick={addTimeControl}>
                       Add Time Control
                     </Button>
@@ -2168,112 +2143,54 @@ function StepTwo({ format, mode, config, onConfigChange, onBack: _onBack, onCanc
                     </div>
                   </div>
                 )}
+                {config.format === 'arena' && (
+                  <div className="space-y-6 pt-4 border-t border-slate-100">
+                      <h3 className="text-base font-medium text-black">Arena Configuration</h3>
+                    <ArenaSettingsTab config={config} onConfigChange={onConfigChange} onSave={onSave} saving={saving} />
+                  </div>
+                )}
 
-                <div className="space-y-4 pt-4 border-t border-slate-100">
-                  <div className="flex items-center gap-2 mb-4">
-                    <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center">
-                      <Calculator className="h-4 w-4 text-indigo-600" />
-                    </div>
-                    <h3 className="text-sm font-bold text-indigo-900 uppercase tracking-wider">Scoring Protocol</h3>
-                  </div>
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-xs text-slate-600">Customize how many points players earn for each result.</p>
-                    <Button variant="outline" size="sm" className="h-8 text-[10px] uppercase font-bold tracking-tight" onClick={resetScoring}>
-                      Reset to defaults
-                    </Button>
-                  </div>
-                  <div className="grid gap-4 md:grid-cols-3">
-                    <ScoreInput
-                      id="scoring-win"
-                      label="Win"
-                      value={scoring.win}
-                      onChange={(v) => handleScoreChange("win", v)}
-                    />
-                    <ScoreInput
-                      id="scoring-draw"
-                      label="Draw"
-                      value={scoring.draw}
-                      onChange={(v) => handleScoreChange("draw", v)}
-                    />
-                    <ScoreInput
-                      id="scoring-loss"
-                      label="Loss"
-                      value={scoring.loss}
-                      onChange={(v) => handleScoreChange("loss", v)}
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-4 pt-4 border-t border-slate-100">
-                  <div className="flex items-center gap-2 mb-4">
-                    <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center">
-                      <Settings className="h-4 w-4 text-indigo-600" />
-                    </div>
-                    <h3 className="text-sm font-bold text-indigo-900 uppercase tracking-wider">Tiebreaker System</h3>
-                  </div>
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-xs text-slate-600">Configure the rules and priority used to resolve score parity.</p>
-                    <div className="flex items-center gap-2">
-                      <Label className="text-[10px] font-bold text-slate-500 uppercase">Status</Label>
-                      <Switch checked={config.details.tiebreaksEnabled} onCheckedChange={toggleTiebreaks} />
-                    </div>
-                  </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={addTiebreakRule}
-                        disabled={!config.details.tiebreaksEnabled}
-                      >
-                        <Plus className="h-4 w-4 mr-2" />
-                        Add Rule
+                {config.format !== 'arena' && (
+                  <div className="space-y-4 pt-4 border-t border-slate-100">
+                    <h3 className="text-base font-medium text-black">Scoring Protocol</h3>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs text-slate-500">Customize how many points players earn for each result.</p>
+                      <Button variant="outline" size="sm" className="h-8 text-[10px] font-medium text-black" onClick={resetScoring}>
+                        Reset to defaults
                       </Button>
                     </div>
-                  {config.details.tiebreaksEnabled && (
-                    <div className="space-y-2">
-                      {tiebreaks.map((rule, index) => (
-                        <TiebreakRow
-                          key={index}
-                          index={index}
-                          total={tiebreaks.length}
-                          value={rule}
-                          onChange={(v) => updateTiebreakRule(index, v)}
-                          onRemove={() => removeTiebreakRule(index)}
-                          onMoveUp={() => moveTiebreakRule(index, -1)}
-                          onMoveDown={() => moveTiebreakRule(index, 1)}
-                        />
-                      ))}
-                      {tiebreaks.length === 0 && (
-                        <p className="text-xs text-slate-400 italic py-2 text-center border border-dashed rounded-lg">
-                          No custom tiebreakers added yet. Standard system will be used.
-                        </p>
-                      )}
-                      <datalist id="tiebreak-option-list">
-                        <option value="Modified Median" />
-                        <option value="Solkoff" />
-                        <option value="Buchholz" />
-                        <option value="Cumulative" />
-                        <option value="Sonneborn-Berger" />
-                        <option value="Opponent Average Rating" />
-                        <option value="Direct Encounter" />
-                        <option value="Number of Wins" />
-                        <option value="Most Blacks" />
-                      </datalist>
+                    <div className="grid gap-4 md:grid-cols-3">
+                      <ScoreInput
+                        id="scoring-win"
+                        label="Win"
+                        value={scoring.win}
+                        onChange={(v) => handleScoreChange("win", v)}
+                      />
+                      <ScoreInput
+                        id="scoring-draw"
+                        label="Draw"
+                        value={scoring.draw}
+                        onChange={(v) => handleScoreChange("draw", v)}
+                      />
+                      <ScoreInput
+                        id="scoring-loss"
+                        label="Loss"
+                        value={scoring.loss}
+                        onChange={(v) => handleScoreChange("loss", v)}
+                      />
                     </div>
-                  )}
+                  </div>
+                )}
+
                 
                 {config.format === 'knockout' && (
-                  <div className="space-y-6 mb-6 p-6 rounded-xl bg-indigo-50/30 border border-indigo-100 shadow-sm">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center">
-                        <Trophy className="h-4 w-4 text-indigo-600" />
-                      </div>
-                      <h3 className="text-sm font-bold text-indigo-900 uppercase tracking-wider">Knockout Protocol</h3>
-                    </div>
+                  <div className="space-y-6 mb-6 p-6 rounded-2xl bg-white border border-slate-200 shadow-sm">
+                      <h3 className="text-base font-medium text-black">Knockout Protocol</h3>
 
                     <div className="grid gap-6 md:grid-cols-2">
                       <div className="space-y-2">
-                        <Label className="text-indigo-900 font-semibold">Seeding Protocol</Label>
-                        <p className="text-[11px] text-indigo-700/70 mb-2">
+                        <Label className="text-[15px] font-medium text-black">Seeding Protocol</Label>
+                        <p className="text-[11px] text-slate-600 mb-2">
                           Define how participants are positioned within the tournament bracket. Standard seeding matches superior seeds against lower seeds.
                         </p>
                         <Select
@@ -2294,8 +2211,8 @@ function StepTwo({ format, mode, config, onConfigChange, onBack: _onBack, onCanc
 
                       {config.seedingMethod !== 'random' && config.seedingMethod !== 'manual' && (
                         <div className="space-y-2">
-                          <Label className="text-indigo-900 font-semibold">Rating Source</Label>
-                          <p className="text-[11px] text-indigo-700/70 mb-2">
+                          <Label className="text-[15px] font-medium text-black">Rating Source</Label>
+                          <p className="text-[11px] text-slate-600 mb-2">
                             Select the primary rating database used to determine participant eligibility and bracket position.
                           </p>
                           <Select
@@ -2316,15 +2233,12 @@ function StepTwo({ format, mode, config, onConfigChange, onBack: _onBack, onCanc
                     </div>
 
                     <div className="border-t border-indigo-100/50 pt-6">
-                      <div className="flex items-center gap-2 mb-4">
-                        <Trophy className="h-4 w-4 text-indigo-400" />
                         <div>
-                          <Label className="text-indigo-900 font-bold uppercase tracking-tight">Match Victory Thresholds</Label>
-                          <p className="text-[11px] text-indigo-700/70">
+                          <Label className="text-[15px] font-medium text-black">Match Victory Thresholds</Label>
+                          <p className="text-[11px] text-slate-600">
                             Define the total points required for a participant to secure a series victory in each round.
                           </p>
                         </div>
-                      </div>
 
                       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                         {Array.from({ length: config.details.rounds || 0 }).map((_, i) => {
@@ -2333,7 +2247,7 @@ function StepTwo({ format, mode, config, onConfigChange, onBack: _onBack, onCanc
                           
                           return (
                             <div key={roundNum} className="p-3 bg-white rounded-lg border border-indigo-100 shadow-sm space-y-2">
-                              <Label className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">
+                              <Label className="text-[10px] font-semibold text-slate-500 uppercase tracking-widest">
                                 {roundNum === config.details.rounds ? "Final" : roundNum === config.details.rounds - 1 ? "Semifinals" : `Round ${roundNum}`}
                               </Label>
                               <div className="flex items-center gap-2">
@@ -2351,7 +2265,7 @@ function StepTwo({ format, mode, config, onConfigChange, onBack: _onBack, onCanc
                                     updateDetails({ matchWinConditions: nextWinConditions });
                                   }}
                                 />
-                                <span className="text-[10px] font-black text-indigo-300">PTS</span>
+                                <span className="text-[10px] font-semibold text-slate-400">PTS</span>
                               </div>
                             </div>
                           );
@@ -2366,8 +2280,8 @@ function StepTwo({ format, mode, config, onConfigChange, onBack: _onBack, onCanc
                 <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50/70 p-4">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                      <h3 className="text-base font-semibold text-slate-900">Sections & rating bands</h3>
-                      <p className="text-xs text-slate-600">
+                      <h3 className="text-base font-medium text-black">Sections & Rating Bands</h3>
+                      <p className="text-xs text-slate-500">
                         Define the sections players can enter. Rating bounds are enforced throughout registration and pricing.
                       </p>
                     </div>
@@ -2377,8 +2291,20 @@ function StepTwo({ format, mode, config, onConfigChange, onBack: _onBack, onCanc
                   </div>
 
                   {sections.length === 0 ? (
-                    <div className="rounded-lg border border-dashed border-slate-300 bg-white p-4 text-xs text-slate-600">
-                      No sections configured yet. Create at least one section to enable payment configuration and registration flows.
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between p-4 rounded-xl border border-dashed border-slate-200 bg-slate-50/50">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center border shadow-sm">
+                            <span className="text-[10px] font-bold text-slate-400">01</span>
+                          </div>
+                          <div>
+                            <span className="text-base font-medium text-black">Open Section</span>
+                            <p className="text-[10px] text-slate-400 font-medium italic">Auto-generated fallback section</p>
+                          </div>
+                        </div>
+                        <Badge variant="outline" className="text-[10px] font-bold">ACTIVE</Badge>
+                      </div>
+                      <p className="text-[11px] text-slate-500 italic px-1">Adding your first custom section will replace this default.</p>
                     </div>
                   ) : (
                     <div className="space-y-3">
@@ -2392,7 +2318,7 @@ function StepTwo({ format, mode, config, onConfigChange, onBack: _onBack, onCanc
                           <div key={section.id} className="space-y-3 rounded-lg border border-slate-200 bg-white p-4">
                             <div className="grid gap-3 md:grid-cols-[minmax(0,1.6fr)_repeat(2,minmax(0,1fr))_auto] md:items-end">
                               <div>
-                                <Label className="text-xs font-semibold uppercase text-slate-500">Section name</Label>
+                                <Label className="text-sm font-semibold text-slate-500">Section name</Label>
                                 <Input
                                   value={section.name}
                                   onChange={(event) => updateSection(section.id, { name: event.target.value })}
@@ -2400,7 +2326,7 @@ function StepTwo({ format, mode, config, onConfigChange, onBack: _onBack, onCanc
                                 />
                               </div>
                               <div>
-                                <Label className="text-xs font-semibold uppercase text-slate-500">Rating floor</Label>
+                                <Label className="text-sm font-semibold text-slate-500">Rating floor</Label>
                                 <Input
                                   type="number"
                                   value={section.ratingMin ?? ""}
@@ -2411,7 +2337,7 @@ function StepTwo({ format, mode, config, onConfigChange, onBack: _onBack, onCanc
                                 />
                               </div>
                               <div>
-                                <Label className="text-xs font-semibold uppercase text-slate-500">Rating ceiling</Label>
+                                <Label className="text-sm font-semibold text-slate-500">Rating ceiling</Label>
                                 <Input
                                   type="number"
                                   value={section.ratingMax ?? ""}
@@ -2424,7 +2350,7 @@ function StepTwo({ format, mode, config, onConfigChange, onBack: _onBack, onCanc
                               <Button
                                 type="button"
                                 variant="ghost"
-                                className="justify-self-end text-red-600"
+                                className="justify-self-end text-red-600 font-medium"
                                 onClick={() => removeSection(section.id)}
                               >
                                 Remove
@@ -2447,70 +2373,16 @@ function StepTwo({ format, mode, config, onConfigChange, onBack: _onBack, onCanc
                 {renderTabSaveButton()}
               </TabsContent>
 
-              <TabsContent value="schedule" className="bg-white p-6 space-y-3">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <h3 className="text-lg font-semibold">Schedule</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Plan rounds and ceremonies. These entries appear on reports and public pages.
-                    </p>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button variant="outline" onClick={addScheduleRow}>
-                      Add Event
-                    </Button>
-                    <Button variant="outline" onClick={handleSchedulePrint}>
-                      Print Schedule
-                    </Button>
-                  </div>
-                </div>
 
-                <div className="space-y-3">
-                  {config.schedule.map((event) => (
-                    <div
-                      key={event.id}
-                      className="grid gap-3 md:grid-cols-[150px,150px,1fr,auto] items-center border rounded-lg p-3"
-                    >
-                      <Input
-                        type="date"
-                        value={event.date ?? ""}
-                        onChange={(e) => updateScheduleRow(event.id, { date: e.target.value || null })}
-                      />
-                      <Input
-                        type="time"
-                        value={event.time ?? ""}
-                        onChange={(e) => updateScheduleRow(event.id, { time: e.target.value || null })}
-                      />
-                      <Select
-                        value={event.label}
-                        onValueChange={(value) => {
-                          updateScheduleRow(event.id, { label: value });
-                        }}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select template" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {scheduleTemplateOptions.map((option) => (
-                            <SelectItem key={option} value={option}>
-                              {option}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        className="text-red-500"
-                        onClick={() => removeScheduleRow(event.id)}
-                      >
-                        Remove
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-
-                {renderTabSaveButton()}
+              <TabsContent value="tournamentPage" className="bg-white p-6">
+                {tournament && (
+                  <TournamentPagePanel
+                    tournament={tournament}
+                    onUpdated={() => {
+                      queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournament.id}`] });
+                    }}
+                  />
+                )}
               </TabsContent>
               <TabsContent value="payments" className="bg-white p-6 space-y-5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
@@ -2579,12 +2451,12 @@ function StepTwo({ format, mode, config, onConfigChange, onBack: _onBack, onCanc
                         <div key={fee.id} className="space-y-4 rounded-lg border border-slate-200 bg-slate-50/60 p-4">
                           <div className="grid gap-3 md:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1fr)_auto] md:items-baseline">
                             <div className="space-y-2">
-                              <Label className="text-xs font-semibold uppercase text-slate-500">Section</Label>
+                              <Label className="text-sm font-semibold text-slate-700">Section</Label>
                               <Select
                                 value={activeSection?.id ?? fee.sectionId ?? ""}
                                 onValueChange={(value) => updateEntryFee(fee.id, { sectionId: value })}
                               >
-                                <SelectTrigger>
+                                <SelectTrigger className="h-11">
                                   <SelectValue placeholder="Select section" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -2598,22 +2470,23 @@ function StepTwo({ format, mode, config, onConfigChange, onBack: _onBack, onCanc
                               <p className="mt-1 text-[11px] text-slate-500">{ratingSummary}</p>
                             </div>
                             <div className="space-y-2">
-                              <Label className="text-xs font-semibold uppercase text-slate-500">Amount</Label>
+                              <Label className="text-sm font-semibold text-slate-700">Amount</Label>
                               <Input
                                 type="number"
                                 step="0.01"
+                                className="h-11"
                                 value={typeof fee.amount === "number" ? String(fee.amount) : ""}
                                 onChange={(event) => handleEntryFeeAmountChange(fee.id, event.target.value)}
                                 placeholder="e.g., 120"
                               />
                             </div>
                             <div className="space-y-2">
-                              <Label className="text-xs font-semibold uppercase text-slate-500">Currency</Label>
+                              <Label className="text-sm font-semibold text-slate-700">Currency</Label>
                               <Select
                                 value={fee.currency || config.payments.defaultCurrency || "USD"}
                                 onValueChange={(value) => updateEntryFee(fee.id, { currency: value })}
                               >
-                                <SelectTrigger>
+                                <SelectTrigger className="h-11">
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -2660,10 +2533,10 @@ function StepTwo({ format, mode, config, onConfigChange, onBack: _onBack, onCanc
                             </div>
                             <div>
                               <Label className="text-xs font-semibold uppercase text-slate-500">Effective after</Label>
-                              <Input
-                                type="date"
-                                value={fee.effectiveAfter ?? ""}
-                                onChange={(event) => handleEntryFeeDateChange(fee.id, event.target.value)}
+                              <DatePicker
+                                date={fee.effectiveAfter ? parseISO(fee.effectiveAfter) : null}
+                                setDate={(date) => handleEntryFeeDateChange(fee.id, date ? formatDate(date, "yyyy-MM-dd") : "")}
+                                placeholder="Pick effective date"
                               />
                             </div>
                           </div>
@@ -2859,50 +2732,21 @@ function StepTwo({ format, mode, config, onConfigChange, onBack: _onBack, onCanc
 
 
 
-              <TabsContent value="rate-tournament" className="bg-white p-6 space-y-4">
-                <div className="space-y-2">
-                  {config.registers.fideRated && (
-                    <Button
-                      variant="outline"
-                      onClick={() => handleShortcutChange("fide")}
-                      disabled={!tournament}
-                    >
-                      FIDE Registration
-                    </Button>
-                  )}
-                  {config.registers.uscfRated && (
-                    <Button
-                      variant="outline"
-                      onClick={() => handleShortcutChange("uscf")}
-                      disabled={!tournament}
-                    >
-                      USCF Report
-                    </Button>
-                  )}
-                </div>
-                {!config.registers.fideRated && !config.registers.uscfRated && (
-                  <p className="text-sm text-muted-foreground">
-                    This tournament is not set to be rated by any federation.
-                  </p>
-                )}
-              </TabsContent>
 
-              <TabsContent value="options" className="bg-white p-6 space-y-6">
-                <div className="rounded-lg border bg-slate-50/20 p-6 space-y-4 shadow-sm border-slate-200">
+              <TabsContent value="options" className="bg-slate-50/30 p-8 space-y-8">
+                {/* Public Access Protocol */}
+                <div className="rounded-2xl border bg-white p-6 space-y-4 shadow-sm border-slate-200/60">
                   <div className="flex items-center gap-2 mb-2">
-                    <div className="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center">
-                      <Link className="h-4 w-4 text-slate-400" />
-                    </div>
-                    <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">Public Access Protocol</h3>
+                    <h3 className="text-base font-semibold text-black">Public Access Protocol</h3>
                   </div>
                   
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     <div className="flex items-center gap-3">
                       <div className="flex-1 relative group">
                         <Input 
                           readOnly 
                           value={spectatorLink} 
-                          className="bg-white border-slate-200 pr-10 text-xs font-sans select-all focus:ring-slate-400 transition-all font-bold" 
+                          className="bg-slate-50 border-slate-200 h-10 pr-10 text-xs select-all focus:ring-slate-400 focus:bg-white transition-all font-medium text-black" 
                         />
                         <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
                            <button 
@@ -2910,40 +2754,39 @@ function StepTwo({ format, mode, config, onConfigChange, onBack: _onBack, onCanc
                                navigator.clipboard.writeText(spectatorLink);
                                toast({ title: "Copied", description: "Spectator link copied to clipboard" });
                              }}
-                             className="p-1 hover:bg-slate-100 rounded text-slate-400"
+                             className="p-1.5 hover:bg-slate-200 rounded transition-colors text-slate-400"
                            >
-                             <Copy className="h-3 w-3" />
+                             <Copy className="h-3.5 w-3.5" />
                            </button>
                         </div>
                       </div>
-                      <Button variant="outline" size="sm" className="h-9 gap-2 text-xs border-slate-200 bg-white font-bold" onClick={() => setQrCodeModalOpen(true)}>
-                        <QrCode className="h-3 w-3" />
+                      <Button variant="outline" className="h-10 gap-2 text-sm border-slate-200 bg-white font-semibold hover:bg-slate-50" onClick={() => setQrCodeModalOpen(true)}>
+                        <QrCode className="h-4 w-4" />
                         QR Code
                       </Button>
-                      <Button variant="outline" size="sm" className="h-9 gap-2 text-xs border-slate-200 bg-white font-bold" onClick={handleSpectatorLinkPrint}>
-                        <Printer className="h-3 w-3" />
+                      <Button variant="outline" className="h-10 gap-2 text-sm border-slate-200 bg-white font-semibold hover:bg-slate-50" onClick={handleSpectatorLinkPrint}>
+                        <Printer className="h-4 w-4" />
                         Print
                       </Button>
                     </div>
-                    <p className="text-[10px] text-slate-500 italic">
-                      Distribute this URL to allow participants to self-register or spectators to monitor live progress.
+                    <p className="text-sm text-slate-500 leading-relaxed">
+                      Distribute this URL to allow participants to self-register or spectators to monitor live progress and results.
                     </p>
                   </div>
                 </div>
 
-                <div className="rounded-lg border bg-indigo-50/20 p-6 space-y-6">
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center">
-                      <Users className="h-4 w-4 text-indigo-600" />
+                {/* Registration Policy */}
+                <div className="rounded-2xl border bg-white p-6 space-y-8 shadow-sm border-slate-200/60">
+                    <div className="space-y-1">
+                      <h3 className="text-base font-semibold text-black">Registration Policy</h3>
+                      <p className="text-sm text-slate-500">Configure entry rules and participant interface options.</p>
                     </div>
-                    <h3 className="text-sm font-bold text-indigo-900 uppercase tracking-wider">Registration Policy</h3>
-                  </div>
 
                     <div className="grid gap-4 md:grid-cols-2">
-                      <div className="flex items-center justify-between rounded-lg border border-indigo-100 bg-white px-4 py-3 shadow-sm">
-                        <div>
-                          <Label className="text-xs font-bold text-indigo-900">Online Registration</Label>
-                          <p className="text-[10px] text-indigo-700/70">Allow players to self-register online.</p>
+                      <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/30 px-5 py-4 transition-all hover:bg-slate-50/50">
+                        <div className="space-y-0.5">
+                          <Label className="text-base font-medium text-black">Online Registration</Label>
+                          <p className="text-xs text-slate-500 font-normal">Allow players to self-register online.</p>
                         </div>
                         <Switch
                           checked={config.registers.allowPlayerToJoin}
@@ -2951,10 +2794,10 @@ function StepTwo({ format, mode, config, onConfigChange, onBack: _onBack, onCanc
                         />
                       </div>
 
-                      <div className="flex items-center justify-between rounded-lg border border-indigo-100 bg-white px-4 py-3 shadow-sm">
-                        <div>
-                          <Label className="text-xs font-bold text-indigo-900">Multi-Player Entry</Label>
-                          <p className="text-[10px] text-indigo-700/70">Enable registration of multiple players per account.</p>
+                      <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/30 px-5 py-4 transition-all hover:bg-slate-50/50">
+                        <div className="space-y-0.5">
+                          <Label className="text-base font-medium text-black">Multi-Player Entry</Label>
+                          <p className="text-xs text-slate-500 font-normal">Enable registration of multiple players per account.</p>
                         </div>
                         <Switch
                           checked={config.registers.allowMultiPlayerSignup}
@@ -2962,10 +2805,10 @@ function StepTwo({ format, mode, config, onConfigChange, onBack: _onBack, onCanc
                         />
                       </div>
 
-                      <div className="flex items-center justify-between rounded-lg border border-indigo-100 bg-white px-4 py-3 shadow-sm">
-                        <div>
-                          <Label className="text-xs font-bold text-indigo-900">Registration Edits</Label>
-                          <p className="text-[10px] text-indigo-700/70">Allow participants to modify their details post-entry.</p>
+                      <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/30 px-5 py-4 transition-all hover:bg-slate-50/50">
+                        <div className="space-y-0.5">
+                          <Label className="text-base font-medium text-black">Registration Edits</Label>
+                          <p className="text-xs text-slate-500 font-normal">Allow participants to modify their details post-entry.</p>
                         </div>
                         <Switch
                           checked={config.registers.allowEditRegistration}
@@ -2973,10 +2816,10 @@ function StepTwo({ format, mode, config, onConfigChange, onBack: _onBack, onCanc
                         />
                       </div>
 
-                      <div className="flex items-center justify-between rounded-lg border border-indigo-100 bg-white px-4 py-3 shadow-sm">
-                        <div>
-                          <Label className="text-xs font-bold text-indigo-900">Pairing Predictor</Label>
-                          <p className="text-[10px] text-indigo-700/70">Allow live simulation of upcoming pairings.</p>
+                      <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/30 px-5 py-4 transition-all hover:bg-slate-50/50">
+                        <div className="space-y-0.5">
+                          <Label className="text-base font-medium text-black">Pairing Predictor</Label>
+                          <p className="text-xs text-slate-500 font-normal">Allow live simulation of upcoming pairings.</p>
                         </div>
                         <Switch
                           checked={config.registers.enablePairingPredictor}
@@ -2985,26 +2828,35 @@ function StepTwo({ format, mode, config, onConfigChange, onBack: _onBack, onCanc
                       </div>
                     </div>
 
-                    <div className="grid gap-4 md:grid-cols-2 pt-2 border-t border-indigo-100/50">
-                      <div className="space-y-3">
-                        <Label className="text-xs font-black text-indigo-400 uppercase tracking-widest">Communication</Label>
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between text-xs">
-                             <span className="text-slate-600">Email Notifications</span>
+                    <div className="grid gap-8 md:grid-cols-2 pt-6 border-t border-slate-100">
+                      <div className="space-y-4">
+                        <Label className="text-base font-semibold text-black">Communication</Label>
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/30 px-4 py-3.5">
+                             <div className="space-y-0.5">
+                               <Label className="text-[15px] font-medium text-black">Email Notifications</Label>
+                               <p className="text-xs text-slate-500 font-normal">Notify pairings via email.</p>
+                             </div>
                              <Switch
                                checked={config.registers.notifyPairingsEmail}
                                onCheckedChange={(checked) => updateRegisters({ notifyPairingsEmail: checked })}
                              />
                           </div>
-                          <div className="flex items-center justify-between text-xs">
-                             <span className="text-slate-600">SMS Notifications</span>
+                          <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/30 px-4 py-3.5">
+                             <div className="space-y-0.5">
+                               <Label className="text-[15px] font-medium text-black">SMS Notifications</Label>
+                               <p className="text-xs text-slate-500 font-normal">Notify pairings via SMS.</p>
+                             </div>
                              <Switch
                                checked={config.registers.notifyPairingsSms}
                                onCheckedChange={(checked) => updateRegisters({ notifyPairingsSms: checked })}
                              />
                           </div>
-                          <div className="flex items-center justify-between text-xs">
-                             <span className="text-slate-600">Display School/Grade</span>
+                          <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/30 px-4 py-3.5">
+                             <div className="space-y-0.5">
+                               <Label className="text-[15px] font-medium text-black">Display Affiliations</Label>
+                               <p className="text-xs text-slate-500 font-normal">Show player school and grade details.</p>
+                             </div>
                              <Switch
                                checked={!config.registers.hideTeams}
                                onCheckedChange={(checked) => updateRegisters({ hideTeams: !checked })}
@@ -3013,72 +2865,125 @@ function StepTwo({ format, mode, config, onConfigChange, onBack: _onBack, onCanc
                         </div>
                       </div>
 
-                      <div className="space-y-3">
-                        <Label className="text-xs font-black text-indigo-400 uppercase tracking-widest">Constraints</Label>
+                      <div className="space-y-4">
+                        <Label className="text-base font-semibold text-black">Constraints</Label>
                         <div className="space-y-4">
-                          <div className="space-y-1">
-                            <Label className="text-[10px] text-slate-500 uppercase">Participant Capacity</Label>
+                          <div className="space-y-4">
+                            <Label className="text-base font-medium text-black">Participant Capacity</Label>
                             <Input
                               type="number"
-                              className="h-8 text-xs font-bold"
-                              placeholder="Unlimited"
-                              value={config.registers.playerLimit ?? ""}
-                              onChange={(e) => updateRegisters({ playerLimit: e.target.value ? parseInt(e.target.value) : null })}
+                              min={0}
+                              placeholder="No limit"
+                              value={config.registers.playerLimit || ""}
+                              onChange={(e) => updateRegisters({ playerLimit: parseInt(e.target.value) || 0 })}
+                              className="h-11 border-slate-200"
                             />
                           </div>
-                          <div className="space-y-1">
-                            <Label className="text-[10px] text-slate-500 uppercase">Maximum Byes</Label>
+                          <div className="space-y-4">
+                            <Label className="text-base font-medium text-black">Registration Deadline</Label>
+                             <div className="flex gap-2">
+                               <div className="flex-1">
+                                 <DatePicker
+                                   date={config.registers.registrationDeadlineDate ? parseISO(config.registers.registrationDeadlineDate) : null}
+                                   setDate={(d: Date | null) => updateRegisters({ registrationDeadlineDate: d ? formatDate(d, "yyyy-MM-dd") : "" })}
+                                   placeholder="Select date"
+                                   className="h-11 border-slate-200"
+                                 />
+                               </div>
+                               <div className="flex-1">
+                                 <Input
+                                   type="time"
+                                   value={config.registers.registrationDeadlineTime || ""}
+                                   onChange={(e) => updateRegisters({ registrationDeadlineTime: e.target.value })}
+                                   className="h-11 border-slate-200"
+                                 />
+                               </div>
+                             </div>
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-base font-medium text-black">Maximum Byes</Label>
                             <Input
                               type="number"
-                              className="h-8 text-xs font-bold"
+                              className="h-11 border-slate-200"
                               placeholder="0"
                               value={config.registers.byeLimit ?? ""}
                               onChange={(e) => updateRegisters({ byeLimit: e.target.value ? parseInt(e.target.value) : null })}
                             />
+                            <p className="text-xs text-slate-400">Limit the number of requested byes allowed per player.</p>
                           </div>
                         </div>
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm">
-                      <div>
-                        <Label className="text-sm font-medium">Calendar Visibility</Label>
-                        <p className="text-xs text-muted-foreground">List this tournament on the public global calendar.</p>
+                    <div className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50/50 px-6 py-4 shadow-sm">
+                      <div className="space-y-1">
+                        <Label className="text-base font-semibold text-black">Calendar Visibility</Label>
+                        <p className="text-sm text-slate-500 leading-none">List this tournament on the public global calendar.</p>
                       </div>
                       <Switch
                         checked={config.registers.showOnCalendar}
                         onCheckedChange={(checked) => updateRegisters({ showOnCalendar: checked })}
                       />
                     </div>
+                </div>
+
+                {/* Extensions */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 px-2">
+                     <h3 className="text-base font-semibold text-black tracking-tight">Extensions</h3>
                   </div>
+                  <ChessResultsSettingsCard
+                    value={config.chessResults}
+                    onChange={updateChessResults}
+                    onTest={() => testMutation.mutate()}
+                    onSync={() => syncMutation.mutate()}
+                    testing={testMutation.isPending}
+                    syncing={syncMutation.isPending}
+                    disabled={config.chessResults.syncMode === "disabled"}
+                    onDownload={handleDownloadChessResults}
+                    enabled={chessResultsEnabled}
+                    onEnabledChange={setChessResultsEnabled}
+                  />
+                </div>
 
-                                <ChessResultsSettingsCard
+                {/* Rate Event Card */}
+                <div className="rounded-2xl border border-slate-200 bg-white p-6 space-y-5 shadow-sm">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-semibold text-black tracking-tight">Rate Event</h3>
+                  </div>
+                  <div className="flex flex-wrap gap-3">
+                    {config.registers.fideRated && (
+                      <Button
+                        variant="outline"
+                        className="h-11 px-6 font-bold text-black border-slate-200 bg-white hover:bg-slate-50 transition-all shadow-sm rounded-xl"
+                        onClick={() => handleShortcutChange("fide")}
+                        disabled={!tournament}
+                      >
+                        FIDE Report
+                      </Button>
+                    )}
+                    {config.registers.uscfRated && (
+                      <Button
+                        variant="outline"
+                        className="h-11 px-6 font-bold text-black border-slate-200 bg-white hover:bg-slate-50 transition-all shadow-sm rounded-xl"
+                        onClick={() => handleShortcutChange("uscf")}
+                        disabled={!tournament}
+                      >
+                        USCF Report
+                      </Button>
+                    )}
+                    {!config.registers.fideRated && !config.registers.uscfRated && (
+                      <p className="text-sm text-slate-500 italic py-2">
+                        This tournament is currently not configured as a rated event. Reporting tools are unavailable.
+                      </p>
+                    )}
+                  </div>
+                </div>
 
-                                  value={config.chessResults}
+                {renderTabSaveButton()}
+              </TabsContent>
 
-                                  onChange={updateChessResults}
 
-                                  onTest={() => testMutation.mutate()}
-
-                                  onSync={() => syncMutation.mutate()}
-
-                                  testing={testMutation.isPending}
-
-                                  syncing={syncMutation.isPending}
-
-                                  disabled={config.chessResults.syncMode === "disabled"}
-
-                                  onDownload={handleDownloadChessResults}
-
-                                  enabled={chessResultsEnabled}
-
-                                  onEnabledChange={setChessResultsEnabled}
-
-                                />
-
-                              {renderTabSaveButton()}
-
-                            </TabsContent>
             </Tabs>
           </CardContent>
         </Card>
@@ -3436,21 +3341,21 @@ interface ScoreInputProps {
   label: string;
   value: number;
   onChange: (value: string) => void;
+  description?: string;
 }
 
-function ScoreInput({ id, label, value, onChange }: ScoreInputProps) {
+function ScoreInput({ id, label, value, onChange, description }: ScoreInputProps) {
   return (
     <div className="space-y-2">
-      <Label htmlFor={id}>{label}</Label>
+      <Label htmlFor={id} className="text-sm font-medium">{label}</Label>
       <Input
         id={id}
         type="number"
-        min={-1}
-        max={10}
-        step="0.25"
+        step="0.5"
         value={Number.isFinite(value) ? value : 0}
         onChange={(event) => onChange(event.target.value)}
       />
+      {description && <p className="text-[10px] text-muted-foreground">{description}</p>}
     </div>
   );
 }

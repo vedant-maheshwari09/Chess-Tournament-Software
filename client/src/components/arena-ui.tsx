@@ -1,211 +1,326 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { HEAD_TO_HEAD_RESULT_OPTIONS } from "@shared/match-results";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Flame, Swords, UserPlus, Pause, Play, Trophy, User, Clock, Users, Zap } from "lucide-react";
+import { Flame, Swords, Trophy, User, Clock, Users, Zap, ChevronLeft, ChevronRight, Crown } from "lucide-react";
 import type { Player, Match, Tournament } from "@shared/schema";
 import { cn } from "@/lib/utils";
+import { Label } from "@/components/ui/label";
 
 /**
  * Reconstructs the Lichess-style performance sequence for a player.
- * Scoring: Win = 2, Draw = 1, Loss = 0. 
- * Streak (after 2 consecutive wins): Win = 4, Draw = 2.
  */
 function calculatePerformanceSequence(playerId: number, matches: Match[], scoringConfig?: any) {
   if (!matches) return [];
-  
-  // Filter matches for this player and sort by ID (chronological proxy)
   const playerMatches = matches
     .filter(m => (m.whitePlayerId === playerId || m.blackPlayerId === playerId) && m.status === 'completed')
     .sort((a, b) => a.id - b.id);
 
   const sequence: number[] = [];
   let streak = 0;
-  
-  const config = scoringConfig || {
-    winPoints: 2,
-    drawPoints: 1,
-    lossPoints: 0,
-    streakThreshold: 2,
-    onFireWinPoints: 4,
-    onFireDrawPoints: 2
-  };
-
+  const config = scoringConfig || { winPoints: 2, drawPoints: 1, lossPoints: 0, streakThreshold: 2, onFireWinPoints: 4, onFireDrawPoints: 2 };
   const threshold = config.streakThreshold || 2;
 
   playerMatches.forEach(match => {
     const isWhite = match.whitePlayerId === playerId;
     const result = match.result;
     let score = 0;
-
     if (result === '1-0') score = isWhite ? 1 : 0;
     else if (result === '0-1') score = isWhite ? 0 : 1;
     else if (result === '1/2-1/2') score = 0.5;
-
     const onFire = streak >= threshold;
-
-    if (score === 1) {
-      sequence.push(onFire ? (config.onFireWinPoints || 4) : (config.winPoints || 2));
-      streak++;
-    } else if (score === 0.5) {
-      sequence.push(onFire ? (config.onFireDrawPoints || 2) : (config.drawPoints || 1));
-      streak = 0;
-    } else {
-      sequence.push(config.lossPoints || 0);
-      streak = 0;
-    }
+    if (score === 1) { sequence.push(onFire ? (config.onFireWinPoints || 4) : (config.winPoints || 2)); streak++; }
+    else if (score === 0.5) { sequence.push(onFire ? (config.onFireDrawPoints || 2) : (config.drawPoints || 1)); streak = 0; }
+    else { sequence.push(config.lossPoints || 0); streak = 0; }
   });
-
   return sequence;
 }
 
-function PerformanceSequence({ sequence }: { sequence: number[] }) {
-  if (sequence.length === 0) return <span className="text-[10px] text-muted-foreground/30 italic">No games yet</span>;
-
+function PerformanceBar({ sequence }: { sequence: number[] }) {
+  if (sequence.length === 0) return <span className="text-[10px] text-slate-300 italic">—</span>;
   return (
-    <div className="flex items-center gap-0.5 overflow-x-auto no-scrollbar">
-      {sequence.slice(-12).map((points, i) => {
-        let colorClass = "text-muted-foreground/40";
-        if (points >= 4) colorClass = "text-orange-500 font-black drop-shadow-[0_0_8px_rgba(249,115,22,0.3)]";
-        else if (points >= 2) colorClass = "text-green-600 font-bold";
-        else if (points === 1) colorClass = "text-blue-500 font-semibold";
-        
-        return (
-          <span key={i} className={cn("text-xs w-3.5 text-center", colorClass)}>
-            {points}
-          </span>
-        );
+    <div className="flex items-center gap-px">
+      {sequence.slice(-10).map((points, i) => {
+        let cls = "w-2 h-3 rounded-sm opacity-60";
+        if (points >= 4) cls += " bg-orange-500 opacity-100";
+        else if (points >= 2) cls += " bg-green-500";
+        else if (points === 1) cls += " bg-blue-400";
+        else cls += " bg-slate-300";
+        return <div key={i} className={cls} />;
       })}
     </div>
   );
 }
 
-function StandingsRow({ 
-  player, 
-  rank, 
-  isTD, 
-  matches, 
-  onSelectWhite, 
-  onSelectBlack, 
-  selectedWhite, 
+// ─── Compact live timer ──────────────────────────────────────────────────────
+function useLiveTimer(startTime: Date | null, durationMinutes: number) {
+  const [timeLeft, setTimeLeft] = useState<number | null>(null);
+  const [phase, setPhase] = useState<'countdown' | 'live' | 'ended'>('live');
+
+  useEffect(() => {
+    if (!startTime || !durationMinutes) return;
+    const rawStart = startTime as any;
+    let startTs: number;
+    if (typeof rawStart === 'string') {
+      const iso = rawStart.includes('T') ? rawStart : (rawStart as string).replace(' ', 'T');
+      startTs = new Date(iso.endsWith('Z') ? iso : `${iso}Z`).getTime();
+    } else if (rawStart instanceof Date) {
+      startTs = rawStart.getTime();
+    } else {
+      startTs = new Date(String(rawStart)).getTime();
+    }
+    const durationMs = durationMinutes * 60000;
+
+    const tick = () => {
+      const now = Date.now();
+      if (now < startTs) {
+        setPhase('countdown');
+        setTimeLeft(Math.floor((startTs - now) / 1000));
+      } else {
+        const end = startTs + durationMs;
+        const rem = Math.max(0, end - now);
+        setPhase(rem === 0 ? 'ended' : 'live');
+        setTimeLeft(Math.floor(rem / 1000));
+      }
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [startTime, durationMinutes]);
+
+  return { timeLeft, phase };
+}
+
+function formatTime(seconds: number) {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  if (h > 0) return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+}
+
+// ─── Arena Header (inline timer, Lichess-style) ──────────────────────────────
+export function ArenaHeader({
+  tournament,
+  playerCount,
+  isTD,
+  onPause,
+}: {
+  tournament: Tournament;
+  playerCount: number;
+  isTD: boolean;
+  onPause?: () => void;
+}) {
+  const startTime = useMemo(() => {
+    if (!tournament.arenaStartTime) return null;
+    const raw = tournament.arenaStartTime as unknown as string;
+    if (raw instanceof Date) return raw as unknown as Date;
+    const iso = typeof raw === 'string' && raw.includes('T') ? raw : String(raw).replace(' ', 'T');
+    return new Date(iso.endsWith('Z') ? iso : `${iso}Z`);
+  }, [tournament.arenaStartTime]);
+
+  const { timeLeft, phase } = useLiveTimer(startTime, tournament.arenaDuration || 10);
+
+  const isLastMinute = phase === 'live' && timeLeft !== null && timeLeft < 60 && timeLeft > 0;
+
+  // Status banner content
+  const bannerText = useMemo(() => {
+    if (tournament.status === 'registration') return 'Waiting for tournament to start — players registering';
+    if (tournament.status === 'completed') return 'Tournament concluded — final standings below';
+    if (phase === 'countdown') return 'Tournament starting soon — pairing players, get ready!';
+    if (phase === 'ended') return tournament.arenaEndStrategy === 'wait_for_ongoing' ? 'Time expired — waiting for ongoing matches to finish' : 'Time expired — calculating final results';
+    if (isLastMinute) return 'Final minute — last pairings in progress!';
+    return `Arena live — ${playerCount} players competing`;
+  }, [tournament.status, phase, isLastMinute, playerCount, tournament.arenaEndStrategy]);
+
+  const bannerColor = useMemo(() => {
+    if (tournament.status === 'completed') return 'bg-slate-100 text-slate-600';
+    if (tournament.status === 'registration') return 'bg-blue-50 text-blue-700';
+    if (phase === 'countdown') return 'bg-amber-400 text-amber-900';
+    if (phase === 'ended') return 'bg-orange-100 text-orange-700';
+    if (isLastMinute) return 'bg-red-500 text-white';
+    return 'bg-green-500 text-white';
+  }, [tournament.status, phase, isLastMinute]);
+
+  return (
+    <div className="rounded-xl overflow-hidden border border-slate-200 shadow-sm bg-white">
+      {/* Title row */}
+      <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
+        <div className="flex items-center gap-2.5">
+          <Trophy className="h-5 w-5 text-amber-500" />
+          <span className="text-lg font-bold text-slate-800 tracking-tight">
+            {tournament.name}
+          </span>
+          {tournament.arenaDuration && (
+            <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 border-slate-200 text-slate-500 font-medium">
+              {tournament.arenaDuration}min Arena
+            </Badge>
+          )}
+        </div>
+
+        <div className="flex items-center gap-3">
+          {timeLeft !== null && tournament.status === 'active' && (
+            <span className={cn(
+              "font-mono font-bold text-xl tabular-nums tracking-tight",
+              phase === 'countdown' ? "text-amber-600" :
+              isLastMinute ? "text-red-600 animate-pulse" :
+              phase === 'ended' ? "text-slate-400" : "text-slate-700"
+            )}>
+              {formatTime(timeLeft)}
+            </span>
+          )}
+          {isTD && tournament.status === 'active' && onPause && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={onPause}
+              className="h-8 px-3 text-xs font-bold uppercase tracking-wider border-slate-300 hover:bg-slate-50"
+            >
+              ⏸ Pause
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Status banner */}
+      <div className={cn("px-5 py-2 text-center text-xs font-semibold tracking-wide", bannerColor)}>
+        {bannerText}
+      </div>
+    </div>
+  );
+}
+
+// Keep ArenaTimer for backward compatibility (used in tournament-management)
+export function ArenaTimer({ tournament }: { tournament: Tournament }) {
+  return null; // Timer is now embedded in ArenaHeader inside ArenaLobby
+}
+
+// ─── Compact standings row ──────────────────────────────────────────────────
+function StandingsRow({
+  player,
+  rank,
+  isTD,
+  onSelectWhite,
+  onSelectBlack,
+  selectedWhite,
   selectedBlack,
-  currentUser 
-}: { 
-  player: Player, 
-  rank: number, 
-  isTD: boolean, 
-  matches: Match[],
-  onSelectWhite: (id: number) => void,
-  onSelectBlack: (id: number) => void,
-  selectedWhite: number | null,
-  selectedBlack: number | null,
-  currentUser?: boolean
+  currentUser,
+  matches,
+}: {
+  player: Player;
+  rank: number;
+  isTD: boolean;
+  onSelectWhite: (id: number) => void;
+  onSelectBlack: (id: number) => void;
+  selectedWhite: number | null;
+  selectedBlack: number | null;
+  currentUser?: boolean;
+  matches: Match[];
 }) {
   const sequence = calculatePerformanceSequence(player.id, matches);
-  
+  const points = parseFloat(player.arenaPoints || "0");
+  const isPlaying = player.arenaStatus === 'playing';
+  const isSelected = selectedWhite === player.id || selectedBlack === player.id;
+
   return (
-    <TableRow className={cn(
-      "group hover:bg-muted/30 transition-colors border-b last:border-0",
-      currentUser && "bg-primary/5 hover:bg-primary/10 transition-colors",
-      player.arenaStatus === 'playing' && "opacity-80"
-    )}>
-      <TableCell className="w-12 pl-6 py-3">
-        <span className={cn(
-          "text-sm font-bold tabular-nums",
-          rank <= 3 ? "text-primary flex items-center gap-1" : "text-muted-foreground/40"
-        )}>
-          {rank.toString().padStart(2, '0')}
-          {rank === 1 && <Trophy className="h-3 w-3" />}
-        </span>
-      </TableCell>
-      
-      <TableCell className="py-3">
-        <div className="flex items-center gap-3">
-          <div className={cn(
-            "w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0",
-            player.onFire ? "bg-orange-500 animate-pulse shadow-[0_0_12px_rgba(249,115,22,0.4)]" : "bg-muted text-muted-foreground"
-          )}>
-            {player.onFire ? <Flame className="h-4 w-4 fill-current" /> : <User className="h-4 w-4" />}
-          </div>
-          <div className="flex flex-col min-w-0">
-            <div className="flex items-center gap-2">
-              <span className={cn("text-sm font-semibold truncate", currentUser ? "text-primary" : "text-foreground")}>
-                {player.firstName} {player.lastName}
-              </span>
-              <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 border-muted-foreground/20 text-muted-foreground">
-                {player.rating}
-              </Badge>
-              {player.arenaStatus === 'playing' && (
-                <div className="flex items-center gap-1 text-[11px] font-bold text-primary animate-pulse">
-                  <Swords className="h-3.5 w-3.5" />
-                  <span>PLAYING</span>
-                </div>
-              )}
-              {player.arenaStatus === 'paused' && (
-                <Badge variant="outline" className="text-[9px] bg-muted/50">Paused</Badge>
-              )}
-            </div>
-          </div>
-        </div>
+    <TableRow
+      className={cn(
+        "group transition-colors border-b border-slate-100 last:border-0 h-10",
+        currentUser && "bg-green-50/60 hover:bg-green-50",
+        !currentUser && "hover:bg-slate-50/80",
+        isSelected && "bg-blue-50",
+        isPlaying && "opacity-75"
+      )}
+      style={currentUser ? { borderLeft: '3px solid #22c55e' } : {}}
+    >
+      {/* Rank */}
+      <TableCell className="w-10 pl-4 py-0 text-center">
+        {rank === 1 ? (
+          <Crown className="h-3.5 w-3.5 text-amber-500 mx-auto" />
+        ) : rank === 2 ? (
+          <span className="text-sm font-bold text-slate-400">2</span>
+        ) : rank === 3 ? (
+          <span className="text-sm font-bold text-slate-400">3</span>
+        ) : (
+          <span className="text-xs text-slate-400 tabular-nums">{rank}</span>
+        )}
       </TableCell>
 
-      <TableCell className="py-3 px-4 hidden md:table-cell">
-        <PerformanceSequence sequence={sequence} />
-      </TableCell>
-
-      <TableCell className="py-3 pr-4 text-right">
-        <div className="flex flex-col items-end">
-          <span className="text-lg font-black tracking-tight tabular-nums text-foreground">
-            {parseFloat(player.arenaPoints || "0")}
+      {/* Player */}
+      <TableCell className="py-0 pl-1">
+        <div className="flex items-center gap-1.5">
+          {player.onFire && (
+            <Flame className="h-3.5 w-3.5 text-orange-500 fill-orange-400 shrink-0" />
+          )}
+          <span className={cn("text-sm font-semibold truncate max-w-[140px]", currentUser ? "text-green-700" : "text-slate-800")}>
+            {player.firstName} {player.lastName}
           </span>
-          {player.arenaStreak > 0 && (
-            <span className="text-[10px] font-bold text-orange-500 flex items-center gap-0.5">
-              <Zap className="h-2.5 w-2.5 fill-current" />
-              {player.arenaStreak}
-            </span>
+          <span className="text-[11px] text-slate-400 font-medium shrink-0">{player.rating}</span>
+          {isPlaying && (
+            <span className="text-[9px] font-bold text-blue-500 uppercase tracking-wider">●</span>
+          )}
+          {player.arenaStatus === 'paused' && (
+            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">–</span>
           )}
         </div>
       </TableCell>
 
+      {/* Performance bar */}
+      <TableCell className="py-0 hidden md:table-cell">
+        <PerformanceBar sequence={sequence} />
+      </TableCell>
+
+      {/* Score */}
+      <TableCell className="py-0 text-right pr-3 w-16">
+        <div className="flex items-center justify-end gap-1">
+          {player.arenaStreak >= 2 && (
+            <span className="text-[10px] font-black text-orange-500">🔥{player.arenaStreak}</span>
+          )}
+          <span className={cn(
+            "text-sm font-black tabular-nums",
+            points > 0 ? "text-green-600" : "text-slate-400"
+          )}>
+            {points % 1 === 0 ? points : points.toFixed(1)}
+          </span>
+        </div>
+      </TableCell>
+
+      {/* TD actions */}
       {isTD && (
-        <TableCell className="py-2 pr-6 text-right w-40">
-          {player.arenaStatus === 'playing' ? (
-            <div className="flex items-center justify-end gap-2 text-indigo-600 bg-indigo-50 dark:bg-indigo-900/40 px-3 py-1.5 rounded-xl border border-indigo-200 dark:border-indigo-700 shadow-sm animate-pulse">
-              <Swords className="h-4 w-4" />
-              <span className="text-[10px] font-black uppercase tracking-widest">Matching</span>
-            </div>
+        <TableCell className="py-0 pr-3 w-28 text-right">
+          {isPlaying ? (
+            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">In Match</span>
           ) : (
-            <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
-              <Button
-                size="sm"
-                variant={selectedWhite === player.id ? "default" : "outline"}
+            <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button
                 onClick={() => onSelectWhite(player.id)}
-                disabled={player.arenaStatus !== 'lobby'}
                 className={cn(
-                  "h-8 w-14 text-[10px] font-bold uppercase tracking-tight rounded-lg",
-                  selectedWhite === player.id ? "bg-indigo-600 hover:bg-indigo-700" : ""
+                  "h-6 px-2 text-[9px] font-bold uppercase rounded border transition-colors",
+                  selectedWhite === player.id
+                    ? "bg-slate-800 text-white border-slate-800"
+                    : "bg-white text-slate-600 border-slate-300 hover:border-slate-600"
                 )}
+                disabled={player.arenaStatus !== 'lobby'}
               >
-                White
-              </Button>
-              <Button
-                size="sm"
-                variant={selectedBlack === player.id ? "default" : "outline"}
+                W
+              </button>
+              <button
                 onClick={() => onSelectBlack(player.id)}
-                disabled={player.arenaStatus !== 'lobby'}
                 className={cn(
-                  "h-8 w-14 text-[10px] font-bold uppercase tracking-tight rounded-lg",
-                  selectedBlack === player.id ? "bg-slate-900 hover:bg-slate-800 text-white" : ""
+                  "h-6 px-2 text-[9px] font-bold uppercase rounded border transition-colors",
+                  selectedBlack === player.id
+                    ? "bg-slate-800 text-white border-slate-800"
+                    : "bg-white text-slate-600 border-slate-300 hover:border-slate-600"
                 )}
+                disabled={player.arenaStatus !== 'lobby'}
               >
-                Black
-              </Button>
+                B
+              </button>
             </div>
           )}
         </TableCell>
@@ -214,588 +329,525 @@ function StandingsRow({
   );
 }
 
+// ─── Arena Lobby ─────────────────────────────────────────────────────────────
 interface ArenaUIProps {
   tournamentId: number;
   isTD: boolean;
   userId?: number;
+  onArenaStart?: () => void;
 }
 
-export function ArenaTimer({ tournament }: { tournament: Tournament }) {
-  const [timeLeft, setTimeLeft] = useState<number | null>(null);
+const PAGE_SIZE = 15;
 
-  React.useEffect(() => {
-    if (!tournament.arenaStartTime || !tournament.arenaDuration) return;
-
-    // More robust date parsing for UTC
-    let startTime: number;
-    const rawStart = tournament.arenaStartTime as any;
-    
-    if (typeof rawStart === 'string') {
-      const isoStr = rawStart.includes('T') ? rawStart : rawStart.replace(' ', 'T');
-      const utcStr = isoStr.endsWith('Z') ? isoStr : `${isoStr}Z`;
-      startTime = new Date(utcStr).getTime();
-    } else {
-      // If it's already a Date object, assume it's UTC normalized or handle accurately
-      startTime = new Date(rawStart).getTime();
-    }
-    
-    const durationMs = tournament.arenaDuration * 60000;
-    const endTime = startTime + durationMs;
-
-    const updateTimer = () => {
-      const now = new Date().getTime();
-      const remaining = Math.max(0, endTime - now);
-      setTimeLeft(Math.floor(remaining / 1000));
-    };
-
-    updateTimer();
-    const interval = setInterval(updateTimer, 1000);
-    return () => clearInterval(interval);
-  }, [tournament.arenaStartTime, tournament.arenaDuration]);
-
-  if (timeLeft === null) return null;
-
-  const hours = Math.floor(timeLeft / 3600);
-  const minutes = Math.floor((timeLeft % 3600) / 60);
-  const seconds = timeLeft % 60;
-  const isLastMinute = timeLeft < 60 && timeLeft > 0;
-  const isEnded = timeLeft === 0;
-
-  return (
-    <div className="w-full flex flex-col items-center justify-center py-6 sm:py-10">
-      <div className="flex flex-col items-center gap-8">
-        <div className="flex items-center gap-3 px-4 py-1.5 bg-slate-900 border border-slate-800 rounded-full shadow-lg">
-           <div className={cn(
-             "w-2 h-2 rounded-full", 
-             isEnded ? "bg-slate-600" : isLastMinute ? "bg-red-500 animate-pulse" : "bg-emerald-500"
-           )} />
-           <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
-             {isEnded ? "Tournament Concluded" : isLastMinute ? "Final Minute" : "Arena Active"}
-           </span>
-        </div>
-
-        <div className="flex items-start justify-center gap-2 sm:gap-6">
-          <div className="flex flex-col items-center gap-3">
-            <div className={cn(
-              "flex items-center justify-center min-w-[70px] sm:min-w-[110px] h-20 sm:h-28 rounded-[2rem] bg-white dark:bg-slate-950 border-2 shadow-xl transition-all duration-500",
-              isLastMinute ? "border-red-200 text-red-600 bg-red-50/50" : "border-slate-100 text-slate-900 dark:text-white dark:border-slate-800"
-            )}>
-              <span className="text-4xl sm:text-6xl font-black tracking-tighter tabular-nums leading-none">
-                {hours.toString().padStart(2, '0')}
-              </span>
-            </div>
-            <span className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Hours</span>
-          </div>
-          
-          <div className="pt-6 sm:pt-9">
-            <span className="text-3xl sm:text-4xl font-black text-slate-200 dark:text-slate-800 animate-pulse">:</span>
-          </div>
-
-          <div className="flex flex-col items-center gap-3">
-            <div className={cn(
-              "flex items-center justify-center min-w-[70px] sm:min-w-[110px] h-20 sm:h-28 rounded-[2rem] bg-white dark:bg-slate-950 border-2 shadow-xl transition-all duration-500",
-              isLastMinute ? "border-red-500 text-red-600 bg-red-50 animate-pulse" : "border-slate-100 text-slate-900 dark:text-white dark:border-slate-800"
-            )}>
-              <span className="text-4xl sm:text-6xl font-black tracking-tighter tabular-nums leading-none">
-                {minutes.toString().padStart(2, '0')}
-              </span>
-            </div>
-            <span className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Minutes</span>
-          </div>
-
-          <div className="pt-6 sm:pt-9">
-            <span className="text-3xl sm:text-4xl font-black text-slate-200 dark:text-slate-800 animate-pulse">:</span>
-          </div>
-
-          <div className="flex flex-col items-center gap-3">
-            <div className={cn(
-              "flex items-center justify-center min-w-[70px] sm:min-w-[110px] h-20 sm:h-28 rounded-[2rem] bg-white dark:bg-slate-950 border-2 shadow-xl transition-all duration-500",
-              isLastMinute ? "border-red-500 text-red-600 bg-red-50" : "border-slate-100 text-slate-900 dark:text-white dark:border-slate-800"
-            )}>
-              <span className={cn(
-                "text-4xl sm:text-6xl font-black tracking-tighter tabular-nums leading-none",
-                isLastMinute ? "text-red-500" : "text-indigo-600 dark:text-indigo-400"
-              )}>
-                {seconds.toString().padStart(2, '0')}
-              </span>
-            </div>
-            <span className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Seconds</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-
-
-function ArenaPlayerCard({ player, rank, isTD, onSelectWhite, onSelectBlack, selectedWhite, selectedBlack }: { player: Player, rank?: number, isTD?: boolean, onSelectWhite?: (id: number) => void, onSelectBlack?: (id: number) => void, selectedWhite?: number | null, selectedBlack?: number | null }) {
-  const points = player.arenaPoints || 0;
-  
-  return (
-    <Card className={cn(
-      "group relative overflow-hidden transition-all duration-300 hover:shadow-md border-none",
-      player.arenaStatus === 'playing' && "opacity-60 cursor-not-allowed"
-    )}>
-      <CardContent className="p-5 flex flex-col items-center">
-        <div className="absolute top-3 left-3 flex items-center justify-center w-6 h-6 rounded-md bg-muted text-[10px] font-semibold text-muted-foreground group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
-          {rank ? rank.toString().padStart(2, '0') : '--'}
-        </div>
-
-        <div className="relative mb-3">
-          <div className="w-14 h-14 rounded-full flex items-center justify-center bg-muted text-muted-foreground transition-all group-hover:bg-primary/10 group-hover:text-primary">
-            <User className="h-6 w-6" />
-          </div>
-          {player.onFire && (
-            <div className="absolute -bottom-1 -right-1 bg-orange-500 p-1 rounded-full shadow-sm border-2 border-white">
-              <Flame className="h-2 w-2 text-white fill-white" />
-            </div>
-          )}
-        </div>
-
-        <div className="text-center space-y-1 mb-4">
-          <h3 className="text-base font-semibold text-foreground leading-tight truncate max-w-full">
-            {player.firstName} {player.lastName}
-          </h3>
-          <p className="text-xs font-medium text-muted-foreground bg-muted/50 px-2 py-0.5 rounded inline-block">
-            Rating: {player.rating}
-          </p>
-        </div>
-
-        <div className="flex items-center gap-4 pl-4 border-l">
-          <div className="text-center">
-            <span className="text-[10px] font-medium text-muted-foreground block">Score</span>
-            <span className="text-xl font-bold text-primary">{points}</span>
-          </div>
-          <div className="text-center">
-            <span className="text-[10px] font-medium text-muted-foreground block">Streak</span>
-            <span className="text-xl font-bold text-orange-500">{player.arenaStreak || 0}</span>
-          </div>
-        </div>
-
-        {isTD && player.arenaStatus === 'lobby' && (
-          <div className="w-full grid grid-cols-2 gap-2 mt-4">
-            <Button
-              size="sm"
-              variant={selectedWhite === player.id ? "default" : "outline"}
-              onClick={() => onSelectWhite?.(player.id)}
-              className="h-9 font-medium text-xs"
-            >
-              White
-            </Button>
-            <Button
-              size="sm"
-              variant={selectedBlack === player.id ? "default" : "outline"}
-              onClick={() => onSelectBlack?.(player.id)}
-              className={cn(
-                "h-9 font-medium text-xs",
-                selectedBlack === player.id ? "bg-primary" : ""
-              )}
-            >
-              Black
-            </Button>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-export function ArenaLobby({ tournamentId, isTD, userId }: ArenaUIProps) {
+export function ArenaLobby({ tournamentId, isTD, userId, onArenaStart }: ArenaUIProps) {
   const { toast } = useToast();
-  const [whitePlayerId, setWhitePlayerId] = useState<number | null>(null);
-  const [blackPlayerId, setBlackPlayerId] = useState<number | null>(null);
-
-  const { data: players, isLoading } = useQuery<Player[]>({
-    queryKey: [`/api/tournaments/${tournamentId}/arena/lobby`],
-    refetchInterval: 3000,
-  });
-
   const { data: tournament } = useQuery<Tournament>({
     queryKey: [`/api/tournaments/${tournamentId}`],
+    refetchInterval: 2000,
+  });
+
+  const { data: players, isLoading } = useQuery<Player[]>({
+    queryKey: [`/api/tournaments/${tournamentId}/players`],
+    refetchInterval: 2000,
   });
 
   const { data: matches } = useQuery<Match[]>({
     queryKey: [`/api/tournaments/${tournamentId}/matches`],
+    refetchInterval: 2000,
   });
 
-  const lobby = { activeMatchCount: matches?.filter(m => m.status === 'playing').length || 0 };
+  const [whitePlayerId, setWhitePlayerId] = useState<number | null>(null);
+  const [blackPlayerId, setBlackPlayerId] = useState<number | null>(null);
+  const [page, setPage] = useState(0);
 
-  const isExpired = React.useMemo(() => {
+  const isExpired = useMemo(() => {
     if (!tournament?.arenaStartTime || !tournament?.arenaDuration) return false;
-    const endTime = new Date(new Date(tournament.arenaStartTime).getTime() + tournament.arenaDuration * 60000);
-    return new Date() > endTime;
+    const rawStart = tournament.arenaStartTime as any;
+    let utcStr = rawStart;
+    if (typeof rawStart === 'string') {
+      const iso = rawStart.includes('T') ? rawStart : rawStart.replace(' ', 'T');
+      utcStr = iso.endsWith('Z') ? iso : `${iso}Z`;
+    }
+    return Date.now() > new Date(utcStr).getTime() + tournament.arenaDuration * 60000;
   }, [tournament]);
 
+  const sortedPlayers = useMemo(() => {
+    if (!players) return [];
+    return [...players].sort((a, b) => parseFloat(b.arenaPoints || "0") - parseFloat(a.arenaPoints || "0"));
+  }, [players]);
+
+  const totalPages = Math.ceil(sortedPlayers.length / PAGE_SIZE);
+  const pagePlayers = sortedPlayers.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+
+  const lobbyCount = players?.filter(p => p.arenaStatus === 'lobby').length || 0;
+  const playingCount = players?.filter(p => p.arenaStatus === 'playing').length || 0;
+
   const pairMutation = useMutation({
-    mutationFn: async () => {
-      if (!whitePlayerId || !blackPlayerId) return;
-      return await apiRequest(`/api/tournaments/${tournamentId}/arena/pair`, {
-        method: "POST",
-        body: JSON.stringify({ whitePlayerId, blackPlayerId }),
-      });
-    },
+    mutationFn: async () => apiRequest(`/api/tournaments/${tournamentId}/arena/pair`, {
+      method: "POST",
+      body: JSON.stringify({ whitePlayerId, blackPlayerId }),
+    }),
     onSuccess: () => {
-      toast({ title: "Protocol Initiated", description: "Standard match sequence confirmed." });
+      toast({ title: "Match dispatched" });
       setWhitePlayerId(null);
       setBlackPlayerId(null);
       queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/arena/lobby`] });
-      queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/matches`] });
     },
-    onError: (error: any) => {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    },
+    onError: (error: any) => toast({ title: "Error", description: error.message, variant: "destructive" }),
   });
 
   const startArenaMutation = useMutation({
-    mutationFn: async () => {
-      return await apiRequest(`/api/tournaments/${tournamentId}/arena/start`, {
-        method: "POST",
-      });
-    },
+    mutationFn: async () => apiRequest(`/api/tournaments/${tournamentId}/arena/start`, { method: "POST" }),
     onSuccess: () => {
-      toast({ title: "System Online", description: "Arena pool has been activated." });
+      toast({ title: "Arena activated!" });
       queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}`] });
-      queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/arena/lobby`] });
+      onArenaStart?.();
     },
-    onError: (error: any) => {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    },
+    onError: (error: any) => toast({ title: "Error", description: error.message, variant: "destructive" }),
   });
 
-  const availablePlayers = players?.filter(p => p.arenaStatus === 'lobby') || [];
-  const playingPlayers = players?.filter(p => p.arenaStatus === 'playing') || [];
-  const pausedPlayers = players?.filter(p => p.arenaStatus === 'paused') || [];
-  const unavailablePlayers = [...playingPlayers, ...pausedPlayers];
+  if (isLoading) return (
+    <div className="flex justify-center py-20">
+      <div className="animate-spin h-8 w-8 border-2 border-slate-300 border-t-slate-700 rounded-full" />
+    </div>
+  );
 
-  if (isLoading) return <div className="flex justify-center p-24"><div className="animate-spin h-10 w-10 border-[3px] border-primary border-t-transparent rounded-full" /></div>;
+  if (tournament?.status === 'completed') return <ArenaPodium players={players || []} />;
 
   return (
-    <div className="space-y-12 animate-in fade-in slide-in-from-bottom-6 duration-700">
+    <div className="space-y-4 animate-in fade-in duration-500">
 
-      {isTD && tournament?.status === 'active' && (
-        <Card className="bg-slate-50 dark:bg-slate-900 border shadow-sm rounded-3xl overflow-hidden">
-          <CardHeader className="pb-2 border-b bg-white dark:bg-slate-950">
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-lg font-bold flex items-center gap-2">
-                  <Swords className="h-5 w-5 text-indigo-500" />
-                  Manual Match Pairing
-                </CardTitle>
-                <p className="text-xs text-muted-foreground font-medium">Director override: force a specific board assignment</p>
-              </div>
-              <Button 
-                 disabled={!whitePlayerId || !blackPlayerId || pairMutation.isPending || isExpired}
-                 onClick={() => pairMutation.mutate()}
-                 className="font-bold px-6 h-10 rounded-xl"
-              >
-                 {pairMutation.isPending ? "Connecting..." : "Confirm Pair"}
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent className="p-6">
-            <div className="flex flex-col md:flex-row items-stretch gap-4">
-              <div className={cn(
-                "flex-1 p-6 rounded-2xl border-2 border-dashed transition-all duration-300 flex flex-col items-center justify-center text-center",
-                whitePlayerId ? "bg-white dark:bg-slate-950 border-indigo-200 shadow-sm" : "bg-muted/10 border-muted-foreground/10"
-              )}>
-                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40 mb-3">White Player</span>
-                <p className={cn("text-xl font-black tracking-tight truncate w-full", whitePlayerId ? "text-slate-900 dark:text-white" : "text-muted-foreground/10 italic")}>
-                  {players?.find(p => p.id === whitePlayerId) ? `${players.find(p => p.id === whitePlayerId)?.firstName} ${players.find(p => p.id === whitePlayerId)?.lastName}` : "Select from table below"}
-                </p>
-              </div>
-              
-              <div className="flex items-center justify-center p-2">
-                <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center border shadow-inner">
-                  <span className="text-[10px] font-black text-muted-foreground">VS</span>
-                </div>
-              </div>
-
-              <div className={cn(
-                "flex-1 p-6 rounded-2xl border-2 border-dashed transition-all duration-300 flex flex-col items-center justify-center text-center",
-                blackPlayerId ? "bg-slate-900 border-slate-700 shadow-lg scale-[1.02]" : "bg-muted/10 border-muted-foreground/10"
-              )}>
-                <span className={cn("text-[10px] font-black uppercase tracking-widest mb-3", blackPlayerId ? "text-slate-500" : "text-muted-foreground/40")}>Black Player</span>
-                <p className={cn("text-xl font-black tracking-tight truncate w-full", blackPlayerId ? "text-white" : "text-muted-foreground/10 italic")}>
-                  {players?.find(p => p.id === blackPlayerId) ? `${players.find(p => p.id === blackPlayerId)?.firstName} ${players.find(p => p.id === blackPlayerId)?.lastName}` : "Select from table below"}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      {/* Arena Header with inline timer */}
+      {tournament && (
+        <ArenaHeader
+          tournament={tournament}
+          playerCount={players?.length || 0}
+          isTD={isTD}
+          onPause={() => toast({ title: "Pause not yet implemented" })}
+        />
       )}
 
+      {/* Time expired banner */}
+      {isExpired && tournament?.status === 'active' && (
+        <div className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5">
+          <div className="flex items-center gap-2 text-amber-700">
+            <Clock className="h-4 w-4" />
+            <span className="text-sm font-semibold">Arena time expired</span>
+            <span className="text-xs text-amber-600">
+              {tournament.arenaEndStrategy === 'wait_for_ongoing' ? '— waiting for ongoing matches' : '— concluding now'}
+            </span>
+          </div>
+          {isTD && (
+            <Button
+              size="sm"
+              className="h-7 px-3 text-xs bg-amber-600 hover:bg-amber-700 text-white"
+              onClick={() => {
+                apiRequest(`/api/tournaments/${tournamentId}/arena/conclude`, { method: "POST" })
+                  .then(() => queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}`] }));
+              }}
+            >
+              Conclude
+            </Button>
+          )}
+        </div>
+      )}
+
+      {/* Start Tournament CTA (registration state) */}
       {isTD && tournament?.status === 'registration' && (
-        <Card className="bg-primary text-primary-foreground border-none shadow-lg overflow-hidden relative">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2" />
-          <CardContent className="p-8 sm:p-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-8 relative z-10">
-            <div className="max-w-xl space-y-2">
-              <h3 className="text-3xl font-semibold">Start Arena Tournament</h3>
-              <p className="text-primary-foreground/70 text-sm font-medium leading-relaxed">
-                Activate the tactical pool. Once online, players will be continuously paired based on performance metrics.
+        <div className="flex items-center justify-between bg-slate-900 text-white rounded-xl px-5 py-4">
+          <div>
+            <p className="font-bold text-base">Start Arena Tournament</p>
+            <p className="text-slate-400 text-xs mt-0.5">Players are waiting — activate the arena pool to begin pairing</p>
+          </div>
+          <div className="flex items-center gap-3 shrink-0">
+            <Select
+              value={String(tournament?.arenaDuration || 10)}
+              onValueChange={(val) => {
+                apiRequest(`/api/tournaments/${tournamentId}`, {
+                  method: "PATCH",
+                  body: JSON.stringify({ arenaDuration: parseInt(val) })
+                }).then(() => queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}`] }));
+              }}
+            >
+              <SelectTrigger className="w-32 h-8 bg-white/10 border-white/20 text-white text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {[5,10,15,20,30,45,60,90,120].map(m => (
+                  <SelectItem key={m} value={String(m)}>{m < 60 ? `${m} min` : `${m/60}h`}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => startArenaMutation.mutate()}
+              disabled={startArenaMutation.isPending}
+              className="h-8 px-5 font-bold"
+            >
+              {startArenaMutation.isPending ? "Starting…" : "Start"}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Manual pairing panel (TD only, manual mode) */}
+      {isTD && tournament?.status === 'active' && tournament?.arenaPairingMode === 'manual' && (
+        <div className="border border-slate-200 rounded-xl overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-2.5 bg-slate-50 border-b border-slate-200">
+            <div className="flex items-center gap-2">
+              <Swords className="h-4 w-4 text-slate-600" />
+              <span className="text-sm font-bold text-slate-700">Manual Pairing</span>
+            </div>
+            <Button
+              size="sm"
+              disabled={!whitePlayerId || !blackPlayerId || pairMutation.isPending || isExpired}
+              onClick={() => pairMutation.mutate()}
+              className="h-7 px-4 text-xs font-bold"
+            >
+              {pairMutation.isPending ? "Pairing…" : "Confirm Pair"}
+            </Button>
+          </div>
+          <div className="flex items-center gap-0 divide-x divide-slate-200">
+            <div className={cn("flex-1 px-4 py-3 text-center transition-colors", whitePlayerId ? "bg-white" : "bg-slate-50/50")}>
+              <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-0.5">White</p>
+              <p className={cn("text-sm font-bold truncate", whitePlayerId ? "text-slate-800" : "text-slate-300 italic")}>
+                {whitePlayerId ? players?.find(p => p.id === whitePlayerId)?.firstName + ' ' + players?.find(p => p.id === whitePlayerId)?.lastName : "Select from table ↓"}
               </p>
             </div>
-            <Button 
-               size="lg"
-               variant="secondary"
-               onClick={() => startArenaMutation.mutate()}
-               disabled={startArenaMutation.isPending}
-               className="font-semibold px-8 h-12 rounded-full shadow-md hover:scale-105 transition-transform"
-            >
-               {startArenaMutation.isPending ? "Activating..." : "Start Tournament"}
-            </Button>
-          </CardContent>
-        </Card>
-      )}
-
-      <div className="space-y-4">
-        <div className="flex items-center justify-between border-b pb-4 px-1">
-          <div className="flex items-center gap-3">
-            <h2 className="text-xl font-bold text-foreground tracking-tight">Ready Players & Standings</h2>
-            <Badge variant="secondary" className="px-3 py-1 text-xs font-semibold rounded-full bg-slate-100 text-slate-600 border-none">
-              {players?.length || 0} Total
-            </Badge>
-          </div>
-          <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60">
-            <div className="flex items-center gap-1.5">
-              <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
-              <span>{availablePlayers.length} Waiting</span>
+            <div className="px-3 py-3 shrink-0 bg-slate-50">
+              <span className="text-[10px] font-black text-slate-400">VS</span>
             </div>
-            <div className="flex items-center gap-1.5 ml-4">
-              <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-              <span>{playingPlayers.length} In-Match</span>
+            <div className={cn("flex-1 px-4 py-3 text-center transition-colors", blackPlayerId ? "bg-slate-900" : "bg-slate-50/50")}>
+              <p className={cn("text-[9px] font-bold uppercase tracking-widest mb-0.5", blackPlayerId ? "text-slate-500" : "text-slate-400")}>Black</p>
+              <p className={cn("text-sm font-bold truncate", blackPlayerId ? "text-white" : "text-slate-300 italic")}>
+                {blackPlayerId ? players?.find(p => p.id === blackPlayerId)?.firstName + ' ' + players?.find(p => p.id === blackPlayerId)?.lastName : "Select from table ↓"}
+              </p>
             </div>
           </div>
         </div>
+      )}
 
-        <Card className="border-none shadow-sm overflow-hidden bg-background">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader className="bg-muted/30 border-b">
-                <TableRow className="hover:bg-transparent border-none">
-                  <TableHead className="w-12 pl-6 text-[10px] font-black uppercase text-muted-foreground/50 tracking-wider h-10">#</TableHead>
-                  <TableHead className="text-[10px] font-black uppercase text-muted-foreground/50 tracking-wider h-10">Player</TableHead>
-                  <TableHead className="hidden md:table-cell text-[10px] font-black uppercase text-muted-foreground/50 tracking-wider h-10">Performance Sequence</TableHead>
-                  <TableHead className="pr-4 text-right text-[10px] font-black uppercase text-muted-foreground/50 tracking-wider h-10">Points</TableHead>
-                  {isTD && <TableHead className="w-32 pr-6 text-right text-[10px] font-black uppercase text-muted-foreground/50 tracking-wider h-10">Matching</TableHead>}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {players && [...players]
-                  .sort((a, b) => parseFloat(b.arenaPoints || "0") - parseFloat(a.arenaPoints || "0"))
-                  .map((player, index) => (
-                  <StandingsRow 
-                    key={player.id} 
-                    player={player} 
-                    rank={index + 1}
-                    isTD={isTD}
-                    matches={matches || []}
-                    onSelectWhite={(id) => setWhitePlayerId(id === whitePlayerId ? null : id)}
-                    onSelectBlack={(id) => setBlackPlayerId(id === blackPlayerId ? null : id)}
-                    selectedWhite={whitePlayerId}
-                    selectedBlack={blackPlayerId}
-                    currentUser={player.userId === userId}
-                  />
-                ))}
-              </TableBody>
-            </Table>
+      {/* Standings table */}
+      <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm">
+        {/* Table header bar */}
+        <div className="flex items-center justify-between px-4 py-2 border-b border-slate-100 bg-slate-50/50">
+          <div className="flex items-center gap-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+            <div className="flex items-center gap-1">
+              <div className="w-2 h-2 rounded-full bg-green-500" />
+              <span>{lobbyCount} ready</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+              <span>{playingCount} playing</span>
+            </div>
           </div>
-          {players?.length === 0 && (
-            <div className="py-20 flex flex-col items-center justify-center text-center opacity-40">
-              <Users className="h-12 w-12 mb-4" />
-              <p className="text-sm font-medium italic">Competition protocol pending: no registrations found</p>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-slate-500 tabular-nums">
+                {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, sortedPlayers.length)} / {sortedPlayers.length}
+              </span>
+              <button
+                onClick={() => setPage(p => Math.max(0, p - 1))}
+                disabled={page === 0}
+                className="h-6 w-6 flex items-center justify-center rounded border border-slate-200 text-slate-500 hover:bg-slate-100 disabled:opacity-30 transition-colors"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+              </button>
+              <button
+                onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+                disabled={page >= totalPages - 1}
+                className="h-6 w-6 flex items-center justify-center rounded border border-slate-200 text-slate-500 hover:bg-slate-100 disabled:opacity-30 transition-colors"
+              >
+                <ChevronRight className="h-3.5 w-3.5" />
+              </button>
             </div>
           )}
-        </Card>
-      </div>
+        </div>
 
-      {/* Removed separate In-Progress grid as it is now integrated into the main Standings table */}
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent border-none bg-slate-50/30">
+                <TableHead className="w-10 pl-4 h-8 text-[9px] font-black uppercase tracking-wider text-slate-400">#</TableHead>
+                <TableHead className="h-8 text-[9px] font-black uppercase tracking-wider text-slate-400">Player</TableHead>
+                <TableHead className="h-8 text-[9px] font-black uppercase tracking-wider text-slate-400 hidden md:table-cell">Performance</TableHead>
+                <TableHead className="h-8 pr-3 text-right text-[9px] font-black uppercase tracking-wider text-slate-400 w-16">Score</TableHead>
+                {isTD && tournament?.arenaPairingMode === 'manual' && (
+                  <TableHead className="h-8 pr-3 text-right text-[9px] font-black uppercase tracking-wider text-slate-400 w-28">Pair</TableHead>
+                )}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {pagePlayers.map((player, idx) => (
+                <StandingsRow
+                  key={player.id}
+                  player={player}
+                  rank={page * PAGE_SIZE + idx + 1}
+                  isTD={isTD && tournament?.arenaPairingMode === 'manual'}
+                  matches={matches || []}
+                  onSelectWhite={(id) => setWhitePlayerId(id === whitePlayerId ? null : id)}
+                  onSelectBlack={(id) => setBlackPlayerId(id === blackPlayerId ? null : id)}
+                  selectedWhite={whitePlayerId}
+                  selectedBlack={blackPlayerId}
+                  currentUser={player.userId === userId}
+                />
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+
+        {sortedPlayers.length === 0 && (
+          <div className="py-16 flex flex-col items-center text-center opacity-40">
+            <Users className="h-10 w-10 mb-3 text-slate-400" />
+            <p className="text-sm text-slate-500">No players registered yet</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
+// ─── Active Matches (compact board list) ─────────────────────────────────────
 export function ArenaActiveMatches({ tournamentId, isTD, userId }: ArenaUIProps) {
   const { toast } = useToast();
   const { data: matches, isLoading } = useQuery<Match[]>({
     queryKey: [`/api/tournaments/${tournamentId}/matches`],
     refetchInterval: 3000,
   });
-
   const { data: players } = useQuery<Player[]>({
     queryKey: [`/api/tournaments/${tournamentId}/players`],
   });
 
   const resultMutation = useMutation({
-    mutationFn: async ({ matchId, result }: { matchId: number, result: string }) => {
-      return await apiRequest(`/api/tournaments/${tournamentId}/arena/results`, {
+    mutationFn: async ({ matchId, result }: { matchId: number; result: string }) =>
+      apiRequest(`/api/tournaments/${tournamentId}/arena/results`, {
         method: "POST",
         body: JSON.stringify({ matchId, result }),
-      });
-    },
+      }),
     onSuccess: () => {
-      toast({ title: "Result Recorded", description: "Standings have been adjusted accordingly." });
+      toast({ title: "Result recorded" });
       queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/matches`] });
-      queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/arena/lobby`] });
-      queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/arena/standings`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/players`] });
     },
   });
 
-  const activeMatches = matches?.filter(m => m.status === 'pending' || m.status === 'in_progress' || m.status === 'playing' || m.status === 'scheduled');
+  const activeMatches = matches?.filter(m =>
+    ['pending', 'in_progress', 'playing', 'scheduled'].includes(m.status)
+  );
 
-  if (isLoading) return <div className="flex justify-center p-12"><div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" /></div>;
+  if (isLoading) return (
+    <div className="flex justify-center py-16">
+      <div className="animate-spin h-7 w-7 border-2 border-slate-300 border-t-slate-700 rounded-full" />
+    </div>
+  );
 
-   const ActivePlayerEntry = ({ player, side }: { player?: Player, side: 'W' | 'B' }) => (
-    <div className="flex items-center gap-4 py-3 px-4 rounded-xl bg-muted/30">
-      <div className={cn(
-        "w-12 h-12 rounded-lg flex items-center justify-center text-lg font-bold shadow-sm",
-        side === 'W' ? "bg-white text-foreground border" : "bg-foreground text-background"
-      )}>
-        {side}
-      </div>
-        <div className="flex-1 min-w-0">
-          <span className="block text-lg font-semibold text-foreground leading-none mb-1 truncate">
-            {player?.firstName} {player?.lastName}
-          </span>
-          <div className="flex items-center gap-4 pl-4 border-l">
-            <div className="flex items-center gap-1.5">
-              <span className="text-[10px] font-medium text-muted-foreground">Rating</span>
-              <span className="text-xs font-semibold">{player?.rating || '-'}</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-[10px] font-medium text-muted-foreground">Points</span>
-              <span className="text-xs font-semibold text-primary">{player?.arenaPoints || 0}</span>
-            </div>
-          </div>
-        </div>
+  if (!activeMatches || activeMatches.length === 0) return (
+    <div className="border border-slate-200 rounded-xl py-16 flex flex-col items-center text-center bg-white">
+      <Swords className="h-10 w-10 mb-3 text-slate-300" />
+      <p className="text-sm font-semibold text-slate-500">No active matches</p>
+      <p className="text-xs text-slate-400 mt-1">Pair players in the Lobby tab to see boards here</p>
     </div>
   );
 
   return (
-    <div className="space-y-8">
-      {activeMatches?.length === 0 ? (
-        <Card className="border-none bg-muted/20">
-          <CardContent className="py-12 flex flex-col items-center justify-center text-center">
-            <Swords className="h-10 w-10 text-muted-foreground/20 mb-4" />
-            <h4 className="text-xs font-semibold text-muted-foreground mb-1">No Active Matches</h4>
-            <p className="text-xs text-muted-foreground">Start a pairing in the Lobby to see active boards here.</p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid gap-6">
-          {activeMatches?.map((match, idx) => {
-            const white = players?.find(p => p.id === match.whitePlayerId);
-            const black = players?.find(p => p.id === match.blackPlayerId);
-            
-            return (
-              <Card key={match.id} className="border-none shadow-sm overflow-hidden bg-background hover:shadow-md transition-shadow">
-                <CardContent className="p-4 sm:p-6">
-                  <div className="flex flex-col lg:flex-row items-center gap-6 lg:gap-12">
-                    <div className="flex-1 w-full grid grid-cols-1 md:grid-cols-2 gap-4 relative">
-                      <ActivePlayerEntry player={white} side="W" />
-                      <div className="hidden md:flex absolute inset-0 items-center justify-center pointer-events-none">
-                         <Badge variant="outline" className="bg-background text-[10px] font-bold px-3 py-0.5">VS</Badge>
-                      </div>
-                      <ActivePlayerEntry player={black} side="B" />
-                    </div>
+    <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm">
+      <div className="px-4 py-2 border-b border-slate-100 bg-slate-50/50">
+        <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+          {activeMatches.length} Active Board{activeMatches.length !== 1 ? 's' : ''}
+        </span>
+      </div>
+      <div className="divide-y divide-slate-100">
+        {activeMatches.map((match, idx) => {
+          const white = players?.find(p => p.id === match.whitePlayerId);
+          const black = players?.find(p => p.id === match.blackPlayerId);
+          return (
+            <div key={match.id} className="flex items-center gap-4 px-4 py-2.5 hover:bg-slate-50/60 transition-colors">
+              {/* Board number */}
+              <div className="shrink-0 w-10 text-center">
+                <span className="text-[10px] text-slate-400 block leading-none">Board</span>
+                <span className="text-base font-black text-slate-700 tabular-nums leading-tight">
+                  {(match.board || idx + 1).toString().padStart(2, '0')}
+                </span>
+              </div>
 
-                    <div className="w-full lg:w-auto flex lg:flex-col items-center justify-between lg:justify-center gap-4 border-t lg:border-t-0 lg:border-l pt-4 lg:pt-0 lg:pl-10">
-                      <div className="flex flex-col items-start lg:items-center">
-                         <span className="text-[10px] font-medium text-muted-foreground mb-1">Board</span>
-                         <span className="text-2xl font-bold leading-none">{(match.board || idx + 1).toString().padStart(2, '0')}</span>
-                      </div>
-
-                      {isTD ? (
-                        <div className="flex items-center gap-1.5">
-                           <Button 
-                              size="sm"
-                              variant="outline"
-                              onClick={() => resultMutation.mutate({ matchId: match.id, result: "1-0" })}
-                              className="h-8 px-3 font-mono text-sm font-bold hover:bg-primary hover:text-primary-foreground"
-                           >
-                              1-0
-                           </Button>
-                           <Button 
-                              size="sm"
-                              variant="outline"
-                              onClick={() => resultMutation.mutate({ matchId: match.id, result: "0-1" })}
-                              className="h-8 px-3 font-mono text-sm font-bold hover:bg-primary hover:text-primary-foreground"
-                           >
-                              0-1
-                           </Button>
-                           <Button 
-                              size="sm"
-                              variant="outline"
-                              onClick={() => resultMutation.mutate({ matchId: match.id, result: "1/2-1/2" })}
-                              className="h-8 px-3 font-mono text-sm font-bold hover:bg-muted-foreground hover:text-white"
-                           >
-                              ½-½
-                           </Button>
-                        </div>
-                      ) : (
-                        <Badge variant="outline" className="text-xs py-1 px-3">
-                          {match.result || "Playing"}
-                        </Badge>
-                      )}
-                    </div>
+              {/* Players */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {/* White */}
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-4 h-4 rounded-sm bg-white border border-slate-300 shrink-0" />
+                    <span className="text-sm font-semibold text-slate-800 truncate max-w-[120px]">
+                      {white?.firstName} {white?.lastName}
+                    </span>
+                    <span className="text-[10px] text-slate-400">{white?.rating}</span>
                   </div>
-                </CardContent>
-              </Card>
-            );
-          })}
+                  <span className="text-xs font-bold text-slate-400">vs</span>
+                  {/* Black */}
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-4 h-4 rounded-sm bg-slate-800 border border-slate-600 shrink-0" />
+                    <span className="text-sm font-semibold text-slate-800 truncate max-w-[120px]">
+                      {black?.firstName} {black?.lastName}
+                    </span>
+                    <span className="text-[10px] text-slate-400">{black?.rating}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Result buttons / status */}
+              <div className="shrink-0">
+                {isTD ? (
+                  <div className="flex items-center gap-1">
+                    {[
+                      { label: '1-0', result: '1-0' },
+                      { label: '0-1', result: '0-1' },
+                      { label: '½-½', result: '1/2-1/2' },
+                    ].map(({ label, result }) => (
+                      <button
+                        key={result}
+                        onClick={() => resultMutation.mutate({ matchId: match.id, result })}
+                        className="h-7 px-2.5 text-xs font-bold rounded border border-slate-200 bg-white text-slate-600 hover:bg-slate-800 hover:text-white hover:border-slate-800 transition-colors"
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <span className="text-xs font-semibold text-blue-500 animate-pulse">Playing</span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── Arena Standings (standalone, used elsewhere) ────────────────────────────
+export function ArenaStandings({
+  tournamentId,
+  userId,
+  isTD = false,
+  tournament,
+  whitePlayerId = null,
+  blackPlayerId = null,
+  setWhitePlayerId,
+  setBlackPlayerId,
+}: {
+  tournamentId: number;
+  userId?: number;
+  isTD?: boolean;
+  tournament?: Tournament;
+  whitePlayerId?: number | null;
+  blackPlayerId?: number | null;
+  setWhitePlayerId?: (id: number | null) => void;
+  setBlackPlayerId?: (id: number | null) => void;
+}) {
+  const { data: standings, isLoading } = useQuery<Player[]>({
+    queryKey: [`/api/tournaments/${tournamentId}/arena/standings`],
+    refetchInterval: 5000,
+  });
+  const { data: matches } = useQuery<Match[]>({
+    queryKey: [`/api/tournaments/${tournamentId}/matches`],
+  });
+  const [page, setPage] = useState(0);
+  const totalPages = Math.ceil((standings?.length || 0) / PAGE_SIZE);
+  const pagePlayers = (standings || []).slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+
+  if (isLoading) return (
+    <div className="flex justify-center py-16">
+      <div className="animate-spin h-8 w-8 border-2 border-slate-300 border-t-slate-700 rounded-full" />
+    </div>
+  );
+
+  return (
+    <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm">
+      {totalPages > 1 && (
+        <div className="flex items-center justify-end gap-2 px-4 py-2 border-b border-slate-100 bg-slate-50/50">
+          <span className="text-[10px] text-slate-500 tabular-nums">
+            {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, standings?.length || 0)} / {standings?.length || 0}
+          </span>
+          <button onClick={() => setPage(p => Math.max(0, p-1))} disabled={page === 0} className="h-6 w-6 flex items-center justify-center rounded border border-slate-200 hover:bg-slate-100 disabled:opacity-30">
+            <ChevronLeft className="h-3.5 w-3.5" />
+          </button>
+          <button onClick={() => setPage(p => Math.min(totalPages-1, p+1))} disabled={page >= totalPages-1} className="h-6 w-6 flex items-center justify-center rounded border border-slate-200 hover:bg-slate-100 disabled:opacity-30">
+            <ChevronRight className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
+      <Table>
+        <TableHeader>
+          <TableRow className="hover:bg-transparent bg-slate-50/30 border-none">
+            <TableHead className="w-10 pl-4 h-8 text-[9px] font-black uppercase tracking-wider text-slate-400">#</TableHead>
+            <TableHead className="h-8 text-[9px] font-black uppercase tracking-wider text-slate-400">Player</TableHead>
+            <TableHead className="h-8 text-[9px] font-black uppercase tracking-wider text-slate-400 hidden md:table-cell">Performance</TableHead>
+            <TableHead className="h-8 pr-6 text-right text-[9px] font-black uppercase tracking-wider text-slate-400">Score</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {pagePlayers.map((player, idx) => (
+            <StandingsRow
+              key={player.id}
+              player={player}
+              rank={page * PAGE_SIZE + idx + 1}
+              isTD={isTD && tournament?.arenaPairingMode === 'manual'}
+              matches={matches || []}
+              onSelectWhite={(id) => setWhitePlayerId?.(id)}
+              onSelectBlack={(id) => setBlackPlayerId?.(id)}
+              selectedWhite={whitePlayerId}
+              selectedBlack={blackPlayerId}
+              currentUser={player.userId === userId}
+            />
+          ))}
+        </TableBody>
+      </Table>
+      {(!standings || standings.length === 0) && (
+        <div className="py-16 flex flex-col items-center opacity-30">
+          <Trophy className="h-10 w-10 mb-3" />
+          <p className="text-sm">No standings yet</p>
         </div>
       )}
     </div>
   );
 }
 
-export function ArenaStandings({ tournamentId, userId }: ArenaUIProps) {
-  const { data: standings, isLoading } = useQuery<Player[]>({
-    queryKey: [`/api/tournaments/${tournamentId}/arena/standings`],
-    refetchInterval: 5000,
-  });
+// ─── Podium ──────────────────────────────────────────────────────────────────
+export function ArenaPodium({ players }: { players: Player[] }) {
+  const top3 = [...players]
+    .sort((a, b) => parseFloat(b.arenaPoints || "0") - parseFloat(a.arenaPoints || "0"))
+    .slice(0, 3);
 
-  const { data: matches } = useQuery<Match[]>({
-    queryKey: [`/api/tournaments/${tournamentId}/matches`],
-  });
+  if (top3.length === 0) return null;
 
-  if (isLoading) return <div className="flex justify-center p-24"><div className="animate-spin h-10 w-10 border-[3px] border-primary border-t-transparent rounded-full" /></div>;
+  const podiumOrder = [top3[1], top3[0], top3[2]].filter(Boolean);
+  const heights = [top3[1] ? 'h-28' : 'h-0', 'h-40', top3[2] ? 'h-20' : 'h-0'];
+  const medals = ['🥈', '🥇', '🥉'];
+  const labels = ['2nd Place', '1st Place', '3rd Place'];
 
   return (
-    <Card className="border-none shadow-md overflow-hidden bg-background">
-      <div className="overflow-x-auto">
-        <Table>
-          <TableHeader className="bg-muted/30 border-b">
-            <TableRow className="hover:bg-transparent border-none">
-              <TableHead className="w-12 pl-6 text-[10px] font-black uppercase text-muted-foreground/50 tracking-wider h-12">#</TableHead>
-              <TableHead className="text-[10px] font-black uppercase text-muted-foreground/50 tracking-wider h-12">Combatant</TableHead>
-              <TableHead className="hidden md:table-cell text-[10px] font-black uppercase text-muted-foreground/50 tracking-wider h-12">Performance Sequence</TableHead>
-              <TableHead className="pr-6 text-right text-[10px] font-black uppercase text-muted-foreground/50 tracking-wider h-12">Arena Points</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {standings?.map((player, index) => (
-              <StandingsRow 
-                key={player.id} 
-                player={player} 
-                rank={index + 1}
-                isTD={false}
-                matches={matches || []}
-                onSelectWhite={() => {}}
-                onSelectBlack={() => {}}
-                selectedWhite={null}
-                selectedBlack={null}
-                currentUser={player.userId === userId}
-              />
-            ))}
-          </TableBody>
-        </Table>
+    <div className="py-16 flex flex-col items-center animate-in fade-in duration-700">
+      <h2 className="text-3xl font-black text-center mb-10 bg-gradient-to-r from-amber-500 to-yellow-400 bg-clip-text text-transparent">
+        Tournament Podium
+      </h2>
+      <div className="flex items-end justify-center gap-3 w-full max-w-xl px-4">
+        {podiumOrder.map((player, i) => (
+          <div key={player?.id} className="flex flex-col items-center flex-1">
+            <span className="text-2xl mb-2">{medals[i]}</span>
+            <p className="text-xs font-bold text-slate-600 truncate w-full text-center mb-1">{player?.firstName} {player?.lastName}</p>
+            <p className="text-lg font-black text-slate-800 mb-2">{player?.arenaPoints}</p>
+            <div className={cn("w-full rounded-t-lg flex items-end justify-center pb-2 shadow-inner",
+              i === 1 ? "bg-gradient-to-b from-amber-300 to-amber-500 " + heights[i] :
+              i === 0 ? "bg-slate-300 dark:bg-slate-600 " + heights[i] :
+              "bg-orange-200 dark:bg-orange-800 " + heights[i]
+            )}>
+              <span className="text-[10px] font-black uppercase tracking-wider opacity-60">{labels[i]}</span>
+            </div>
+          </div>
+        ))}
       </div>
-      {standings?.length === 0 && (
-        <div className="py-24 flex flex-col items-center justify-center text-center opacity-30">
-          <Trophy className="h-12 w-12 mb-4" />
-          <p className="text-sm font-medium tracking-tight">No sequence data available yet</p>
-        </div>
-      )}
-    </Card>
+    </div>
   );
 }

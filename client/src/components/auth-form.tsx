@@ -11,15 +11,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { apiRequest } from "@/lib/queryClient";
-import { 
-  loginSchema, 
-  registerSchema, 
+import {
+  loginSchema,
+  registerSchema,
   forgotPasswordSchema,
   forgotUsernameSchema,
   resetPasswordSchema,
   verifyEmailSchema,
   resendVerificationSchema,
-  type LoginData, 
+  type LoginData,
   type RegisterData,
   type ForgotPasswordData,
   type ForgotUsernameData,
@@ -52,20 +52,20 @@ export default function AuthForm() {
   const [showResetPassword, setShowResetPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [, setLocation] = useLocation();
-  
+
   // Real-time validation states
   const [usernameCheck, setUsernameCheck] = useState<{
     checking: boolean;
     available: boolean | null;
     message: string;
   }>({ checking: false, available: null, message: '' });
-  
+
   const [emailCheck, setEmailCheck] = useState<{
     checking: boolean;
     available: boolean | null;
     message: string;
   }>({ checking: false, available: null, message: '' });
-  
+
   const { login, register, isLoggingIn, isRegistering } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -101,7 +101,7 @@ export default function AuthForm() {
 
     try {
       const res = await fetch(`/api/auth/check-username/${encodeURIComponent(username)}`);
-      
+
       if (res.status === 503) {
         // Database unavailable - show helpful message but don't block registration
         setUsernameCheck({
@@ -111,11 +111,11 @@ export default function AuthForm() {
         });
         return;
       }
-      
+
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}`);
       }
-      
+
       const data = await res.json();
       setUsernameCheck({
         checking: false,
@@ -144,7 +144,7 @@ export default function AuthForm() {
 
     try {
       const res = await fetch(`/api/auth/check-email/${encodeURIComponent(email)}`);
-      
+
       if (res.status === 503) {
         // Database unavailable - show helpful message but don't block registration
         setEmailCheck({
@@ -154,11 +154,11 @@ export default function AuthForm() {
         });
         return;
       }
-      
+
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}`);
       }
-      
+
       const data = await res.json();
       setEmailCheck({
         checking: false,
@@ -214,7 +214,7 @@ export default function AuthForm() {
     resolver: zodResolver(verifyEmailSchema),
     defaultValues: { code: "", email: "" },
   });
-  
+
   // Update email field when pendingUserEmail changes
   useEffect(() => {
     if (pendingUserEmail && authMode === 'verify-email') {
@@ -317,9 +317,9 @@ export default function AuthForm() {
       if (response.requiresVerification) {
         setPendingUserEmail(data.email);
         setAuthMode('verify-email');
-        toast({ 
-          title: "Account created!", 
-          description: "Please check your email for a verification code." 
+        toast({
+          title: "Account created!",
+          description: "Please check your email for a verification code."
         });
       } else {
         toast({ title: "Welcome to ChessTournament Pro!", description: "Your account has been created successfully." });
@@ -355,9 +355,9 @@ export default function AuthForm() {
         setAuthMode('login');
         verifyEmailForm.reset();
       }
-      toast({ 
-        title: "Email verified!", 
-        description: "Your email has been verified successfully." 
+      toast({
+        title: "Email verified!",
+        description: "Your email has been verified successfully."
       });
     },
     onError: (error) => {
@@ -428,10 +428,10 @@ export default function AuthForm() {
                     <FormLabel>Password</FormLabel>
                     <FormControl>
                       <div className="relative">
-                        <Input 
-                          type={showLoginPassword ? "text" : "password"} 
-                          placeholder="Enter your password" 
-                          {...field} 
+                        <Input
+                          type={showLoginPassword ? "text" : "password"}
+                          placeholder="Enter your password"
+                          {...field}
                         />
                         <Button
                           type="button"
@@ -519,10 +519,9 @@ export default function AuthForm() {
 
                       registerForm.setValue("username", e.target.value, { shouldValidate: true });
                     }}
-                    className={`pr-10 ${
-                      usernameCheck.available === true ? 'border-green-500 focus:ring-green-500' :
-                      usernameCheck.available === false ? 'border-red-500 focus:ring-red-500' : ''
-                    }`}
+                    className={`pr-10 ${usernameCheck.available === true ? 'border-green-500 focus:ring-green-500' :
+                        usernameCheck.available === false ? 'border-red-500 focus:ring-red-500' : ''
+                      }`}
                   />
                   <div className="absolute inset-y-0 right-0 flex items-center pr-3">
                     {usernameCheck.checking ? (
@@ -535,9 +534,8 @@ export default function AuthForm() {
                   </div>
                 </div>
                 {usernameCheck.message && (
-                  <p className={`text-sm font-medium ${
-                    usernameCheck.available === true ? 'text-green-600' : 'text-red-600'
-                  }`}>
+                  <p className={`text-sm font-medium ${usernameCheck.available === true ? 'text-green-600' : 'text-red-600'
+                    }`}>
                     {usernameCheck.message}
                   </p>
                 )}
@@ -560,10 +558,9 @@ export default function AuthForm() {
                     onChange={(e) => {
                       registerForm.setValue("email", e.target.value, { shouldValidate: true });
                     }}
-                    className={`pr-10 ${
-                      emailCheck.available === true ? 'border-green-500 focus:ring-green-500' :
-                      emailCheck.available === false ? 'border-red-500 focus:ring-red-500' : ''
-                    }`}
+                    className={`pr-10 ${emailCheck.available === true ? 'border-green-500 focus:ring-green-500' :
+                        emailCheck.available === false ? 'border-red-500 focus:ring-red-500' : ''
+                      }`}
                   />
                   <div className="absolute inset-y-0 right-0 flex items-center pr-3">
                     {emailCheck.checking ? (
@@ -576,9 +573,8 @@ export default function AuthForm() {
                   </div>
                 </div>
                 {emailCheck.message && (
-                  <p className={`text-sm font-medium ${
-                    emailCheck.available === true ? 'text-green-600' : 'text-red-600'
-                  }`}>
+                  <p className={`text-sm font-medium ${emailCheck.available === true ? 'text-green-600' : 'text-red-600'
+                    }`}>
                     {emailCheck.message}
                   </p>
                 )}
@@ -596,10 +592,10 @@ export default function AuthForm() {
                     <FormLabel>Password</FormLabel>
                     <FormControl>
                       <div className="relative">
-                        <Input 
-                          type={showRegisterPassword ? "text" : "password"} 
-                          placeholder="Create a password" 
-                          {...field} 
+                        <Input
+                          type={showRegisterPassword ? "text" : "password"}
+                          placeholder="Create a password"
+                          {...field}
                         />
                         <Button
                           type="button"
@@ -734,10 +730,10 @@ export default function AuthForm() {
                     <FormLabel>New Password</FormLabel>
                     <FormControl>
                       <div className="relative">
-                        <Input 
-                          type={showResetPassword ? "text" : "password"} 
-                          placeholder="Enter new password" 
-                          {...field} 
+                        <Input
+                          type={showResetPassword ? "text" : "password"}
+                          placeholder="Enter new password"
+                          {...field}
                         />
                         <Button
                           type="button"
@@ -766,10 +762,10 @@ export default function AuthForm() {
                     <FormLabel>Confirm Password</FormLabel>
                     <FormControl>
                       <div className="relative">
-                        <Input 
-                          type={showConfirmPassword ? "text" : "password"} 
-                          placeholder="Confirm new password" 
-                          {...field} 
+                        <Input
+                          type={showConfirmPassword ? "text" : "password"}
+                          placeholder="Confirm new password"
+                          {...field}
                         />
                         <Button
                           type="button"
@@ -835,10 +831,10 @@ export default function AuthForm() {
               <Button type="submit" className="w-full" disabled={verifyEmailMutation.isPending}>
                 {verifyEmailMutation.isPending ? "Verifying..." : "Verify Email"}
               </Button>
-              <Button 
-                type="button" 
-                variant="outline" 
-                className="w-full" 
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
                 disabled={resendVerificationMutation.isPending}
                 onClick={() => resendVerificationMutation.mutate(pendingUserEmail ? { email: pendingUserEmail } : undefined)}
               >
@@ -864,7 +860,7 @@ export default function AuthForm() {
         </CardHeader>
         <CardContent>
           {renderForm()}
-          
+
           <div className="mt-4 text-center">
             {authMode === 'login' && (
               <Button variant="ghost" onClick={() => setAuthMode('register')} className="text-sm">

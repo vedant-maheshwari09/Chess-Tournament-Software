@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { DatePicker } from "@/components/ui/date-picker";
+import { parseISO, format as formatDate } from "date-fns";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -238,6 +240,7 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
     (initialSection?: { id?: string; name?: string | null }) => ({
       firstName: "",
       lastName: "",
+      status: "active",
       federation: defaultFederation,
       rating: "",
       ratingLocal: "",
@@ -361,6 +364,16 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
         sectionName: (selectedSectionDetails?.name ?? formState.sectionName)?.trim() || null,
         uscfRating: parseInt(formState.uscfRating, 10) || null,
         fideRating: parseInt(formState.fideRating, 10) || null,
+        birthdate: formState.birthdate || null,
+        sex: formState.sex || null,
+        email: formState.email || null,
+        phone: formState.phone || null,
+        club: formState.club || null,
+        title: formState.title || null,
+        localId: formState.localId || null,
+        ratingLocal: parseInt(formState.ratingLocal, 10) || null,
+        ratingRapid: parseInt(formState.ratingRapid, 10) || null,
+        ratingBlitz: parseInt(formState.ratingBlitz, 10) || null,
       };
       if (isEditing && resolvedPlayerId) {
         return apiRequest(`/api/tournaments/${tournamentId}/players/${resolvedPlayerId}`, {
@@ -472,6 +485,16 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
       sectionName: matchedSection?.name ?? editingPlayer.sectionName ?? prev.sectionName,
       uscfRating: editingPlayer.uscfRating != null ? String(editingPlayer.uscfRating) : prev.uscfRating,
       fideRating: editingPlayer.fideRating != null ? String(editingPlayer.fideRating) : prev.fideRating,
+      birthdate: editingPlayer.birthdate ?? prev.birthdate,
+      sex: editingPlayer.sex ?? prev.sex,
+      email: editingPlayer.email ?? prev.email,
+      phone: editingPlayer.phone ?? prev.phone,
+      club: editingPlayer.club ?? prev.club,
+      title: editingPlayer.title ?? prev.title,
+      localId: editingPlayer.localId ?? prev.localId,
+      ratingLocal: editingPlayer.ratingLocal != null ? String(editingPlayer.ratingLocal) : prev.ratingLocal,
+      ratingRapid: editingPlayer.ratingRapid != null ? String(editingPlayer.ratingRapid) : prev.ratingRapid,
+      ratingBlitz: editingPlayer.ratingBlitz != null ? String(editingPlayer.ratingBlitz) : prev.ratingBlitz,
     }));
     setCombinedNameInput([editingPlayer.lastName, editingPlayer.firstName].filter(Boolean).join(", "));
     setEditInitialized(true);
@@ -869,13 +892,12 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
 
                         </div>
                         <div className="md:col-span-3">
-                          <Label className="text-sm font-semibold text-slate-700">Birthdate</Label>
-                          <Input
-                            type="date"
-                            value={formState.birthdate}
-                            onChange={(event) => setFormState((prev) => ({ ...prev, birthdate: event.target.value }))}
-                            className="mt-1"
-                            placeholder="YYYY-MM-DD"
+                          <Label className="text-sm font-semibold text-slate-700 mb-1 block">Birthdate</Label>
+                          <DatePicker
+                            date={formState.birthdate ? parseISO(formState.birthdate) : null}
+                            setDate={(date) => setFormState((prev) => ({ ...prev, birthdate: date ? formatDate(date, "yyyy-MM-dd") : "" }))}
+                            placeholder="Select birth date"
+                            className="w-full h-11 border-slate-200 rounded-xl text-sm"
                           />
                         </div>
                         <div className="md:col-span-3">

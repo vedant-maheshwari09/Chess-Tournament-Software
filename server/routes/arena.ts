@@ -2,12 +2,90 @@ import { Router } from "express";
 import { storage } from "../storage";
 import { requireAuth, requireRole, requireTournamentAccess } from "../auth";
 import { z } from "zod";
+import { pairPool, startAutoPairingLoop, stopAutoPairingLoop } from "../lib/arenaPairing";
 
 export function applyArenaRoutes(app: Router) {
+  // DEBUG: Force-run pairing pool and return trace (no auth for testing)
+  app.post("/api/tournaments/:id/arena/debug-pair", async (req, res) => {
+    const tournamentId = parseInt(req.params.id);
+    const trace: string[] = [];
+    try {
+      const tournament = await storage.getTournament(tournamentId);
+      if (!tournament) return res.json({ error: "Tournament not found" });
+      
+      trace.push(`status: ${tournament.status}`);
+      trace.push(`format: ${tournament.format}`);
+      trace.push(`arenaPairingMode: ${tournament.arenaPairingMode}`);
+      trace.push(`arenaStartTime raw: ${tournament.arenaStartTime}`);
+      trace.push(`arenaDuration: ${tournament.arenaDuration}`);
+      trace.push(`arenaCutoffMinutes: ${tournament.arenaCutoffMinutes}`);
+
+      if (tournament.arenaStartTime && tournament.arenaDuration) {
+        const rawStart = String(tournament.arenaStartTime);
+        const isoStart = rawStart.endsWith('Z') ? rawStart : `${rawStart}Z`;
+        const startTs = new Date(isoStart);
+        const endTime = new Date(startTs.getTime() + tournament.arenaDuration * 60000);
+        const cutoffTime = new Date(endTime.getTime() - (tournament.arenaCutoffMinutes || 2) * 60000);
+        const now = new Date();
+        trace.push(`parsedStart (UTC): ${startTs.toISOString()}`);
+        trace.push(`endTime: ${endTime.toISOString()}`);
+        trace.push(`cutoffTime: ${cutoffTime.toISOString()}`);
+        trace.push(`now: ${now.toISOString()}`);
+        trace.push(`inCutoff: ${now > cutoffTime}`);
+        trace.push(`expired: ${now > endTime}`);
+        trace.push(`started: ${now > startTs}`);
+        if (now > cutoffTime) {
+          return res.json({ trace, blocked: "CUTOFF_WINDOW_ACTIVE" });
+        }
+      }
+
+      const allPlayers = await storage.getPlayersByTournament(tournamentId);
+      const lobbyPlayers = allPlayers.filter((p: any) => p.arenaStatus === 'lobby');
+      trace.push(`totalPlayers: ${allPlayers.length}`);
+      trace.push(`lobbyPlayers: ${lobbyPlayers.length}`);
+      trace.push(`playerArenaStatuses: ${JSON.stringify(allPlayers.map((p: any) => ({ id: p.id, arenaStatus: p.arenaStatus })))}`);
+
+      if (lobbyPlayers.length < 2) {
+        return res.json({ trace, blocked: "NOT_ENOUGH_LOBBY_PLAYERS" });
+      }
+
+      // Force a pair directly
+      const p1 = lobbyPlayers[0] as any;
+      const p2 = lobbyPlayers[1] as any;
+      trace.push(`Attempting to pair ${p1.firstName}(${p1.id}) vs ${p2.firstName}(${p2.id})`);
+      
+      const match = await storage.createMatch({
+        tournamentId,
+        round: 1,
+        whitePlayerId: p1.id,
+        blackPlayerId: p2.id,
+        status: 'playing',
+      });
+      trace.push(`Match created: ID ${match.id}`);
+
+      await storage.updatePlayer(p1.id, { arenaStatus: 'playing' });
+      await storage.updatePlayer(p2.id, { arenaStatus: 'playing' });
+      trace.push(`Players set to playing`);
+
+      return res.json({ trace, success: true, match });
+    } catch (err: any) {
+      trace.push(`ERROR: ${err.message}`);
+      trace.push(`STACK: ${err.stack}`);
+      return res.json({ trace, error: err.message });
+    }
+  });
+
   // Get arena lobby players
   app.get("/api/tournaments/:id/arena/lobby", requireAuth, requireTournamentAccess, async (req, res) => {
     try {
       const tournamentId = parseInt(req.params.id);
+      const tournament = await storage.getTournament(tournamentId);
+
+      // Self-healing: Ensure auto-pairing loop is running if tournament is active and automatic
+      if (tournament?.status === 'active' && tournament.arenaPairingMode === 'automatic') {
+        startAutoPairingLoop(tournamentId);
+      }
+
       const players = await storage.getArenaLobbyPlayers(tournamentId);
       res.json(players);
     } catch (error) {
@@ -31,6 +109,12 @@ export function applyArenaRoutes(app: Router) {
       }
 
       const updatedPlayer = await storage.setPlayerArenaStatus(playerId, status);
+      
+      // If resuming to lobby, trigger auto-pairing
+      if (status === 'lobby' && tournament) {
+        pairPool(tournamentId, tournament);
+      }
+
       res.json(updatedPlayer);
     } catch (error) {
       res.status(500).json({ message: "Failed to update status" });
@@ -41,18 +125,47 @@ export function applyArenaRoutes(app: Router) {
   app.post("/api/tournaments/:id/arena/start", requireAuth, requireRole('tournament_director'), requireTournamentAccess, async (req, res) => {
     try {
       const tournamentId = parseInt(req.params.id);
-      const startTime = new Date();
+      const tournament = await storage.getTournament(tournamentId);
+      if (!tournament) {
+        return res.status(404).json({ message: "Tournament not found" });
+      }
       
+      const countdown = tournament.arenaCountdownSeconds || 10;
+      // Strip 'Z' to prevent PostgREST from applying the Postgres server's timezone offset
+      // This ensures the literal UTC time is stored directly into the TIMESTAMP WITHOUT TIME ZONE column
+      const startTimeISO = new Date(Date.now() + countdown * 1000).toISOString();
+      const startTimeStr = startTimeISO.replace('Z', '');
+      
+      // Cleanup any active matches from a previous run
+      const existingMatches = await storage.getMatchesByTournament(tournamentId);
+      for (const m of existingMatches) {
+        if (m.status === 'playing' || m.status === 'pending' || m.status === 'in_progress') {
+          await storage.updateMatch(m.id, { status: 'completed', result: '*' });
+        }
+      }
+
       // Initialize player arena states
       await storage.initializeArenaPlayers(tournamentId);
 
-      await storage.updateTournament(tournamentId, {
-        arenaStartTime: startTime,
-        arenaStatus: 'active',
-        status: 'active'
+      const updated = await storage.updateTournament(tournamentId, { 
+        status: 'active', 
+        arenaPairingMode: 'automatic',
+        arenaStartTime: new Date().toISOString()
       });
-      
-      res.json({ arenaStartTime: startTime });
+
+      console.log(`[ArenaRoute] Tournament ${tournamentId} activated. Triggering first pairing pass...`);
+
+      try {
+        // Use the updated object directly to avoid any stale data fetch
+        if (updated && updated.arenaPairingMode === 'automatic') {
+          await pairPool(tournamentId, updated);
+          startAutoPairingLoop(tournamentId);
+        }
+      } catch (pairErr) {
+        console.error(`[ArenaRoute] Error during initial pairing for T${tournamentId}:`, pairErr);
+      }
+
+      res.json({ arenaStartTime: startTimeStr });
     } catch (error) {
       res.status(500).json({ message: "Failed to start arena" });
     }
@@ -72,6 +185,42 @@ export function applyArenaRoutes(app: Router) {
       res.json({ message: "Settings updated" });
     } catch (error) {
       res.status(500).json({ message: "Failed to update settings" });
+    }
+  });
+
+  // Toggle Pairing Mode
+  app.patch("/api/tournaments/:id/arena/pairing-mode", requireAuth, requireRole('tournament_director'), requireTournamentAccess, async (req, res) => {
+    try {
+      const tournamentId = parseInt(req.params.id);
+      const { mode } = req.body;
+      
+      const updatedTournament = await storage.updateTournament(tournamentId, {
+        arenaPairingMode: mode
+      });
+      
+      if (mode === 'automatic' && updatedTournament) {
+        pairPool(tournamentId, updatedTournament);
+      }
+      
+      res.json({ arenaPairingMode: mode });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to update pairing mode" });
+    }
+  });
+
+  // Update Cutoff Window
+  app.patch("/api/tournaments/:id/arena/cutoff", requireAuth, requireRole('tournament_director'), requireTournamentAccess, async (req, res) => {
+    try {
+      const tournamentId = parseInt(req.params.id);
+      const { minutes } = req.body;
+      
+      await storage.updateTournament(tournamentId, {
+        arenaCutoffMinutes: minutes
+      });
+      
+      res.json({ arenaCutoffMinutes: minutes });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to update cutoff window" });
     }
   });
 
@@ -209,9 +358,47 @@ export function applyArenaRoutes(app: Router) {
       await storage.setPlayerArenaStatus(whiteId, 'lobby');
       await storage.setPlayerArenaStatus(blackId, 'lobby');
 
+      // Trigger auto-pairing for the pool
+      if (tournament) {
+        pairPool(tournamentId, tournament);
+      }
+
+      // Check if tournament should conclude
+      if (tournament?.status === 'active' && tournament.arenaStartTime && tournament.arenaDuration) {
+        const endTime = new Date(new Date(tournament.arenaStartTime).getTime() + tournament.arenaDuration * 60000);
+        if (new Date() > endTime) {
+          const strategy = tournament.arenaEndStrategy || "wait_for_ongoing";
+          
+          if (strategy === 'force_end') {
+            stopAutoPairingLoop(tournamentId);
+            await storage.updateTournament(tournamentId, { status: 'completed' });
+          } else {
+            // wait_for_ongoing: check if this was the last match
+            const matches = await storage.getMatchesByTournament(tournamentId);
+            const activeMatches = matches.filter(m => (m.status === 'playing' || m.status === 'in_progress') && m.id !== matchId);
+            if (activeMatches.length === 0) {
+              stopAutoPairingLoop(tournamentId);
+              await storage.updateTournament(tournamentId, { status: 'completed' });
+            }
+          }
+        }
+      }
+
       res.json({ message: "Result updated" });
     } catch (error) {
       res.status(500).json({ message: "Failed to update match result" });
+    }
+  });
+
+  // Explicitly conclude Arena
+  app.post("/api/tournaments/:id/arena/conclude", requireAuth, requireRole('tournament_director'), requireTournamentAccess, async (req, res) => {
+    try {
+      const tournamentId = parseInt(req.params.id);
+      stopAutoPairingLoop(tournamentId);
+      await storage.updateTournament(tournamentId, { status: 'completed' });
+      res.json({ status: 'completed' });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to conclude tournament" });
     }
   });
 

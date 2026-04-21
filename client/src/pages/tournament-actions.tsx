@@ -13,9 +13,8 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import {
   parseTournamentConfig,
-  buildTournamentPayload,
   serializeTournamentConfig,
-  type BoardNumberingSettings,
+  buildTournamentPayload,
 } from "@/lib/tournament-config";
 import {
   TOURNAMENT_TEMPLATE_OPTIONS,
@@ -26,7 +25,6 @@ import {
   type TournamentTemplateSnapshot,
 } from "@/lib/tournament-templates";
 import type { Tournament } from "@shared/schema";
-import { BoardNumberingCard } from "@/components/tournament-settings/BoardNumberingCard";
 
 
 interface TournamentActionsPageProps {
@@ -46,7 +44,6 @@ export default function TournamentActionsPage({ tournamentId }: TournamentAction
   );
   const [templateSaving, setTemplateSaving] = useState(false);
   const templateImportInputRef = useRef<HTMLInputElement | null>(null);
-  const [boardNumbering, setBoardNumbering] = useState<BoardNumberingSettings>({});
 
   const { data: tournament, isLoading: tournamentLoading } = useQuery<Tournament>({
     queryKey: [`/api/tournaments/${tournamentId}`],
@@ -54,16 +51,6 @@ export default function TournamentActionsPage({ tournamentId }: TournamentAction
 
   const parsedConfig = useMemo(() => (tournament ? parseTournamentConfig(tournament) : null), [tournament]);
 
-  useEffect(() => {
-    if (parsedConfig) {
-      setBoardNumbering(parsedConfig.boardNumbering);
-    }
-  }, [parsedConfig]);
-
-  const updateBoardNumbering = (update: Partial<BoardNumberingSettings>) => {
-    setBoardNumbering((prev) => ({ ...prev, ...update }));
-  };
-  
   const canManageTournament = useMemo(() => {
     if (!user || !tournament) return false;
     return user.role === "tournament_director" && user.id === tournament.createdBy;
@@ -253,32 +240,13 @@ export default function TournamentActionsPage({ tournamentId }: TournamentAction
 
         <div className="flex flex-wrap items-center justify-between gap-4 border-b pb-4">
           <div>
-            <h1 className="text-2xl font-semibold text-slate-900">Tournament actions</h1>
+            <h1 className="text-2xl font-semibold text-slate-900">Tournament Settings</h1>
             <p className="text-sm text-muted-foreground">
-              Manage advanced settings for {tournament.name}.
+              Manage configuration, templates, and administrative controls for {tournament.name}.
             </p>
           </div>
           <Badge variant="outline">ID #{tournament.id}</Badge>
         </div>
-
-        <Card className="border-red-200 bg-red-50/80">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-red-700">
-              <Trash2 className="h-5 w-5" /> Delete tournament
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4 text-sm text-red-700">
-            <div className="flex items-start gap-2">
-              <AlertTriangle className="mt-0.5 h-4 w-4" />
-              <p>
-                This will remove the tournament, its players, pairings, and history. This action cannot be undone.
-              </p>
-            </div>
-            <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
-              {deleting ? "Deleting..." : "Delete tournament"}
-            </Button>
-          </CardContent>
-        </Card>
 
         <Card>
           <CardHeader>
@@ -374,22 +342,25 @@ export default function TournamentActionsPage({ tournamentId }: TournamentAction
             </Button>
           </CardContent>
         </Card>
-        
-        <BoardNumberingCard value={boardNumbering} onChange={updateBoardNumbering} />
-        <Button
-          onClick={async () => {
-            if (!parsedConfig) return;
-            const newConfig = { ...parsedConfig, boardNumbering };
-            const payload = buildTournamentPayload(newConfig, { format: tournament.format });
-            await apiRequest(`/api/tournaments/${tournamentId}`, {
-              method: "PUT",
-              body: JSON.stringify(payload),
-            });
-            toast({ title: "Board numbering settings saved" });
-          }}
-        >
-          Save Board Numbering
-        </Button>
+
+        <Card className="border-red-200 bg-red-50/80">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-red-700">
+              <Trash2 className="h-5 w-5" /> Delete tournament
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4 text-sm text-red-700">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="mt-0.5 h-4 w-4" />
+              <p>
+                This will remove the tournament, its players, pairings, and history. This action cannot be undone.
+              </p>
+            </div>
+            <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
+              {deleting ? "Deleting..." : "Delete tournament"}
+            </Button>
+          </CardContent>
+        </Card>
 
       </div>
     </div>

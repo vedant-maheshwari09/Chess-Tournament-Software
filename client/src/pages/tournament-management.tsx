@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Users, Trophy, Calendar, Play, Plus, Undo, FileText, Settings as SettingsIcon, CalendarClock, Calculator } from "lucide-react";
+import { Users, Trophy, Calendar, Play, Plus, Undo, FileText, Settings as SettingsIcon, CalendarClock, Calculator, LayoutDashboard, RefreshCw } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
@@ -31,10 +32,11 @@ import KnockoutBracket from "@/components/knockout-bracket";
 import TournamentBuilder from "@/components/tournament-builder";
 import type { Tournament, Player, PlayerRegistration } from "@shared/schema";
 import PlayerManager from "@/components/player-manager";
-import RegistrationManagement from "@/components/registration-management";
 import TournamentPagePanel from "@/components/tournament-page-panel";
-import { parseTournamentConfig } from "@/lib/tournament-config";
+import { parseTournamentConfig, buildTournamentPayload, type BoardNumberingSettings } from "@/lib/tournament-config";
 import { ArenaLobby, ArenaActiveMatches, ArenaTimer } from "@/components/arena-ui";
+import { BoardNumberingCard } from "@/components/tournament-settings/BoardNumberingCard";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 
 
 
@@ -73,16 +75,6 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
   }, [tournament?.format, activeTab]);
 
   // Fetch players
-  // Fetch registrations for notification bubble
-  const { data: registrations = [] } = useQuery<PlayerRegistration[]>({
-    queryKey: [`/api/tournaments/${tournamentId}/registrations`],
-    enabled: !!isOwner, // Only fetch for the owner
-  });
-
-  const pendingRegistrationCount = useMemo(() => {
-    return registrations.filter(r => r.status === 'pending').length;
-  }, [registrations]);
-
   const { data: players = [] } = useQuery<Player[]>({
     queryKey: [`/api/tournaments/${tournamentId}/players`],
   });
@@ -90,6 +82,37 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
   const [activeRoundSection, setActiveRoundSection] = useState("all");
   const tournamentConfig = useMemo(() => tournament ? parseTournamentConfig(tournament) : null, [tournament]);
   const sections = useMemo(() => tournamentConfig?.sections ?? [], [tournamentConfig]);
+
+  const [boardNumbering, setBoardNumbering] = useState<BoardNumberingSettings>({});
+  
+  useEffect(() => {
+    if (tournamentConfig) {
+      setBoardNumbering(tournamentConfig.boardNumbering || {});
+    }
+  }, [tournamentConfig]);
+
+  const updateBoardNumbering = (update: Partial<BoardNumberingSettings>) => {
+    setBoardNumbering((prev) => ({ ...prev, ...update }));
+  };
+
+  const saveBoardNumberingMutation = useMutation({
+    mutationFn: async () => {
+      if (!tournamentConfig || !tournament) return;
+      const newConfig = { ...tournamentConfig, boardNumbering };
+      const payload = buildTournamentPayload(newConfig, { format: tournament.format });
+      await apiRequest(`/api/tournaments/${tournamentId}`, {
+        method: "PUT",
+        body: JSON.stringify(payload),
+      });
+    },
+    onSuccess: () => {
+      toast({ title: "Board numbering settings saved" });
+      queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}`] });
+    },
+    onError: () => {
+      toast({ title: "Error saving board numbering", variant: "destructive" });
+    },
+  });
 
 
   const selectTab = (value: string) => {
@@ -124,6 +147,35 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
         title: "Error",
         description:
           error instanceof Error ? error.message : "Failed to start tournament. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+
+
+  // Reset tournament mutation
+  const resetTournamentMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest(`/api/tournaments/${tournamentId}/reset`, {
+        method: "POST",
+      });
+    },
+    onSuccess: () => {
+      toast({
+        title: "Tournament Restarted",
+        description: "The tournament has been reset to registration phase.",
+      });
+      queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/players`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/arena/lobby`] });
+      selectTab("players");
+    },
+    onError: (error: unknown) => {
+      toast({
+        title: "Error",
+        description:
+          error instanceof Error ? error.message : "Failed to restart tournament.",
         variant: "destructive",
       });
     },
@@ -243,25 +295,31 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
               </div>
             </div>
             <div className="flex flex-wrap items-center justify-end gap-3">
-              {tournament.status === 'active' && (
-                <Button
-                  variant="outline"
-                  className="text-blue-600 border-blue-200 hover:bg-blue-50"
-                >
-                  <Undo className="h-4 w-4 mr-2" />
-                  Undo Last Action
-                </Button>
+              {tournament?.status === 'active' && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="outline" className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700">
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Restart Tournament
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Restart Tournament (Testing)</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This will completely wipe all pairings, matches, and reset player points and status fields. Are you completely sure you want to test restarting the tournament?
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction className="bg-red-600 focus:ring-red-600 focus:outline-none" onClick={() => resetTournamentMutation.mutate()}>
+                        Yes, wipe and restart
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               )}
-              {canGenerateNextRound && (
-                <Button
-                  onClick={() => nextRoundMutation.mutate()}
-                  disabled={nextRoundMutation.isPending}
-                  className="bg-blue-600 hover:bg-blue-700"
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  {nextRoundMutation.isPending ? "Generating..." : "Generate Next Round"}
-                </Button>
-              )}
+
               {isStartStatus && (
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
@@ -322,7 +380,7 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
                         onValueChange={(value) => setUpcomingMode(value as "manual" | "auto")}
                         className="grid gap-3"
                       >
-                        <div className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 p-3 transition hover:border-indigo-300">
+                        <div className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 p-3 transition hover:border-slate-300">
                           <RadioGroupItem id="upcoming-manual" value="manual" className="mt-1" />
                           <div>
                             <Label htmlFor="upcoming-manual" className="font-medium">
@@ -331,7 +389,7 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
                             <p className="text-sm text-slate-500">You will move it live yourself when you're ready.</p>
                           </div>
                         </div>
-                        <div className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 p-3 transition hover:border-indigo-300">
+                        <div className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 p-3 transition hover:border-slate-300">
                           <RadioGroupItem id="upcoming-auto" value="auto" className="mt-1" />
                           <div>
                             <Label htmlFor="upcoming-auto" className="font-medium">
@@ -356,21 +414,26 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
                 </AlertDialog>
               )}
               {isOwner && (
-                <Button
-                  variant="outline"
-                  onClick={() => setLocation(`/tournaments/${tournamentId}/actions`)}
-                >
-                  <SettingsIcon className="h-4 w-4 mr-2" />
-                  Settings
-                </Button>
-              )}
-              {isOwner && (
-                <Button
-                  variant="outline"
-                  onClick={() => setLocation("/dashboard")}
-                >
-                  Back to Dashboard
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-9 border-slate-200 text-slate-600 hover:text-slate-900 font-medium"
+                    onClick={() => setLocation(`/tournaments/${tournamentId}/settings`)}
+                  >
+                    <SettingsIcon className="h-4 w-4 mr-2" />
+                    Settings
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-9 border-slate-200 text-slate-600 hover:text-slate-900 font-medium"
+                    onClick={() => setLocation("/dashboard")}
+                  >
+                    <Undo className="h-4 w-4 mr-2" />
+                    Back to Dashboard
+                  </Button>
+                </div>
               )}
             </div>
           </div>
@@ -380,56 +443,39 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
       {/* Tournament Management Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className={cn(
-          "grid w-full items-stretch gap-0 overflow-hidden rounded-xl border border-slate-200 bg-white p-0 shadow-sm",
-          tournament.format === 'arena' ? "grid-cols-5" : "grid-cols-6"
+          "flex w-full min-h-[48px] h-auto flex-wrap items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200/60 shadow-sm backdrop-blur-sm",
+          tournament.format === 'arena' ? "grid-cols-3" : "grid-cols-4"
         )}>
           <TabsTrigger
             value="dashboard"
-            className="flex h-full w-full items-center justify-center gap-2 px-6 py-4 text-center text-sm font-semibold text-slate-600 transition data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-900 data-[state=active]:shadow-none"
+            className="flex-1 h-full min-h-[38px] flex items-center justify-center gap-2 px-6 rounded-lg text-center text-sm font-semibold text-slate-500 transition-all data-[state=active]:bg-white data-[state=active]:text-black data-[state=active]:shadow-sm"
           >
-            <Trophy className="h-5 w-5 -translate-y-[4px]" />
-            <span className="capitalize -translate-y-[2px]">Dashboard</span>
-          </TabsTrigger>
-          <TabsTrigger
-            value="tournamentPage"
-            className="flex h-full w-full items-center justify-center gap-2 px-6 py-4 text-center text-sm font-semibold text-slate-600 transition data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-900 data-[state=active]:shadow-none"
-          >
-            <FileText className="h-5 w-5 -translate-y-[4px]" />
-            <span className="capitalize -translate-y-[2px]">Tournament Page</span>
+            <LayoutDashboard className="h-5 w-5" />
+            <span className="capitalize">Dashboard</span>
           </TabsTrigger>
           <TabsTrigger
             value="players"
-            className="flex h-full w-full items-center justify-center gap-2 px-6 py-4 text-center text-sm font-semibold text-slate-600 transition data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-900 data-[state=active]:shadow-none"
+            className="flex-1 h-full min-h-[38px] flex items-center justify-center gap-2 px-6 rounded-lg text-center text-sm font-semibold text-slate-500 transition-all data-[state=active]:bg-white data-[state=active]:text-black data-[state=active]:shadow-sm"
           >
-            <Users className="h-5 w-5 -translate-y-[4px]" />
-            <span className="capitalize -translate-y-[2px]">Players</span>
-          </TabsTrigger>
-          <TabsTrigger
-            value="registrations"
-            className="flex h-full w-full items-center justify-center gap-2 px-6 py-4 text-center text-sm font-semibold text-slate-600 transition data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-900 data-[state=active]:shadow-none"
-          >
-            <Users className="h-5 w-5 -translate-y-[4px]" />
-            <span className="capitalize -translate-y-[2px]">Registrations</span>
-            {pendingRegistrationCount > 0 && (
-              <Badge className="ml-2">{pendingRegistrationCount}</Badge>
-            )}
+            <Users className="h-5 w-5" />
+            <span className="capitalize">Players</span>
           </TabsTrigger>
           <TabsTrigger
             value="rounds"
-            className="flex h-full w-full items-center justify-center gap-2 px-6 py-4 text-center text-sm font-semibold text-slate-600 transition data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-900 data-[state=active]:shadow-none"
+            className="flex-1 h-full min-h-[38px] flex items-center justify-center gap-2 px-6 rounded-lg text-center text-sm font-semibold text-slate-500 transition-all data-[state=active]:bg-white data-[state=active]:text-black data-[state=active]:shadow-sm"
           >
-            <Calendar className="h-5 w-5 -translate-y-[4px]" />
-            <span className="capitalize -translate-y-[2px]">
-              {tournament.format === 'arena' ? 'Arena Lobby' : tournament.format === 'knockout' ? 'Brackets' : 'Rounds'}
+            <Calendar className="h-5 w-5" />
+            <span className="capitalize">
+              {tournament.format === 'arena' ? 'Arena' : tournament.format === 'knockout' ? 'Brackets' : 'Rounds'}
             </span>
           </TabsTrigger>
           {tournament.format !== 'arena' && (
             <TabsTrigger
               value="standings"
-              className="flex h-full w-full items-center justify-center gap-2 px-6 py-4 text-center text-sm font-semibold text-slate-600 transition data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-900 data-[state=active]:shadow-none"
+              className="flex-1 h-10 flex items-center justify-center gap-2 px-6 rounded-lg text-center text-sm font-bold text-slate-500 transition-all data-[state=active]:bg-white data-[state=active]:text-black data-[state=active]:shadow-sm data-[state=active]:ring-1 data-[state=active]:ring-slate-200/50"
             >
-              <Trophy className="h-5 w-5 -translate-y-[4px]" />
-              <span className="capitalize -translate-y-[2px]">
+              <Trophy className="h-4 w-4" />
+              <span className="capitalize">
                 {tournament.format === 'knockout' ? 'Bracket' : 'Standings'}
               </span>
             </TabsTrigger>
@@ -447,56 +493,76 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
           />
         </TabsContent>
 
-        <TabsContent value="tournamentPage" className="mt-6">
-          <TournamentPagePanel
-            tournament={tournament}
-            onUpdated={() => {
-              queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}`] });
-            }}
-          />
-        </TabsContent>
 
         <TabsContent value="players" className="mt-6">
           <PlayerManager tournament={tournament} tournamentId={tournamentId} />
         </TabsContent>
 
-        <TabsContent value="registrations" className="mt-6">
-          <RegistrationManagement tournamentId={tournamentId} />
-        </TabsContent>
 
 
-        <TabsContent value="rounds" className="mt-12 space-y-12">
+
+        <TabsContent value="rounds" className="mt-6 space-y-6">
           {tournament.format === 'arena' ? (
-            <div className="flex flex-col gap-12">
-              {/* Massive Hero Clock at the top */}
-              <ArenaTimer tournament={tournament} />
+            <div className="flex flex-col gap-6">
 
-              <div className="flex flex-col gap-10">
-                <div className="flex items-center justify-start">
-                  <div className="flex bg-[#f1f4f4] p-1.5 rounded-full shadow-inner">
-                    <button
-                      onClick={() => setArenaSubTab('lobby')}
-                      className={cn(
-                        "px-16 py-5 rounded-full text-lg font-semibold transition-all duration-700",
-                        arenaSubTab === 'lobby'
-                          ? "bg-white text-indigo-600 shadow-sm"
-                          : "text-slate-500 hover:text-indigo-600 hover:bg-white/50"
-                      )}
-                    >
-                      Lobby
-                    </button>
-                    <button
-                      onClick={() => setArenaSubTab('matches')}
-                      className={cn(
-                        "px-16 py-5 rounded-full text-lg font-semibold transition-all duration-700",
-                        arenaSubTab === 'matches'
-                          ? "bg-white text-indigo-600 shadow-sm"
-                          : "text-slate-500 hover:text-indigo-600 hover:bg-white/50"
-                      )}
-                    >
-                      Active Matches
-                    </button>
-                  </div>
+              <div className="flex flex-col gap-5">
+                <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                <div className="flex bg-slate-100 p-0.5 rounded-lg shadow-inner border border-slate-200">
+                  <button
+                    onClick={() => setArenaSubTab('lobby')}
+                    className={cn(
+                      "px-8 py-1.5 rounded-md text-sm font-bold transition-all duration-300",
+                      arenaSubTab === 'lobby'
+                        ? "bg-white text-black shadow-sm"
+                        : "text-slate-500 hover:text-black hover:bg-white/50"
+                    )}
+                  >
+                    Lobby
+                  </button>
+                  <button
+                    onClick={() => setArenaSubTab('matches')}
+                    className={cn(
+                      "px-8 py-1.5 rounded-md text-sm font-bold transition-all duration-300",
+                      arenaSubTab === 'matches'
+                        ? "bg-white text-black shadow-sm"
+                        : "text-slate-500 hover:text-black hover:bg-white/50"
+                    )}
+                  >
+                    Active Matches
+                  </button>
+                </div>
+
+                </div>
+
+                  {isOwner && (
+                    <Sheet>
+                      <SheetTrigger asChild>
+                        <Button variant="outline" size="sm" className="h-12 px-6 rounded-xl border-slate-200 bg-white hover:bg-slate-50 transition-all shadow-sm font-bold">
+                          <SettingsIcon className="h-4 w-4 mr-2" />
+                          Board Settings
+                        </Button>
+                      </SheetTrigger>
+                      <SheetContent className="w-full sm:max-w-md overflow-y-auto">
+                        <SheetHeader>
+                          <SheetTitle>Board Assignment Settings</SheetTitle>
+                          <SheetDescription>
+                            Configure how board numbers are assigned for this tournament.
+                          </SheetDescription>
+                        </SheetHeader>
+                        <div className="py-6 space-y-6">
+                          <BoardNumberingCard value={boardNumbering} onChange={updateBoardNumbering} />
+                          <Button 
+                            className="w-full" 
+                            onClick={() => saveBoardNumberingMutation.mutate()}
+                            disabled={saveBoardNumberingMutation.isPending}
+                          >
+                            {saveBoardNumberingMutation.isPending ? "Saving..." : "Save Settings"}
+                          </Button>
+                        </div>
+                      </SheetContent>
+                    </Sheet>
+                  )}
                 </div>
 
                 <div className="animate-in fade-in zoom-in-95 duration-1000">
@@ -505,6 +571,7 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
                       tournamentId={tournament.id} 
                       isTD={!!isOwner} 
                       userId={user?.id}
+                      onArenaStart={() => setArenaSubTab('matches')}
                     />
                   ) : (
                     <ArenaActiveMatches 
@@ -528,12 +595,66 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
               </TabsList>
               <Card className="mt-4">
                 <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <Calendar className="h-5 w-5" />
-                    <span>Tournament Pairings</span>
-                    {(tournament.currentRound || 0) > 0 && (
-                      <Badge>Round {tournament.currentRound || 0}</Badge>
-                    )}
+                  <CardTitle className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center space-x-2">
+                        <Calendar className="h-5 w-5" />
+                        <span>Tournament Pairings</span>
+                        {(tournament.currentRound || 0) > 0 && (
+                          <Badge>Round {tournament.currentRound || 0}</Badge>
+                        )}
+                      </div>
+                      
+                      {tournament.status === 'active' && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 px-3 text-blue-600 hover:text-blue-700 hover:bg-blue-50/50 rounded-lg font-medium"
+                        >
+                          <Undo className="h-3.5 w-3.5 mr-1.5" />
+                          Undo
+                        </Button>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {canGenerateNextRound && (
+                        <Button
+                          size="sm"
+                          onClick={() => nextRoundMutation.mutate()}
+                          disabled={nextRoundMutation.isPending}
+                          className="h-8 bg-blue-600 hover:bg-blue-700 text-[11px] font-bold"
+                        >
+                          <Plus className="h-3.5 w-3.5 mr-1" />
+                          {nextRoundMutation.isPending ? "Generating..." : "Next Round"}
+                        </Button>
+                      )}
+                      <Sheet>
+                        <SheetTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-8 px-3 text-slate-500 hover:text-black">
+                            <SettingsIcon className="h-4 w-4 mr-1" />
+                            Board Settings
+                          </Button>
+                        </SheetTrigger>
+                        <SheetContent className="w-full sm:max-w-md overflow-y-auto">
+                          <SheetHeader>
+                            <SheetTitle>Board Assignment Settings</SheetTitle>
+                            <SheetDescription>
+                              Configure how board numbers are assigned for this tournament.
+                            </SheetDescription>
+                          </SheetHeader>
+                          <div className="py-6 space-y-6">
+                            <BoardNumberingCard value={boardNumbering} onChange={updateBoardNumbering} />
+                            <Button 
+                              className="w-full" 
+                              onClick={() => saveBoardNumberingMutation.mutate()}
+                              disabled={saveBoardNumberingMutation.isPending}
+                            >
+                              {saveBoardNumberingMutation.isPending ? "Saving..." : "Save Settings"}
+                            </Button>
+                          </div>
+                        </SheetContent>
+                      </Sheet>
+                    </div>
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -585,6 +706,8 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
         )}
 
       </Tabs>
+
+
     </div>
     </div>
   );

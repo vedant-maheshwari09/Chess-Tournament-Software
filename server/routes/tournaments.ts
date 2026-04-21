@@ -720,7 +720,17 @@ app.get(
     },
   );
 
-// Start tournament
+app.post("/api/tournaments/:id/reset", requireAuth, requireRole('tournament_director'), requireTournamentAccess, async (req, res) => {
+    try {
+      const tournamentId = parseInt(req.params.id);
+      await storage.resetTournament(tournamentId);
+      res.json({ message: "Tournament reset successfully" });
+    } catch (error) {
+      console.error("[ResetTournament] Error:", error);
+      res.status(500).json({ message: "Failed to reset tournament" });
+    }
+});
+
 // Start tournament
 app.post("/api/tournaments/:id/start", requireAuth, requireRole('tournament_director'), requireTournamentAccess, async (req, res) => {
     try {
@@ -768,24 +778,38 @@ app.post("/api/tournaments/:id/start", requireAuth, requireRole('tournament_dire
       };
 
       if (tournament.format === 'arena') {
-        updateData.arenaStartTime = new Date();
-        // Ensure duration and scoring config are present
-        if (!tournament.arenaDuration) {
-          updateData.arenaDuration = 90;
+        const config = parseTournamentConfig(tournament);
+        const countdownSeconds = config.arena?.arenaCountdownSeconds || 0;
+        const startTimeISO = new Date();
+        if (countdownSeconds > 0) {
+          startTimeISO.setSeconds(startTimeISO.getSeconds() + countdownSeconds);
         }
-        if (!tournament.arenaScoringConfig) {
-          updateData.arenaScoringConfig = {
-            streakThreshold: 2,
-            winBonus: 2,
-            drawBonus: 1,
-            lossBonus: 0
-          };
-        }
+        
+        updateData.arenaStartTime = startTimeISO.toISOString().replace('Z', '');
+        updateData.arenaDuration = tournament.arenaDuration || 90;
+        updateData.arenaScoringConfig = tournament.arenaScoringConfig || {
+          streakThreshold: 2,
+          winBonus: 2,
+          drawBonus: 1,
+          lossBonus: 0
+        };
+        updateData.arenaPrePairBeforeStart = config.arena?.arenaPrePairBeforeStart ?? false;
+
         // Initialize player statuses for arena
         try {
           await storage.initializeArenaPlayers(tournamentId);
         } catch (err) {
           console.error(`[StartTournament] Error initializing arena players:`, err);
+        }
+
+        // Apply pre-pairing if requested
+        if (updateData.arenaPrePairBeforeStart) {
+          const { pairPool } = await import("../lib/arenaPairing");
+          // Update the tournament status to active first so pairPool runs
+          const activeTournament = await storage.updateTournament(tournamentId, { ...updateData, status: 'active' });
+          if (activeTournament) {
+            await pairPool(tournamentId, activeTournament);
+          }
         }
       }
 

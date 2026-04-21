@@ -271,11 +271,11 @@ export default function PlayerDashboard() {
   const sectionsData = useMemo<SectionData[]>(
     () => [
       {
-        key: "past",
-        label: "Past Tournaments",
-        description: "Completed events you can revisit.",
-        items: [...sectionsRaw.past].sort(comparator),
-        empty: "You haven't viewed any completed tournaments yet.",
+        key: "ongoing",
+        label: "Ongoing Tournaments",
+        description: "Live events happening right now.",
+        items: [...sectionsRaw.ongoing].sort(comparator),
+        empty: "No tournaments are currently live.",
       },
       {
         key: "upcoming",
@@ -285,11 +285,11 @@ export default function PlayerDashboard() {
         empty: "No upcoming tournaments are available right now.",
       },
       {
-        key: "ongoing",
-        label: "Ongoing Tournaments",
-        description: "Live events happening right now.",
-        items: [...sectionsRaw.ongoing].sort(comparator),
-        empty: "No tournaments are currently live.",
+        key: "past",
+        label: "Past Tournaments",
+        description: "Completed events you can revisit.",
+        items: [...sectionsRaw.past].sort(comparator),
+        empty: "You haven't viewed any completed tournaments yet.",
       },
     ],
     [sectionsRaw, comparator]
@@ -497,12 +497,12 @@ export default function PlayerDashboard() {
         ) : null}
 
         <Tabs value={activeTab} onValueChange={(tab) => setLocation(`/dashboard/${tab}`)} className="w-full">
-          <TabsList className="flex w-full flex-wrap flex-row-reverse gap-3 bg-transparent">
+          <TabsList className="grid w-full grid-cols-1 gap-3 bg-transparent sm:grid-cols-3 mb-6">
             {sectionsData.map((section) => (
               <TabsTrigger
                 key={section.key}
                 value={section.key}
-                className="flex min-w-[200px] flex-1 flex-col items-center justify-center gap-1 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-center text-sm font-medium text-slate-600 shadow-sm transition whitespace-normal break-words data-[state=active]:border-blue-200 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-900"
+                className="flex h-full w-full flex-col items-center justify-center gap-1 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-center text-sm font-medium text-slate-600 shadow-sm transition whitespace-normal break-words data-[state=active]:border-blue-200 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-900"
               >
                 <span className="leading-tight">{section.label}</span>
                 <span className="text-xs text-slate-500 leading-tight">

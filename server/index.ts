@@ -39,6 +39,7 @@ if (!process.env.GEMINI_API_KEY) {
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { preloadRatingData } from "./lib/localRatings";
+import { bootstrapArenaPairing } from "./lib/arenaPairing";
 
 const app = express();
 app.use(
@@ -100,6 +101,9 @@ app.use((req, res, next) => {
   log("Rating data loaded.", "express");
 
   const server = await registerRoutes(app);
+
+  // Restart auto-pairing loops for any arena tournaments that were active before server restart
+  await bootstrapArenaPairing();
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;

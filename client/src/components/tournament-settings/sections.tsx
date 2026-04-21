@@ -17,6 +17,8 @@ import {
 } from "@/lib/tournament-config";
 import { cn } from "@/lib/utils";
 import { Download, ExternalLink } from "lucide-react";
+import { DatePicker } from "@/components/ui/date-picker";
+import { parseISO, format as formatDate } from "date-fns";
 export { ArenaSettingsCard } from "./ArenaSettingsCard";
 
 
@@ -129,16 +131,16 @@ export function FideRegistrationSection({
 
   return (
     <Tabs value={activeTab} onValueChange={(next) => setActiveTab(next as "registration" | "norm")} className="space-y-6">
-      <TabsList className="flex w-full rounded-t-lg border border-slate-200 bg-slate-100 p-1">
+      <TabsList className="grid w-full grid-cols-2 h-12 items-stretch bg-slate-100 p-1 rounded-xl border border-slate-200">
         <TabsTrigger
           value="registration"
-          className="flex-1 rounded-md px-4 py-3 text-sm font-semibold text-slate-600 transition data-[state=active]:bg-white data-[state=active]:text-indigo-700 data-[state=active]:shadow-sm"
+          className="rounded-lg px-4 py-3 text-sm font-semibold text-slate-600 transition data-[state=active]:bg-white data-[state=active]:text-black data-[state=active]:shadow-sm"
         >
           FIDE Registration Form
         </TabsTrigger>
         <TabsTrigger
           value="norm"
-          className="flex-1 rounded-md px-4 py-3 text-sm font-semibold text-slate-600 transition data-[state=active]:bg-white data-[state=active]:text-indigo-700 data-[state=active]:shadow-sm"
+          className="rounded-lg px-4 py-3 text-sm font-semibold text-slate-600 transition data-[state=active]:bg-white data-[state=active]:text-black data-[state=active]:shadow-sm"
         >
           FIDE / IA Norm Report Form
         </TabsTrigger>
@@ -331,7 +333,13 @@ export function FideRegistrationSection({
                 </div>
                 <div className="space-y-2">
                   <Label>Date</Label>
-                  <Input type="date" value={value.signedDate ?? ""} onChange={(event) => onChange({ signedDate: event.target.value })} />
+                  <div className="w-full">
+                    <DatePicker 
+                      date={value.signedDate ? parseISO(value.signedDate) : null}
+                      setDate={(newDate) => onChange({ signedDate: newDate ? formatDate(newDate, "yyyy-MM-dd") : "" })}
+                      className="h-10 border-slate-200"
+                    />
+                  </div>
                 </div>
               </div>
             </section>
