@@ -486,7 +486,27 @@ class SupabaseStorage implements IStorage {
   }
 
   async getPlayersByTournament(tournamentId: number): Promise<Player[]> {
-    return fetchMany<Player>("players", { tournamentId });
+    const { data, error } = await client()
+      .from("players")
+      .select(`
+        *,
+        users (
+          username
+        )
+      `)
+      .eq("tournament_id", tournamentId);
+
+    if (error) {
+      throw new Error(`Failed to fetch players with usernames: ${error.message}`);
+    }
+
+    return (data || []).map(p => {
+      const camelPlayer = toCamelCase<Player>(p);
+      if ((p as any).users?.username) {
+        (camelPlayer as any).username = (p as any).users.username;
+      }
+      return camelPlayer;
+    });
   }
 
   async updatePlayer(id: number, player: Partial<Player>): Promise<Player | undefined> {

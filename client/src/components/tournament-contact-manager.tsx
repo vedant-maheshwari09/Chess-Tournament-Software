@@ -39,7 +39,7 @@ function createContactTemplate(): ContactEntry {
       : `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     name: "",
     role: ROLE_OPTIONS[0] ?? "Chief Arbiter",
-    phone: "",
+
     email: "",
   };
 }
@@ -64,7 +64,7 @@ export default function TournamentContactManager({ tournament, onUpdated }: Tour
         .map((item) => ({
           name: item.name.trim(),
           role: item.role.trim(),
-          phone: (item.phone ?? "").trim(),
+
           email: (item.email ?? "").trim(),
         }))
         .sort((a, b) => `${a.name}-${a.role}`.localeCompare(`${b.name}-${b.role}`));
@@ -198,18 +198,11 @@ export default function TournamentContactManager({ tournament, onUpdated }: Tour
                       ))}
                     </SelectContent>
                   </Select>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <Input
-                      placeholder="Phone Number"
-                      value={contact.phone ?? ""}
-                      onChange={(event) => handleFieldChange(contact.id, "phone", event.target.value)}
-                    />
-                    <Input
-                      placeholder="E-mail Address"
-                      value={contact.email ?? ""}
-                      onChange={(event) => handleFieldChange(contact.id, "email", event.target.value)}
-                    />
-                  </div>
+                  <Input
+                    placeholder="E-mail Address"
+                    value={contact.email ?? ""}
+                    onChange={(event) => handleFieldChange(contact.id, "email", event.target.value)}
+                  />
                   <div className="flex justify-end">
                     <Button
                       type="button"

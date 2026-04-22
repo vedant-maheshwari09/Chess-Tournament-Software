@@ -50,7 +50,7 @@ import {
   type TemplateSectionKey,
   type TournamentTemplateSnapshot,
 } from "@/lib/tournament-templates";
-import { Upload, Check, ChevronRight, Settings, X, ChevronUp, ChevronDown, Plus, CreditCard, ExternalLink, Trophy, Users, Calculator, Link, QrCode, Printer, Copy, Clock, Zap } from "lucide-react";
+import { Upload, Check, ChevronRight, Settings, X, ChevronUp, ChevronDown, Plus, CreditCard, ExternalLink, Trophy, Users, Calculator, Link, QrCode, Printer, Copy, Clock, Zap, Paperclip, Loader2 } from "lucide-react";
 import qrcode from "qrcode";
 import TournamentPagePanel from "@/components/tournament-page-panel";
 import { KnockoutFormatEditor } from "@/components/knockout-format-editor";
@@ -339,30 +339,22 @@ function BasicInformationFields({ config, onConfigChange, variant = "full" }: Ba
             />
           </div>
         </div>
-        <div className="flex items-center space-x-2">
-          <Switch
-            id="fide-rated"
-            checked={config.registers.fideRated}
-            onCheckedChange={(checked) => updateRegisters({ fideRated: checked })}
-          />
-          <Label htmlFor="fide-rated">FIDE Rated</Label>
-        </div>
-        <div className="flex items-center space-x-2">
-          <Switch
-            id="uscf-rated"
-            checked={config.registers.uscfRated}
-            onCheckedChange={(checked) => updateRegisters({ uscfRated: checked })}
-          />
-          <Label htmlFor="uscf-rated">USCF Rated</Label>
-        </div>
-        <div className="flex items-center space-x-2">
-          <Switch
-            id="team-event"
-            checked={config.registers.isTeamEvent}
-            onCheckedChange={(checked) => updateRegisters({ isTeamEvent: checked })}
-          />
-          <Label htmlFor="team-event">Team Event</Label>
-        </div>
+        {config.format !== 'knockout' && (
+          <div className="flex items-center space-x-2 opacity-50 cursor-not-allowed">
+            <Switch
+              id="team-event"
+              checked={false}
+              disabled={true}
+              onCheckedChange={() => {}}
+            />
+            <Label htmlFor="team-event" className="flex items-center gap-2">
+              Team Event
+              <Badge variant="secondary" className="text-[10px] uppercase tracking-wider h-5 bg-slate-100 text-slate-500 border-none">
+                Coming Soon
+              </Badge>
+            </Label>
+          </div>
+        )}
       </div>
     );
   }
@@ -568,7 +560,7 @@ function StepOne({
         createdBy: 0,
         createdAt: new Date(),
         updatedAt: new Date(),
-      } as Tournament);
+      } as unknown as Tournament);
       onModeChange(parsedConfig.mode ?? mode);
       onFormatChange(parsedConfig.format ?? format);
       onConfigChange(parsedConfig);
@@ -639,37 +631,52 @@ function StepOne({
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-xl">Select Mode</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Modes enable federation-specific workflows and reports.
-          </p>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 md:grid-cols-2">
-            {MODE_OPTIONS.map((option) => {
-              const isSelected = mode === option.id;
-              return (
-                <button
-                  type="button"
-                  key={option.id}
-                  onClick={() => onModeChange(option.id)}
-                  className={`text-left border rounded-lg p-4 transition-colors ${ 
-                    isSelected ? "border-primary bg-primary/5" : "hover:border-primary/40"
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="font-semibold">{option.label}</div>
-                    {isSelected && <Check className="h-5 w-5 text-primary" />}
-                  </div>
-                  <p className="mt-1 text-sm text-muted-foreground">{option.description}</p>
-                </button>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
+      {format !== 'arena' && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-xl">Select Mode</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Modes enable federation-specific workflows and reports.
+            </p>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 md:grid-cols-2">
+              {MODE_OPTIONS.map((option) => {
+                const isSelected = mode === option.id;
+                const isOnline = option.id === "online";
+                return (
+                  <button
+                    type="button"
+                    key={option.id}
+                    disabled={isOnline}
+                    onClick={() => onModeChange(option.id)}
+                    className={cn(
+                      "text-left border rounded-lg p-4 transition-colors",
+                      isSelected ? "border-primary bg-primary/5" : "hover:border-primary/40",
+                      isOnline && "opacity-50 cursor-not-allowed grayscale"
+                    )}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className={cn("font-semibold", isOnline && "text-muted-foreground")}>
+                          {option.label}
+                        </div>
+                        {isOnline && (
+                          <Badge variant="outline" className="text-[10px] uppercase tracking-wider h-5">
+                            Coming Soon
+                          </Badge>
+                        )}
+                      </div>
+                      {isSelected && <Check className="h-5 w-5 text-primary" />}
+                    </div>
+                    <p className="mt-1 text-sm text-muted-foreground">{option.description}</p>
+                  </button>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
@@ -715,6 +722,7 @@ function StepOne({
 interface StepTwoProps {
   format: Tournament["format"];
   mode: TournamentMode;
+  builderMode: BuilderMode;
   config: TournamentConfig;
   onConfigChange: (config: TournamentConfig) => void;
   onBack: () => void;
@@ -917,7 +925,7 @@ function ArenaSettingsTab({ config, onConfigChange, onSave, saving }: { config: 
   );
 }
 
-function StepTwo({ format, mode, config, onConfigChange, onBack: _onBack, onCancel, onSave, saving, tournament }: StepTwoProps) {
+function StepTwo({ format, mode, builderMode, config, onConfigChange, onBack: _onBack, onCancel, onSave, saving, tournament }: StepTwoProps) {
   const scheduleTemplateOptions = SCHEDULE_EVENT_OPTIONS;
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -991,6 +999,15 @@ function StepTwo({ format, mode, config, onConfigChange, onBack: _onBack, onCanc
 
   const updateChessResults = (updates: Partial<TournamentConfig["chessResults"]>) =>
     onConfigChange({ ...config, chessResults: { ...config.chessResults, ...updates } });
+
+  const updatePublicPage = (updates: Partial<NonNullable<TournamentConfig["publicPage"]>>) =>
+    onConfigChange({ 
+      ...config, 
+      publicPage: { 
+        ...(config.publicPage || {}), 
+        ...updates 
+      } 
+    });
 
   const addSection = () => {
     const nextSection = createSectionDefinition();
@@ -1887,13 +1904,33 @@ function StepTwo({ format, mode, config, onConfigChange, onBack: _onBack, onCanc
   const fideEnabled = config.registers.fideRated;
   
 
-  const renderTabSaveButton = () => (
-    <div className="flex justify-end pt-4">
-      <Button type="button" onClick={onSave} disabled={saving}>
-        {saving ? "Saving..." : "Save"}
-      </Button>
-    </div>
-  );
+  const renderTabSaveButton = () => {
+    if (builderMode === "create") {
+      return (
+        <div className="flex justify-end pt-4">
+          <Button type="button" onClick={onSave} disabled={saving}>
+            {saving ? "Creating..." : "Create Tournament"}
+          </Button>
+        </div>
+      );
+    }
+    
+    return (
+      <div className="flex items-center justify-end pt-4 gap-2 text-[11px] font-medium text-slate-400 h-10">
+        {saving ? (
+          <>
+            <Loader2 className="h-3 w-3 animate-spin text-indigo-500" />
+            <span>Autosaving...</span>
+          </>
+        ) : (
+          <div className="flex items-center gap-1.5 opacity-60">
+            <Check className="h-3 w-3 text-green-500" />
+            <span>All changes saved</span>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const defaultScoring = useMemo(() => createDefaultConfig(format).details.scoring, [format]);
   const scoring = config.details.scoring ?? defaultScoring;
@@ -1972,165 +2009,13 @@ function StepTwo({ format, mode, config, onConfigChange, onBack: _onBack, onCanc
 
 
               <TabsContent value="details" className="bg-white p-6 space-y-4">
-                <div className="grid gap-4 md:grid-cols-3">
-                  <div className="space-y-2">
-                    <Label>Chief Arbiter</Label>
-                    <OfficialSearchInput
-                      value={config.details.chiefArbiter}
-                      onChange={(value) => updateDetails({ chiefArbiter: value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Organizer</Label>
-                    <Input
-                      value={config.details.organizer}
-                      onChange={(event) => updateDetails({ organizer: event.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Affiliate</Label>
-                    <Input
-                      value={config.details.affiliate}
-                      onChange={(event) => updateDetails({ affiliate: event.target.value })}
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label>Assistant TDs</Label>
-                    <Button variant="outline" size="sm" onClick={handleAddAssistantTD}>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add
-                    </Button>
-                  </div>
-                  <div className="space-y-2">
-                    {(config.details.assistantTDs ?? []).map((td, index) => (
-                      <div key={index} className="flex items-center gap-2">
-                        <OfficialSearchInput
-                          value={td}
-                          onChange={(value) => handleUpdateAssistantTD(index, value)}
-                        />
-                        <Button variant="ghost" size="icon" onClick={() => handleRemoveAssistantTD(index)}>
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label>Primary Rating System</Label>
-                    <Select
-                      value={config.details.primaryRatingSystem ?? "uscf"}
-                      onValueChange={(value) => updateDetails({ primaryRatingSystem: value as "uscf" | "fide" })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="uscf">US Chess (USCF)</SelectItem>
-                        <SelectItem value="fide">FIDE</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
 
 
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-base font-medium text-black">Clock Settings</Label>
-                    <Button variant="outline" onClick={addTimeControl}>
-                      Add Time Control
-                    </Button>
-                  </div>
-                  <div className="space-y-3">
-                    {baseTimeControls.map((control, index) => (
-                      <div
-                        key={`${index}-${control.minutes}-${control.addonType}`}
-                        className="grid gap-3 md:grid-cols-[150px,200px,1fr,auto] items-center border rounded-lg p-3"
-                      >
-                        <div className="space-y-1">
-                          <Label>Minutes</Label>
-                          <Input
-                            type="number"
-                            min={0}
-                            value={control.minutes}
-                            onChange={(event) =>
-                              updateTimeControlDefinition(index, {
-                                minutes: parseInt(event.target.value || "0", 10),
-                              })
-                            }
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <Label>Add-on</Label>
-                          <Select
-                            value={control.addonType}
-                            onValueChange={(value) =>
-                              updateTimeControlDefinition(index, {
-                                addonType: value as TimeAddonType,
-                                addonValue: value === "none" ? 0 : control.addonValue,
-                              })
-                            }
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none">None</SelectItem>
-                              <SelectItem value="increment">Increment</SelectItem>
-                              <SelectItem value="delay">Delay</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-1">
-                          <Label>
-                            {control.addonType === "increment"
-                              ? "Increment (seconds)"
-                              : control.addonType === "delay"
-                              ? "Delay (seconds)"
-                              : "Additional Time"}
-                          </Label>
-                          <Input
-                            type="number"
-                            min={0}
-                            value={control.addonType === "none" ? 0 : control.addonValue}
-                            disabled={control.addonType === "none"}
-                            onChange={(event) =>
-                              updateTimeControlDefinition(index, {
-                                addonValue: parseInt(event.target.value || "0", 10),
-                              })
-                            }
-                          />
-                        </div>
-                        <div className="flex justify-end">
-                          {index > 0 && (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              className="text-red-500"
-                              onClick={() => removeTimeControl(index)}
-                            >
-                              Remove
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+
+
 
                 {config.format !== 'arena' && config.format !== 'knockout' && (
                   <div className="grid gap-4 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label>Pairing System</Label>
-                      <Input
-                        value={config.details.pairingSystem}
-                        onChange={(event) => updateDetails({ pairingSystem: event.target.value })}
-                      />
-                    </div>
                     <div className="space-y-2">
                       <Label>Rounds</Label>
                       <Input
@@ -2185,44 +2070,52 @@ function StepTwo({ format, mode, config, onConfigChange, onBack: _onBack, onCanc
                 )}
 
                 
-                {config.format === 'knockout' && (
+                {(config.format === 'knockout' || config.format === 'arena') && (
                   <div className="space-y-6 mb-6 p-6 rounded-2xl bg-white border border-slate-200 shadow-sm">
-                      <h3 className="text-base font-medium text-black">Knockout Protocol</h3>
+                      <h3 className="text-base font-medium text-black flex items-center gap-2">
+                        {config.format === 'knockout' ? 'Knockout Protocol' : 'Arena Rating Attachment'}
+                        <Paperclip className="h-4 w-4 text-slate-400" />
+                      </h3>
 
                     <div className="grid gap-6 md:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label className="text-[15px] font-medium text-black">Seeding Protocol</Label>
-                        <p className="text-[11px] text-slate-600 mb-2">
-                          Define how participants are positioned within the tournament bracket. Standard seeding matches superior seeds against lower seeds.
-                        </p>
-                        <Select
-                          value={config.seedingMethod ?? "fide_world_cup"}
-                          onValueChange={(value) => onConfigChange({ ...config, seedingMethod: value as any })}
-                        >
-                          <SelectTrigger className="w-full bg-white shadow-sm border-indigo-100 focus:ring-indigo-500">
-                            <SelectValue placeholder="Select seeding method" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="fide_world_cup">Standard Knockout System(Default)</SelectItem>
-                            <SelectItem value="slaughter">Slaughter Seeding (Top Half vs Bottom Half)</SelectItem>
-                            <SelectItem value="random">Randomized (Blind Draw)</SelectItem>
-                            <SelectItem value="manual">Manual Assignment (Custom Seeds)</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      {config.seedingMethod !== 'random' && config.seedingMethod !== 'manual' && (
+                      {config.format !== 'arena' && (
                         <div className="space-y-2">
-                          <Label className="text-[15px] font-medium text-black">Rating Source</Label>
+                          <Label className="text-[15px] font-medium text-black">Seeding Protocol</Label>
                           <p className="text-[11px] text-slate-600 mb-2">
-                            Select the primary rating database used to determine participant eligibility and bracket position.
+                            Define how participants are positioned within the tournament {config.format === 'knockout' ? 'bracket' : 'pairing pool'}.
+                          </p>
+                          <Select
+                            value={config.seedingMethod ?? "fide_world_cup"}
+                            onValueChange={(value) => onConfigChange({ ...config, seedingMethod: value as any })}
+                          >
+                            <SelectTrigger className="w-full bg-white shadow-sm border-indigo-100 focus:ring-indigo-500">
+                              <SelectValue placeholder="Select seeding method" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="fide_world_cup">Standard {config.format === 'knockout' ? 'Knockout' : 'Arena'} System(Default)</SelectItem>
+                              <SelectItem value="slaughter">Slaughter Seeding (Top Half vs Bottom Half)</SelectItem>
+                              <SelectItem value="random">Randomized (Blind Draw)</SelectItem>
+                              <SelectItem value="manual">Manual Assignment (Custom Seeds)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+
+                      {(config.format === 'arena' || (config.seedingMethod !== 'random' && config.seedingMethod !== 'manual')) && (
+                        <div className="space-y-2">
+                          <Label className="text-[15px] font-medium text-black">Rating Source (Attachment)</Label>
+                          <p className="text-[11px] text-slate-600 mb-2">
+                            Select the primary rating database used to determine participant eligibility and {config.format === 'knockout' ? 'bracket position' : 'pairing priority'}.
                           </p>
                           <Select
                             value={config.seedingSource ?? "rating"}
                             onValueChange={(value) => onConfigChange({ ...config, seedingSource: value as any })}
                           >
                             <SelectTrigger className="w-full bg-white shadow-sm border-indigo-100 focus:ring-indigo-500">
-                              <SelectValue placeholder="Select rating source" />
+                              <div className="flex items-center gap-2">
+                                <Paperclip className="h-3 w-3 text-indigo-500" />
+                                <SelectValue placeholder="Select rating source" />
+                              </div>
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="rating">Tournament Entry Rating</SelectItem>
@@ -2234,26 +2127,44 @@ function StepTwo({ format, mode, config, onConfigChange, onBack: _onBack, onCanc
                       )}
                     </div>
 
-                    <div className="flex items-center space-x-2 border-t border-indigo-100/50 pt-6">
-                      <Switch 
-                        id="double-elim" 
-                        checked={config.registers.isDoubleElimination}
-                        onCheckedChange={(checked) => updateRegisters({ isDoubleElimination: checked })}
-                      />
-                      <div className="space-y-0.5">
-                        <Label htmlFor="double-elim" className="text-[15px] font-medium text-black">Double Elimination</Label>
-                        <p className="text-[11px] text-slate-600">
-                          Enable a losers bracket for participants who lose their first match.
-                        </p>
-                      </div>
-                    </div>
+                    {config.format === 'knockout' && (
+                      <>
+                        <div className="flex items-center space-x-2 border-t border-indigo-100/50 pt-6">
+                          <Switch 
+                            id="third-place" 
+                            checked={config.details.thirdPlaceMatch}
+                            onCheckedChange={(checked) => updateDetails({ thirdPlaceMatch: checked })}
+                          />
+                          <div className="space-y-0.5">
+                            <Label htmlFor="third-place" className="text-[15px] font-medium text-black">3rd-Place Match</Label>
+                            <p className="text-[11px] text-slate-600">
+                              Enable a playoff between semi-final losers to determine the 3rd place finisher.
+                            </p>
+                          </div>
+                        </div>
 
-                    <div className="border-t border-indigo-100/50 pt-6">
-                      <KnockoutFormatEditor 
-                        config={config}
-                        onConfigChange={onConfigChange}
-                      />
-                    </div>
+                        <div className="flex items-center space-x-2 border-t border-indigo-100/50 pt-6">
+                          <Switch 
+                            id="double-elim" 
+                            checked={config.registers.isDoubleElimination}
+                            onCheckedChange={(checked) => updateRegisters({ isDoubleElimination: checked })}
+                          />
+                          <div className="space-y-0.5">
+                            <Label htmlFor="double-elim" className="text-[15px] font-medium text-black">Double Elimination</Label>
+                            <p className="text-[11px] text-slate-600">
+                              Enable a losers bracket for participants who lose their first match.
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="border-t border-indigo-100/50 pt-6">
+                          <KnockoutFormatEditor 
+                            config={config}
+                            onConfigChange={onConfigChange}
+                          />
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
 
@@ -2826,24 +2737,15 @@ function StepTwo({ format, mode, config, onConfigChange, onBack: _onBack, onCanc
                                onCheckedChange={(checked) => updateRegisters({ notifyPairingsEmail: checked })}
                              />
                           </div>
+
                           <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/30 px-4 py-3.5">
                              <div className="space-y-0.5">
-                               <Label className="text-[15px] font-medium text-black">SMS Notifications</Label>
-                               <p className="text-xs text-slate-500 font-normal">Notify pairings via SMS.</p>
+                               <Label className="text-[15px] font-medium text-black">Push Notifications</Label>
+                               <p className="text-xs text-slate-500 font-normal">Send real-time updates and pairing alerts.</p>
                              </div>
                              <Switch
-                               checked={config.registers.notifyPairingsSms}
-                               onCheckedChange={(checked) => updateRegisters({ notifyPairingsSms: checked })}
-                             />
-                          </div>
-                          <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/30 px-4 py-3.5">
-                             <div className="space-y-0.5">
-                               <Label className="text-[15px] font-medium text-black">Display Affiliations</Label>
-                               <p className="text-xs text-slate-500 font-normal">Show player school and grade details.</p>
-                             </div>
-                             <Switch
-                               checked={!config.registers.hideTeams}
-                               onCheckedChange={(checked) => updateRegisters({ hideTeams: !checked })}
+                               checked={config.registers.pushNotifications}
+                               onCheckedChange={(checked) => updateRegisters({ pushNotifications: checked })}
                              />
                           </div>
                         </div>
@@ -2884,17 +2786,19 @@ function StepTwo({ format, mode, config, onConfigChange, onBack: _onBack, onCanc
                                </div>
                              </div>
                           </div>
-                          <div className="space-y-2">
-                            <Label className="text-base font-medium text-black">Maximum Byes</Label>
-                            <Input
-                              type="number"
-                              className="h-11 border-slate-200"
-                              placeholder="0"
-                              value={config.registers.byeLimit ?? ""}
-                              onChange={(e) => updateRegisters({ byeLimit: e.target.value ? parseInt(e.target.value) : null })}
-                            />
-                            <p className="text-xs text-slate-400">Limit the number of requested byes allowed per player.</p>
-                          </div>
+                          {config.format !== 'knockout' && (
+                            <div className="space-y-2">
+                              <Label className="text-base font-medium text-black">Maximum Byes</Label>
+                              <Input
+                                type="number"
+                                className="h-11 border-slate-200"
+                                placeholder="0"
+                                value={config.registers.byeLimit ?? ""}
+                                onChange={(e) => updateRegisters({ byeLimit: e.target.value ? parseInt(e.target.value) : null })}
+                              />
+                              <p className="text-xs text-slate-400">Limit the number of requested byes allowed per player.</p>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -2908,7 +2812,81 @@ function StepTwo({ format, mode, config, onConfigChange, onBack: _onBack, onCanc
                         checked={config.registers.showOnCalendar}
                         onCheckedChange={(checked) => updateRegisters({ showOnCalendar: checked })}
                       />
+                </div>
+                </div>
+
+                {/* Page Customization */}
+                <div className="rounded-2xl border bg-white p-6 space-y-8 shadow-sm border-slate-200/60">
+                    <div className="space-y-1">
+                      <h3 className="text-base font-semibold text-black">Page Customization</h3>
+                      <p className="text-sm text-slate-500">Customize the appearance and features of your public tournament page.</p>
                     </div>
+
+                    <div className="grid gap-6 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium text-black">Visual Theme</Label>
+                        <Select
+                          value={config.publicPage?.theme || "professional"}
+                          onValueChange={(value: any) => updatePublicPage({ theme: value })}
+                        >
+                          <SelectTrigger className="h-11 border-slate-200">
+                            <SelectValue placeholder="Select theme" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="professional">Professional</SelectItem>
+                            <SelectItem value="vibrant">Vibrant</SelectItem>
+                            <SelectItem value="dark">Dark Mode</SelectItem>
+                            <SelectItem value="glass">Glassmorphism</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-slate-400">Sets the overall look and feel of the tournament page.</p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium text-black">Custom Accent Color</Label>
+                        <div className="flex gap-2">
+                          <Input
+                            type="color"
+                            value={config.publicPage?.customAccentColor || "#000000"}
+                            onChange={(e) => updatePublicPage({ customAccentColor: e.target.value })}
+                            className="w-12 h-11 p-1 border-slate-200 cursor-pointer"
+                          />
+                          <Input
+                            type="text"
+                            value={config.publicPage?.customAccentColor || ""}
+                            onChange={(e) => updatePublicPage({ customAccentColor: e.target.value })}
+                            placeholder="#000000"
+                            className="h-11 border-slate-200 flex-1"
+                          />
+                        </div>
+                        <p className="text-xs text-slate-400">Define a primary color for buttons and highlights.</p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-black">Header Image URL</Label>
+                      <Input
+                        type="text"
+                        placeholder="https://example.com/image.jpg"
+                        value={config.publicPage?.bannerUrl || ""}
+                        onChange={(e) => updatePublicPage({ bannerUrl: e.target.value })}
+                        className="h-11 border-slate-200"
+                      />
+                      <p className="text-xs text-slate-400">Displayed at the top of the tournament page.</p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-black">Announcement</Label>
+                      <Textarea
+                        placeholder="Important notice for all players..."
+                        value={config.publicPage?.announcement || ""}
+                        onChange={(e) => updatePublicPage({ announcement: e.target.value })}
+                        className="min-h-[100px] border-slate-200"
+                      />
+                      <p className="text-xs text-slate-400">A special message displayed prominently at the top of the page.</p>
+                    </div>
+
+
                 </div>
 
                 {/* Extensions */}
@@ -3240,6 +3218,14 @@ export function TournamentBuilder({ mode, format: initialFormat, tournament, onC
 
   const mutation = useMutation({
     mutationFn: async () => {
+      // Strict validation for Arena and Knockout formats
+      if (format === 'arena' || format === 'knockout') {
+        const hasUnsetClock = (config.details.timeControls ?? []).some(tc => !tc.minutes || tc.minutes <= 0);
+        if (hasUnsetClock) {
+          throw new Error("All clock settings (Minutes) must be configured with a value greater than 0 before starting.");
+        }
+      }
+
       const payload = buildTournamentPayload(config, { format });
       payload.roundTimings = serializeTournamentConfig({ ...config, format });
       if (mode === "create") {
@@ -3270,7 +3256,9 @@ export function TournamentBuilder({ mode, format: initialFormat, tournament, onC
           console.warn("Failed to parse updated tournament config", error);
         }
       }
-      toast({ title: mode === "create" ? "Tournament created" : "Tournament updated" });
+      if (mode === "create") {
+        toast({ title: "Tournament created" });
+      }
       onComplete?.(createdTournament);
     },
     onError: (error: any) => {
@@ -3281,6 +3269,22 @@ export function TournamentBuilder({ mode, format: initialFormat, tournament, onC
       });
     },
   });
+
+  // Autosave logic
+  const lastSavedConfigRef = useRef(JSON.stringify(config));
+  useEffect(() => {
+    if (mode !== "edit" || !tournament) return;
+
+    const currentConfig = JSON.stringify(config);
+    if (currentConfig === lastSavedConfigRef.current) return;
+
+    const timer = setTimeout(() => {
+      mutation.mutate();
+      lastSavedConfigRef.current = currentConfig;
+    }, 1500);
+
+    return () => clearTimeout(timer);
+  }, [config, mode, tournament]);
 
   return step === 1 ? (
     <StepOne
@@ -3309,6 +3313,7 @@ export function TournamentBuilder({ mode, format: initialFormat, tournament, onC
     <StepTwo
       format={format}
       mode={config.mode}
+      builderMode={mode}
       config={config}
       onConfigChange={(nextConfig) => setConfig(nextConfig)}
       onBack={() => setStep(1)}

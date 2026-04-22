@@ -25,7 +25,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Separator } from "@/components/ui/separator";
-import { LogOut, Trash2, ArrowLeft, SlidersHorizontal, User2, Mail, Smartphone, Bell, Trophy, Users } from "lucide-react";
+import { LogOut, Trash2, ArrowLeft, SlidersHorizontal, User2, Mail, Smartphone, Bell, Trophy, Users, Loader2, Check } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -38,7 +38,7 @@ export default function SettingsPage() {
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
 
-  const [phoneNumber, setPhoneNumber] = useState(user?.phoneNumber ?? "");
+
   const [notifyEmail, setNotifyEmail] = useState<boolean>(user?.notifyEmail ?? true);
   const [notifyPairings, setNotifyPairings] = useState<boolean>(user?.notifyPairings ?? true);
   const [notifyRegistration, setNotifyRegistration] = useState<boolean>(user?.notifyRegistration ?? true);
@@ -48,7 +48,7 @@ export default function SettingsPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
 
   useEffect(() => {
-    setPhoneNumber(user?.phoneNumber ?? "");
+
     setNotifyEmail(user?.notifyEmail ?? true);
     setNotifyPairings(user?.notifyPairings ?? true);
     setNotifyRegistration(user?.notifyRegistration ?? true);
@@ -94,7 +94,7 @@ export default function SettingsPage() {
   const updatePreferencesMutation = useMutation({
     mutationFn: async () => {
       const body = {
-        phoneNumber: phoneNumber || null,
+
         notifyEmail,
         notifyPairings,
         notifyRegistration,
@@ -106,7 +106,6 @@ export default function SettingsPage() {
       });
     },
     onSuccess: (updatedUser: any) => {
-      toast({ title: "Preferences saved" });
       queryClient.setQueryData(["/api/auth/me"], updatedUser);
     },
     onError: (error: any) => {
@@ -269,6 +268,7 @@ export default function SettingsPage() {
               <span className="font-medium">Role</span>
               <span>{user?.role}</span>
             </div>
+
           </CardContent>
         </Card>
 
@@ -367,27 +367,20 @@ export default function SettingsPage() {
                 </div>
               </div>
             </div>
-
-            <div className="pt-4 space-y-4">
-              <Separator />
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">Mobile number (Internal)</Label>
-                <div className="flex gap-2">
-                  <Input
-                    value={phoneNumber}
-                    onChange={(event) => setPhoneNumber(event.target.value)}
-                    placeholder="Enter your mobile number for director contact"
-                    className="max-w-md"
-                  />
-                  <Button
-                    onClick={() => updatePreferencesMutation.mutate()}
-                    disabled={updatePreferencesMutation.isPending}
-                  >
-                    {updatePreferencesMutation.isPending ? "Saving..." : "Save Preferences"}
-                  </Button>
+            <div className="pt-6 flex items-center justify-end h-10 gap-2 text-sm">
+              {updatePreferencesMutation.isPending ? (
+                <div className="flex items-center gap-2 text-slate-400 font-medium">
+                  <Loader2 className="h-4 w-4 animate-spin text-indigo-500" />
+                  <span>Autosaving preferences...</span>
                 </div>
-                <p className="text-xs text-muted-foreground">Only visible to tournament directors for urgent contact.</p>
-              </div>
+              ) : (notifyEmail !== user?.notifyEmail || notifyPairings !== user?.notifyPairings || notifyRegistration !== user?.notifyRegistration || notifyTournamentStatus !== user?.notifyTournamentStatus) ? (
+                <div className="text-amber-600 font-medium animate-pulse">Unsaved changes...</div>
+              ) : (
+                <div className="flex items-center gap-1.5 text-emerald-600 font-medium">
+                  <Check className="h-4 w-4" />
+                  <span>Preferences saved</span>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

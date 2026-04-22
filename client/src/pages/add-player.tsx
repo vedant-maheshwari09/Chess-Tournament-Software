@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, ChevronLeft, ChevronRight, FilePlus2, Save, Search, UserRound, ArrowLeft } from "lucide-react";
+import { Search, Plus, Trash2, Loader2, CreditCard, ChevronLeft, ChevronRight, Calendar, User, Info, Trophy, Check, UserRound, Save, FilePlus2, ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { parseTournamentConfig } from "@/lib/tournament-config";
@@ -64,13 +64,7 @@ const FEDERATION_OPTIONS = [
   "Australia",
 ];
 
-const PHONE_COUNTRY_OPTIONS = [
-  { code: "+1", label: "United States" },
-  { code: "+44", label: "United Kingdom" },
-  { code: "+91", label: "India" },
-  { code: "+61", label: "Australia" },
-  { code: "+33", label: "France" },
-];
+
 
 const SOURCE_META: Record<SourceKey, { label: string; accent: string }> = {
   uscf: { label: "USCF", accent: "bg-blue-50 text-blue-700" },
@@ -170,6 +164,8 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
   const resolvedPlayerId = typeof playerId === "number" && Number.isFinite(playerId) ? playerId : null;
   const isEditing = resolvedPlayerId !== null;
   const [editInitialized, setEditInitialized] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
 
   const { data: tournament, isLoading: tournamentLoading } = useQuery<Tournament>({
     queryKey: [`/api/tournaments/${tournamentId}`],
@@ -247,8 +243,7 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
       ratingRapid: "",
       ratingBlitz: "",
       email: "",
-      phoneCountry: "+1",
-      phone: "",
+
       club: "",
       birthdate: "",
       sex: "",
@@ -348,16 +343,16 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
     [searchInputs],
   );
 
-  const savePlayerMutation = useMutation<void, Error, "close" | "stay">({
-    mutationFn: async (_mode) => {
+  const savePlayerMutation = useMutation<void, Error, "close" | "stay" | "autosave">({
+    mutationFn: async (mode) => {
       const selectedSectionDetails = formState.sectionId
         ? sections.find((section) => section.id === formState.sectionId)
         : formState.sectionName
           ? sections.find((section) => section.name === formState.sectionName)
           : undefined;
       const payload = {
-        firstName: formState.firstName.trim() || "Player",
-        lastName: formState.lastName.trim() || `#${players.length + 1}`,
+        firstName: formState.firstName.trim() || (mode === "autosave" ? "..." : "Player"),
+        lastName: formState.lastName.trim() || (mode === "autosave" ? "..." : `#${players.length + 1}`),
         rating: parseInt(formState.rating, 10) || 0,
         federation: formState.federation || "United States",
         sectionId: formState.sectionId || selectedSectionDetails?.id || null,
@@ -367,7 +362,7 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
         birthdate: formState.birthdate || null,
         sex: formState.sex || null,
         email: formState.email || null,
-        phone: formState.phone || null,
+
         club: formState.club || null,
         title: formState.title || null,
         localId: formState.localId || null,
@@ -387,16 +382,25 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
       });
     },
     onSuccess: (_data, mode) => {
-      toast({ title: isEditing ? "Player updated" : "Player added" });
+      if (mode !== "autosave") {
+        toast({ title: isEditing ? "Player updated" : "Player added" });
+      }
       queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/players`] });
       if (isEditing && resolvedPlayerId) {
         queryClient.invalidateQueries({ queryKey: ["player-detail", tournamentId, resolvedPlayerId] });
       }
+      
+      setIsDirty(false);
+      setLastSaved(new Date());
+
       if (mode === "close") {
         setLocation(`/tournaments/${tournamentId}/manage`);
         return;
       }
-      if (!isEditing) {
+      if (!isEditing && mode !== "autosave" && mode !== "stay") {
+         // If we just created, transition to edit mode or clear
+      }
+      if (!isEditing && mode === "stay") {
         const nextForm = createEmptyForm(primarySection);
         setFormState(nextForm);
         setCombinedNameInput("");
@@ -413,6 +417,16 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
       });
     },
   });
+
+  useEffect(() => {
+    if (!isDirty || !isEditing) return;
+    const timer = setTimeout(() => {
+      savePlayerMutation.mutate("autosave");
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [isDirty, isEditing, formState, savePlayerMutation]);
+
+  const markDirty = () => setIsDirty(true);
 
   useEffect(() => {
     if (!tournamentLoading && !tournament) {
@@ -488,7 +502,7 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
       birthdate: editingPlayer.birthdate ?? prev.birthdate,
       sex: editingPlayer.sex ?? prev.sex,
       email: editingPlayer.email ?? prev.email,
-      phone: editingPlayer.phone ?? prev.phone,
+
       club: editingPlayer.club ?? prev.club,
       title: editingPlayer.title ?? prev.title,
       localId: editingPlayer.localId ?? prev.localId,
@@ -544,6 +558,7 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
       lastName: isLikelyId ? prev.lastName : nextLast,
       firstName: isLikelyId ? prev.firstName : nextFirst,
     }));
+    markDirty();
 
     setSearchInputs((prev) => ({
       ...prev,
@@ -654,6 +669,7 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
 
       return next;
     });
+    markDirty();
     setCombinedNameInput([cleanedLast, cleanedFirst].filter(Boolean).join(", "));
     setActiveTab("basic");
   };
@@ -692,9 +708,28 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
                       <UserRound className="h-7 w-7" />
                     </div>
                     <div>
-                      <h1 className="text-2xl font-semibold text-slate-800">
-                        {isEditing ? "Edit Player" : "Add Player"}
-                      </h1>
+                      <div className="flex items-center gap-3">
+                        <h1 className="text-2xl font-semibold text-slate-800">
+                          {isEditing ? "Edit Player" : "Add Player"}
+                        </h1>
+                        <div className="flex items-center gap-1.5 mt-1">
+                          {savePlayerMutation.isPending ? (
+                            <span className="flex items-center gap-1.5 text-[10px] font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+                              <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                              Saving...
+                            </span>
+                          ) : isDirty ? (
+                            <span className="text-[10px] font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
+                              Unsaved changes
+                            </span>
+                          ) : lastSaved ? (
+                            <span className="flex items-center gap-1 text-[10px] font-medium text-slate-400">
+                              <Check className="h-2.5 w-2.5" />
+                              Autosaved
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
                       <p className="text-sm text-muted-foreground">
                         {isEditing
                           ? "Update roster information, payments, and notes for this participant."
@@ -891,44 +926,56 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
                           )}
 
                         </div>
-                        <div className="md:col-span-3">
-                          <Label className="text-sm font-semibold text-slate-700 mb-1 block">Birthdate</Label>
-                          <DatePicker
-                            date={formState.birthdate ? parseISO(formState.birthdate) : null}
-                            setDate={(date) => setFormState((prev) => ({ ...prev, birthdate: date ? formatDate(date, "yyyy-MM-dd") : "" }))}
-                            placeholder="Select birth date"
-                            className="w-full h-11 border-slate-200 rounded-xl text-sm"
-                          />
-                        </div>
-                        <div className="md:col-span-3">
-                          <Label className="text-sm font-semibold text-slate-700">Sex</Label>
-                          <Select
-                            value={formState.sex}
-                            onValueChange={(value) => setFormState((prev) => ({ ...prev, sex: value }))}
-                          >
-                            <SelectTrigger className="mt-1">
-                              <SelectValue placeholder="Select" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="male">Male</SelectItem>
-                              <SelectItem value="female">Female</SelectItem>
-                              <SelectItem value="other">Other</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="md:col-span-4">
-                          <Label className="text-sm font-semibold text-slate-700">Club</Label>
-                          <Input
-                            className="mt-1"
-                            value={formState.club}
-                            onChange={(event) => setFormState((prev) => ({ ...prev, club: event.target.value }))}
-                          />
-                        </div>
+                          <div className="md:col-span-3">
+                            <Label className="text-sm font-semibold text-slate-700 mb-1 block">Birthdate</Label>
+                            <DatePicker
+                              date={formState.birthdate ? parseISO(formState.birthdate) : null}
+                              setDate={(date) => {
+                                setFormState((prev) => ({ ...prev, birthdate: date ? formatDate(date, "yyyy-MM-dd") : "" }));
+                                markDirty();
+                              }}
+                              placeholder="Select birth date"
+                              className="w-full h-11 border-slate-200 rounded-xl text-sm"
+                            />
+                          </div>
+                          <div className="md:col-span-3">
+                            <Label className="text-sm font-semibold text-slate-700">Sex</Label>
+                            <Select
+                              value={formState.sex}
+                              onValueChange={(value) => {
+                                setFormState((prev) => ({ ...prev, sex: value }));
+                                markDirty();
+                              }}
+                            >
+                              <SelectTrigger className="mt-1">
+                                <SelectValue placeholder="Select" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="male">Male</SelectItem>
+                                <SelectItem value="female">Female</SelectItem>
+                                <SelectItem value="other">Other</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="md:col-span-4">
+                            <Label className="text-sm font-semibold text-slate-700">Club</Label>
+                            <Input
+                              className="mt-1"
+                              value={formState.club}
+                              onChange={(event) => {
+                                setFormState((prev) => ({ ...prev, club: event.target.value }));
+                                markDirty();
+                              }}
+                            />
+                          </div>
                         <div className="md:col-span-4">
                           <Label className="text-sm font-semibold text-slate-700">Federation</Label>
                           <Select
                             value={formState.federation}
-                            onValueChange={(value) => setFormState((prev) => ({ ...prev, federation: value }))}
+                            onValueChange={(value) => {
+                              setFormState((prev) => ({ ...prev, federation: value }));
+                              markDirty();
+                            }}
                           >
                             <SelectTrigger className="mt-1">
                               <SelectValue />
@@ -947,7 +994,10 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
                           <Input
                             className="mt-1"
                             value={formState.title}
-                            onChange={(event) => setFormState((prev) => ({ ...prev, title: event.target.value }))}
+                            onChange={(event) => {
+                              setFormState((prev) => ({ ...prev, title: event.target.value }));
+                              markDirty();
+                            }}
                           />
                         </div>
                         <div className="md:col-span-4">
@@ -956,39 +1006,22 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
                             type="email"
                             className="mt-1"
                             value={formState.email}
-                            onChange={(event) => setFormState((prev) => ({ ...prev, email: event.target.value }))}
+                            onChange={(event) => {
+                              setFormState((prev) => ({ ...prev, email: event.target.value }));
+                              markDirty();
+                            }}
                           />
                         </div>
-                        <div className="md:col-span-4">
-                          <Label className="text-sm font-semibold text-slate-700">Phone Number</Label>
-                          <div className="mt-1 flex gap-2">
-                            <Select
-                              value={formState.phoneCountry}
-                              onValueChange={(value) => setFormState((prev) => ({ ...prev, phoneCountry: value }))}
-                            >
-                              <SelectTrigger className="w-[110px]">
-                                <SelectValue placeholder="+1" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {PHONE_COUNTRY_OPTIONS.map((option) => (
-                                  <SelectItem key={option.code} value={option.code}>
-                                    {option.label} ({option.code})
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <Input
-                              value={formState.phone}
-                              onChange={(event) => setFormState((prev) => ({ ...prev, phone: event.target.value }))}
-                            />
-                          </div>
-                        </div>
+
                         <div className="md:col-span-4">
                           <Label className="text-sm font-semibold text-slate-700">Labels</Label>
                           <Input
                             className="mt-1"
                             value={formState.labels}
-                            onChange={(event) => setFormState((prev) => ({ ...prev, labels: event.target.value }))}
+                            onChange={(event) => {
+                              setFormState((prev) => ({ ...prev, labels: event.target.value }));
+                              markDirty();
+                            }}
                           />
                         </div>
                         <div className="md:col-span-4">
@@ -996,7 +1029,10 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
                           <Input
                             className="mt-1"
                             value={formState.uscfId}
-                            onChange={(event) => setFormState((prev) => ({ ...prev, uscfId: event.target.value }))}
+                            onChange={(event) => {
+                              setFormState((prev) => ({ ...prev, uscfId: event.target.value }));
+                              markDirty();
+                            }}
                           />
                         </div>
                         <div className="md:col-span-4">
@@ -1004,7 +1040,10 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
                           <Input
                             className="mt-1"
                             value={formState.rating}
-                            onChange={(event) => setFormState((prev) => ({ ...prev, rating: event.target.value }))}
+                            onChange={(event) => {
+                              setFormState((prev) => ({ ...prev, rating: event.target.value }));
+                              markDirty();
+                            }}
                           />
                         </div>
                         <div className="md:col-span-4">
@@ -1012,7 +1051,10 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
                           <Input
                             className="mt-1"
                             value={formState.ratingRapid}
-                            onChange={(event) => setFormState((prev) => ({ ...prev, ratingRapid: event.target.value }))}
+                            onChange={(event) => {
+                              setFormState((prev) => ({ ...prev, ratingRapid: event.target.value }));
+                              markDirty();
+                            }}
                           />
                         </div>
                         <div className="md:col-span-4">
@@ -1020,7 +1062,10 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
                           <Input
                             className="mt-1"
                             value={formState.localId}
-                            onChange={(event) => setFormState((prev) => ({ ...prev, localId: event.target.value }))}
+                            onChange={(event) => {
+                              setFormState((prev) => ({ ...prev, localId: event.target.value }));
+                              markDirty();
+                            }}
                           />
                         </div>
                         <div className="md:col-span-4">
@@ -1028,7 +1073,10 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
                           <Input
                             className="mt-1"
                             value={formState.ratingLocal}
-                            onChange={(event) => setFormState((prev) => ({ ...prev, ratingLocal: event.target.value }))}
+                            onChange={(event) => {
+                              setFormState((prev) => ({ ...prev, ratingLocal: event.target.value }));
+                              markDirty();
+                            }}
                           />
                         </div>
                         <div className="md:col-span-4">
@@ -1036,7 +1084,10 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
                           <Input
                             className="mt-1"
                             value={formState.ratingBlitz}
-                            onChange={(event) => setFormState((prev) => ({ ...prev, ratingBlitz: event.target.value }))}
+                            onChange={(event) => {
+                              setFormState((prev) => ({ ...prev, ratingBlitz: event.target.value }));
+                              markDirty();
+                            }}
                           />
                         </div>
                         <div className="md:col-span-4">
@@ -1044,16 +1095,19 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
                           <Input
                             className="mt-1"
                             value={formState.uscfRating}
-                            onChange={(event) => setFormState((prev) => {
-                              const val = event.target.value;
-                              const regConfig = parseTournamentConfig(tournament!);
-                              const primary = regConfig.details.primaryRatingSystem || 'uscf';
-                              return {
-                                ...prev,
-                                uscfRating: val,
-                                rating: primary === 'uscf' ? val : prev.rating
-                              };
-                            })}
+                            onChange={(event) => {
+                              setFormState((prev) => {
+                                const val = event.target.value;
+                                const regConfig = parseTournamentConfig(tournament!);
+                                const primary = regConfig.details.primaryRatingSystem || 'uscf';
+                                return {
+                                  ...prev,
+                                  uscfRating: val,
+                                  rating: primary === 'uscf' ? val : prev.rating
+                                };
+                              });
+                              markDirty();
+                            }}
                           />
                         </div>
                         <div className="md:col-span-4">
@@ -1061,16 +1115,19 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
                           <Input
                             className="mt-1"
                             value={formState.fideRating}
-                            onChange={(event) => setFormState((prev) => {
-                              const val = event.target.value;
-                              const regConfig = parseTournamentConfig(tournament!);
-                              const primary = regConfig.details.primaryRatingSystem || 'uscf';
-                              return {
-                                ...prev,
-                                fideRating: val,
-                                rating: primary === 'fide' ? val : prev.rating
-                              };
-                            })}
+                            onChange={(event) => {
+                              setFormState((prev) => {
+                                const val = event.target.value;
+                                const regConfig = parseTournamentConfig(tournament!);
+                                const primary = regConfig.details.primaryRatingSystem || 'uscf';
+                                return {
+                                  ...prev,
+                                  fideRating: val,
+                                  rating: primary === 'fide' ? val : prev.rating
+                                };
+                              });
+                              markDirty();
+                            }}
                           />
                         </div>
                         <div className="md:col-span-4">
@@ -1086,6 +1143,7 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
                                   sectionName: nextSection?.name ?? prev.sectionName,
                                 };
                               });
+                              markDirty();
                             }}
                             disabled={sections.length === 0}
                           >
@@ -1120,14 +1178,20 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
                           <Input
                             type="datetime-local"
                             value={formState.paymentDate}
-                            onChange={(event) => setFormState((prev) => ({ ...prev, paymentDate: event.target.value }))}
+                            onChange={(event) => {
+                              setFormState((prev) => ({ ...prev, paymentDate: event.target.value }));
+                              markDirty();
+                            }}
                           />
                         </div>
                         <div className="space-y-1">
                           <Label className="text-sm font-semibold text-slate-700">Method</Label>
                           <Select
                             value={formState.paymentMethod}
-                            onValueChange={(value) => setFormState((prev) => ({ ...prev, paymentMethod: value }))}
+                            onValueChange={(value) => {
+                              setFormState((prev) => ({ ...prev, paymentMethod: value }));
+                              markDirty();
+                            }}
                           >
                             <SelectTrigger>
                               <SelectValue placeholder="Select" />
@@ -1145,7 +1209,10 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
                           <Input
                             type="number"
                             value={formState.paymentAmount}
-                            onChange={(event) => setFormState((prev) => ({ ...prev, paymentAmount: event.target.value }))}
+                            onChange={(event) => {
+                              setFormState((prev) => ({ ...prev, paymentAmount: event.target.value }));
+                              markDirty();
+                            }}
                           />
                         </div>
                       </div>
@@ -1162,7 +1229,10 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
                         <Textarea
                           rows={4}
                           value={formState.notesAdmin}
-                          onChange={(event) => setFormState((prev) => ({ ...prev, notesAdmin: event.target.value }))}
+                          onChange={(event) => {
+                            setFormState((prev) => ({ ...prev, notesAdmin: event.target.value }));
+                            markDirty();
+                          }}
                         />
                       </div>
                       <div className="space-y-1">
@@ -1170,7 +1240,10 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
                         <Textarea
                           rows={4}
                           value={formState.notesPublic}
-                          onChange={(event) => setFormState((prev) => ({ ...prev, notesPublic: event.target.value }))}
+                          onChange={(event) => {
+                            setFormState((prev) => ({ ...prev, notesPublic: event.target.value }));
+                            markDirty();
+                          }}
                         />
                       </div>
                       <div className="space-y-1">
@@ -1178,7 +1251,10 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
                         <Textarea
                           rows={4}
                           value={formState.notesPrivate}
-                          onChange={(event) => setFormState((prev) => ({ ...prev, notesPrivate: event.target.value }))}
+                          onChange={(event) => {
+                            setFormState((prev) => ({ ...prev, notesPrivate: event.target.value }));
+                            markDirty();
+                          }}
                         />
                       </div>
                     </div>
@@ -1187,28 +1263,36 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
 
                 <div className="flex flex-wrap items-center justify-between gap-3 border-t bg-muted/10 px-8 py-4">
                   <div className="flex items-center gap-2">
-                    <Button
-                      type="button"
-                      className="bg-indigo-700 px-5 text-white hover:bg-indigo-800"
-                      onClick={() => savePlayerMutation.mutate("close")}
-                      disabled={savePlayerMutation.isPending}
-                    >
-                      <Save className="mr-2 h-4 w-4" />
-                      {savePlayerMutation.isPending ? "Saving..." : "Save & Close"}
-                    </Button>
-                    <Button
-                      type="button"
-                      className="bg-indigo-600 px-5 text-white hover:bg-indigo-700"
-                      onClick={() => savePlayerMutation.mutate("stay")}
-                      disabled={savePlayerMutation.isPending}
-                    >
-                      {isEditing ? (
-                        <Save className="mr-2 h-4 w-4" />
-                      ) : (
-                        <FilePlus2 className="mr-2 h-4 w-4" />
-                      )}
-                      {savePlayerMutation.isPending ? "Saving..." : isEditing ? "Save" : "Save & Add Another"}
-                    </Button>
+                    {isEditing ? (
+                      <Button
+                        type="button"
+                        className="bg-slate-800 px-8 text-white hover:bg-slate-900 shadow-sm"
+                        onClick={() => setLocation(`/tournaments/${tournamentId}/manage`)}
+                      >
+                        Done
+                      </Button>
+                    ) : (
+                      <>
+                        <Button
+                          type="button"
+                          className="bg-indigo-700 px-5 text-white hover:bg-indigo-800"
+                          onClick={() => savePlayerMutation.mutate("close")}
+                          disabled={savePlayerMutation.isPending}
+                        >
+                          <Save className="mr-2 h-4 w-4" />
+                          {savePlayerMutation.isPending ? "Creating..." : "Create & Close"}
+                        </Button>
+                        <Button
+                          type="button"
+                          className="bg-indigo-600 px-5 text-white hover:bg-indigo-700"
+                          onClick={() => savePlayerMutation.mutate("stay")}
+                          disabled={savePlayerMutation.isPending}
+                        >
+                          <FilePlus2 className="mr-2 h-4 w-4" />
+                          {savePlayerMutation.isPending ? "Creating..." : "Create & Add Another"}
+                        </Button>
+                      </>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
                     <Button type="button" variant="outline" size="icon" disabled>

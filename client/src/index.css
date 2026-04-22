@@ -71,3 +71,30 @@
     scrollbar-width: none;
   }
 }
+@layer components {
+  .tournament-content ul li input[type="checkbox"] {
+    @apply h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary mr-2 mt-1 flex-shrink-0;
+  }
+
+  .tournament-content blockquote {
+    @apply border-l-4 border-slate-200 pl-4 py-2 my-6 bg-slate-50 rounded-r-md italic text-slate-700;
+  }
+
+  .tournament-content table {
+    @apply w-full border-collapse my-6 overflow-hidden rounded-lg border border-slate-200 shadow-sm;
+  }
+
+  .tournament-content th {
+    @apply bg-slate-50 px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500 border-b border-slate-200;
+  }
+
+  .tournament-content td {
+    @apply px-4 py-3 text-sm text-slate-600 border-b border-slate-100;
+  }
+
+  .tournament-content h1 { @apply text-4xl font-black text-slate-900 mb-6 mt-10 tracking-tight; }
+  .tournament-content h2 { @apply text-2xl font-bold text-slate-800 mb-4 mt-8; }
+  .tournament-content h3 { @apply text-xl font-bold text-slate-800 mb-3 mt-6; }
+  
+  .tournament-content p { @apply text-slate-600 leading-relaxed mb-4; }
+}

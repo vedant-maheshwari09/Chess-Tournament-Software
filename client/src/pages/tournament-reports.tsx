@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef } from "react";
+import { useMemo, useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { ChevronLeft, Download, Printer, Loader2, Globe, Flag } from "lucide-react";
+import { ChevronLeft, Download, Printer, Loader2, Globe, Flag, Check } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -39,32 +39,59 @@ export default function TournamentReportsPage({ tournamentId, type }: Tournament
     queryKey: [`/api/tournaments/${tournamentId}`],
   });
 
-  const { data: players, isLoading: playersLoading } = useQuery<Player[]>({
-    queryKey: [`/api/tournaments/${tournamentId}/players`],
-  });
-
-  const { data: matches, isLoading: matchesLoading } = useQuery<Match[]>({
-    queryKey: [`/api/tournaments/${tournamentId}/matches`],
-  });
-
-  const config = useMemo(() => (tournament ? parseTournamentConfig(tournament) : null), [tournament]);
-
-  const updateConfig = async (updates: Partial<TournamentConfig>) => {
-    if (!config || !tournament) return;
-    const nextConfig = { ...config, ...updates };
-    const payload = buildTournamentPayload(nextConfig, { format: tournament.format });
-    (payload as any).status = tournament.status;
-    
+  const [draftConfig, setDraftConfig] = useState<TournamentConfig | null>(null);
+  const [isDirty, setIsDirty] = useState(false);
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  
+  const config = useMemo(() => {
+    if (!tournament?.roundTimings) return null;
     try {
+      return parseTournamentConfig(tournament.roundTimings as any);
+    } catch (e) {
+      console.error("Failed to parse tournament config", e);
+      return null;
+    }
+  }, [tournament?.roundTimings]);
+
+  useEffect(() => {
+    if (config && !draftConfig) {
+      setDraftConfig(config);
+    }
+  }, [config, draftConfig]);
+
+  const saveMutation = useMutation({
+    mutationFn: async (configToSave: TournamentConfig) => {
+      if (!tournament) return;
+      const payload = buildTournamentPayload(configToSave, { format: tournament.format });
+      (payload as any).status = tournament.status;
+      
       await apiRequest(`/api/tournaments/${tournamentId}`, {
         method: "PUT",
         body: JSON.stringify(payload),
       });
+    },
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}`] });
-      toast({ title: "Report data saved" });
-    } catch (error: any) {
+      setIsDirty(false);
+      setLastSaved(new Date());
+    },
+    onError: (error: any) => {
       toast({ title: "Failed to save data", description: error.message, variant: "destructive" });
     }
+  });
+
+  useEffect(() => {
+    if (!isDirty || !draftConfig) return;
+    const timer = setTimeout(() => {
+      saveMutation.mutate(draftConfig);
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [isDirty, draftConfig, saveMutation]);
+
+  const updateConfig = (updates: Partial<TournamentConfig>) => {
+    if (!draftConfig) return;
+    setDraftConfig({ ...draftConfig, ...updates });
+    setIsDirty(true);
   };
 
   const handlePrint = () => {
@@ -72,7 +99,7 @@ export default function TournamentReportsPage({ tournamentId, type }: Tournament
     window.print();
   };
 
-  if (tournamentLoading || playersLoading || matchesLoading || !tournament || !config) {
+  if (tournamentLoading || !tournament || !config) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50">
         <div className="flex items-center gap-3 text-slate-500">
@@ -123,164 +150,48 @@ export default function TournamentReportsPage({ tournamentId, type }: Tournament
 
           <div className="grid gap-8 lg:grid-cols-[1fr,350px] print:grid-cols-1">
             <div className="space-y-8">
-              {type === "fide" ? (
+              {!draftConfig ? (
+                <div className="flex items-center justify-center p-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+                </div>
+              ) : type === "fide" ? (
                 <FideRegistrationSection
-                  value={config.fide}
-                  onChange={(update) => updateConfig({ fide: { ...config.fide, ...update } })}
+                  value={draftConfig.fide}
+                  onChange={(update) => updateConfig({ fide: { ...draftConfig.fide, ...update } })}
                   tournamentName={tournament.name}
                   tournamentCity={tournament.location ?? ""}
                 />
               ) : (
                 <div className="space-y-8">
                   <UscfReportSection
-                    value={config.uscf}
-                    onChange={(update) => updateConfig({ uscf: { ...config.uscf, ...update } })}
+                    value={draftConfig.uscf}
+                    onChange={(update) => updateConfig({ uscf: { ...draftConfig.uscf, ...update } })}
                   />
-                  
-                  {/* Official USCF Preview */}
-                  <Card className="border-slate-200 shadow-md">
-                    <CardHeader className="bg-slate-50/50 border-b">
-                      <CardTitle className="text-lg font-bold flex items-center gap-2">
-                        Official USCF Post-Tournament Summary
-                      </CardTitle>
-                      <CardDescription>Preview of the official summary layout.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="p-8 space-y-8 print:p-0">
-                      <div className="text-center space-y-1">
-                        <h2 className="text-xl font-bold uppercase tracking-tight">US Chess Federation</h2>
-                        <h3 className="text-lg font-bold border-b-2 border-black inline-block px-4 pb-1">Tournament Summary</h3>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-x-12 gap-y-4 text-sm mt-8">
-                        <div className="space-y-3">
-                          <div className="flex justify-between border-b border-slate-200 pb-1">
-                            <span className="font-bold text-slate-400 uppercase text-[9px] tracking-wider">Event Name</span>
-                            <span className="font-bold text-slate-900">{tournament.name}</span>
-                          </div>
-                          <div className="flex justify-between border-b border-slate-200 pb-1">
-                            <span className="font-bold text-slate-400 uppercase text-[9px] tracking-wider">Location</span>
-                            <span className="font-bold text-slate-900">{tournament.location || "N/A"}</span>
-                          </div>
-                          <div className="flex justify-between border-b border-slate-200 pb-1">
-                            <span className="font-bold text-slate-400 uppercase text-[9px] tracking-wider">Date Ended</span>
-                            <span className="font-bold text-slate-900">{tournament.arenaStartTime ? new Date(tournament.arenaStartTime).toLocaleDateString() : "N/A"}</span>
-                          </div>
-                        </div>
-                        <div className="space-y-3">
-                          <div className="flex justify-between border-b border-slate-200 pb-1">
-                            <span className="font-bold text-slate-400 uppercase text-[9px] tracking-wider">Affiliate ID</span>
-                            <span className="font-bold text-slate-900">{config.uscf.affiliateId || "N/A"}</span>
-                          </div>
-                          <div className="flex justify-between border-b border-slate-200 pb-1">
-                            <span className="font-bold text-slate-400 uppercase text-[9px] tracking-wider">Tournament Director</span>
-                            <span className="font-bold text-slate-900">{config.uscf.tournamentDirector || "N/A"}</span>
-                          </div>
-                          <div className="flex justify-between border-b border-slate-200 pb-1">
-                            <span className="font-bold text-slate-400 uppercase text-[9px] tracking-wider">Total Entrants</span>
-                            <span className="font-bold text-slate-900">{players?.length || 0}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="space-y-6 mt-10">
-                        <div className="flex items-center gap-3">
-                          <h4 className="font-black text-xs bg-slate-900 text-white px-3 py-1.5 rounded-sm uppercase tracking-widest">Cross Table Summary</h4>
-                          <div className="h-px bg-slate-200 flex-1" />
-                        </div>
-                        <div className="overflow-x-auto rounded-lg border border-slate-200">
-                          <table className="w-full text-[11px] border-collapse">
-                            <thead>
-                              <tr className="bg-slate-50 border-b border-slate-200">
-                                <th className="text-left py-2.5 px-4 font-bold text-slate-500 uppercase tracking-tighter">Rank</th>
-                                <th className="text-left py-2.5 px-4 font-bold text-slate-500 uppercase tracking-tighter">ID Number</th>
-                                <th className="text-left py-2.5 px-4 font-bold text-slate-500 uppercase tracking-tighter">Participant Name</th>
-                                <th className="text-left py-2.5 px-4 font-bold text-slate-500 uppercase tracking-tighter">Rating</th>
-                                <th className="text-center py-2.5 px-4 font-bold text-slate-500 uppercase tracking-tighter">Total Score</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {players?.sort((a, b) => Number(b.arenaPoints) - Number(a.arenaPoints)).map((player, idx) => (
-                                <tr key={player.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/30 transition-colors">
-                                  <td className="py-2.5 px-4 font-black text-slate-400">{idx + 1}</td>
-                                  <td className="py-2.5 px-4 font-mono text-slate-600">{player.id.toString().padStart(8, '0')}</td>
-                                  <td className="py-2.5 px-4 font-bold text-slate-900 uppercase">
-                                    {player.lastName}, {player.firstName}
-                                  </td>
-                                  <td className="py-2.5 px-4 font-medium text-slate-700">
-                                    {(player.uscfRating || player.rating || 1000)}
-                                  </td>
-                                  <td className="py-2.5 px-4 text-center font-black bg-slate-50/50 text-slate-900">{player.arenaPoints}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-12 mt-12 text-[11px]">
-                        <div className="space-y-4">
-                          <div className="flex justify-between border-b border-dotted border-slate-300 pb-1">
-                            <span className="text-slate-500">Chief Tournament Director</span>
-                            <span className="font-bold underline uppercase">{config.uscf.tournamentDirector || (user?.username.toUpperCase())}</span>
-                          </div>
-                          <div className="flex justify-between border-b border-dotted border-slate-300 pb-1">
-                            <span className="text-slate-500">TD USCF ID:</span>
-                            <span className="font-bold">{config.uscf.affiliateId || "PENDING"}</span>
-                          </div>
-                        </div>
-                        <div className="space-y-4">
-                          <div className="flex justify-between border-b border-dotted border-slate-300 pb-1">
-                            <span className="text-slate-500">Section Name</span>
-                            <span className="font-bold">ARENA CHAMPIONSHIP</span>
-                          </div>
-                          <div className="flex justify-between border-b border-dotted border-slate-300 pb-1">
-                            <span className="text-slate-500">Rating System</span>
-                            <span className="font-bold">ONLINE BLITZ</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="mt-16 pt-8 border-t-2 border-slate-100 space-y-6">
-                        <div className="grid grid-cols-2 gap-12">
-                          <div className="space-y-8">
-                            <div className="space-y-1">
-                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Director's Certification</p>
-                              <p className="text-[11px] leading-relaxed text-slate-600 italic">
-                                I certify that the information contained in this report is a true and accurate record of the tournament results and has been conducted in accordance with the rules of the US Chess Federation.
-                              </p>
-                            </div>
-                            <div className="pt-8 border-b border-black w-full" />
-                            <p className="text-[9px] font-bold uppercase text-slate-400">Main Tournament Director Signature</p>
-                          </div>
-                          <div className="space-y-4">
-                            <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
-                              <p className="text-[10px] font-bold text-slate-500 uppercase mb-2">Internal Verification</p>
-                              <div className="flex items-center justify-between text-[11px]">
-                                <span>Software Integrity</span>
-                                <Badge variant="outline" className="text-[9px] h-4 px-1.5 bg-white">SECURE</Badge>
-                              </div>
-                              <div className="flex items-center justify-between text-[11px] mt-1">
-                                <span>Checksum Valid</span>
-                                <Badge variant="outline" className="text-[9px] h-4 px-1.5 bg-white">MATCH</Badge>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="mt-12 text-center text-[10px] text-slate-400 font-medium italic border-t pt-4">
-                        Generated by Chess Tournament Manager Official Reporting Tool
-                      </div>
-                    </CardContent>
-                  </Card>
                 </div>
               )}
             </div>
 
             <div className="space-y-6 print:hidden">
               <Card>
-                <CardHeader>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-bold uppercase tracking-wider text-slate-500">Report Status</CardTitle>
+                  <div className="flex items-center gap-1.5">
+                    {saveMutation.isPending ? (
+                      <span className="flex items-center gap-1.5 text-[10px] font-medium text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full">
+                        <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                        Saving...
+                      </span>
+                    ) : isDirty ? (
+                      <span className="text-[10px] font-medium text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full">
+                        Unsaved changes
+                      </span>
+                    ) : lastSaved ? (
+                      <span className="flex items-center gap-1 text-[10px] font-medium text-slate-400">
+                        <Check className="h-2.5 w-2.5" />
+                        Saved
+                      </span>
+                    ) : null}
+                  </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="flex items-center justify-between">

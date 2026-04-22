@@ -84,10 +84,17 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
   const sections = useMemo(() => tournamentConfig?.sections ?? [], [tournamentConfig]);
 
   const [boardNumbering, setBoardNumbering] = useState<BoardNumberingSettings>({});
+  const [isBoardDirty, setIsBoardDirty] = useState(false);
   
+  useEffect(() => {
+    if (tournamentConfig?.boardNumbering) {
+      setBoardNumbering(tournamentConfig.boardNumbering);
+    }
+  }, [tournamentConfig]);
 
   const updateBoardNumbering = (update: Partial<BoardNumberingSettings>) => {
     setBoardNumbering((prev) => ({ ...prev, ...update }));
+    setIsBoardDirty(true);
   };
 
   const saveBoardNumberingMutation = useMutation({
@@ -98,17 +105,27 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
         boardNumbering
       };
       
-      const res = await apiRequest(`/api/tournaments/${tournamentId}`, {
+      await apiRequest(`/api/tournaments/${tournamentId}`, {
         method: "PATCH",
         body: JSON.stringify({ config: JSON.stringify(updatedConfig) })
       });
-      return res;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}`] });
-      toast({ title: "Settings Saved", description: "Board numbering settings updated successfully" });
     }
   });
+
+  // Autosave effect for board numbering
+  useEffect(() => {
+    if (!isBoardDirty) return;
+
+    const timer = setTimeout(() => {
+      saveBoardNumberingMutation.mutate();
+      setIsBoardDirty(false);
+    }, 1500);
+
+    return () => clearTimeout(timer);
+  }, [boardNumbering, isBoardDirty, saveBoardNumberingMutation]);
 
 
   const generateKnockoutMutation = useMutation({
@@ -138,6 +155,15 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
   // Start tournament mutation
   const startTournamentMutation = useMutation({
     mutationFn: async (options?: { force?: boolean }) => {
+      // Validate clock settings for Arena/Knockout before starting
+      if (tournament?.format === 'arena' || tournament?.format === 'knockout') {
+        const config = tournament.roundTimings as any;
+        const timeControls = config?.details?.timeControls;
+        if (!timeControls || timeControls.length === 0 || timeControls.some((c: any) => !c.minutes || c.minutes <= 0)) {
+          throw new Error("All clock settings (Minutes) must be configured in Tournament Settings before starting.");
+        }
+      }
+
       const body = options?.force ? JSON.stringify({ force: true }) : undefined;
       await apiRequest(`/api/tournaments/${tournamentId}/start`, {
         method: "POST",
@@ -167,32 +193,6 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
 
 
 
-  // Reset tournament mutation
-  const resetTournamentMutation = useMutation({
-    mutationFn: async () => {
-      await apiRequest(`/api/tournaments/${tournamentId}/reset`, {
-        method: "POST",
-      });
-    },
-    onSuccess: () => {
-      toast({
-        title: "Tournament Restarted",
-        description: "The tournament has been reset to registration phase.",
-      });
-      queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}`] });
-      queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/players`] });
-      queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/arena/lobby`] });
-      selectTab("players");
-    },
-    onError: (error: unknown) => {
-      toast({
-        title: "Error",
-        description:
-          error instanceof Error ? error.message : "Failed to restart tournament.",
-        variant: "destructive",
-      });
-    },
-  });
 
   // Generate next round mutation
   const nextRoundMutation = useMutation({
@@ -308,30 +308,6 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
               </div>
             </div>
             <div className="flex flex-wrap items-center justify-end gap-3">
-              {tournament?.status === 'active' && (
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button variant="outline" className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700">
-                      <RefreshCw className="h-4 w-4 mr-2" />
-                      Restart Tournament
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Restart Tournament (Testing)</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This will completely wipe all pairings, matches, and reset player points and status fields. Are you completely sure you want to test restarting the tournament?
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction className="bg-red-600 focus:ring-red-600 focus:outline-none" onClick={() => resetTournamentMutation.mutate()}>
-                        Yes, wipe and restart
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              )}
 
               {isStartStatus && (
                 <AlertDialog>
@@ -565,13 +541,24 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
                         </SheetHeader>
                         <div className="py-6 space-y-6">
                           <BoardNumberingCard value={boardNumbering} onChange={updateBoardNumbering} />
-                          <Button 
-                            className="w-full" 
-                            onClick={() => saveBoardNumberingMutation.mutate()}
-                            disabled={saveBoardNumberingMutation.isPending}
-                          >
-                            {saveBoardNumberingMutation.isPending ? "Saving..." : "Save Settings"}
-                          </Button>
+                          <div className="flex items-center justify-end gap-2 text-sm text-muted-foreground pt-2 border-t">
+                            {saveBoardNumberingMutation.isPending ? (
+                              <span className="flex items-center gap-1.5 text-blue-600 animate-pulse font-medium">
+                                <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                                Saving...
+                              </span>
+                            ) : isBoardDirty ? (
+                              <span className="flex items-center gap-1.5 text-amber-600 font-medium">
+                                <div className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                                Unsaved changes
+                              </span>
+                            ) : (
+                              <span className="flex items-center gap-1.5 text-emerald-600 font-medium">
+                                <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                                Saved
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </SheetContent>
                     </Sheet>
@@ -658,13 +645,24 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
                           </SheetHeader>
                           <div className="py-6 space-y-6">
                             <BoardNumberingCard value={boardNumbering} onChange={updateBoardNumbering} />
-                            <Button 
-                              className="w-full" 
-                              onClick={() => saveBoardNumberingMutation.mutate()}
-                              disabled={saveBoardNumberingMutation.isPending}
-                            >
-                              {saveBoardNumberingMutation.isPending ? "Saving..." : "Save Settings"}
-                            </Button>
+                            <div className="flex items-center justify-end gap-2 text-sm text-muted-foreground pt-2 border-t">
+                              {saveBoardNumberingMutation.isPending ? (
+                                <span className="flex items-center gap-1.5 text-blue-600 animate-pulse font-medium">
+                                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                                  Saving...
+                                </span>
+                              ) : isBoardDirty ? (
+                                <span className="flex items-center gap-1.5 text-amber-600 font-medium">
+                                  <div className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                                  Unsaved changes
+                                </span>
+                              ) : (
+                                <span className="flex items-center gap-1.5 text-emerald-600 font-medium">
+                                  <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                                  Saved
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </SheetContent>
                       </Sheet>
@@ -717,7 +715,7 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
                       disabled={generateKnockoutMutation.isPending}
                     >
                       <Trophy className="mr-2 h-4 w-4" />
-                      {(tournament.rounds || 0) > 0 ? "Regenerate Knockout Bracket" : "Generate Knockout Bracket"}
+                      {"Generate Knockout Bracket"}
                     </Button>
                     <p className="text-xs text-slate-500 font-medium">Seeding will be based on ratings (Professional FIDE/Symmetrical sequence)</p>
                   </div>
@@ -725,7 +723,6 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
                 <KnockoutBracket 
                   tournamentId={tournamentId} 
                   sectionId={activeRoundSection === 'all' ? undefined : activeRoundSection}
-                  initialProgressCollapsed={true}
                 />
               </div>
             ) : (

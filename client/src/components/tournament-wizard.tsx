@@ -34,7 +34,7 @@ export default function TournamentWizard({ tournament, onTournamentCreated }: To
   
   // Tournament details
   const [location, setLocationField] = useState(tournament?.location || "");
-  const [directorPhone, setDirectorPhone] = useState(tournament?.directorPhone || "");
+
   const [directorEmail, setDirectorEmail] = useState(tournament?.directorEmail || "");
   const [roundTimings, setRoundTimings] = useState<Array<{round: number, date: string, time: string}>>(
     tournament?.roundTimings as any || []
@@ -150,7 +150,7 @@ export default function TournamentWizard({ tournament, onTournamentCreated }: To
     // Check for missing optional details
     const missingDetails = [];
     if (!location.trim()) missingDetails.push("tournament location");
-    if (!directorPhone.trim()) missingDetails.push("director phone number");
+
     if (!directorEmail.trim()) missingDetails.push("director email");
     
     const hasRoundTimings = roundTimings.some(timing => timing.date || timing.time);
@@ -168,6 +168,9 @@ export default function TournamentWizard({ tournament, onTournamentCreated }: To
       name: name.trim(),
       format,
       status: 'draft',
+      startDate: null,
+      endDate: null,
+      arenaStartTime: null,
       rounds: format === 'swiss' ? rounds : undefined,
       currentRound: 0,
       isDoubleRoundRobin: format === 'roundrobin' ? isDoubleRoundRobin : false,
@@ -175,7 +178,7 @@ export default function TournamentWizard({ tournament, onTournamentCreated }: To
       useQuickSetup: tournamentMode === 'casual' && !skipAutoGeneration,
       playerCount: (tournamentMode === 'casual' && !skipAutoGeneration) ? playerCount : undefined,
       location: location.trim() || undefined,
-      directorPhone: directorPhone.trim() || undefined,
+
       directorEmail: directorEmail.trim() || undefined,
       roundTimings: hasRoundTimings ? roundTimings : undefined,
     };
@@ -461,15 +464,7 @@ export default function TournamentWizard({ tournament, onTournamentCreated }: To
                       placeholder="e.g., Community Center, Room 101"
                     />
                   </div>
-                  <div>
-                    <Label htmlFor="directorPhone">Director Phone</Label>
-                    <Input
-                      id="directorPhone"
-                      value={directorPhone}
-                      onChange={(e) => setDirectorPhone(e.target.value)}
-                      placeholder="e.g., (555) 123-4567"
-                    />
-                  </div>
+
                 </div>
                 
                 <div>

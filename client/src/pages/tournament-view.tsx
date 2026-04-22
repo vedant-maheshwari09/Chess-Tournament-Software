@@ -11,10 +11,17 @@ import SwissPairings from "@/components/swiss-pairings";
 import RoundRobinCrosstable from "@/components/round-robin-crosstable";
 import PairingPredictor from "@/components/pairing-predictor";
 import TournamentByes from "@/components/tournament-byes";
-import { createDefaultConfig, parseTournamentConfig } from "@/lib/tournament-config";
+import { 
+  createDefaultConfig, 
+  parseTournamentConfig, 
+  formatTournamentDateRange 
+} from "@/lib/tournament-config";
 import { renderTournamentPageContent } from "@/lib/tournament-page";
+import { Clock as ClockIcon, Info, Share2, Facebook, Twitter, Mail, Award, Link } from "lucide-react";
+import TournamentCountdown from "@/components/tournament-countdown";
 import type { Tournament } from "@shared/schema";
 import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
 import type { PlayerRegistration } from "@shared/schema";
 import { RegistrationStatusCard } from "@/components/registration-status-card";
 import KnockoutBracket from "@/components/knockout-bracket";
@@ -39,6 +46,7 @@ interface TournamentViewProps {
 
 export default function TournamentView({ tournamentId }: TournamentViewProps) {
   const [, setLocation] = useLocation();
+  const { toast } = useToast();
   const [match, params] = useRoute("/tournaments/:id/:tab");
   const tabParam = match && params?.tab ? (params.tab as TabKey) : "pairings";
   const { user, isLoading: authLoading } = useAuth();
@@ -63,6 +71,8 @@ export default function TournamentView({ tournamentId }: TournamentViewProps) {
     () => (tournament ? parseTournamentConfig(tournament) : createDefaultConfig("swiss")),
     [tournament],
   );
+  const dateRange = tournament ? formatTournamentDateRange(tournament.startDate, tournament.endDate) : "";
+  const location = tournament?.location || "TBD";
   const tournamentPageContent = config.tournamentPageContent?.trim() ?? "";
   const predictorEnabled = Boolean(config.registers?.enablePairingPredictor);
   const tournamentHasStarted = Boolean(
@@ -101,6 +111,14 @@ export default function TournamentView({ tournamentId }: TournamentViewProps) {
     [tournamentPageContent],
   );
 
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(window.location.href);
+    toast({
+      title: "Link copied!",
+      description: "Tournament link has been copied to your clipboard.",
+    });
+  };
+
   if (tournamentLoading || authLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -128,9 +146,36 @@ export default function TournamentView({ tournamentId }: TournamentViewProps) {
   }
 
   const canManageTournament = Boolean(user && user.role === "tournament_director");
+  const theme = config.publicPage?.theme || "professional";
+  
+  const themeClasses = cn(
+    "min-h-screen transition-colors duration-500",
+    theme === "professional" && "bg-slate-50 dark:bg-slate-950",
+    theme === "vibrant" && "bg-blue-50/50 dark:bg-indigo-950/20",
+    theme === "dark" && "bg-slate-950 text-slate-100",
+    theme === "glass" && "bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-slate-950 dark:to-indigo-950"
+  );
+
+  const bannerUrl = config.publicPage?.bannerUrl;
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className={themeClasses}>
+      {bannerUrl && (
+        <div className="relative h-64 md:h-80 w-full overflow-hidden">
+          <img 
+            src={bannerUrl} 
+            alt={tournament.name} 
+            className="w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex items-end">
+            <div className="mx-auto max-w-7xl w-full px-4 py-8 sm:px-6 lg:px-8">
+              <h1 className="text-3xl md:text-5xl font-extrabold text-white tracking-tight drop-shadow-md">
+                {tournament.name}
+              </h1>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="bg-white shadow dark:bg-gray-800">
         <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
@@ -141,7 +186,7 @@ export default function TournamentView({ tournamentId }: TournamentViewProps) {
                 Back to Tournaments
               </Button>
               <div>
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{tournament.name}</h1>
+                {!bannerUrl && <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{tournament.name}</h1>}
                 <p className="text-gray-600 dark:text-gray-300">
                   {tournament.format === "swiss" ? "Swiss System" : tournament.format === "arena" ? "Arena" : tournament.format.charAt(0).toUpperCase() + tournament.format.slice(1)} • {isArena ? `${tournament.arenaDuration || 0} mins` : `${tournament.rounds} rounds`}
                 </p>
@@ -192,7 +237,25 @@ export default function TournamentView({ tournamentId }: TournamentViewProps) {
         </div>
       </div>
 
+      <style dangerouslySetInnerHTML={{ __html: `
+        :root {
+          ${config.publicPage?.customAccentColor ? `--primary: ${config.publicPage.customAccentColor};` : ''}
+        }
+      `}} />
+
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+        {config.publicPage?.announcement && (
+          <div className="mb-6 bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-lg shadow-sm flex items-start gap-3 animate-in fade-in slide-in-from-top-2 duration-700">
+             <div className="bg-amber-100 p-2 rounded-full">
+               <Info className="h-5 w-5 text-amber-600" />
+             </div>
+             <div>
+               <h4 className="text-sm font-bold text-amber-800 uppercase tracking-tight">Announcement</h4>
+               <p className="text-amber-900 mt-1 font-medium">{config.publicPage.announcement}</p>
+             </div>
+          </div>
+        )}
+
         {isArena && tournament && (
           <div className="mb-6 flex justify-center">
             <ArenaTimer tournament={tournament} />
@@ -298,21 +361,119 @@ export default function TournamentView({ tournamentId }: TournamentViewProps) {
           ) : null}
 
           <TabsContent value="info" className="mt-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Trophy className="h-5 w-5" />
-                  <span>Public Tournament Page</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {infoHtml ? (
-                  <div className="prose prose-slate max-w-none" dangerouslySetInnerHTML={{ __html: infoHtml }} />
-                ) : (
-                  <p className="text-sm text-slate-600">The tournament director has not published public page content yet.</p>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2 space-y-6">
+                <Card className={cn(theme === "glass" && "bg-white/70 backdrop-blur-md border-white/20 shadow-xl")}>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <Trophy className="h-5 w-5 text-indigo-500" />
+                      <span>About the Tournament</span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {infoHtml ? (
+                      <div className="tournament-content prose prose-slate max-w-none dark:prose-invert" dangerouslySetInnerHTML={{ __html: infoHtml }} />
+                    ) : (
+                      <div className="text-center py-12 text-slate-500">
+                        <Info className="h-12 w-12 mx-auto mb-4 opacity-20" />
+                        <p>The tournament director has not published public page content yet.</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+
+                {config.publicPage?.showPrizeFund && config.prizes && config.prizes.length > 0 && (
+                  <Card className={cn(theme === "glass" && "bg-white/70 backdrop-blur-md border-white/20 shadow-xl")}>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2 text-base">
+                        <Award className="h-5 w-5 text-amber-500" />
+                        <span>Prizes & Awards</span>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {config.prizes.map((prize, idx) => (
+                          <div key={idx} className="flex items-center justify-between p-4 rounded-xl bg-slate-50 border border-slate-100 shadow-sm">
+                            <div className="flex items-center gap-3">
+                              <div className="bg-white p-2 rounded-lg shadow-sm">
+                                <Trophy className={cn("h-4 w-4", idx === 0 ? "text-amber-500" : idx === 1 ? "text-slate-400" : "text-amber-700")} />
+                              </div>
+                              <span className="font-semibold text-slate-800">{prize.place}</span>
+                            </div>
+                            <span className="text-lg font-bold text-emerald-600">${prize.amount}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
                 )}
-              </CardContent>
-            </Card>
+
+
+              </div>
+
+              <div className="space-y-6">
+                {config.publicPage?.showCountdown && !tournamentHasStarted && tournament.startDate && (
+                  <Card className="bg-indigo-600 text-white overflow-hidden border-none shadow-lg shadow-indigo-200">
+                    <CardContent className="p-6">
+                      <h3 className="text-sm font-bold uppercase tracking-wider opacity-80 mb-4 flex items-center gap-2">
+                        <ClockIcon className="h-4 w-4" />
+                        Event Starts In
+                      </h3>
+                      <TournamentCountdown targetDate={tournament.startDate} />
+                    </CardContent>
+                  </Card>
+                )}
+
+
+                {config.publicPage?.showSocialSharing && (
+                  <Card className={cn(theme === "glass" && "bg-white/70 backdrop-blur-md border-white/20")}>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-bold flex items-center gap-2">
+                        <Share2 className="h-4 w-4 text-blue-500" />
+                        Spread the Word
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex gap-2">
+                        <Button 
+                          variant="outline" 
+                          size="icon" 
+                          className="rounded-full hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200"
+                          onClick={() => window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(window.location.href)}`, '_blank')}
+                        >
+                          <Facebook className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="icon" 
+                          className="rounded-full hover:bg-sky-50 hover:text-sky-600 hover:border-sky-200"
+                          onClick={() => window.open(`https://twitter.com/intent/tweet?url=${encodeURIComponent(window.location.href)}&text=${encodeURIComponent('Check out this chess tournament: ' + tournament.name)}`, '_blank')}
+                        >
+                          <Twitter className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="icon" 
+                          className="rounded-full hover:bg-red-50 hover:text-red-600 hover:border-red-200"
+                          onClick={() => window.open(`mailto:?subject=${encodeURIComponent(tournament.name)}&body=${encodeURIComponent('Check out this chess tournament: ' + window.location.href)}`, '_blank')}
+                        >
+                          <Mail className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          className="rounded-full flex-1 gap-2 text-xs font-bold uppercase tracking-wider"
+                          onClick={handleCopyLink}
+                        >
+                          <Link className="h-3 w-3" />
+                          Copy Link
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+            </div>
           </TabsContent>
         </Tabs>
       </div>

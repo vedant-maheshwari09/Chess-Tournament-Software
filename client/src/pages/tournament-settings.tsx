@@ -43,7 +43,8 @@ import {
   Calendar,
   CreditCard,
   Trophy,
-  UserPlus
+  UserPlus,
+  Check
 } from "lucide-react";
 
 
@@ -257,7 +258,6 @@ export default function TournamentSettingsPage({ tournamentId, section }: Tourna
       setBaseline(cloneConfig(parsed));
       setIsDirty(false);
       queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}`] });
-      toast({ title: "Tournament settings saved" });
     },
     onError: (error: any) => {
       toast({
@@ -267,6 +267,17 @@ export default function TournamentSettingsPage({ tournamentId, section }: Tourna
       });
     },
   });
+
+  // Autosave logic
+  useEffect(() => {
+    if (!isDirty || !config || saveMutation.isPending) return;
+
+    const timer = setTimeout(() => {
+      saveMutation.mutate();
+    }, 1500);
+
+    return () => clearTimeout(timer);
+  }, [config, isDirty]);
 
   const testMutation = useMutation({
     mutationFn: async () => {
@@ -471,20 +482,32 @@ export default function TournamentSettingsPage({ tournamentId, section }: Tourna
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-4">
+            {saveMutation.isPending ? (
+              <div className="flex items-center gap-2 text-sm text-slate-400 font-medium">
+                <Loader2 className="h-4 w-4 animate-spin text-indigo-500" />
+                <span>Autosaving...</span>
+              </div>
+            ) : isDirty ? (
+              <div className="text-sm text-amber-600 font-medium animate-pulse">Unsaved changes...</div>
+            ) : (
+              <div className="flex items-center gap-1.5 text-sm text-emerald-600 font-medium">
+                <Check className="h-4 w-4" />
+                <span>All changes saved</span>
+              </div>
+            )}
             <Button
               variant="outline"
+              size="sm"
+              className="h-9"
               onClick={() => {
                 if (!baseline) return;
                 setConfig(cloneConfig(baseline));
                 setIsDirty(false);
               }}
-              disabled={!unsavedChanges}
+              disabled={!isDirty || saveMutation.isPending}
             >
-              Reset
-            </Button>
-            <Button onClick={() => saveMutation.mutate()} disabled={!unsavedChanges || saveMutation.isPending}>
-              {saveMutation.isPending ? "Saving..." : "Save changes"}
+              Reset to baseline
             </Button>
           </div>
         </div>

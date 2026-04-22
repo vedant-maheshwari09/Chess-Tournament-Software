@@ -39,6 +39,7 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
   } | null>(null);
   const [selectedMatchForManagement, setSelectedMatchForManagement] = useState<Match | null>(null);
   const [expandedSeries, setExpandedSeries] = useState<Set<number>>(new Set());
+  const [collapsedRounds, setCollapsedRounds] = useState<Set<number>>(new Set());
   const [finishConfirmation, setFinishConfirmation] = useState("");
   const { toast } = useToast();
   const { user } = useAuth();
@@ -48,6 +49,15 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
       const next = new Set(prev);
       if (next.has(matchId)) next.delete(matchId);
       else next.add(matchId);
+      return next;
+    });
+  };
+
+  const toggleRoundCollapse = (round: number) => {
+    setCollapsedRounds(prev => {
+      const next = new Set(prev);
+      if (next.has(round)) next.delete(round);
+      else next.add(round);
       return next;
     });
   };
@@ -300,6 +310,22 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
       return prev;
     });
   }, [totalRounds]);
+
+  // Auto-collapse finished rounds
+  useEffect(() => {
+    if (!pairingGroups || pairingGroups.length === 0) return;
+
+    pairingGroups.forEach(group => {
+      const allMatchesCompleted = group.matches.length > 0 && group.matches.every(m => m.status === 'completed');
+      if (allMatchesCompleted && !collapsedRounds.has(group.round)) {
+        setCollapsedRounds(prev => {
+          const next = new Set(prev);
+          next.add(group.round);
+          return next;
+        });
+      }
+    });
+  }, [pairingGroups]);
 
   const generatePairingsMutation = useMutation({
     mutationFn: async ({ regenerate = false }: { regenerate?: boolean } = {}) => {
@@ -1148,26 +1174,49 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
                 </div>
               ) : (
                 <div className="space-y-8">
-                  {roundRobinGroups.map(({ round, matches: roundMatches }) => (
-                    <div key={round} className="rounded-lg border p-4">
-                      <h3 className="mb-4 flex items-center gap-3 text-lg font-semibold">
-                        <span>Round {round}</span>
-                        {(() => {
-                          const isCurrent = round === currentRound;
-                          const isCompleted = round < currentRound;
-                          const badgeClass = isCurrent
-                            ? "bg-blue-50 text-blue-800 border border-blue-200"
-                            : isCompleted
-                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                              : "bg-slate-100 text-slate-600 border border-transparent";
-                          return (
-                            <Badge variant="outline" className={badgeClass}>
-                              {isCurrent ? "In Progress" : isCompleted ? "Completed" : "Upcoming"}
-                            </Badge>
-                          );
-                        })()}
-                      </h3>
-                      <div className="overflow-x-auto">
+                  {roundRobinGroups.map(({ round, matches: roundMatches }) => {
+                    const isCollapsed = collapsedRounds.has(round);
+                    return (
+                      <div key={round} className="rounded-lg border p-4">
+                        <div className="mb-4 flex items-center justify-between">
+                          <h3 className="flex items-center gap-3 text-lg font-semibold">
+                            <span>Round {round}</span>
+                            {(() => {
+                              const isCurrent = round === currentRound;
+                              const isCompleted = round < currentRound;
+                              const badgeClass = isCurrent
+                                ? "bg-blue-50 text-blue-800 border border-blue-200"
+                                : isCompleted
+                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                  : "bg-slate-100 text-slate-600 border border-transparent";
+                              return (
+                                <Badge variant="outline" className={badgeClass}>
+                                  {isCurrent ? "In Progress" : isCompleted ? "Completed" : "Upcoming"}
+                                </Badge>
+                              );
+                            })()}
+                          </h3>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => toggleRoundCollapse(round)}
+                            className="h-8 px-2 text-slate-500 hover:text-slate-900"
+                          >
+                            {isCollapsed ? (
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs font-medium uppercase tracking-wider">Expand</span>
+                                <ChevronDown className="h-4 w-4" />
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs font-medium uppercase tracking-wider">Collapse</span>
+                                <ChevronUp className="h-4 w-4" />
+                              </div>
+                            )}
+                          </Button>
+                        </div>
+                        {!isCollapsed && (
+                          <div className="overflow-x-auto">
                         <table className="min-w-full divide-y divide-gray-200">
                           <thead className="bg-gray-50">
                             <tr>
@@ -1236,31 +1285,57 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
                           </tbody>
                         </table>
                       </div>
+                      )}
                     </div>
-                  ))}
+                  );
+                })}
                 </div>
             )) : tournament?.format === 'knockout' ? (
               <div className="space-y-8">
-                 {knockoutGroups.map(({ round, matches: roundMatches }) => (
-                   <div key={round} className="rounded-lg border border-slate-200 p-4 bg-white shadow-sm overflow-hidden">
-                      <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-4">
-                        <div className="flex items-center gap-3">
-                           <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-xs ring-1 ring-blue-100">
-                             {round}
-                           </div>
-                           <h3 className="text-lg font-bold text-slate-900 tracking-tight">
-                             {round === (tournament.rounds || 0) ? 'Finals' : 
-                              round === (tournament.rounds || 0) - 1 ? 'Semifinals' : 
-                              round === (tournament.rounds || 0) - 2 ? 'Quarterfinals' : 
-                              `Round ${round}`}
-                           </h3>
+                  {knockoutGroups.map(({ round, matches: roundMatches }) => {
+                    const isCollapsed = collapsedRounds.has(round);
+                    return (
+                      <div key={round} className="rounded-lg border border-slate-200 p-4 bg-white shadow-sm overflow-hidden">
+                        <div className={cn(
+                          "flex items-center justify-between",
+                          !isCollapsed && "border-b border-slate-100 pb-4 mb-4"
+                        )}>
+                          <div className="flex items-center gap-3">
+                             <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-xs ring-1 ring-blue-100">
+                               {round}
+                             </div>
+                             <h3 className="text-lg font-bold text-slate-900 tracking-tight">
+                               {round === (tournament.rounds || 0) ? 'Finals' : 
+                                round === (tournament.rounds || 0) - 1 ? 'Semifinals' : 
+                                round === (tournament.rounds || 0) - 2 ? 'Quarterfinals' : 
+                                `Round ${round}`}
+                             </h3>
+                          </div>
+                          {round === currentRound && (
+                            <Badge className="bg-blue-500 hover:bg-blue-600 text-white font-bold px-3 py-1 text-[10px] uppercase tracking-wider">Active Round</Badge>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => toggleRoundCollapse(round)}
+                            className="h-8 px-2 text-slate-500 hover:text-slate-900 ml-auto"
+                          >
+                            {isCollapsed ? (
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs font-medium uppercase tracking-wider">Expand</span>
+                                <ChevronDown className="h-4 w-4" />
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs font-medium uppercase tracking-wider">Collapse</span>
+                                <ChevronUp className="h-4 w-4" />
+                              </div>
+                            )}
+                          </Button>
                         </div>
-                        {round === currentRound && (
-                          <Badge className="bg-blue-500 hover:bg-blue-600 text-white font-bold px-3 py-1 text-[10px] uppercase tracking-wider">Active Round</Badge>
-                        )}
-                      </div>
 
-                      <div className="overflow-x-auto">
+                        {!isCollapsed && (
+                          <div className="overflow-x-auto">
                         <table className="min-w-full divide-y divide-gray-200">
                           <thead className="bg-gray-50">
                             <tr>
@@ -1376,17 +1451,43 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
                                   )}
                                 </React.Fragment>
                               );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                   </div>
-                 ))}
+                           })}
+                        </tbody>
+                      </table>
+                    </div>
+                    )}
+                  </div>
+                );
+              })}
               </div>
             ) : (
               // Swiss - Show current round only
               <div className="space-y-6">
-                <div className="overflow-x-auto">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider">
+                    Matches
+                  </h3>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => toggleRoundCollapse(currentRound)}
+                    className="h-8 px-2 text-slate-500 hover:text-slate-900"
+                  >
+                    {collapsedRounds.has(currentRound) ? (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-medium uppercase tracking-wider">Expand Round {currentRound}</span>
+                        <ChevronDown className="h-4 w-4" />
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-medium uppercase tracking-wider">Collapse Round {currentRound}</span>
+                        <ChevronUp className="h-4 w-4" />
+                      </div>
+                    )}
+                  </Button>
+                </div>
+                {!collapsedRounds.has(currentRound) && (
+                  <div className="overflow-x-auto">
                   {swissMatches.length === 0 ? (
                     <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
                       No pairings for this section in Round {currentRound}.
@@ -1477,6 +1578,7 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
                     </table>
                   )}
                 </div>
+                )}
 
                 {/* Byes Section */}
                 {filteredByes.length > 0 && (

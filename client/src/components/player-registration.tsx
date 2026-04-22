@@ -17,7 +17,6 @@ import type { Tournament, PlayerRegistration } from "@shared/schema";
 const registrationSchema = z.object({
   playerName: z.string().optional(),
   uscfRating: z.number().min(100).max(3000).optional(),
-  phoneNumber: z.string().optional(),
   email: z.string().email().optional(),
   arrivalTime: z.string().optional(),
 });
@@ -37,7 +36,6 @@ export default function PlayerRegistration({ tournament, existingRegistration }:
     defaultValues: {
       playerName: "",
       uscfRating: undefined,
-      phoneNumber: "",
       email: "",
       arrivalTime: "",
     },
@@ -109,9 +107,6 @@ export default function PlayerRegistration({ tournament, existingRegistration }:
         : null,
       existingRegistration.uscfRating
         ? { label: "USCF Rating", value: existingRegistration.uscfRating.toString() }
-        : null,
-      existingRegistration.phoneNumber
-        ? { label: "Phone", value: existingRegistration.phoneNumber }
         : null,
       existingRegistration.email
         ? { label: "Email", value: existingRegistration.email }
@@ -222,22 +217,7 @@ export default function PlayerRegistration({ tournament, existingRegistration }:
               )}
             />
 
-            <FormField
-              control={form.control}
-              name="phoneNumber"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Phone Number</FormLabel>
-                  <FormControl>
-                    <Input placeholder="(555) 123-4567" {...field} />
-                  </FormControl>
-                  <FormDescription>
-                    For tournament updates and emergencies
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+
 
             <FormField
               control={form.control}

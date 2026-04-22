@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import type { TournamentConfig, MatchFormat, MatchWinConditionValue } from "@/shared/tournament-config";
+import type { TournamentConfig, MatchFormat, MatchWinConditionValue } from "@shared/tournament-config";
 
 interface KnockoutFormatEditorProps {
   config: TournamentConfig;

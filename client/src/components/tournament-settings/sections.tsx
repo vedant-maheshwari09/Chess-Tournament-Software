@@ -16,7 +16,7 @@ import {
   type UscfReportData,
 } from "@/lib/tournament-config";
 import { cn } from "@/lib/utils";
-import { Download, ExternalLink } from "lucide-react";
+import { Download, ExternalLink, Settings } from "lucide-react";
 import { DatePicker } from "@/components/ui/date-picker";
 import { parseISO, format as formatDate } from "date-fns";
 export { ArenaSettingsCard } from "./ArenaSettingsCard";
@@ -155,9 +155,34 @@ export function FideRegistrationSection({
           <CardContent className="space-y-8">
             <section className="space-y-4">
               <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Details</h3>
+              <div className="grid gap-6 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label className="text-slate-700">Organizer</Label>
+                  <Input 
+                    value={value.organizer ?? ""} 
+                    onChange={(event) => onChange({ organizer: event.target.value })}
+                    placeholder="Tournament organizer name"
+                    className="border-slate-200 focus:border-indigo-500 focus:ring-indigo-500"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-slate-700">Prize fund</Label>
+                  <Input 
+                    value={value.prizeFund ?? ""} 
+                    onChange={(event) => onChange({ prizeFund: event.target.value })}
+                    placeholder="e.g. $5,000 guaranteed"
+                    className="border-slate-200 focus:border-indigo-500 focus:ring-indigo-500"
+                  />
+                </div>
+              </div>
               <div className="space-y-2">
-                <Label>Prize fund</Label>
-                <Input value={value.prizeFund ?? ""} onChange={(event) => onChange({ prizeFund: event.target.value })} />
+                <Label className="text-slate-700">Time control description</Label>
+                <Input
+                  placeholder="e.g. 90 minutes + 30 seconds increment"
+                  value={value.timeControl ?? ""}
+                  onChange={(event) => onChange({ timeControl: event.target.value })}
+                  className="border-slate-200 focus:border-indigo-500 focus:ring-indigo-500"
+                />
               </div>
               <div className="grid gap-6 md:grid-cols-2">
                 {toggleColumns.map((group, index) => (
@@ -220,9 +245,29 @@ export function FideRegistrationSection({
 
             <section className="space-y-4">
               <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Arbiters</h3>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label className="text-slate-700">Chief Arbiter</Label>
+                  <Input 
+                    value={value.chiefArbiter ?? ""} 
+                    onChange={(event) => onChange({ chiefArbiter: event.target.value })}
+                    placeholder="Chief Arbiter's name"
+                    className="border-slate-200 focus:border-indigo-500 focus:ring-indigo-500"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-slate-700">Assistant Arbiters</Label>
+                  <Input
+                    placeholder="List names separated by commas"
+                    value={value.assistants ?? ""}
+                    onChange={(event) => onChange({ assistants: event.target.value })}
+                    className="border-slate-200 focus:border-indigo-500 focus:ring-indigo-500"
+                  />
+                </div>
+              </div>
               <div className="grid gap-4 md:grid-cols-3">
                 <div className="space-y-2">
-                  <Label>Surname, name</Label>
+                  <Label>Surname, name (Deputy)</Label>
                   <Input value={value.arbiterSurname ?? ""} onChange={(event) => onChange({ arbiterSurname: event.target.value })} />
                 </div>
                 <div className="space-y-2">
@@ -240,20 +285,22 @@ export function FideRegistrationSection({
               <Button
                 type="button"
                 variant="outline"
-                className="bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
+                className="bg-indigo-50 text-indigo-700 border-indigo-100 hover:bg-indigo-100"
                 onClick={onDownloadRegistration}
-                disabled={!onDownloadRegistration}
+                disabled={true}
               >
                 <Download className="mr-2 h-4 w-4" /> Download registration data
+                <Badge variant="secondary" className="ml-2 text-[10px] h-4 bg-indigo-200 text-indigo-700 border-none">Coming Soon</Badge>
               </Button>
               <Button
                 type="button"
                 variant="outline"
-                className="bg-emerald-600 text-white hover:bg-emerald-700"
+                className="bg-slate-900 text-white hover:bg-slate-800"
                 onClick={onDownloadTrf}
-                disabled={!onDownloadTrf}
+                disabled={true}
               >
                 <Download className="mr-2 h-4 w-4" /> Download FIDE TRF16
+                <Badge variant="secondary" className="ml-2 text-[10px] h-4 bg-slate-700 text-white border-none">Coming Soon</Badge>
               </Button>
             </div>
           </CardContent>
@@ -271,19 +318,66 @@ export function FideRegistrationSection({
               <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Tournament</h3>
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 <div className="space-y-2">
-                  <Label>Name</Label>
-                  <Input value={tournamentName ?? ""} readOnly className="bg-muted/60" />
+                  <Label className="text-slate-700">Tournament Name</Label>
+                  <Input value={tournamentName ?? ""} readOnly className="bg-slate-50 border-slate-200" />
                 </div>
                 <div className="space-y-2">
-                  <Label>Venue</Label>
+                  <Label className="text-slate-700">Venue / City</Label>
                   <Input
                     value={value.tournamentVenue ?? tournamentCity ?? ""}
                     onChange={(event) => onChange({ tournamentVenue: event.target.value })}
+                    placeholder="City and venue name"
+                    className="border-slate-200 focus:border-indigo-500 focus:ring-indigo-500"
                   />
                 </div>
-                <div className="space-y-2 md:col-span-2 lg:col-span-3">
-                  <Label>FIDE Rating Server Event Code(s)</Label>
-                  <Input value={value.eventCodes ?? ""} onChange={(event) => onChange({ eventCodes: event.target.value })} />
+                <div className="space-y-2">
+                  <Label className="text-slate-700">Organizer</Label>
+                  <Input 
+                    value={value.organizer ?? ""} 
+                    onChange={(event) => onChange({ organizer: event.target.value })}
+                    placeholder="Organizer name"
+                    className="border-slate-200 focus:border-indigo-500 focus:ring-indigo-500"
+                  />
+                </div>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label className="text-slate-700">Chief Arbiter</Label>
+                  <Input 
+                    value={value.chiefArbiter ?? ""} 
+                    onChange={(event) => onChange({ chiefArbiter: event.target.value })}
+                    placeholder="Chief Arbiter's name"
+                    className="border-slate-200 focus:border-indigo-500 focus:ring-indigo-500"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-slate-700">Assistant Arbiters</Label>
+                  <Input
+                    placeholder="List names separated by commas"
+                    value={value.assistants ?? ""}
+                    onChange={(event) => onChange({ assistants: event.target.value })}
+                    className="border-slate-200 focus:border-indigo-500 focus:ring-indigo-500"
+                  />
+                </div>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                <div className="space-y-2 md:col-span-2">
+                  <Label className="text-slate-700">Time control description</Label>
+                  <Input
+                    placeholder="e.g. 90 minutes + 30 seconds increment"
+                    value={value.timeControl ?? ""}
+                    onChange={(event) => onChange({ timeControl: event.target.value })}
+                    className="border-slate-200 focus:border-indigo-500 focus:ring-indigo-500"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-slate-700">FIDE Event Code(s)</Label>
+                  <Input 
+                    value={value.eventCodes ?? ""} 
+                    onChange={(event) => onChange({ eventCodes: event.target.value })}
+                    placeholder="e.g. 12345, 67890"
+                    className="border-slate-200 focus:border-indigo-500 focus:ring-indigo-500"
+                  />
                 </div>
               </div>
             </section>
@@ -348,20 +442,22 @@ export function FideRegistrationSection({
               <Button
                 type="button"
                 variant="outline"
-                className="bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
+                className="bg-indigo-50 text-indigo-700 border-indigo-100 hover:bg-indigo-100"
                 onClick={onDownloadFa1}
-                disabled={!onDownloadFa1}
+                disabled={true}
               >
                 <Download className="mr-2 h-4 w-4" /> Download FA1 Form
+                <Badge variant="secondary" className="ml-2 text-[10px] h-4 bg-indigo-200 text-indigo-700 border-none">Coming Soon</Badge>
               </Button>
               <Button
                 type="button"
                 variant="outline"
-                className="bg-indigo-600 text-white hover:bg-indigo-700"
+                className="bg-slate-900 text-white hover:bg-slate-800"
                 onClick={onDownloadIa1}
-                disabled={!onDownloadIa1}
+                disabled={true}
               >
                 <Download className="mr-2 h-4 w-4" /> Download IA1 Form
+                <Badge variant="secondary" className="ml-2 text-[10px] h-4 bg-slate-700 text-white border-none">Coming Soon</Badge>
               </Button>
             </div>
           </CardContent>
@@ -380,11 +476,38 @@ interface UscfReportSectionProps {
 export function UscfReportSection({ value, onChange, onDownload }: UscfReportSectionProps) {
   return (
     <Card className="shadow-sm">
-      <CardHeader className="border-b pb-6">
-        <CardTitle className="text-2xl font-semibold text-indigo-900">USCF Report</CardTitle>
-        <CardDescription>Match the official USCF post-tournament summary layout before exporting.</CardDescription>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="text-2xl font-bold text-indigo-900">USCF Rating Report</CardTitle>
+            <CardDescription className="text-slate-500 mt-1">
+              Configure the tournament details for submission to the United States Chess Federation.
+            </CardDescription>
+          </div>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="flex items-center gap-2 border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+            onClick={onDownload}
+          >
+            <Download className="h-4 w-4" />
+            Download Summary
+            <Badge variant="secondary" className="ml-1 bg-indigo-100 text-indigo-700 text-[10px] py-0 px-1.5 font-bold uppercase tracking-wider">Coming Soon</Badge>
+          </Button>
+        </div>
       </CardHeader>
-      <CardContent className="space-y-8 pt-6">
+
+      <CardContent className="space-y-8">
+        <div className="rounded-xl bg-slate-50 p-6 border border-slate-200 space-y-4">
+          <div className="flex items-center gap-2 text-indigo-900">
+            <Settings className="h-5 w-5" />
+            <h3 className="font-bold uppercase tracking-tight text-sm">Official USCF Post-Tournament Summary</h3>
+          </div>
+          <p className="text-sm text-slate-600 leading-relaxed">
+            Please verify the following information. This data will be used to generate the official USCF tournament summary and rating report.
+          </p>
+        </div>
+
         <div className="space-y-2">
           <Label htmlFor="uscf-state">State</Label>
           <Select
@@ -416,39 +539,63 @@ export function UscfReportSection({ value, onChange, onDownload }: UscfReportSec
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="uscf-director">Tournament director</Label>
+            <Label htmlFor="uscf-organizer">Organizer</Label>
+            <Input
+              id="uscf-organizer"
+              value={value.organizer ?? ""}
+              onChange={(event) => onChange({ organizer: event.target.value })}
+            />
+          </div>
+        </div>
+
+        <div className="grid gap-6 md:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="uscf-director">Chief Tournament Director</Label>
             <Input
               id="uscf-director"
-              value={value.tournamentDirector ?? ""}
+              value={value.tournamentDirector ?? value.chiefArbiter ?? ""}
               onChange={(event) => onChange({ tournamentDirector: event.target.value })}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="uscf-assistant">Assistant tournament director(s)</Label>
+            <Input
+              id="uscf-assistant"
+              placeholder="List names separated by commas"
+              value={value.assistantDirector ?? value.assistants ?? ""}
+              onChange={(event) => onChange({ assistantDirector: event.target.value })}
             />
           </div>
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="uscf-assistant">Assistant tournament director</Label>
+          <Label htmlFor="uscf-timecontrol">Time control description</Label>
           <Input
-            id="uscf-assistant"
-            value={value.assistantDirector ?? ""}
-            onChange={(event) => onChange({ assistantDirector: event.target.value })}
+            id="uscf-timecontrol"
+            placeholder="e.g. G/90;inc30"
+            value={value.timeControl ?? ""}
+            onChange={(event) => onChange({ timeControl: event.target.value })}
           />
         </div>
 
-        <div className="space-y-3">
-          <Label>Send cross table to</Label>
+        <div className="space-y-4">
+          <Label className="text-slate-900 font-semibold">Send cross table to</Label>
           <RadioGroup
             value={value.sendCrossTableTo ?? "none"}
             onValueChange={(next) => onChange({ sendCrossTableTo: next as UscfReportData["sendCrossTableTo"] })}
-            className="flex flex-wrap gap-6"
+            className="flex flex-col sm:flex-row gap-4 sm:gap-8"
           >
             {[
               { value: "affiliate", label: "Affiliate" },
               { value: "tournament_director", label: "Tournament Director" },
               { value: "none", label: "None" },
             ].map((option) => (
-              <label key={option.value} className="flex items-center gap-2 text-sm text-slate-700">
-                <RadioGroupItem value={option.value} />
-                <span>{option.label}</span>
+              <label 
+                key={option.value} 
+                className="flex items-center gap-3 text-sm text-slate-700 cursor-pointer group"
+              >
+                <RadioGroupItem value={option.value} id={`uscf-send-${option.value}`} />
+                <span className="group-hover:text-indigo-600 transition-colors">{option.label}</span>
               </label>
             ))}
           </RadioGroup>
@@ -481,11 +628,13 @@ export function UscfReportSection({ value, onChange, onDownload }: UscfReportSec
           <Button
             type="button"
             variant="outline"
-            className="bg-indigo-600 text-white hover:bg-indigo-700"
+            className="bg-indigo-600 text-white hover:bg-indigo-700 shadow-md"
+            disabled={true}
             onClick={onDownload}
           >
             <Download className="mr-2 h-4 w-4" />
-            Download
+            Generate USCF Report
+            <Badge variant="secondary" className="ml-2 text-[10px] h-4 bg-indigo-500 text-white border-none">Coming Soon</Badge>
           </Button>
         </div>
       </CardContent>

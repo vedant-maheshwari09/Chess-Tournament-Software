@@ -17,6 +17,7 @@ export interface ScheduleEvent {
   time: string | null;
   label: string;
   round?: number | null;
+  description?: string | null;
 }
 
 export interface RegistersConfig {
@@ -26,10 +27,8 @@ export interface RegistersConfig {
   allowMultiPlayerSignup: boolean;
   fideRated: boolean;
   uscfRated: boolean;
-  disableSms: boolean;
   hideTeams: boolean;
   notifyPairingsEmail: boolean;
-  notifyPairingsSms: boolean;
   isTeamEvent: boolean;
   playerLimit?: number | null;
   byeLimit?: number | null;
@@ -38,6 +37,8 @@ export interface RegistersConfig {
   allowEditRegistration: boolean;
   enablePairingPredictor: boolean;
   isDoubleElimination: boolean;
+  thirdPlaceMatch: boolean;
+  pushNotifications: boolean;
   registrationDeadlineDate?: string | null;
   registrationDeadlineTime?: string | null;
 }
@@ -69,17 +70,24 @@ export interface FideRegistrationData {
   signedFederation?: string;
   signedDate?: string;
   remarks?: string;
+  organizer?: string;
+  chiefArbiter?: string;
+  assistants?: string;
+  timeControl?: string;
 }
 
 export interface UscfReportData {
   state?: string;
   affiliateId?: string;
-
   tournamentDirector?: string;
   assistantDirector?: string;
   sendCrossTableTo?: "affiliate" | "tournament_director" | "none";
   scholastic?: boolean;
   grandPrixPoints?: string;
+  organizer?: string;
+  chiefArbiter?: string;
+  assistants?: string;
+  timeControl?: string;
 }
 
 export type ChessResultsSyncMode = "disabled" | "manual" | "automatic";
@@ -109,7 +117,7 @@ export interface ContactEntry {
   id: string;
   name: string;
   role: string;
-  phone?: string;
+
   email?: string;
 }
 
@@ -230,6 +238,7 @@ export interface TournamentConfig {
       default: MatchFormat;
       overrides?: Record<string, MatchFormat>;
     };
+    thirdPlaceMatch: boolean;
   };
   schedule: ScheduleEvent[];
   sections: SectionDefinition[];
@@ -242,6 +251,20 @@ export interface TournamentConfig {
   chessResults: ChessResultsConfig;
   contacts: ContactEntry[];
   tournamentPageContent: string;
+  publicPage?: {
+    theme?: "professional" | "vibrant" | "dark" | "glass";
+    showQuickInfo?: boolean;
+    showRegisteredPlayers?: boolean;
+    showCountdown?: boolean;
+    showSocialSharing?: boolean;
+    showSchedule?: boolean;
+    showVenueMap?: boolean;
+    showPrizeFund?: boolean;
+    announcement?: string;
+    customAccentColor?: string;
+    bannerUrl?: string;
+    socialLinks?: { platform: string; url: string }[];
+  };
   boardNumbering: BoardNumberingSettings;
   seedingMethod?: "random" | "slaughter" | "manual" | "fide_world_cup";
   seedingSource?: "rating" | "uscf" | "fide";
@@ -314,9 +337,9 @@ export function createDefaultSchedule(rounds: number): ScheduleEvent[] {
 export function createDefaultConfig(format: Tournament["format"], mode: TournamentMode = "rated"): TournamentConfig {
   const defaultRounds = format === "roundrobin" ? 9 : (format === "knockout" ? 0 : DEFAULT_SCHEDULE_ROUNDS);
   const defaultTimeControl: TimeControlDefinition = {
-    minutes: format === "knockout" ? 25 : 90,
+    minutes: format === "knockout" || format === "arena" ? 0 : 90,
     addonType: "increment" satisfies TimeAddonType,
-    addonValue: format === "knockout" ? 10 : 30,
+    addonValue: format === "knockout" || format === "arena" ? 0 : 30,
   };
   return {
     version: "v2",
@@ -352,6 +375,7 @@ export function createDefaultConfig(format: Tournament["format"], mode: Tourname
       tiebreaksEnabled: true,
       tiebreaks: [],
       matchWinConditions: {},
+      thirdPlaceMatch: false,
     },
     schedule: createDefaultSchedule(defaultRounds),
     sections: [],
@@ -381,10 +405,8 @@ export function createDefaultConfig(format: Tournament["format"], mode: Tourname
       allowMultiPlayerSignup: false,
       fideRated: mode === "rated",
       uscfRated: mode === "rated",
-      disableSms: false,
       hideTeams: false,
       notifyPairingsEmail: true,
-      notifyPairingsSms: false,
       isTeamEvent: false,
       playerLimit: null,
       byeLimit: null,
@@ -393,6 +415,8 @@ export function createDefaultConfig(format: Tournament["format"], mode: Tourname
       allowEditRegistration: false,
       enablePairingPredictor: false,
       isDoubleElimination: false,
+      thirdPlaceMatch: false,
+      pushNotifications: true,
     },
     fide: {
       prizeFund: "",
@@ -446,6 +470,19 @@ export function createDefaultConfig(format: Tournament["format"], mode: Tourname
     },
     contacts: [],
     tournamentPageContent: "",
+    publicPage: {
+      theme: "professional",
+      showQuickInfo: true,
+      showRegisteredPlayers: true,
+      showCountdown: false,
+      showSocialSharing: true,
+      showSchedule: true,
+      showVenueMap: true,
+      showPrizeFund: true,
+      announcement: "",
+      customAccentColor: "",
+      socialLinks: [],
+    },
     boardNumbering: {
       start: 1,
       increment: 1,
@@ -607,7 +644,6 @@ export function parseTournamentConfig(tournament: Tournament | undefined | null)
         ...defaults.registers,
         ...parsed.registers,
         notifyPairingsEmail: parsed.registers?.notifyPairingsEmail ?? true,
-        notifyPairingsSms: parsed.registers?.notifyPairingsSms ?? false,
         playerLimit:
           typeof parsed.registers?.playerLimit === "number"
             ? parsed.registers?.playerLimit
@@ -628,6 +664,10 @@ export function parseTournamentConfig(tournament: Tournament | undefined | null)
         paymentDetails: parsed.registers?.paymentDetails ?? "",
         allowEditRegistration: parsed.registers?.allowEditRegistration ?? false,
         isDoubleElimination: parsed.registers?.isDoubleElimination ?? tournament.isDoubleElimination ?? false,
+      },
+      publicPage: {
+        ...defaults.publicPage,
+        ...(parsed.publicPage || {}),
       },
       fide: {
         ...defaults.fide,
@@ -760,6 +800,7 @@ export function serializeTournamentConfig(config: TournamentConfig): TournamentC
     entryFees: normalizedEntryFees,
     prizes: normalizedPrizes,
     payments: sanitizedPayments,
+    publicPage: config.publicPage,
     arena: config.arena,
   };
 }
@@ -1136,6 +1177,8 @@ export function buildTournamentPayload(
     arenaPairingMode: serialized.arena?.arenaPairingMode,
     arenaEndStrategy: serialized.arena?.arenaEndStrategy,
     arenaCutoffMinutes: serialized.arena?.arenaCutoffMinutes,
+    startDate: serialized.basic.startDate,
+    endDate: serialized.basic.endDate,
   };
 }
 
@@ -1236,7 +1279,8 @@ export function getMatchFormat(config: TournamentConfig, round: number, bracketT
 
   // Legacy fallback to simple mapping
   if (!matchedFormat && config.details.matchWinConditions) {
-    const legacyValue = config.details.matchWinConditions[round] || config.details.matchWinConditions[String(round)];
+    const conditions = config.details.matchWinConditions as Record<string | number, any>;
+    const legacyValue = conditions[round] || conditions[String(round)];
     if (legacyValue) {
       matchedFormat = {
         thresholds: [Number(legacyValue)]
@@ -1313,4 +1357,24 @@ export function isMatchDecided(
   }
   
   return { decided: false, winnerId: null };
+}
+
+import { format, isSameMonth, isSameYear } from "date-fns";
+
+/**
+ * Formats a date range into a readable string like "May 15-17, 2024" or "May 30 - June 2, 2024"
+ */
+export function formatTournamentDateRange(start: string | Date | null | undefined, end: string | Date | null | undefined): string {
+  if (!start) return "";
+  const startDate = new Date(start);
+  if (!end) return format(startDate, "MMMM d, yyyy");
+  const endDate = new Date(end);
+
+  if (isSameMonth(startDate, endDate) && isSameYear(startDate, endDate)) {
+    return `${format(startDate, "MMMM d")}-${format(endDate, "d, yyyy")}`;
+  } else if (isSameYear(startDate, endDate)) {
+    return `${format(startDate, "MMMM d")} - ${format(endDate, "MMMM d, yyyy")}`;
+  } else {
+    return `${format(startDate, "MMMM d, yyyy")} - ${format(endDate, "MMMM d, yyyy")}`;
+  }
 }

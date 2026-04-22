@@ -83,9 +83,11 @@ export default function PlayerManager({ tournament, tournamentId }: PlayerManage
   const [isCopyingRecipients, setIsCopyingRecipients] = useState(false);
   const [isCopyingMessage, setIsCopyingMessage] = useState(false);
   const [removingByeIds, setRemovingByeIds] = useState<number[]>([]);
-  const [messageChannels, setMessageChannels] = useState({ email: true, sms: false });
-  const hasChannelSelected = messageChannels.email || messageChannels.sms;
+  const [messageChannels, setMessageChannels] = useState({ email: true, push: true });
+  const hasChannelSelected = messageChannels.email || messageChannels.push;
   const [activeSection, setActiveSection] = useState("all");
+  const [messageSubject, setMessageSubject] = useState("");
+  const [isSending, setIsSending] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
 
@@ -446,6 +448,57 @@ export default function PlayerManager({ tournament, tournamentId }: PlayerManage
       setIsCopyingMessage(false);
     }
   }, [messageBody, toast]);
+
+  const handleSendMessage = useCallback(async () => {
+    if (!messageBody || !hasChannelSelected || selectedIds.length === 0) return;
+
+    const subject = messageSubject.trim() || `Message from tournament director`;
+
+    setIsSending(true);
+    try {
+      const data = await apiRequest(`/api/tournaments/${tournamentId}/notifications`, {
+        method: "POST",
+        body: JSON.stringify({
+          subject,
+          message: messageBody,
+          sendEmail: messageChannels.email,
+          sendPush: messageChannels.push,
+          playerIds: selectedIds,
+        }),
+      });
+
+      setMessageDialogOpen(false);
+      setMessageBody("");
+      setMessageSubject("");
+
+      const channels = [
+        messageChannels.email ? "Email" : null,
+        messageChannels.push ? "Push" : null,
+      ].filter(Boolean);
+
+      toast({
+        title: "Message sent",
+        description: `Dispatched via ${channels.join(" & ")} to ${Math.max(data.emails ?? 0, data.push ?? 0)} recipient(s).`,
+      });
+    } catch (error: any) {
+      // If the notification service is not configured (503), fall back to copy mode
+      if (error?.message?.includes("503") || error?.message?.includes("not configured")) {
+        toast({
+          title: "Notification service unavailable",
+          description: "Use the copy buttons to manually send your message.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Failed to send message",
+          description: error?.message ?? "Please try again or use the copy buttons.",
+          variant: "destructive",
+        });
+      }
+    } finally {
+      setIsSending(false);
+    }
+  }, [messageBody, messageSubject, messageChannels, hasChannelSelected, selectedIds, tournamentId, toast]);
 
   const handleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -937,6 +990,15 @@ export default function PlayerManager({ tournament, tournamentId }: PlayerManage
               </Button>
             </div>
             <div className="space-y-2">
+              <Label htmlFor="message-subject">Subject</Label>
+              <Input
+                id="message-subject"
+                value={messageSubject}
+                onChange={(event) => setMessageSubject(event.target.value)}
+                placeholder="Message from tournament director"
+              />
+            </div>
+            <div className="space-y-2">
               <Label htmlFor="message-body">Message</Label>
               <Textarea
                 id="message-body"
@@ -958,14 +1020,15 @@ export default function PlayerManager({ tournament, tournamentId }: PlayerManage
                   />
                   <span>Email</span>
                 </label>
+
                 <label className="flex items-center gap-2 text-sm text-slate-700">
                   <Checkbox
-                    checked={messageChannels.sms}
+                    checked={messageChannels.push}
                     onCheckedChange={(checked) =>
-                      setMessageChannels((prev) => ({ ...prev, sms: checked === true }))
+                      setMessageChannels((prev) => ({ ...prev, push: checked === true }))
                     }
                   />
-                  <span>SMS</span>
+                  <span>Push Notification</span>
                 </label>
                 {!hasChannelSelected && (
                   <p className="text-xs text-destructive">Select at least one channel to continue.</p>
@@ -993,22 +1056,10 @@ export default function PlayerManager({ tournament, tournamentId }: PlayerManage
               </Button>
               <Button
                 type="button"
-                onClick={() => {
-                  setMessageDialogOpen(false);
-                  const destinations = [
-                    messageChannels.email ? "email" : null,
-                    messageChannels.sms ? "SMS" : null,
-                  ].filter(Boolean);
-                  toast({
-                    title: "Message draft ready",
-                    description:
-                      destinations.length > 0
-                        ? `Share this update via ${destinations.join(" & ")}.`
-                        : "Paste the copied content into your communication tool to send.",
-                  });
-                }}
-                disabled={(!messageBody && !recipientsList) || !hasChannelSelected}
+                onClick={handleSendMessage}
+                disabled={!messageBody || !hasChannelSelected || isSending}
               >
+                {isSending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Mail className="mr-2 h-4 w-4" />}
                 Done
               </Button>
             </div>

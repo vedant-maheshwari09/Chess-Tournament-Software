@@ -6,7 +6,7 @@ import type { Express } from "express";
 import { z } from "zod";
 import Stripe from "stripe";
 import {
-  lookupUSCF, lookupFide, mapLocalResult, extractQueryParam, normalizeSearchParams, parseLimitParam, getGeminiConfig, normalizeCurrency, computePaymentTotals, normalizeAccountPaymentSettings, formatCurrencyAmount, describeRatingWindow, generatePairings, groupPlayersByScore, pairUpperVsLowerHalf, determineSwissColors, generateSwissPairings, generateBoardNumberSequence, RatingSource, STRIPE_SECRET_KEY, STRIPE_PUBLISHABLE_KEY, STRIPE_WEBHOOK_SECRET, stripe, PAYMENT_STATUSES, PaymentStatus, RatingLookupResult, paymentProviderEnum, paymentScopeEnum, offlineMethodEnum, updateTournamentPaymentsSchema, accountPaymentSettingsSchema, geminiDraftSchema, updateNotificationPreferencesSchema, tournamentNotificationSchema, createPaymentIntentSchema, playerRegistrationSchema, BoardNumberingSettings
+  lookupUSCF, lookupFide, mapLocalResult, extractQueryParam, normalizeSearchParams, parseLimitParam, getGeminiConfig, normalizeCurrency, computePaymentTotals, normalizeAccountPaymentSettings, formatCurrencyAmount, describeRatingWindow, generatePairings, groupPlayersByScore, pairUpperVsLowerHalf, determineSwissColors, generateSwissPairings, generateBoardNumberSequence, RatingSource, STRIPE_SECRET_KEY, STRIPE_PUBLISHABLE_KEY, STRIPE_WEBHOOK_SECRET, stripe, PAYMENT_STATUSES, PaymentStatus, RatingLookupResult, paymentProviderEnum, paymentScopeEnum, offlineMethodEnum, updateTournamentPaymentsSchema, accountPaymentSettingsSchema, geminiRefineSchema, updateNotificationPreferencesSchema, tournamentNotificationSchema, createPaymentIntentSchema, playerRegistrationSchema, BoardNumberingSettings
 } from "./common";
 
 import { storage } from '../storage';
@@ -19,30 +19,12 @@ import { Player, Pairing, Match, PlayerRegistration } from "@shared/schema";
 
 
 export function applyAuthRoutes(app: Express) {
-  // Developer bypass route - ONLY FOR TESTING
-  app.post("/api/auth/bypass", async (req, res) => {
-    try {
-      const user = await storage.getUserById(10); // ID 10 is 'mommies'
-      if (!user) {
-        return res.status(404).json({ message: "Bypass user not found" });
-      }
-      const session = await createSession(user.id);
-      const { passwordHash: _, ...userWithoutPassword } = user;
-      res.json({
-        user: userWithoutPassword,
-        token: session.token
-      });
-    } catch (error) {
-      console.error('Bypass login error:', error);
-      res.status(500).json({ message: "Bypass login failed" });
-    }
-  });
 
 // Authentication routes
 app.post("/api/auth/register", async (req, res) => {
     try {
       const userData = registerSchema.parse(req.body);
-      const sanitizedPhone = userData.phoneNumber ? userData.phoneNumber.replace(/[^0-9]/g, "") : null;
+
 
       // Check if username already exists
       const existingUsername = await storage.getUserByUsername(userData.username);
@@ -69,7 +51,7 @@ app.post("/api/auth/register", async (req, res) => {
         lastName: userData.lastName,
         role: userData.role,
         passwordHash,
-        phoneNumber: sanitizedPhone ?? undefined,
+
         notifyEmail: userData.notifyEmail ?? true,
         notifyPairings: userData.notifyPairings ?? true,
         notifyRegistration: userData.notifyRegistration ?? true,
@@ -426,13 +408,13 @@ app.patch("/api/auth/preferences", requireAuth, async (req, res) => {
       }
 
       const payload = updateNotificationPreferencesSchema.parse(req.body ?? {});
-      const sanitizedPhone = payload.phoneNumber ? payload.phoneNumber.replace(/[^0-9]/g, "") : null;
-      const carrier = payload.carrier && payload.carrier.trim().length > 0 ? payload.carrier.trim() : null;
+
+
       const updated = await storage.updateUser(user.id, {
-        phoneNumber: sanitizedPhone ?? null,
-        carrier,
+
+
         notifyEmail: payload.notifyEmail ?? (user.notifyEmail ?? true),
-        notifySms: payload.notifySms ?? (user.notifySms ?? false),
+
         notifyPairings: payload.notifyPairings ?? (user.notifyPairings ?? true),
         notifyRegistration: payload.notifyRegistration ?? (user.notifyRegistration ?? true),
         notifyTournamentStatus: payload.notifyTournamentStatus ?? (user.notifyTournamentStatus ?? true),

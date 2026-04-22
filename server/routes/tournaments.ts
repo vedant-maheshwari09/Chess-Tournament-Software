@@ -5,14 +5,14 @@ import { z } from "zod";
 import { normalizePlayerName } from "./util";
 import Stripe from "stripe";
 import {
-  lookupUSCF, lookupFide, mapLocalResult, extractQueryParam, normalizeSearchParams, parseLimitParam, getGeminiConfig, normalizeCurrency, computePaymentTotals, normalizeAccountPaymentSettings, formatCurrencyAmount, describeRatingWindow, generatePairings, groupPlayersByScore, pairUpperVsLowerHalf, determineSwissColors, generateSwissPairings, generateBoardNumberSequence, RatingSource, STRIPE_SECRET_KEY, STRIPE_PUBLISHABLE_KEY, STRIPE_WEBHOOK_SECRET, stripe, PAYMENT_STATUSES, PaymentStatus, RatingLookupResult, paymentProviderEnum, paymentScopeEnum, offlineMethodEnum, updateTournamentPaymentsSchema, accountPaymentSettingsSchema, geminiDraftSchema, updateNotificationPreferencesSchema, tournamentNotificationSchema, createPaymentIntentSchema, playerRegistrationSchema, BoardNumberingSettings,
-  calculateMatchupScore, getMatchFormat, isMatchDecided, advanceKnockoutWinner, spawnNextMatchupGame
+  lookupUSCF, lookupFide, mapLocalResult, extractQueryParam, normalizeSearchParams, parseLimitParam, getGeminiConfig, normalizeCurrency, computePaymentTotals, normalizeAccountPaymentSettings, formatCurrencyAmount, describeRatingWindow, generatePairings, groupPlayersByScore, pairUpperVsLowerHalf, determineSwissColors, generateSwissPairings, generateBoardNumberSequence, RatingSource, STRIPE_SECRET_KEY, STRIPE_PUBLISHABLE_KEY, STRIPE_WEBHOOK_SECRET, stripe, PAYMENT_STATUSES, PaymentStatus, RatingLookupResult, paymentProviderEnum, paymentScopeEnum, offlineMethodEnum, updateTournamentPaymentsSchema, accountPaymentSettingsSchema, geminiRefineSchema, updateNotificationPreferencesSchema, tournamentNotificationSchema, createPaymentIntentSchema, playerRegistrationSchema, BoardNumberingSettings,
+  advanceKnockoutWinner, spawnNextMatchupGame
 } from "./common";
 
 import { storage } from '../storage';
 import { requireAuth, requireRole, requireTournamentAccess } from '../auth';
 import { notificationService } from '../notifications';
-import { parseTournamentConfig } from "@shared/tournament-config";
+import { parseTournamentConfig, calculateMatchupScore, getMatchFormat, isMatchDecided } from "@shared/tournament-config";
 import { generateFideTrf16Report } from '../lib/fideTrf';
 import { lookupFideProfiles, searchFideDirectory } from '../lib/fideDirectory';
 import { Player, Pairing, Match, PlayerRegistration } from "@shared/schema";
@@ -188,7 +188,7 @@ app.get("/api/officials/search", async (req, res) => {
   });
 
 
-app.post("/api/tools/gemini-draft", requireAuth, async (req, res) => {
+app.post("/api/tools/gemini-refine", requireAuth, async (req, res) => {
     const { apiKey, model } = getGeminiConfig();
     const resolvedModel = (() => {
       const raw = model && model.trim().length > 0 ? model.trim() : "gemini-1.5-flash";
@@ -199,9 +199,9 @@ app.post("/api/tools/gemini-draft", requireAuth, async (req, res) => {
       return res.status(503).json({ message: "Gemini integration is not configured" });
     }
 
-    const parsed = geminiDraftSchema.safeParse(req.body);
+    const parsed = geminiRefineSchema.safeParse(req.body);
     if (!parsed.success) {
-      return res.status(400).json({ message: "Invalid payload for Gemini draft" });
+      return res.status(400).json({ message: "Invalid payload for Gemini refinement" });
     }
 
     const { config } = parsed.data;
@@ -229,7 +229,7 @@ app.post("/api/tools/gemini-draft", requireAuth, async (req, res) => {
       .map((contact: any) => {
         const segments: string[] = [];
         if (contact.role) segments.push(contact.role);
-        if (contact.phone) segments.push(contact.phone);
+
         if (contact.email) segments.push(contact.email);
         return `â€¢ ${contact.name ?? "Contact"}${segments.length ? ` (${segments.join(" Â· ")})` : ""}`;
       })
@@ -299,9 +299,25 @@ app.post("/api/tools/gemini-draft", requireAuth, async (req, res) => {
       ),
     );
 
-    const prompt = `You are assisting a chess tournament director by drafting the public tournament page copy.
+    const instructions = (config as any).instructions ?? "";
+    const currentContent = (config as any).tournamentPageContent ?? "";
+
+    const prompt = `You are assisting a chess tournament director by ${currentContent ? "refining" : "drafting"} the public tournament page copy.
+${currentContent ? `The current content is:\n"""\n${currentContent}\n"""\n\n` : ""}
+${instructions ? `USER INSTRUCTIONS FOR REFINEMENT:\n${instructions}\n\n` : ""}
 Use a professional but welcoming tone and produce concise Markdown with short headings and paragraphs.
 Include an Overview, Schedule, and Highlights section referencing the data below.
+
+FORMATTING GUIDELINES:
+- Use H1, H2, or H3 for sections.
+- Use bullet points for highlights.
+- Use tables for structured data like schedules or prize funds if appropriate.
+- You can use checklists for "What to bring" or "Registration requirements".
+- Use bold/italic for emphasis.
+- You can use strikethrough (~~text~~) or underline (<u>text</u>) if it adds clarity.
+- For alignment, use custom tags: {{align-center:text}}, {{align-right:text}}, or {{align-justify:text}} where visually appropriate (e.g. headers or special notices).
+- Use code blocks for any technical data or specific technical instructions.
+- Ensure the result is clean, readable, and visually stunning.
 
 Tournament data:
 ${basic.name ? `- Name: ${basic.name}` : ""}
@@ -535,46 +551,73 @@ app.post(
 
         const payload = tournamentNotificationSchema.parse(req.body ?? {});
         const sendEmail = payload.sendEmail !== false;
-        const sendSms = payload.sendSms === true;
+        const sendPush = payload.sendPush === true;
 
-        if (!sendEmail && !sendSms) {
+        if (!sendEmail && !sendPush) {
           return res.status(400).json({ message: "Select at least one delivery channel" });
         }
 
         const tournamentId = parseInt(req.params.id);
-        const registrations = await storage.getPlayerRegistrationsByTournament(tournamentId);
-        const approvedRegistrations = registrations.filter((registration) => registration.status === "approved");
-
-        const userIds = Array.from(new Set(approvedRegistrations.map((registration) => registration.userId)));
-        const users = await storage.listUsersByIds(userIds);
-        const userMap = new Map(users.map((user) => [user.id, user]));
-
         const emailRecipients = new Set<string>();
-        const smsTargets: Array<{ phone: string; carrier: string }> = [];
+        const pushTokens = new Set<string>();
 
-        for (const registration of approvedRegistrations) {
-          const user = userMap.get(registration.userId);
+        if (payload.playerIds && payload.playerIds.length > 0) {
+          // ── Targeted messaging: send to specific player IDs ──
+          const allPlayers = await storage.getPlayersByTournament(tournamentId);
+          const targetedPlayers = allPlayers.filter((p: any) => payload.playerIds!.includes(p.id));
 
-          if (sendEmail) {
-            const wantsEmail = user?.notifyEmail ?? true;
-            const email = (registration.email ?? user?.email ?? "").trim();
-            if (wantsEmail && email) {
-              emailRecipients.add(email);
+          for (const player of targetedPlayers) {
+            // Collect email from player record first, then fallback to linked user
+            if (sendEmail) {
+              const playerEmail = (player.email ?? "").trim();
+              if (playerEmail) {
+                emailRecipients.add(playerEmail);
+              } else if (player.userId) {
+                // Fallback: look up linked user's email
+                const users = await storage.listUsersByIds([player.userId]);
+                const user = users[0];
+                if (user?.email && (user.notifyEmail ?? true)) {
+                  emailRecipients.add(user.email);
+                }
+              }
+            }
+
+            if (sendPush && player.userId) {
+              const users = await storage.listUsersByIds([player.userId]);
+              const user = users[0] as any;
+              if (user?.fcmToken) {
+                pushTokens.add(user.fcmToken);
+              }
             }
           }
+        } else {
+          // ── Broadcast: send to all approved registrations ──
+          const registrations = await storage.getPlayerRegistrationsByTournament(tournamentId);
+          const approvedRegistrations = registrations.filter((registration: any) => registration.status === "approved");
 
-          if (sendSms) {
-            const wantsSms = user?.notifySms ?? false;
-            const phone = (user?.phoneNumber ?? registration.phoneNumber ?? "").trim();
-            const carrier = user?.carrier ?? "";
-            if (wantsSms && phone && carrier) {
-              smsTargets.push({ phone, carrier });
+          const userIds = Array.from(new Set(approvedRegistrations.map((registration: any) => registration.userId)));
+          const users = await storage.listUsersByIds(userIds);
+          const userMap = new Map(users.map((user: any) => [user.id, user]));
+
+          for (const registration of approvedRegistrations) {
+            const user = userMap.get(registration.userId) as any;
+
+            if (sendEmail) {
+              const wantsEmail = user?.notifyEmail ?? true;
+              const email = (registration.email ?? user?.email ?? "").trim();
+              if (wantsEmail && email) {
+                emailRecipients.add(email);
+              }
+            }
+
+            if (sendPush && user?.fcmToken) {
+              pushTokens.add(user.fcmToken);
             }
           }
         }
 
         let emailCount = 0;
-        let smsCount = 0;
+        let pushCount = 0;
 
         if (sendEmail && emailRecipients.size > 0) {
           await notificationService.sendEmail({
@@ -585,10 +628,19 @@ app.post(
           emailCount = emailRecipients.size;
         }
 
+        if (sendPush && pushTokens.size > 0) {
+          const tokens = Array.from(pushTokens);
+          for (const token of tokens) {
+            await notificationService.sendPushNotification(token, payload.subject, payload.message);
+          }
+          pushCount = pushTokens.size;
+        }
+
         res.json({
           message: "Notifications dispatched",
           emails: emailCount,
-          totalRegistrations: approvedRegistrations.length,
+          push: pushCount,
+          targeted: !!payload.playerIds,
         });
       } catch (error) {
         console.error("Tournament notification error:", error);
@@ -1038,7 +1090,7 @@ app.post("/api/tournaments/:id/generate-knockout", requireAuth, requireRole('tou
             let sKey: string;
             const pSectionNameNormalized = player.sectionName?.toLowerCase().trim();
             
-            console.log(`[DRIVE-SYNC] Mapping Player: ${player.username} (ID: ${player.id}) | SectionID: ${player.sectionId} | SectionName: ${player.sectionName}`);
+            console.log(`[DRIVE-SYNC] Mapping Player: ${player.firstName} ${player.lastName} (ID: ${player.id}) | SectionID: ${player.sectionId} | SectionName: ${player.sectionName}`);
 
             if (configSections.length === 1 && mainSectionId) {
                 sKey = mainSectionId;
@@ -1224,8 +1276,7 @@ app.post("/api/tournaments/:id/generate-knockout", requireAuth, requireRole('tou
         
         await storage.updateTournament(tournamentId, { 
             rounds: finalRoundsCount,
-            currentRound: 1,
-            status: 'active'
+            currentRound: 1
         });
 
         res.json({ 
@@ -1402,9 +1453,15 @@ app.post(
         return res.status(403).json({ message: "Unauthorized to update this tournament" });
       }
 
+      console.log(`[DEBUG] Updating tournament ${tournamentId}. Payload keys:`, Object.keys(req.body));
+      if (req.body.roundTimings) {
+        console.log(`[DEBUG] roundTimings keys:`, Object.keys(req.body.roundTimings));
+      }
+
       const tournamentData = insertTournamentSchema.partial().parse(req.body);
       const updatedTournament = await storage.updateTournament(tournamentId, tournamentData);
 
+      console.log(`[DEBUG] Tournament ${tournamentId} updated successfully.`);
       res.json(updatedTournament);
     } catch (error) {
       console.error('Tournament update error:', error);
@@ -1612,7 +1669,7 @@ app.post("/api/tournaments/:id/register-batch", requireAuth, async (req, res) =>
           ratingProvider: payload.ratingProvider,
           uscfId: payload.uscfId,
           fideId: payload.fideId,
-          phoneNumber: payload.phoneNumber,
+
           email: payload.email,
           address1: payload.address1,
           address2: payload.address2,
@@ -1812,7 +1869,7 @@ app.post("/api/tournaments/:id/register", requireAuth, async (req, res) => {
         ratingProvider: payload.ratingProvider ?? null,
         uscfId: payload.uscfId ?? null,
         fideId: payload.fideId ?? null,
-        phoneNumber: payload.phoneNumber ?? null,
+
         email: payload.email ?? user.email ?? null,
         address1: payload.address1 ?? null,
         address2: payload.address2 ?? null,
@@ -1940,7 +1997,7 @@ app.patch("/api/tournaments/:id/registrations/my", requireAuth, async (req, res)
       };
       const editableFields = [
         'playerName', 'uscfRating', 'fideRating', 'uscfId', 'fideId', 
-        'phoneNumber', 'email', 'address1', 'address2', 'city', 'state', 
+        'email', 'address1', 'address2', 'city', 'state', 
         'postalCode', 'country', 'pairingNotifications', 'newsletter',
         'sectionChoice', 'entryFeeId', 'processingContribution',
         'byePreference', 'byeRounds', 'arrivalTime', 'notes', 'paymentNotes'
@@ -3034,7 +3091,7 @@ app.post("/api/tournaments/:tournamentId/generate-pairings", requireAuth, requir
             });
           }
 
-          const knockoutPairings = generateKnockoutPairings(sortedPlayers);
+          const knockoutPairings = await generateKnockoutPairings(sortedPlayers);
 
           for (const pairing of knockoutPairings) {
             if (pairing.isBye) {

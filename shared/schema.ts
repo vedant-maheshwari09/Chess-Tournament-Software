@@ -11,10 +11,7 @@ export const users = pgTable("users", {
   firstName: text("first_name").notNull(),
   lastName: text("last_name").notNull(),
   role: text("role").notNull().default('player'), // 'player', 'tournament_director'  
-  phoneNumber: varchar("phone_number", { length: 20 }),
-  carrier: varchar("carrier", { length: 60 }),
   notifyEmail: boolean("notify_email").default(true),
-  notifySms: boolean("notify_sms").default(false),
   emailVerified: boolean("email_verified").default(false).notNull(),
   paymentSettings: jsonb("payment_settings"),
   fcmToken: text("fcm_token"),
@@ -65,7 +62,6 @@ export const tournaments = pgTable("tournaments", {
   useQuickSetup: boolean("use_quick_setup").default(false),
   tiebreakOrder: text("tiebreak_order").default("rating"), // "rating" or "uscf" (Modified Median, Solkoff, Cumulative)
   location: text("location"), // Tournament venue/location
-  directorPhone: text("director_phone"), // Tournament director phone number
   directorEmail: text("director_email"), // Tournament director email
   roundTimings: jsonb("round_timings"), // Array of {round: number, date: string, time: string}
   publishOnCalendar: boolean("publish_on_calendar").default(false),
@@ -88,6 +84,8 @@ export const tournaments = pgTable("tournaments", {
   arenaCutoffMinutes: integer("arena_cutoff_minutes").default(2).notNull(),
   arenaCountdownSeconds: integer("arena_countdown_seconds").default(10).notNull(),
   arenaPrePairBeforeStart: boolean("arena_pre_pair_before_start").default(false).notNull(),
+  startDate: timestamp("start_date"),
+  endDate: timestamp("end_date"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -138,7 +136,6 @@ export const players = pgTable("players", {
   consecutiveColor: text("consecutive_color"), // e.g. 'WW', 'BB'
   status: text("status").default('active').notNull(), // 'active', 'withdrawn', 'placeholder'
   email: text("email"),
-  phone: text("phone"),
   club: text("club"),
   title: text("title"),
   birthdate: text("birthdate"),
@@ -218,7 +215,6 @@ export const playerRegistrations = pgTable("player_registrations", {
   ratingProvider: varchar("rating_provider", { length: 20 }),
   uscfId: varchar("uscf_id", { length: 20 }),
   fideId: varchar("fide_id", { length: 20 }),
-  phoneNumber: varchar("phone_number", { length: 20 }),
   email: varchar("email", { length: 255 }),
   address1: varchar("address1", { length: 255 }),
   address2: varchar("address2", { length: 255 }),
@@ -279,7 +275,6 @@ export const registerSchema = z.object({
   firstName: z.string().min(1),
   lastName: z.string().min(1),
   role: z.enum(['player', 'tournament_director']),
-  phoneNumber: z.string().trim().optional(),
   notifyEmail: z.boolean().optional(),
   notifyPairings: z.boolean().optional(),
   notifyRegistration: z.boolean().optional(),
@@ -314,7 +309,11 @@ export const changePasswordSchema = z.object({
   newPassword: z.string().min(6),
 });
 
-export const insertTournamentSchema = createInsertSchema(tournaments).omit({
+export const insertTournamentSchema = createInsertSchema(tournaments, {
+  startDate: z.coerce.date().nullable().optional(),
+  endDate: z.coerce.date().nullable().optional(),
+  arenaStartTime: z.coerce.date().nullable().optional(),
+}).omit({
   id: true,
   createdBy: true, // This will be set on the backend
   createdAt: true,

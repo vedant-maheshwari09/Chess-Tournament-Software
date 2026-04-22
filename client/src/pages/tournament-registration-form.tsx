@@ -68,14 +68,13 @@ const registrationSchema = z.object({
   uscfRating: z.string().optional(),
   fideRating: z.string().optional(),
   email: z.string().email("Enter a valid email"),
-  phoneNumber: z.string().optional(),
   address1: z.string().optional(),
   address2: z.string().optional(),
   city: z.string().optional(),
   state: z.string().optional(),
   postalCode: z.string().optional(),
   country: z.string().optional(),
-  pairingNotifications: z.enum(["email", "sms", "both", "none"]).default("email"),
+  pairingNotifications: z.enum(["email", "none"]).default("email"),
   newsletter: z.boolean().default(false),
   sectionChoice: z.string().min(1, "Select a section"),
   entryFeeId: z.string().min(1, "Select an entry option"),
@@ -115,7 +114,6 @@ const DEFAULT_FORM_VALUES: RegistrationFormValues = {
   uscfRating: "",
   fideRating: "",
   email: "",
-  phoneNumber: "",
   address1: "",
   address2: "",
   city: "",
@@ -367,7 +365,6 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
       uscfRating: "",
       fideRating: "",
       email: "",
-      phoneNumber: "",
       address1: "",
       address2: "",
       city: "",
@@ -494,7 +491,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
           firstName,
           lastName,
           email: reg.email || "",
-          phoneNumber: reg.phoneNumber || "",
+
           address1: reg.address1 || "",
           address2: reg.address2 || "",
           city: reg.city || "",
@@ -573,7 +570,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
 
   useEffect(() => {
     const values = form.getValues();
-    const hasMeaningfulData = values.firstName || values.lastName || values.email || values.phoneNumber || playerDrafts.length > 0;
+    const hasMeaningfulData = values.firstName || values.lastName || values.email || playerDrafts.length > 0;
 
     if (!hasMeaningfulData) return;
 
@@ -649,7 +646,6 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
         uscfId: values.uscfId || null,
         fideId: values.fideId || null,
         sectionChoice: values.sectionChoice,
-        phoneNumber: values.phoneNumber,
         email: values.email,
         address1: values.address1,
         address2: values.address2,
@@ -852,7 +848,6 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
         uscfId: values.uscfId || null,
         fideId: values.fideId || null,
         sectionChoice: values.sectionChoice,
-        phoneNumber: values.phoneNumber,
         email: values.email,
         address1: values.address1,
         address2: values.address2,
@@ -1300,7 +1295,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
       fideRating: "",
       // Keep main contact email if it exists as a group default, but clear the rest
       email: currentValues.email,
-      phoneNumber: currentValues.phoneNumber,
+
       address1: "",
       address2: "",
       city: "",
@@ -2302,7 +2297,7 @@ function StepOne({
           <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Contact information</p>
           <div className="grid gap-5 sm:grid-cols-2">
             <Field label="Email" name="email" required valueAs="email" />
-            <Field label="Phone number" name="phoneNumber" />
+
           </div>
         </div>
 
@@ -2656,8 +2651,6 @@ function StepTwo({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="email">Email only</SelectItem>
-                <SelectItem value="sms">Text only</SelectItem>
-                <SelectItem value="both">Email & text</SelectItem>
                 <SelectItem value="none">No notifications</SelectItem>
               </SelectContent>
             </Select>
@@ -2838,7 +2831,7 @@ function StepThreeContent({
     return sections.find((section) => section.name.trim().toLowerCase() === normalized);
   }, [sectionChoice, sections]);
   const email = form.watch("email");
-  const phoneNumber = form.watch("phoneNumber");
+
   const arrivalTime = form.watch("arrivalTime");
   const notes = form.watch("notes");
 
@@ -2932,7 +2925,7 @@ function StepThreeContent({
             billing_details: {
               name: trimmedName,
               email: email || undefined,
-              phone: phoneNumber || undefined,
+
             },
           },
         },
@@ -3029,7 +3022,7 @@ function StepThreeContent({
     firstName,
     lastName,
     email,
-    phoneNumber,
+
     tournamentId,
   ]);
 

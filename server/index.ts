@@ -6,6 +6,8 @@ import express, { type Request, Response, NextFunction } from "express";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+console.log(`[${new Date().toLocaleTimeString()}] 🚀 Server process starting (PID: ${process.pid})...`);
+
 const envLoaded = loadEnv();
 if (envLoaded.error) {
   console.warn("⚠️  Failed to load .env from process cwd", envLoaded.error);

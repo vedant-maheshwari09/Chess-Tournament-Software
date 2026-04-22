@@ -13,6 +13,7 @@ class NotificationService {
   private fromAddress: string | null = null;
   private gmailReady = false;
   private firebaseReady = false;
+  private resendEnabled = false;
 
   constructor() {
     const user = process.env.NOTIFY_EMAIL_USER ?? process.env.GMAIL_USER;
@@ -23,8 +24,18 @@ class NotificationService {
 
     const resendKey = process.env.RESEND_API_KEY;
     if (resendKey) {
-      this.resend = new Resend(resendKey);
-      log("Resend client initialized", "notifications");
+      try {
+        this.resend = new Resend(resendKey);
+        this.resendEnabled = true;
+        log("Resend client initialized", "notifications");
+        // If no explicit from address was configured, use Resend's test sender
+        if (this.fromAddress === "noreply@example.com") {
+          this.fromAddress = "Chess Tournament <onboarding@resend.dev>";
+          log("Using Resend default test sender (onboarding@resend.dev)", "notifications");
+        }
+      } catch (err) {
+        log(`Failed to initialize Resend: ${err}`, "notifications");
+      }
     }
 
     if (user && pass) {
@@ -82,22 +93,29 @@ class NotificationService {
 
     const isGmailSender = this.fromAddress.toLowerCase().includes("gmail.com");
 
-    if (this.resend && !isGmailSender) {
+    // Prioritize Resend if enabled, unless explicitly told to use Gmail for a Gmail address
+    // and Resend is known to fail with Gmail from-addresses on unverified domains.
+    // However, if the user explicitly wants Resend, we try it first.
+    if (this.resendEnabled && this.resend) {
       try {
-        await this.resend.emails.send({
+        log(`Attempting email send via Resend to ${recipients.join(", ")}...`, "notifications");
+        const { data, error } = await this.resend.emails.send({
           from: this.fromAddress,
           to: recipients,
           subject,
           text: text ?? "",
           html: html,
         });
-        log(`Email sent successfully via Resend to ${recipients.join(", ")}`, "notifications");
-        return;
+        
+        if (error) {
+          log(`Resend API returned error: ${JSON.stringify(error)}, falling back...`, "notifications");
+        } else {
+          log(`Email sent successfully via Resend (ID: ${data?.id})`, "notifications");
+          return;
+        }
       } catch (err) {
-        log(`Resend failed: ${err}, falling back to Gmail if available`, "notifications");
+        log(`Resend exception: ${err}, falling back...`, "notifications");
       }
-    } else if (isGmailSender) {
-      log("Skipping Resend for Gmail sender address, using SMTP transport", "notifications");
     }
 
     if (this.gmailReady && this.transporter) {
@@ -123,7 +141,8 @@ class NotificationService {
     }
 
     try {
-      await getMessaging().send({
+      log(`Attempting to send push notification to token: ${token.substring(0, 10)}...`, "notifications");
+      const response = await getMessaging().send({
         token,
         notification: {
           title,
@@ -137,7 +156,9 @@ class NotificationService {
           }
         }
       });
+      log(`Push notification sent successfully. Message ID: ${response}`, "notifications");
     } catch (error) {
+      log(`Failed to send push notification: ${error}`, "notifications");
     }
   }
 }

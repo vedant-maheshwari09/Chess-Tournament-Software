@@ -51,10 +51,9 @@ import {
   type MatchFormat,
   type MatchWinConditionValue,
   calculateMatchupScore,
-  getMatchFormat,
-  isMatchDecided,
-  type MatchupScore
+  getMatchFormat
 } from "@shared/tournament-config";
+
 import { generateFideTrf16Report } from "../lib/fideTrf";
 import { lookupFideProfiles, searchFideDirectory } from "../lib/fideDirectory";
 import { getPointsForResult, getResultSummary, type MatchResultCode } from "@shared/match-results";
@@ -273,7 +272,7 @@ export function normalizeAccountPaymentSettings(raw: unknown): AccountPaymentSet
   return result;
 }
 
-export const geminiDraftSchema = z.object({
+export const geminiRefineSchema = z.object({
   config: z
     .object({
       basic: z
@@ -314,12 +313,13 @@ export const geminiDraftSchema = z.object({
             .object({
               name: z.string().optional(),
               role: z.string().optional(),
-              phone: z.string().optional(),
+
               email: z.string().optional(),
             })
             .passthrough(),
         )
         .optional(),
+      instructions: z.string().optional(),
     })
     .passthrough(),
 });
@@ -354,10 +354,7 @@ export function describeRatingWindow(min: unknown, max: unknown): string {
 }
 
 export const updateNotificationPreferencesSchema = z.object({
-  phoneNumber: z.string().trim().nullable().optional(),
-  carrier: z.string().trim().nullable().optional(),
   notifyEmail: z.boolean().optional(),
-  notifySms: z.boolean().optional(),
   notifyPairings: z.boolean().optional(),
   notifyRegistration: z.boolean().optional(),
   notifyTournamentStatus: z.boolean().optional(),
@@ -367,7 +364,8 @@ export const tournamentNotificationSchema = z.object({
   subject: z.string().min(1),
   message: z.string().min(1),
   sendEmail: z.boolean().optional(),
-  sendSms: z.boolean().optional(),
+  sendPush: z.boolean().optional(),
+  playerIds: z.array(z.number()).optional(),
 });
 
 export const createPaymentIntentSchema = z.object({
@@ -390,7 +388,7 @@ export const playerRegistrationSchema = z.object({
   ratingProvider: z.string().trim().optional().nullable(),
   uscfId: z.string().trim().optional().nullable(),
   fideId: z.string().trim().optional().nullable(),
-  phoneNumber: z.string().trim().optional().nullable(),
+
   email: z.string().email().optional().nullable(),
   address1: z.string().trim().optional().nullable(),
   address2: z.string().trim().optional().nullable(),
@@ -1016,56 +1014,56 @@ export function isMatchDecided(
   score: { p1Score: number; p2Score: number; p1Id: number | null; p2Id: number | null },
   format: MatchFormat,
   lastMatch: any
-) {
+): { decided: boolean; winnerId: number | null } {
   const thresholds = format.thresholds || [1.5];
-  
+
   for (const threshold of thresholds) {
     const t = threshold === "armageddon" ? Infinity : Number(threshold);
-    
+
     if (threshold === "armageddon") {
       // Armageddon always decides the match
-      if (lastMatch.result === '1-0' || lastMatch.result === '1-0F') return { winnerId: lastMatch.whitePlayerId };
-      if (lastMatch.result === '0-1' || lastMatch.result === '0-1F') return { winnerId: lastMatch.blackPlayerId };
+      if (lastMatch.result === '1-0' || lastMatch.result === '1-0F') return { decided: true, winnerId: lastMatch.whitePlayerId };
+      if (lastMatch.result === '0-1' || lastMatch.result === '0-1F') return { decided: true, winnerId: lastMatch.blackPlayerId };
       if (lastMatch.result === '1/2-1/2') {
         // In Armageddon, draw = black wins
-        return { winnerId: lastMatch.blackPlayerId };
+        return { decided: true, winnerId: lastMatch.blackPlayerId };
       }
       // If result is somehow missing but it's an Armageddon, we can't decide yet
       continue;
     }
-    
+
     // Standard threshold check
     if (score.p1Score >= t && score.p2Score < t) {
-      return { winnerId: score.p1Id };
+      return { decided: true, winnerId: score.p1Id };
     }
     if (score.p2Score >= t && score.p1Score < t) {
-      return { winnerId: score.p2Id };
+      return { decided: true, winnerId: score.p2Id };
     }
-    
+
     if (score.p1Score >= t && score.p2Score >= t) {
       console.log(`[VICTORY PROTOCOL] Threshold ${t} reached by both players (TIE). Moving to next stage...`);
       continue;
     }
-    
+
     // If we haven't reached this threshold yet, and there are no more thresholds,
     // the series is not yet decided.
     // If there ARE more thresholds, we also stop here because thresholds are cumulative.
     console.log(`[VICTORY PROTOCOL] Threshold ${t} not yet reached (Current: ${score.p1Score}-${score.p2Score}). Series continues.`);
-    return { winnerId: null };
+    return { decided: false, winnerId: null };
   }
-  
-  return { winnerId: null };
+
+  return { decided: false, winnerId: null };
 }
 
 export async function spawnNextMatchupGame(tournamentId: number, lastMatch: Match, matchupGames: Match[]) {
   // 1. Get the tournament config and format
   const tournament = await storage.getTournament(tournamentId);
   if (!tournament) return;
-  
+
   const config = parseTournamentConfig(tournament);
   const format = getMatchFormat(config, lastMatch.round, lastMatch.bracketType || undefined);
   const score = calculateMatchupScore(matchupGames);
-  
+
   // 2. Determine if the series is ALREADY decided
   const decision = isMatchDecided(score, format, lastMatch);
   if (decision.decided) {
@@ -1089,7 +1087,7 @@ export async function spawnNextMatchupGame(tournamentId: number, lastMatch: Matc
 
   // Determine if we are still within the "standard" games part of the series
   const maxStandardGames = format.games || 2;
-  
+
   if (matchupGames.length < maxStandardGames) {
     // We still have standard games to play
     console.log(`[DEBUG] spawnNextMatchupGame: Spawning standard game ${nextGameNumber} (Game ${matchupGames.length + 1} of ${maxStandardGames})`);
@@ -1097,11 +1095,11 @@ export async function spawnNextMatchupGame(tournamentId: number, lastMatch: Matc
     // Regular games exhausted. Check for tie-break (Armageddon)
     // We only spawn Armageddon if it's explicitly tied and in the thresholds
     if (score.p1Score === score.p2Score && format.thresholds.includes('armageddon')) {
-       nextGameType = 'armageddon';
-       console.log(`[DEBUG] spawnNextMatchupGame: Series tied at ${score.p1Score}-${score.p2Score}. Spawning Armageddon!`);
+      nextGameType = 'armageddon';
+      console.log(`[DEBUG] spawnNextMatchupGame: Series tied at ${score.p1Score}-${score.p2Score}. Spawning Armageddon!`);
     } else {
-       console.log(`[DEBUG] spawnNextMatchupGame: Match decided or no more tie-breaks. Skipping spawn.`);
-       return;
+      console.log(`[DEBUG] spawnNextMatchupGame: Match decided or no more tie-breaks. Skipping spawn.`);
+      return;
     }
   }
 
@@ -1141,7 +1139,7 @@ export async function advanceKnockoutWinner(tournamentId: number, match: any, wi
   const players = await storage.getPlayersByTournament(tournamentId);
   const allMatches = await storage.getMatchesByTournament(tournamentId);
   const sectionPlayers = players.filter((p: Player) => (p.sectionId || null) === (match.sectionId || null));
-  
+
   const isDoubleElim = tournament.isDoubleElimination;
   // Bracket size based on section players
   const bracketSize = Math.pow(2, Math.ceil(Math.log2(sectionPlayers.length || 2)));
@@ -1154,14 +1152,14 @@ export async function advanceKnockoutWinner(tournamentId: number, match: any, wi
       if (gfMatch) {
         await storage.updateMatch(gfMatch.id, { whitePlayerId: winnerId });
       }
-      
+
       if (isDoubleElim) {
-         const loserId = winnerId === match.whitePlayerId ? match.blackPlayerId : match.whitePlayerId;
-         const finalLBRound = (totalWBRounds - 1) * 2;
-         const lbFinal = allMatches.find(m => m.bracketType === 'losers' && m.round === finalLBRound);
-         if (lbFinal) {
-           await storage.updateMatch(lbFinal.id, { blackPlayerId: loserId });
-         }
+        const loserId = winnerId === match.whitePlayerId ? match.blackPlayerId : match.whitePlayerId;
+        const finalLBRound = (totalWBRounds - 1) * 2;
+        const lbFinal = allMatches.find(m => m.bracketType === 'losers' && m.round === finalLBRound);
+        if (lbFinal) {
+          await storage.updateMatch(lbFinal.id, { blackPlayerId: loserId });
+        }
       }
     } else {
       // Regular WB advancement
@@ -1169,9 +1167,9 @@ export async function advanceKnockoutWinner(tournamentId: number, match: any, wi
       const nextBoard = Math.ceil((match.board || 1) / 2);
       const isWhite = (match.board || 1) % 2 === 1;
 
-      const nm = allMatches.find((m: any) => 
-        m.round === nextRound && 
-        m.board === nextBoard && 
+      const nm = allMatches.find((m: any) =>
+        m.round === nextRound &&
+        m.board === nextBoard &&
         m.bracketType === 'winners' &&
         (m.sectionId || null) === (match.sectionId || null)
       );
