@@ -316,7 +316,7 @@ export default function KnockoutBracket({ tournamentId, sectionId }: KnockoutBra
           <motion.div
             initial={false}
             animate={{ 
-              width: isSearchExpanded || searchQuery ? 320 : 44,
+              width: isSearchExpanded || searchQuery ? (window.innerWidth < 400 ? window.innerWidth - 48 : 320) : 44,
               boxShadow: isSearchExpanded ? "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)" : "0 4px 6px -1px rgba(0, 0, 0, 0.1)"
             }}
             className={cn(

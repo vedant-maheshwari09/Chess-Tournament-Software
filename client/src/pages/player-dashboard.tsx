@@ -457,27 +457,25 @@ export default function PlayerDashboard() {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <div className="bg-white dark:bg-gray-800 shadow">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between py-6">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Tournament Dashboard</h1>
-              <p className="text-gray-600 dark:text-gray-300">
-                Welcome, {user?.username}. Explore tournaments to follow or join.
+          <div className="flex flex-col md:flex-row md:items-center justify-between py-6 gap-6 text-center md:text-left">
+            <div className="space-y-1">
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">Player Dashboard</h1>
+              <p className="text-gray-600 dark:text-gray-300 text-sm">
+                Welcome back, {user?.firstName} {user?.lastName}
               </p>
             </div>
-            <div className="flex items-center gap-4">
-              <NotificationBell />
-              <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
-                <Users className="h-4 w-4" />
-                Player Account
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center md:justify-end gap-3 w-full md:w-auto">
+              <div className="flex items-center justify-center gap-2 sm:gap-4 pb-1 sm:pb-0">
+                <NotificationBell />
+                <SettingsMenu />
               </div>
-              <SettingsMenu />
             </div>
           </div>
         </div>
       </div>
 
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-6 pb-10">
-        
+
         {/* My Registrations Status section removed - now in Notification Bell */}
 
         {tournaments.length > 0 ? (
@@ -497,12 +495,12 @@ export default function PlayerDashboard() {
         ) : null}
 
         <Tabs value={activeTab} onValueChange={(tab) => setLocation(`/dashboard/${tab}`)} className="w-full">
-          <TabsList className="grid w-full grid-cols-1 gap-3 bg-transparent sm:grid-cols-3 mb-6">
+          <TabsList className="flex w-full min-h-[64px] flex-nowrap overflow-x-auto no-scrollbar items-center gap-3 bg-transparent mb-6">
             {sectionsData.map((section) => (
               <TabsTrigger
                 key={section.key}
                 value={section.key}
-                className="flex h-full w-full flex-col items-center justify-center gap-1 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-center text-sm font-medium text-slate-600 shadow-sm transition whitespace-normal break-words data-[state=active]:border-blue-200 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-900"
+                className="flex-none md:flex-1 flex h-full min-w-[140px] flex-col items-center justify-center gap-1 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-center text-sm font-medium text-slate-600 shadow-sm transition whitespace-nowrap data-[state=active]:border-blue-200 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-900"
               >
                 <span className="leading-tight">{section.label}</span>
                 <span className="text-xs text-slate-500 leading-tight">

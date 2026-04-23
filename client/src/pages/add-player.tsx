@@ -10,7 +10,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Search, Plus, Trash2, Loader2, CreditCard, ChevronLeft, ChevronRight, Calendar, User, Info, Trophy, Check, UserRound, Save, FilePlus2, ArrowLeft } from "lucide-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { cn } from "@/lib/utils";
+import { Search, Plus, Trash2, Loader2, CreditCard, ChevronLeft, ChevronRight, Calendar, User, Info, Trophy, Check, UserRound, Save, FilePlus2, ArrowLeft, Users } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { parseTournamentConfig } from "@/lib/tournament-config";
@@ -261,11 +263,14 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
       sectionName: initialSection?.name ?? "",
       uscfRating: "",
       fideRating: "",
+      lookupMode: "profile" as "profile" | "manual",
     }),
     [defaultFederation],
   );
 
   const [formState, setFormState] = useState(() => createEmptyForm());
+  const { lookupMode } = formState;
+  const [searchTerm, setSearchTerm] = useState("");
 
   const hasSearchInput = useMemo(
     () => Object.values(debouncedSearchInputs).some((value) => value.length > 0),
@@ -278,26 +283,20 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
   >({
     queryKey: [
       "rating-lookup",
-      debouncedSearchInputs.term,
-      debouncedSearchInputs.lastName,
-      debouncedSearchInputs.firstName,
-      debouncedSearchInputs.id,
+      searchTerm,
     ],
     queryFn: async () => {
-      const params = new URLSearchParams();
-      if (debouncedSearchInputs.term) params.set("q", debouncedSearchInputs.term);
-      if (debouncedSearchInputs.lastName) params.set("lastName", debouncedSearchInputs.lastName);
-      if (debouncedSearchInputs.firstName) params.set("firstName", debouncedSearchInputs.firstName);
-      if (debouncedSearchInputs.id) params.set("id", debouncedSearchInputs.id);
-      if (!params.toString()) return null;
+      const term = searchTerm.trim();
+      if (term.length < 3) return null;
+      const params = new URLSearchParams({ q: term, limit: "10" });
       return await apiRequest(`/api/rating-lookup?${params.toString()}`);
     },
-    enabled: hasSearchInput,
+    enabled: formState.lookupMode === "profile" && searchTerm.trim().length >= 3,
     staleTime: 1000 * 30,
     retry: false,
   });
 
-  const lookupData = hasSearchInput ? lookupDataRaw : null;
+  const lookupData = formState.lookupMode === "profile" ? lookupDataRaw : null;
 
   const lookupResults = useMemo(() => {
     if (!lookupData || lookupError) {
@@ -338,10 +337,7 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
       .slice(0, 6);
   }, [players, searchInputs]);
 
-  const isSearchDirty = useMemo(
-    () => Object.values(searchInputs).some((value) => value.length > 0),
-    [searchInputs],
-  );
+  const isSearchDirty = searchTerm.length > 0;
 
   const savePlayerMutation = useMutation<void, Error, "close" | "stay" | "autosave">({
     mutationFn: async (mode) => {
@@ -525,16 +521,12 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
   ]);
 
   useEffect(() => {
-    const handle = setTimeout(() => {
-      setDebouncedSearchInputs({
-        term: searchInputs.term.trim(),
-        lastName: searchInputs.lastName.trim(),
-        firstName: searchInputs.firstName.trim(),
-        id: searchInputs.id.trim(),
-      });
-    }, 350);
-    return () => clearTimeout(handle);
-  }, [searchInputs]);
+    // If switching to manual, ensure fields are cleared so search results don't ghost
+    if (formState.lookupMode === "manual" && !isEditing) {
+      setFormState(prev => ({ ...prev, firstName: "", lastName: "" }));
+      setSearchTerm("");
+    }
+  }, [formState.lookupMode, isEditing]);
 
   useEffect(() => {
     if (lookupError) {
@@ -581,9 +573,7 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
   };
 
   const handleClearSearch = () => {
-    setSearchInputs({ term: "", lastName: "", firstName: "", id: "" });
-    setDebouncedSearchInputs({ term: "", lastName: "", firstName: "", id: "" });
-    setCombinedNameInput("");
+    setSearchTerm("");
   };
 
   const hasLookupResults = totalLookupResults > 0;
@@ -737,22 +727,22 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
                       </p>
                     </div>
                   </div>
-                  <TabsList className="grid grid-cols-3 gap-2 rounded-full bg-white px-1 py-1 shadow-inner">
+                  <TabsList className="flex w-full flex-nowrap overflow-x-auto no-scrollbar justify-start md:grid md:grid-cols-3 gap-2 rounded-full bg-white px-1 py-1 shadow-inner">
                     <TabsTrigger
                       value="basic"
-                      className="rounded-full px-6 py-2 text-sm font-semibold data-[state=active]:bg-indigo-600 data-[state=active]:text-white"
+                      className="flex-none md:flex-1 rounded-full px-6 py-2 text-xs sm:text-sm font-semibold data-[state=active]:bg-indigo-600 data-[state=active]:text-white whitespace-nowrap transition-all"
                     >
                       Basic
                     </TabsTrigger>
                     <TabsTrigger
                       value="payments"
-                      className="rounded-full px-6 py-2 text-sm font-semibold data-[state=active]:bg-indigo-600 data-[state=active]:text-white"
+                      className="flex-none md:flex-1 rounded-full px-6 py-2 text-xs sm:text-sm font-semibold data-[state=active]:bg-indigo-600 data-[state=active]:text-white whitespace-nowrap transition-all"
                     >
                       Payments
                     </TabsTrigger>
                     <TabsTrigger
                       value="notes"
-                      className="rounded-full px-6 py-2 text-sm font-semibold data-[state=active]:bg-indigo-600 data-[state=active]:text-white"
+                      className="flex-none md:flex-1 rounded-full px-6 py-2 text-xs sm:text-sm font-semibold data-[state=active]:bg-indigo-600 data-[state=active]:text-white whitespace-nowrap transition-all"
                     >
                       Notes
                     </TabsTrigger>
@@ -762,412 +752,378 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
                 <div className="flex-1 overflow-y-auto px-8 py-6">
                   <TabsContent value="basic" className="space-y-6">
                     <div className="rounded-xl border bg-white shadow-sm">
-                      <div className="grid gap-4 px-6 py-6 md:grid-cols-12">
-                        <div className="md:col-span-6 space-y-4">
-                          <div>
-                            <Label className="text-sm font-semibold text-slate-700">Surname, Name</Label>
-                            <div className="relative mt-1">
-                              <Input
-                                value={combinedNameInput}
-                                onChange={(event) => handleCombinedNameChange(event.target.value)}
-                                placeholder="e.g., Carlsen, Magnus"
-                                className="pr-10"
-                              />
-                              <Search className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-indigo-500" />
-                            </div>
-                            <p className="mt-1 text-xs text-muted-foreground">
-                              Format: Last name, First name — matches appear automatically.
-                            </p>
-                          </div>
-
-                          <div className="space-y-1">
-                            <Label className="text-xs font-semibold uppercase text-muted-foreground">Federation ID search</Label>
-                            <Input
-                              value={searchInputs.id}
-                              onChange={(event) => handleIdInputChange(event.target.value)}
-                              placeholder="Type USCF or FIDE ID"
-                              autoComplete="off"
-                            />
-                          </div>
-
-                          <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
-                            <div className="flex items-center gap-2">
-                              {lookupFetching && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
-                              <span>
-                                {hasSearchInput
-                                  ? lookupFetching
-                                    ? "Searching federation records…"
-                                    : hasLookupResults
-                                      ? `${totalLookupResults} result${totalLookupResults === 1 ? "" : "s"} found.`
-                                      : lookupError
-                                        ? "Lookup failed. Try again or use the official finder links."
-                                        : "No players found. Adjust your search terms."
-                                  : "Begin typing to search local federation data."}
-                              </span>
-                            </div>
-                            {isSearchDirty && (
-                              <Button type="button" variant="ghost" size="sm" onClick={handleClearSearch}>
-                                Clear
-                              </Button>
-                            )}
-                          </div>
-
-                          {sourceErrors.length > 0 && (
-                            <div className="space-y-1 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-                              {sourceErrors.map(({ source, label, message }) => (
-                                <p key={source} className="font-medium">
-                                  {label} lookup unavailable: <span className="font-normal">{message}</span>
-                                </p>
-                              ))}
-                            </div>
-                          )}
-
-                          <div className="rounded-lg border bg-white/70">
-                            {hasSearchInput ? (
-                              hasLookupResults ? (
-                                <div className="max-h-[320px] overflow-y-auto pr-1">
-                                  <div className="pb-1">
-                                    {(Object.keys(SOURCE_META) as SourceKey[]).map((source) => {
-                                      const meta = SOURCE_META[source];
-                                      const items = lookupResults[source];
-                                      if (!items.length) return null;
-                                      return (
-                                        <div key={source} className="grid grid-cols-[78px,1fr] border-b last:border-b-0">
-                                          <div className="flex items-start justify-center border-r bg-slate-50 px-2 py-3 text-xs font-semibold uppercase text-slate-600">
-                                            {meta.label}
-                                          </div>
-                                          <div className="divide-y">
-                                            {items.map((item) => {
-                                              const classicValue = (item.ratingDisplay ?? item.rating ?? "").trim();
-                                              const rapidRating =
-                                                item.extraRatings?.find((rating) => rating.type === "rapid") ??
-                                                item.extraRatings?.find((rating) => rating.type === "quick");
-                                              const blitzRating = item.extraRatings?.find((rating) => rating.type === "blitz");
-                                              const rapidValue = extractRatingValue(rapidRating);
-                                              const blitzValue = extractRatingValue(blitzRating);
-                                              const classicDisplay = classicValue || "----";
-                                              const rapidDisplay = (rapidValue ?? "").trim() || "----";
-                                              const blitzDisplay = (blitzValue ?? "").trim() || "----";
-                                              const nameDisplay = formatNameLastFirst(item.name);
-                                              const infoBadges: string[] = [];
-                                              const sexLabel = formatSexDisplay(item.sex);
-                                              if (sexLabel) infoBadges.push(sexLabel);
-                                              if (item.birthYear) infoBadges.push(`Born ${item.birthYear}`);
-                                              if (item.extra) infoBadges.push(item.extra);
-                                              const rightMeta: string[] = [];
-                                              if (item.location) rightMeta.push(item.location);
-                                              if (item.metadata?.expiration) rightMeta.push(`exp. ${item.metadata.expiration}`);
-
-                                              return (
-                                                <button
-                                                  key={`${source}-${item.id}-${item.name}`}
-                                                  type="button"
-                                                  onClick={() => handleResultClick(source, item)}
-                                                  className="flex w-full items-start justify-between gap-4 px-3 py-3 text-left transition hover:bg-indigo-50 focus:outline-none"
-                                                >
-                                                  <div className="space-y-1">
-                                                    <div className="text-sm font-semibold text-slate-900">{nameDisplay || item.name}</div>
-                                                    <div className="flex gap-4 font-sans text-xs text-muted-foreground">
-                                                      <span>{classicDisplay}</span>
-                                                      <span>{rapidDisplay}</span>
-                                                      <span>{blitzDisplay}</span>
-                                                    </div>
-                                                    {infoBadges.length > 0 && (
-                                                      <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground">
-                                                        {infoBadges.map((badge, index) => (
-                                                          <span key={`${item.id}-badge-${index}`}>{badge}</span>
-                                                        ))}
-                                                      </div>
-                                                    )}
-                                                  </div>
-                                                  <div className="flex flex-col items-end gap-1 text-xs text-muted-foreground">
-                                                    <span className="font-sans text-sm text-slate-700">{item.id || "—"}</span>
-                                                    {rightMeta.map((metaLine, index) => (
-                                                      <span key={`${item.id}-meta-${index}`}>{metaLine}</span>
-                                                    ))}
-                                                  </div>
-                                                </button>
-                                              );
-                                            })}
-                                          </div>
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                </div>
-                              ) : (
-                                <div className="p-4 text-sm text-muted-foreground">
-                                  {lookupError
-                                    ? "Unable to reach federation services. Please try again or use the official finder."
-                                    : "No players found. Adjust your search or refine your criteria."}
-                                </div>
-                              )
-                            ) : (
-                              <div className="p-4 text-sm text-muted-foreground">
-                                Enter a search term, name, or federation ID to begin.
-                              </div>
-                            )}
-                          </div>
-
-                          {matchingTournamentPlayers.length > 0 && (
-                            <div className="space-y-2 rounded-lg border border-dashed bg-indigo-50/40 p-3">
-                              <p className="text-xs font-semibold uppercase text-indigo-700">Current tournament</p>
-                              <div className="space-y-1 text-xs text-slate-700">
-                                {matchingTournamentPlayers.map((player) => (
-                                  <div key={`existing-${player.id}`} className="flex items-center justify-between">
-                                    <span>
-                                      {player.lastName}, {player.firstName}
-                                    </span>
-                                    <span className="font-sans text-muted-foreground">{player.rating ?? "-"}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-
-                        </div>
-                          <div className="md:col-span-3">
-                            <Label className="text-sm font-semibold text-slate-700 mb-1 block">Birthdate</Label>
-                            <DatePicker
-                              date={formState.birthdate ? parseISO(formState.birthdate) : null}
-                              setDate={(date) => {
-                                setFormState((prev) => ({ ...prev, birthdate: date ? formatDate(date, "yyyy-MM-dd") : "" }));
-                                markDirty();
-                              }}
-                              placeholder="Select birth date"
-                              className="w-full h-11 border-slate-200 rounded-xl text-sm"
-                            />
-                          </div>
-                          <div className="md:col-span-3">
-                            <Label className="text-sm font-semibold text-slate-700">Sex</Label>
-                            <Select
-                              value={formState.sex}
+                      <div className="flex flex-col">
+                        {/* Search and Mode Section - Full Width */}
+                        <div className="border-b bg-slate-50/50 px-8 py-8 space-y-8">
+                          <div className="space-y-6">
+                            <RadioGroup
+                              value={lookupMode}
                               onValueChange={(value) => {
-                                setFormState((prev) => ({ ...prev, sex: value }));
-                                markDirty();
+                                const newMode = value as "profile" | "manual";
+                                setFormState(prev => ({ ...prev, lookupMode: newMode }));
+                                if (newMode === "manual" && !isEditing) {
+                                  setFormState(prev => ({ ...prev, firstName: "", lastName: "" }));
+                                  setSearchTerm("");
+                                }
                               }}
                             >
-                              <SelectTrigger className="mt-1">
-                                <SelectValue placeholder="Select" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="male">Male</SelectItem>
-                                <SelectItem value="female">Female</SelectItem>
-                                <SelectItem value="other">Other</SelectItem>
-                              </SelectContent>
-                            </Select>
+                               <div className="grid gap-4 sm:grid-cols-2 lg:max-w-2xl">
+                                <label
+                                  className={cn(
+                                    "flex flex-1 cursor-pointer items-start gap-3 rounded-lg border border-slate-200 p-4 transition hover:border-blue-300",
+                                    lookupMode === "profile" && "border-blue-500 bg-blue-50",
+                                  )}
+                                >
+                                  <RadioGroupItem value="profile" id="lookup-profile" />
+                                  <div className="grid gap-1.5 leading-none">
+                                    <p className="text-sm font-medium text-slate-900">Use saved profile</p>
+                                    <p className="text-xs text-slate-500">Search USCF and FIDE player lists.</p>
+                                  </div>
+                                </label>
+                                <label
+                                  className={cn(
+                                    "flex flex-1 cursor-pointer items-start gap-3 rounded-lg border border-slate-200 p-4 transition hover:border-blue-300",
+                                    lookupMode === "manual" && "border-blue-500 bg-blue-50",
+                                  )}
+                                >
+                                  <RadioGroupItem value="manual" id="lookup-manual" />
+                                  <div className="grid gap-1.5 leading-none">
+                                    <p className="text-sm font-medium text-slate-900">Manual entry</p>
+                                    <p className="text-xs text-slate-500">Enter all details yourself.</p>
+                                  </div>
+                                </label>
+                              </div>
+                            </RadioGroup>
+
+                            {lookupMode === "profile" && (
+                              <div className="space-y-4">
+                                <Label className="text-sm font-medium text-slate-700">Search players</Label>
+                                <div className="relative">
+                                  <Input
+                                    value={searchTerm}
+                                    onChange={(event) => setSearchTerm(event.target.value)}
+                                    placeholder="Type name or ID (Min 3 chars)..."
+                                    autoComplete="off"
+                                    className="h-11 pl-10 pr-10 focus-visible:ring-blue-500/30"
+                                  />
+                                  <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                                  {isSearchDirty && (
+                                    <button
+                                      type="button"
+                                      onClick={handleClearSearch}
+                                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </button>
+                                  )}
+                                </div>
+
+                                {lookupFetching ? (
+                                  <div className="my-2 flex flex-col items-center justify-center gap-3 py-8 rounded-lg border border-dashed border-slate-200 bg-slate-50/50">
+                                    <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
+                                    <span className="text-sm font-medium text-slate-500">Searching USCF & FIDE databases...</span>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center justify-between">
+                                    {searchTerm.trim().length < 3 ? (
+                                      <p className="text-xs text-slate-500">Enter at least three characters to search both databases.</p>
+                                    ) : (
+                                      <p className="text-xs text-slate-500">
+                                        Showing the best matches from the official USCF and FIDE directories.
+                                      </p>
+                                    )}
+                                  </div>
+                                )}
+
+                                {searchTerm.trim().length >= 3 && (totalLookupResults > 0 || matchingTournamentPlayers.length > 0) && (
+                                  <div className="space-y-5">
+                                    {totalLookupResults > 0 && (
+                                      <div className="space-y-2">
+                                        <p className="text-[11px] uppercase tracking-wide text-slate-500">USCF & FIDE results</p>
+                                        <div className="max-h-52 space-y-2 overflow-y-auto pr-1">
+                                          {(Object.keys(SOURCE_META) as SourceKey[]).map((source) => {
+                                            const items = lookupResults[source];
+                                            return items.map((result) => (
+                                              <button
+                                                key={`${source}-${result.id}`}
+                                                type="button"
+                                                onClick={() => handleResultClick(source, result)}
+                                                className="group w-full rounded-lg border border-gray-200 bg-white p-4 text-left shadow-sm transition-all hover:bg-gray-50"
+                                              >
+                                                <div className="flex items-center justify-between gap-4">
+                                                  <div className="flex items-center gap-3">
+                                                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-100 font-medium text-gray-500 transition group-hover:text-gray-900">
+                                                      {source === 'uscf' ? 'US' : 'FI'}
+                                                    </div>
+                                                    <div className="space-y-0.5">
+                                                      <p className="text-sm font-semibold text-gray-900">{result.name}</p>
+                                                      <div className="flex flex-wrap items-center gap-2 text-[11px] text-gray-500">
+                                                        <span className="font-medium text-gray-600">{source.toUpperCase()} · #{result.id}</span>
+                                                        {result.location && <span className="text-gray-300">|</span>}
+                                                        {result.location && <span>{result.location}</span>}
+                                                      </div>
+                                                    </div>
+                                                  </div>
+                                                  <div className="bg-gray-900 text-white rounded px-2.5 py-1 text-xs font-medium">
+                                                    {result.ratingDisplay ?? result.rating ?? "No Rating"}
+                                                  </div>
+                                                </div>
+                                              </button>
+                                            ));
+                                          })}
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {matchingTournamentPlayers.length > 0 && (
+                                      <div className="space-y-2">
+                                        <p className="text-[11px] uppercase tracking-wide text-slate-500">Tournament roster matches</p>
+                                        <div className="max-h-48 space-y-2 overflow-y-auto pr-1">
+                                          {matchingTournamentPlayers.map((player) => (
+                                            <button
+                                              key={player.id}
+                                              type="button"
+                                              onClick={() => {
+                                                setFormState(prev => ({
+                                                  ...prev,
+                                                  firstName: player.firstName ?? "",
+                                                  lastName: player.lastName ?? "",
+                                                  rating: player.rating ? String(player.rating) : "",
+                                                }));
+                                                setSearchTerm(`${player.firstName} ${player.lastName}`);
+                                              }}
+                                              className="w-full rounded-lg border border-gray-200 bg-white p-3 text-left shadow-sm transition hover:bg-gray-50"
+                                            >
+                                              <div className="flex items-center justify-between gap-3">
+                                                <div>
+                                                  <p className="text-sm font-semibold text-slate-900">
+                                                    {player.firstName} {player.lastName}
+                                                  </p>
+                                                  <p className="text-[11px] text-slate-500">Registered for this event</p>
+                                                </div>
+                                                {player.rating !== null && (
+                                                  <span className="text-sm font-medium text-slate-700">{player.rating}</span>
+                                                )}
+                                              </div>
+                                            </button>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                              )}
+                            </div>
                           </div>
-                          <div className="md:col-span-4">
-                            <Label className="text-sm font-semibold text-slate-700">Club</Label>
-                            <Input
-                              className="mt-1"
-                              value={formState.club}
-                              onChange={(event) => {
-                                setFormState((prev) => ({ ...prev, club: event.target.value }));
-                                markDirty();
-                              }}
-                            />
-                          </div>
-                        <div className="md:col-span-4">
-                          <Label className="text-sm font-semibold text-slate-700">Federation</Label>
-                          <Select
-                            value={formState.federation}
-                            onValueChange={(value) => {
-                              setFormState((prev) => ({ ...prev, federation: value }));
-                              markDirty();
-                            }}
-                          >
-                            <SelectTrigger className="mt-1">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {federationOptions.map((option) => (
-                                <SelectItem key={option} value={option}>
-                                  {option}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="md:col-span-4">
-                          <Label className="text-sm font-semibold text-slate-700">Title</Label>
-                          <Input
-                            className="mt-1"
-                            value={formState.title}
-                            onChange={(event) => {
-                              setFormState((prev) => ({ ...prev, title: event.target.value }));
-                              markDirty();
-                            }}
-                          />
-                        </div>
-                        <div className="md:col-span-4">
-                          <Label className="text-sm font-semibold text-slate-700">E-mail Address</Label>
-                          <Input
-                            type="email"
-                            className="mt-1"
-                            value={formState.email}
-                            onChange={(event) => {
-                              setFormState((prev) => ({ ...prev, email: event.target.value }));
-                              markDirty();
-                            }}
-                          />
                         </div>
 
-                        <div className="md:col-span-4">
-                          <Label className="text-sm font-semibold text-slate-700">Labels</Label>
-                          <Input
-                            className="mt-1"
-                            value={formState.labels}
-                            onChange={(event) => {
-                              setFormState((prev) => ({ ...prev, labels: event.target.value }));
-                              markDirty();
-                            }}
-                          />
+                        {/* Identity and Details Section - Full Width with Grid */}
+                        <div className="px-8 py-8 space-y-10">
+                          <div className="space-y-6">
+                            <div className="space-y-4">
+                              <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Player Identity</p>
+                              <div className="grid gap-x-8 gap-y-6 sm:grid-cols-2 lg:grid-cols-3">
+                                <div className="space-y-2">
+                                  <Label className="text-sm font-medium text-slate-700">First name <span className="text-red-500">*</span></Label>
+                                  <Input
+                                    value={formState.firstName}
+                                    onChange={(e) => {
+                                      setFormState(prev => ({ ...prev, firstName: e.target.value }));
+                                      markDirty();
+                                    }}
+                                    required
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label className="text-sm font-medium text-slate-700">Last name <span className="text-red-500">*</span></Label>
+                                  <Input
+                                    value={formState.lastName}
+                                    onChange={(e) => {
+                                      setFormState(prev => ({ ...prev, lastName: e.target.value }));
+                                      markDirty();
+                                    }}
+                                    required
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label className="text-sm font-medium text-slate-700">USCF ID</Label>
+                                  <Input
+                                    value={formState.uscfId}
+                                    onChange={(e) => {
+                                      setFormState(prev => ({ ...prev, uscfId: e.target.value }));
+                                      markDirty();
+                                    }}
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label className="text-sm font-medium text-slate-700">FIDE ID</Label>
+                                  <Input
+                                    value={formState.localId}
+                                    onChange={(e) => {
+                                      setFormState(prev => ({ ...prev, localId: e.target.value }));
+                                      markDirty();
+                                    }}
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label className="text-sm font-medium text-slate-700">USCF Rating</Label>
+                                  <Input
+                                    type="number"
+                                    value={formState.uscfRating}
+                                    onChange={(e) => {
+                                      setFormState(prev => ({ ...prev, uscfRating: e.target.value }));
+                                      markDirty();
+                                    }}
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label className="text-sm font-medium text-slate-700">FIDE Rating</Label>
+                                  <Input
+                                    type="number"
+                                    value={formState.fideRating}
+                                    onChange={(e) => {
+                                      setFormState(prev => ({ ...prev, fideRating: e.target.value }));
+                                      markDirty();
+                                    }}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="grid gap-5 md:grid-cols-2">
+                              <div>
+                                <Label className="text-sm font-semibold text-slate-700 mb-1 block">Birthdate</Label>
+                                <DatePicker
+                                  date={formState.birthdate ? parseISO(formState.birthdate) : null}
+                                  setDate={(date) => {
+                                    setFormState((prev) => ({ ...prev, birthdate: date ? formatDate(date, "yyyy-MM-dd") : "" }));
+                                    markDirty();
+                                  }}
+                                  placeholder="Select birth date"
+                                  className="w-full h-11 border-slate-200 rounded-xl text-sm"
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-sm font-semibold text-slate-700">Sex</Label>
+                                <Select
+                                  value={formState.sex}
+                                  onValueChange={(value) => {
+                                    setFormState((prev) => ({ ...prev, sex: value }));
+                                    markDirty();
+                                  }}
+                                >
+                                  <SelectTrigger className="mt-1">
+                                    <SelectValue placeholder="Select" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="male">Male</SelectItem>
+                                    <SelectItem value="female">Female</SelectItem>
+                                    <SelectItem value="other">Other</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </div>
+
+                            <div className="grid gap-x-8 gap-y-6 sm:grid-cols-2 lg:grid-cols-3">
+                              <div>
+                                <Label className="text-sm font-semibold text-slate-700">Club</Label>
+                                <Input
+                                  className="mt-1"
+                                  value={formState.club}
+                                  onChange={(event) => {
+                                    setFormState((prev) => ({ ...prev, club: event.target.value }));
+                                    markDirty();
+                                  }}
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-sm font-semibold text-slate-700">Federation</Label>
+                                <Select
+                                  value={formState.federation}
+                                  onValueChange={(value) => {
+                                    setFormState((prev) => ({ ...prev, federation: value }));
+                                    markDirty();
+                                  }}
+                                >
+                                  <SelectTrigger className="mt-1">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {federationOptions.map((option) => (
+                                      <SelectItem key={option} value={option}>
+                                        {option}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </div>
+
+                            <div className="grid gap-5 md:grid-cols-2">
+                              <div>
+                                <Label className="text-sm font-semibold text-slate-700">Title</Label>
+                                <Input
+                                  className="mt-1"
+                                  value={formState.title}
+                                  onChange={(event) => {
+                                    setFormState((prev) => ({ ...prev, title: event.target.value }));
+                                    markDirty();
+                                  }}
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-sm font-semibold text-slate-700">E-mail Address</Label>
+                                <Input
+                                  type="email"
+                                  className="mt-1"
+                                  value={formState.email}
+                                  onChange={(event) => {
+                                    setFormState((prev) => ({ ...prev, email: event.target.value }));
+                                    markDirty();
+                                  }}
+                                />
+                              </div>
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label className="text-sm font-semibold text-slate-700">Section</Label>
+                              <Select
+                                value={formState.sectionId || "default"}
+                                onValueChange={(value) => {
+                                  setFormState((prev) => {
+                                    const nextSection = sections.find((section) => section.id === value);
+                                    return {
+                                      ...prev,
+                                      sectionId: value === "default" ? "" : value,
+                                      sectionName: nextSection?.name ?? prev.sectionName,
+                                    };
+                                  });
+                                  markDirty();
+                                }}
+                                disabled={sections.length === 0}
+                              >
+                                <SelectTrigger className="mt-1">
+                                  <SelectValue placeholder={sections.length === 0 ? "Sections unavailable" : "Choose a section"} />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {sections.length === 0 ? (
+                                    <SelectItem value="default" disabled>
+                                      Sections not configured
+                                    </SelectItem>
+                                  ) : (
+                                    sections.map((section) => (
+                                      <SelectItem key={section.id} value={section.id}>
+                                        {section.name}
+                                      </SelectItem>
+                                    ))
+                                  )}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
                         </div>
-                        <div className="md:col-span-4">
-                          <Label className="text-sm font-semibold text-slate-700">USCF ID</Label>
-                          <Input
-                            className="mt-1"
-                            value={formState.uscfId}
-                            onChange={(event) => {
-                              setFormState((prev) => ({ ...prev, uscfId: event.target.value }));
-                              markDirty();
-                            }}
-                          />
-                        </div>
-                        <div className="md:col-span-4">
-                          <Label className="text-sm font-semibold text-slate-700">Rating Classic</Label>
-                          <Input
-                            className="mt-1"
-                            value={formState.rating}
-                            onChange={(event) => {
-                              setFormState((prev) => ({ ...prev, rating: event.target.value }));
-                              markDirty();
-                            }}
-                          />
-                        </div>
-                        <div className="md:col-span-4">
-                          <Label className="text-sm font-semibold text-slate-700">Rating Rapid</Label>
-                          <Input
-                            className="mt-1"
-                            value={formState.ratingRapid}
-                            onChange={(event) => {
-                              setFormState((prev) => ({ ...prev, ratingRapid: event.target.value }));
-                              markDirty();
-                            }}
-                          />
-                        </div>
-                        <div className="md:col-span-4">
-                          <Label className="text-sm font-semibold text-slate-700">Local ID</Label>
-                          <Input
-                            className="mt-1"
-                            value={formState.localId}
-                            onChange={(event) => {
-                              setFormState((prev) => ({ ...prev, localId: event.target.value }));
-                              markDirty();
-                            }}
-                          />
-                        </div>
-                        <div className="md:col-span-4">
-                          <Label className="text-sm font-semibold text-slate-700">Rating Local</Label>
-                          <Input
-                            className="mt-1"
-                            value={formState.ratingLocal}
-                            onChange={(event) => {
-                              setFormState((prev) => ({ ...prev, ratingLocal: event.target.value }));
-                              markDirty();
-                            }}
-                          />
-                        </div>
-                        <div className="md:col-span-4">
-                          <Label className="text-sm font-semibold text-slate-700">Rating Blitz</Label>
-                          <Input
-                            className="mt-1"
-                            value={formState.ratingBlitz}
-                            onChange={(event) => {
-                              setFormState((prev) => ({ ...prev, ratingBlitz: event.target.value }));
-                              markDirty();
-                            }}
-                          />
-                        </div>
-                        <div className="md:col-span-4">
-                          <Label className="text-sm font-semibold text-slate-700">USCF Rating</Label>
-                          <Input
-                            className="mt-1"
-                            value={formState.uscfRating}
-                            onChange={(event) => {
-                              setFormState((prev) => {
-                                const val = event.target.value;
-                                const regConfig = parseTournamentConfig(tournament!);
-                                const primary = regConfig.details.primaryRatingSystem || 'uscf';
-                                return {
-                                  ...prev,
-                                  uscfRating: val,
-                                  rating: primary === 'uscf' ? val : prev.rating
-                                };
-                              });
-                              markDirty();
-                            }}
-                          />
-                        </div>
-                        <div className="md:col-span-4">
-                          <Label className="text-sm font-semibold text-slate-700">FIDE Rating</Label>
-                          <Input
-                            className="mt-1"
-                            value={formState.fideRating}
-                            onChange={(event) => {
-                              setFormState((prev) => {
-                                const val = event.target.value;
-                                const regConfig = parseTournamentConfig(tournament!);
-                                const primary = regConfig.details.primaryRatingSystem || 'uscf';
-                                return {
-                                  ...prev,
-                                  fideRating: val,
-                                  rating: primary === 'fide' ? val : prev.rating
-                                };
-                              });
-                              markDirty();
-                            }}
-                          />
-                        </div>
-                        <div className="md:col-span-4">
-                          <Label className="text-sm font-semibold text-slate-700">Section</Label>
-                          <Select
-                            value={formState.sectionId || "default"}
-                            onValueChange={(value) => {
-                              setFormState((prev) => {
-                                const nextSection = sections.find((section) => section.id === value);
-                                return {
-                                  ...prev,
-                                  sectionId: value === "default" ? "" : value,
-                                  sectionName: nextSection?.name ?? prev.sectionName,
-                                };
-                              });
-                              markDirty();
-                            }}
-                            disabled={sections.length === 0}
-                          >
-                            <SelectTrigger className="mt-1">
-                              <SelectValue placeholder={sections.length === 0 ? "Sections unavailable" : "Choose a section"} />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {sections.length === 0 ? (
-                                <SelectItem value="default" disabled>
-                                  Sections not configured
-                                </SelectItem>
-                              ) : (
-                                sections.map((section) => (
-                                  <SelectItem key={section.id} value={section.id}>
-                                    {section.name}
-                                  </SelectItem>
-                                ))
-                              )}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
                     </div>
- 
                   </TabsContent>
 
                   <TabsContent value="payments" className="space-y-4">
@@ -1229,7 +1185,7 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
                         <Textarea
                           rows={4}
                           value={formState.notesAdmin}
-                          onChange={(event) => {
+                          onChange={(event: React.ChangeEvent<HTMLTextAreaElement>) => {
                             setFormState((prev) => ({ ...prev, notesAdmin: event.target.value }));
                             markDirty();
                           }}
@@ -1240,7 +1196,7 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
                         <Textarea
                           rows={4}
                           value={formState.notesPublic}
-                          onChange={(event) => {
+                          onChange={(event: React.ChangeEvent<HTMLTextAreaElement>) => {
                             setFormState((prev) => ({ ...prev, notesPublic: event.target.value }));
                             markDirty();
                           }}
@@ -1251,7 +1207,7 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
                         <Textarea
                           rows={4}
                           value={formState.notesPrivate}
-                          onChange={(event) => {
+                          onChange={(event: React.ChangeEvent<HTMLTextAreaElement>) => {
                             setFormState((prev) => ({ ...prev, notesPrivate: event.target.value }));
                             markDirty();
                           }}
@@ -1261,7 +1217,7 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
                   </TabsContent>
                 </div>
 
-                <div className="flex flex-wrap items-center justify-between gap-3 border-t bg-muted/10 px-8 py-4">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 border-t bg-muted/10 px-8 py-4">
                   <div className="flex items-center gap-2">
                     {isEditing ? (
                       <Button

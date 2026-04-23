@@ -25,7 +25,7 @@ interface TournamentPairingsProps {
 
 export default function SwissPairings({ tournamentId, activeSection, showExportControls = true }: TournamentPairingsProps) {
   const [currentRound, setCurrentRound] = useState(1);
-  const [pendingResultChange, setPendingResultChange] = useState<{matchId: number, result: string, isPastRound: boolean} | null>(null);
+  const [pendingResultChange, setPendingResultChange] = useState<{ matchId: number, result: string, isPastRound: boolean } | null>(null);
   const [selectedPlayers, setSelectedPlayers] = useState<{
     playerId: number;
     matchId: number;
@@ -68,7 +68,7 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
     const prevBoard = color === 'white' ? (board * 2) - 1 : (board * 2);
     return `Winner of ${prevRound}${String.fromCharCode(64 + prevBoard)}`;
   };
-  
+
   // Get tournament data for planned rounds
   const { data: tournament } = useQuery<Tournament>({
     queryKey: [`/api/tournaments/${tournamentId}`],
@@ -88,14 +88,14 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
   // Check if user is a tournament director and owns this tournament
   const isTournamentDirector = user?.role === 'tournament_director';
   const isOwner = isTournamentDirector && tournament && user && tournament.createdBy === user.id;
-  
+
   // Debug log
-  console.log('Drag debug:', { 
-    isOwner, 
-    isTournamentDirector, 
-    tournamentCreatedBy: tournament?.createdBy, 
+  console.log('Drag debug:', {
+    isOwner,
+    isTournamentDirector,
+    tournamentCreatedBy: tournament?.createdBy,
     userId: user?.id,
-    userRole: user?.role 
+    userRole: user?.role
   });
 
   // Get all matches to determine the current round
@@ -119,7 +119,7 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
       const timer = setTimeout(() => {
         setLastSwapState(null);
       }, 30000); // 30 seconds
-      
+
       return () => clearTimeout(timer);
     }
   }, [lastSwapState]);
@@ -232,9 +232,9 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
   // Group knockout matches by round and board to handle series
   const knockoutGroups = useMemo(() => {
     if (!matches || tournament?.format !== 'knockout') return [] as Array<{ round: number; matches: Match[] }>;
-    
+
     const roundGroups = new Map<number, Match[]>();
-    
+
     const sourceMatches = allMatches || matches || [];
     sourceMatches.forEach(match => {
       if (!matchSectionFilter(match, activeSection)) return;
@@ -254,7 +254,7 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
             uniqueSeries.set(m.board, m);
           }
         });
-        
+
         return {
           round,
           matches: Array.from(uniqueSeries.values()).sort((a, b) => (a.board || 0) - (b.board || 0))
@@ -340,8 +340,8 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
     onSuccess: (data, variables) => {
       toast({
         title: "Success",
-        description: variables?.regenerate 
-          ? `Round ${currentRound} pairings have been repaired` 
+        description: variables?.regenerate
+          ? `Round ${currentRound} pairings have been repaired`
           : `Round ${currentRound + 1} pairings generated successfully`,
       });
       queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/matches`] });
@@ -401,7 +401,7 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
       queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/matches`] });
       queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/pairings`] });
       queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/players`] });
-      
+
       toast({
         title: "Result Updated",
         description: "Match result has been saved. Use 'Repair' to regenerate future rounds if needed.",
@@ -417,19 +417,19 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
   });
 
   const swapPlayersMutation = useMutation({
-    mutationFn: async ({ match1Id, match2Id, player1Id, player2Id, color1, color2 }: { 
-      match1Id: number; 
-      match2Id: number; 
-      player1Id: number | null; 
-      player2Id: number | null; 
-      color1: 'white' | 'black'; 
-      color2: 'white' | 'black'; 
+    mutationFn: async ({ match1Id, match2Id, player1Id, player2Id, color1, color2 }: {
+      match1Id: number;
+      match2Id: number;
+      player1Id: number | null;
+      player2Id: number | null;
+      color1: 'white' | 'black';
+      color2: 'white' | 'black';
     }) => {
       // Store the current state before swapping
       const currentMatches = matches || [];
       const match1 = currentMatches.find((m: Match) => m.id === match1Id);
       const match2 = currentMatches.find((m: Match) => m.id === match2Id);
-      
+
       if (match1 && match2) {
         setLastSwapState({
           match1: { id: match1.id, whitePlayerId: match1.whitePlayerId, blackPlayerId: match1.blackPlayerId },
@@ -437,7 +437,7 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
           timestamp: Date.now()
         });
       }
-      
+
       return await apiRequest(`/api/tournaments/${tournamentId}/swap-players`, {
         method: "POST",
         body: JSON.stringify({ match1Id, match2Id, player1Id, player2Id, color1, color2 }),
@@ -465,11 +465,11 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
   const undoSwapMutation = useMutation({
     mutationFn: async () => {
       if (!lastSwapState) return;
-      
+
       // Restore the original pairing configuration
       await apiRequest(`/api/tournaments/${tournamentId}/swap-players`, {
         method: "POST",
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           match1Id: lastSwapState.match1.id,
           match2Id: lastSwapState.match2.id,
           player1Id: lastSwapState.match1.whitePlayerId,
@@ -510,10 +510,10 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
     },
     onSuccess: (data) => {
       console.log('Regeneration response:', data);
-      const message = data.roundsAffected > 0 
+      const message = data.roundsAffected > 0
         ? `Regenerated ${data.roundsAffected} rounds. ${data.matchesCreated} matches and ${data.pairingsCreated} pairings created.`
         : data.message || "No rounds were regenerated.";
-      
+
       toast({
         title: data.roundsAffected > 0 ? "Success" : "No Action Needed",
         description: message,
@@ -553,7 +553,7 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
       if (!playerId || !players) return 0;
       const player = players.find((p) => p.id === playerId);
       if (!player) return 0;
-      
+
       const isFide = tournamentConfig?.details.primaryRatingSystem === 'fide';
       const rating = isFide ? (player.fideRating ?? player.rating ?? 0) : (player.uscfRating ?? player.rating ?? 0);
       return typeof rating === 'number' ? rating : Number(rating) || 0;
@@ -696,11 +696,11 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
 
   const handleResultChange = (matchId: number, result: string) => {
     console.log(`Attempting to change match ${matchId} result to: ${result}`);
-    
+
     // Check if this is a past round (not the latest round)
     const maxRound = allMatches ? Math.max(...allMatches.map(m => m.round)) : currentRound;
     const isPastRound = currentRound < maxRound;
-    
+
     if (isPastRound) {
       // Show confirmation dialog for past round edits
       setPendingResultChange({ matchId, result, isPastRound: true });
@@ -713,32 +713,32 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
   // Player selection handlers
   const handlePlayerClick = (playerId: number, matchId: number, color: 'white' | 'black', playerName: string) => {
     if (!isOwner || !playerId) return;
-    
+
     const playerInfo = { playerId, matchId, color, playerName };
-    
+
     // Check if this player is already selected
-    const existingIndex = selectedPlayers.findIndex(p => 
+    const existingIndex = selectedPlayers.findIndex(p =>
       p.playerId === playerId && p.matchId === matchId && p.color === color
     );
-    
+
     if (existingIndex >= 0) {
       // Deselect the player
       setSelectedPlayers(prev => prev.filter((_, i) => i !== existingIndex));
       return;
     }
-    
+
     if (selectedPlayers.length === 0) {
       // First player selection
       setSelectedPlayers([playerInfo]);
     } else if (selectedPlayers.length === 1) {
       // Second player selection - execute swap
       const firstPlayer = selectedPlayers[0];
-      
+
       // Don't swap with self
       if (firstPlayer.playerId === playerId && firstPlayer.matchId === matchId && firstPlayer.color === color) {
         return;
       }
-      
+
       // Execute the swap
       swapPlayersMutation.mutate({
         match1Id: firstPlayer.matchId,
@@ -748,7 +748,7 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
         color1: firstPlayer.color,
         color2: color,
       });
-      
+
       // Clear selections
       setSelectedPlayers([]);
     } else {
@@ -759,9 +759,9 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
 
   const confirmResultChange = () => {
     if (pendingResultChange) {
-      updateMatchMutation.mutate({ 
-        matchId: pendingResultChange.matchId, 
-        result: pendingResultChange.result 
+      updateMatchMutation.mutate({
+        matchId: pendingResultChange.matchId,
+        result: pendingResultChange.result
       });
       setPendingResultChange(null);
     }
@@ -779,24 +779,24 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
   };
 
   // Clickable player box component for selection-based swapping
-  const PlayerBox = ({ 
-    playerId, 
-    playerName, 
-    rating, 
-    points, 
-    matchId, 
-    color, 
-    round 
-  }: { 
-    playerId: number | null; 
-    playerName: string; 
-    rating: number; 
-    points: number; 
-    matchId: number; 
-    color: 'white' | 'black'; 
+  const PlayerBox = ({
+    playerId,
+    playerName,
+    rating,
+    points,
+    matchId,
+    color,
+    round
+  }: {
+    playerId: number | null;
+    playerName: string;
+    rating: number;
+    points: number;
+    matchId: number;
+    color: 'white' | 'black';
     round: number;
   }) => {
-    const isSelected = selectedPlayers.some(p => 
+    const isSelected = selectedPlayers.some(p =>
       p.playerId === playerId && p.matchId === matchId && p.color === color
     );
 
@@ -849,13 +849,12 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
                   {roundNumbers.map((round) => {
                     const isCurrent = round === currentRound;
                     const isCompleted = round < currentRound;
-                    const buttonClasses = `h-9 w-9 rounded-md border ${
-                      isCurrent
-                        ? "bg-blue-50 text-blue-800 border-blue-200 hover:bg-blue-100"
-                        : isCompleted
-                          ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
-                          : "border-slate-200 text-slate-600 hover:bg-slate-50"
-                    }`;
+                    const buttonClasses = `h-9 w-9 rounded-md border ${isCurrent
+                      ? "bg-blue-50 text-blue-800 border-blue-200 hover:bg-blue-100"
+                      : isCompleted
+                        ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+                        : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                      }`;
                     return (
                       <Button
                         key={`round-${round}`}
@@ -883,13 +882,12 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
             {matchesForStatus.length > 0 ? (
               <>
                 <div
-                  className={`h-3 w-3 rounded-full ${
-                    matchesForStatus.every((m) => m.result && m.result !== 'Pending')
-                      ? 'bg-green-500'
-                      : matchesForStatus.some((m) => m.result && m.result !== 'Pending')
-                        ? 'bg-slate-500'
-                        : 'bg-red-500'
-                  }`}
+                  className={`h-3 w-3 rounded-full ${matchesForStatus.every((m) => m.result && m.result !== 'Pending')
+                    ? 'bg-green-500'
+                    : matchesForStatus.some((m) => m.result && m.result !== 'Pending')
+                      ? 'bg-slate-500'
+                      : 'bg-red-500'
+                    }`}
                 />
                 <span className="text-sm font-medium">
                   {matchesForStatus.filter((m) => m.result && m.result !== 'Pending').length} / {matchesForStatus.length} complete
@@ -1043,8 +1041,8 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
                         Completing now will finalize standings through Round {currentRound}. This action cannot be undone.
                         <div className="mt-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
                           <p className="text-sm font-bold text-slate-800 mb-2">Type "FINISH" to confirm:</p>
-                          <input 
-                            type="text" 
+                          <input
+                            type="text"
                             className="w-full h-10 px-3 rounded-md border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
                             placeholder="Type FINISH"
                             onChange={(e) => setFinishConfirmation(e.target.value)}
@@ -1217,81 +1215,87 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
                         </div>
                         {!isCollapsed && (
                           <div className="overflow-x-auto">
-                        <table className="min-w-full divide-y divide-gray-200">
-                          <thead className="bg-gray-50">
-                            <tr>
-                              <th className="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Board</th>
-                              <th className="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">White</th>
-                              <th className="px-4 py-2 text-center text-xs font-medium uppercase text-gray-500">vs</th>
-                              <th className="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Black</th>
-                              <th className="px-4 py-2 text-center text-xs font-medium uppercase text-gray-500">Result</th>
-                              <th className="px-4 py-2 text-center text-xs font-medium uppercase text-gray-500">Status</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-200 bg-white">
-                            {roundMatches.map((match) => (
-                              <tr key={match.id}>
-                                <td className="whitespace-nowrap px-4 py-3">
-                                  <div className="text-sm font-medium text-gray-900">{match.board}</div>
-                                </td>
-                                <td className="whitespace-nowrap px-4 py-3">
-                                  <PlayerBox
-                                    playerId={match.whitePlayerId}
-                                    playerName={getPlayerName(match.whitePlayerId)}
-                                    rating={getPlayerRating(match.whitePlayerId)}
-                                    points={getPlayerPoints(match.whitePlayerId, round)}
-                                    matchId={match.id}
-                                    color="white"
-                                    round={round}
-                                  />
-                                </td>
-                                <td className="whitespace-nowrap px-4 py-3 text-center">
-                                  <span className="text-gray-400">vs</span>
-                                </td>
-                                <td className="whitespace-nowrap px-4 py-3">
-                                  <PlayerBox
-                                    playerId={match.blackPlayerId}
-                                    playerName={match.blackPlayerId ? getPlayerName(match.blackPlayerId) : "See T.D."}
-                                    rating={match.blackPlayerId ? getPlayerRating(match.blackPlayerId) : 0}
-                                    points={match.blackPlayerId ? getPlayerPoints(match.blackPlayerId, round) : 0}
-                                    matchId={match.id}
-                                    color="black"
-                                    round={round}
-                                  />
-                                </td>
-                                <td className="whitespace-nowrap px-4 py-3 text-center">
-                                  <Select
-                                    value={match.result || "Pending"}
-                                    onValueChange={(value) => handleResultChange(match.id, value)}
-                                  >
-                                    <SelectTrigger className="w-24">
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="Pending">Pending</SelectItem>
-                                      {(match.blackPlayerId ? HEAD_TO_HEAD_RESULT_OPTIONS : BYE_RESULT_OPTIONS).map(
-                                        (option) => (
-                                          <SelectItem key={option.value} value={option.value}>
-                                            {option.label}
-                                          </SelectItem>
-                                        ),
+                            <table className="min-w-full divide-y divide-gray-200">
+                              <thead className="bg-gray-50">
+                                <tr>
+                                  <th className="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Board</th>
+                                  <th className="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">White</th>
+                                  <th className="px-4 py-2 text-center text-xs font-medium uppercase text-gray-500">vs</th>
+                                  <th className="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Black</th>
+                                  <th className="px-4 py-2 text-center text-xs font-medium uppercase text-gray-500">{isTournamentDirector ? "Result" : "Score"}</th>
+                                  <th className="px-4 py-2 text-center text-xs font-medium uppercase text-gray-500">Status</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-200 bg-white">
+                                {roundMatches.map((match) => (
+                                  <tr key={match.id}>
+                                    <td className="whitespace-nowrap px-4 py-3">
+                                      <div className="text-sm font-medium text-gray-900">{match.board}</div>
+                                    </td>
+                                    <td className="whitespace-nowrap px-4 py-3">
+                                      <PlayerBox
+                                        playerId={match.whitePlayerId}
+                                        playerName={getPlayerName(match.whitePlayerId)}
+                                        rating={getPlayerRating(match.whitePlayerId)}
+                                        points={getPlayerPoints(match.whitePlayerId, round)}
+                                        matchId={match.id}
+                                        color="white"
+                                        round={round}
+                                      />
+                                    </td>
+                                    <td className="whitespace-nowrap px-4 py-3 text-center">
+                                      <span className="text-gray-400">vs</span>
+                                    </td>
+                                    <td className="whitespace-nowrap px-4 py-3">
+                                      <PlayerBox
+                                        playerId={match.blackPlayerId}
+                                        playerName={match.blackPlayerId ? getPlayerName(match.blackPlayerId) : "See T.D."}
+                                        rating={match.blackPlayerId ? getPlayerRating(match.blackPlayerId) : 0}
+                                        points={match.blackPlayerId ? getPlayerPoints(match.blackPlayerId, round) : 0}
+                                        matchId={match.id}
+                                        color="black"
+                                        round={round}
+                                      />
+                                    </td>
+                                    <td className="whitespace-nowrap px-4 py-3 text-center">
+                                      {isTournamentDirector ? (
+                                        <Select
+                                          value={match.result || "Pending"}
+                                          onValueChange={(value) => handleResultChange(match.id, value)}
+                                        >
+                                          <SelectTrigger className="w-24">
+                                            <SelectValue />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value="Pending">Pending</SelectItem>
+                                            {(match.blackPlayerId ? HEAD_TO_HEAD_RESULT_OPTIONS : BYE_RESULT_OPTIONS).map(
+                                              (option) => (
+                                                <SelectItem key={option.value} value={option.value}>
+                                                  {option.label}
+                                                </SelectItem>
+                                              ),
+                                            )}
+                                          </SelectContent>
+                                        </Select>
+                                      ) : (
+                                        <div className="text-sm font-bold text-slate-900">
+                                          {match.result || "—"}
+                                        </div>
                                       )}
-                                    </SelectContent>
-                                  </Select>
-                                </td>
-                                <td className="whitespace-nowrap px-4 py-3 text-center">{getStatusBadge(match.status)}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                                    </td>
+                                    <td className="whitespace-nowrap px-4 py-3 text-center">{getStatusBadge(match.status)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
                       </div>
-                      )}
-                    </div>
-                  );
-                })}
+                    );
+                  })}
                 </div>
-            )) : tournament?.format === 'knockout' ? (
-              <div className="space-y-8">
+              )) : tournament?.format === 'knockout' ? (
+                <div className="space-y-8">
                   {knockoutGroups.map(({ round, matches: roundMatches }) => {
                     const isCollapsed = collapsedRounds.has(round);
                     return (
@@ -1301,15 +1305,15 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
                           !isCollapsed && "border-b border-slate-100 pb-4 mb-4"
                         )}>
                           <div className="flex items-center gap-3">
-                             <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-xs ring-1 ring-blue-100">
-                               {round}
-                             </div>
-                             <h3 className="text-lg font-bold text-slate-900 tracking-tight">
-                               {round === (tournament.rounds || 0) ? 'Finals' : 
-                                round === (tournament.rounds || 0) - 1 ? 'Semifinals' : 
-                                round === (tournament.rounds || 0) - 2 ? 'Quarterfinals' : 
-                                `Round ${round}`}
-                             </h3>
+                            <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-xs ring-1 ring-blue-100">
+                              {round}
+                            </div>
+                            <h3 className="text-lg font-bold text-slate-900 tracking-tight">
+                              {round === (tournament.rounds || 0) ? 'Finals' :
+                                round === (tournament.rounds || 0) - 1 ? 'Semifinals' :
+                                  round === (tournament.rounds || 0) - 2 ? 'Quarterfinals' :
+                                    `Round ${round}`}
+                            </h3>
                           </div>
                           {round === currentRound && (
                             <Badge className="bg-blue-500 hover:bg-blue-600 text-white font-bold px-3 py-1 text-[10px] uppercase tracking-wider">Active Round</Badge>
@@ -1336,131 +1340,133 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
 
                         {!isCollapsed && (
                           <div className="overflow-x-auto">
-                        <table className="min-w-full divide-y divide-gray-200">
-                          <thead className="bg-gray-50">
-                            <tr>
-                              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 w-8"></th>
-                              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Board</th>
-                              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Players</th>
-                              <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500">Score</th>
-                              <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">Actions</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-200 bg-white">
-                            {roundMatches.map((match) => {
-                              const seriesGames = (allMatches || []).filter(m => 
-                                m.round === match.round && 
-                                m.board === match.board &&
-                                m.bracketType === match.bracketType &&
-                                m.sectionId === match.sectionId
-                              ).sort((a,b) => (a.gameNumber || 0) - (b.gameNumber || 0));
-                              
-                              const { p1Score, p2Score, p1Id, p2Id } = calculateMatchupScore(seriesGames);
-
-                              const formatScore = (num: number) => {
-                                if (num % 1 === 0) return num.toString();
-                                return (Math.floor(num) === 0 ? "" : Math.floor(num)) + "½";
-                              };
-                              const isExpanded = expandedSeries.has(match.id);
-
-                              return (
-                                <React.Fragment key={match.id}>
-                                  <tr className="hover:bg-slate-50 transition-colors">
-                                    <td className="px-6 py-4 whitespace-nowrap text-center">
-                                      <Button variant="ghost" size="icon" className="h-6 w-6 p-0 hover:bg-slate-200" onClick={() => toggleExpand(match.id)}>
-                                        {isExpanded ? <ChevronUp className="h-4 w-4 text-slate-500" /> : <ChevronDown className="h-4 w-4 text-slate-500" />}
-                                      </Button>
-                                    </td>
-                                    <td className="whitespace-nowrap px-6 py-4">
-                                      <div className="text-sm font-medium text-gray-900">{round}{String.fromCharCode(64 + (match.board || 1))}</div>
-                                    </td>
-                                    <td className="whitespace-nowrap px-6 py-4">
-                                       <div className="flex flex-col gap-1.5">
-                                          <div className="flex items-center gap-2">
-                                             <div className={`w-1.5 h-1.5 rounded-full ${p1Score > p2Score ? 'bg-green-500' : 'bg-slate-200'}`} />
-                                             <span className={`text-sm ${p1Score > p2Score ? 'text-slate-900 font-bold' : 'text-slate-700'}`}>
-                                                {p1Id ? getPlayerName(p1Id) : getPendingPlayerLabel(match.round, match.board || 1, 'white')}
-                                             </span>
-                                          </div>
-                                          <div className="flex items-center gap-2">
-                                             <div className={`w-1.5 h-1.5 rounded-full ${p2Score > p1Score ? 'bg-green-500' : 'bg-slate-200'}`} />
-                                             <span className={`text-sm ${p2Score > p1Score ? 'text-slate-900 font-bold' : 'text-slate-700'}`}>
-                                                {p2Id ? getPlayerName(p2Id) : getPendingPlayerLabel(match.round, match.board || 1, 'black')}
-                                             </span>
-                                          </div>
-                                       </div>
-                                    </td>
-                                    <td className="whitespace-nowrap px-6 py-4 text-center">
-                                        <div className="inline-flex items-center justify-center h-10 px-4 rounded bg-[#f1f1f1] border border-[#e1e1e1] shadow-sm">
-                                           <span className="text-base font-bold text-slate-900 tracking-tight">
-                                             {formatScore(p1Score)} - {formatScore(p2Score)}
-                                           </span>
-                                        </div>
-                                        <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Games: {seriesGames.length}</div>
-                                    </td>
-                                    <td className="whitespace-nowrap px-6 py-4 text-right">
-                                       {isTournamentDirector && (
-                                         <Button 
-                                          variant="outline" 
-                                          size="sm"
-                                          className="h-8 border-slate-200 text-slate-600 hover:text-blue-600"
-                                          onClick={() => setSelectedMatchForManagement(match)}
-                                         >
-                                           <Swords className="h-3 w-3 mr-2" />
-                                           MANAGE SERIES
-                                         </Button>
-                                       )}
-                                    </td>
-                                  </tr>
-                                  {isExpanded && (
-                                    <tr>
-                                      <td colSpan={5} className="p-0 border-b border-t border-slate-100 bg-slate-50/50">
-                                        <div className="px-14 py-4 space-y-3 shadow-inner">
-                                          <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500">Series History</h4>
-                                          {seriesGames.length === 0 ? (
-                                            <div className="text-sm text-slate-400 italic">No games played yet.</div>
-                                          ) : (
-                                            <div className="grid gap-2">
-                                              {seriesGames.map((game, i) => (
-                                                <div key={game.id} className="flex items-center justify-between bg-white px-4 py-2 rounded border border-slate-100 shadow-sm text-sm">
-                                                  <div className="flex items-center gap-4">
-                                                    <Badge variant="outline" className="w-16 justify-center">Game {i + 1}</Badge>
-                                                    <div className="flex items-center gap-2 w-40">
-                                                      <div className="w-3 h-3 border border-slate-300 bg-white" title="White Pieces" />
-                                                      <span className="truncate">{game.whitePlayerId ? getPlayerName(game.whitePlayerId) : "T.B.D."}</span>
-                                                    </div>
-                                                    <span className="text-slate-400 text-xs">vs</span>
-                                                    <div className="flex items-center gap-2 w-40">
-                                                      <div className="w-3 h-3 border border-slate-400 bg-slate-900" title="Black Pieces" />
-                                                      <span className="truncate">{game.blackPlayerId ? getPlayerName(game.blackPlayerId) : "T.B.D."}</span>
-                                                    </div>
-                                                  </div>
-                                                  <Badge 
-                                                    variant={game.result ? "default" : "secondary"}
-                                                    className={cn(game.result && "bg-[#81b64c] hover:bg-[#72a344] border-0")}
-                                                  >
-                                                    {game.result || "Ongoing"}
-                                                  </Badge>
-                                                </div>
-                                              ))}
-                                            </div>
-                                          )}
-                                        </div>
-                                      </td>
-                                    </tr>
+                            <table className="min-w-full divide-y divide-gray-200">
+                              <thead className="bg-gray-50">
+                                <tr>
+                                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 w-8"></th>
+                                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Board</th>
+                                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Players</th>
+                                  <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500">Score</th>
+                                  {isTournamentDirector && (
+                                    <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">Actions</th>
                                   )}
-                                </React.Fragment>
-                              );
-                           })}
-                        </tbody>
-                      </table>
-                    </div>
-                    )}
-                  </div>
-                );
-              })}
-              </div>
-            ) : (
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-200 bg-white">
+                                {roundMatches.map((match) => {
+                                  const seriesGames = (allMatches || []).filter(m =>
+                                    m.round === match.round &&
+                                    m.board === match.board &&
+                                    m.bracketType === match.bracketType &&
+                                    m.sectionId === match.sectionId
+                                  ).sort((a, b) => (a.gameNumber || 0) - (b.gameNumber || 0));
+
+                                  const { p1Score, p2Score, p1Id, p2Id } = calculateMatchupScore(seriesGames);
+
+                                  const formatScore = (num: number) => {
+                                    if (num % 1 === 0) return num.toString();
+                                    return (Math.floor(num) === 0 ? "" : Math.floor(num)) + "½";
+                                  };
+                                  const isExpanded = expandedSeries.has(match.id);
+
+                                  return (
+                                    <React.Fragment key={match.id}>
+                                      <tr className="hover:bg-slate-50 transition-colors">
+                                        <td className="px-6 py-4 whitespace-nowrap text-center">
+                                          <Button variant="ghost" size="icon" className="h-6 w-6 p-0 hover:bg-slate-200" onClick={() => toggleExpand(match.id)}>
+                                            {isExpanded ? <ChevronUp className="h-4 w-4 text-slate-500" /> : <ChevronDown className="h-4 w-4 text-slate-500" />}
+                                          </Button>
+                                        </td>
+                                        <td className="whitespace-nowrap px-6 py-4">
+                                          <div className="text-sm font-medium text-gray-900">{round}{String.fromCharCode(64 + (match.board || 1))}</div>
+                                        </td>
+                                        <td className="whitespace-nowrap px-6 py-4">
+                                          <div className="flex flex-col gap-1.5">
+                                            <div className="flex items-center gap-2">
+                                              <div className={`w-1.5 h-1.5 rounded-full ${p1Score > p2Score ? 'bg-green-500' : 'bg-slate-200'}`} />
+                                              <span className={`text-sm ${p1Score > p2Score ? 'text-slate-900 font-bold' : 'text-slate-700'}`}>
+                                                {p1Id ? getPlayerName(p1Id) : getPendingPlayerLabel(match.round, match.board || 1, 'white')}
+                                              </span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                              <div className={`w-1.5 h-1.5 rounded-full ${p2Score > p1Score ? 'bg-green-500' : 'bg-slate-200'}`} />
+                                              <span className={`text-sm ${p2Score > p1Score ? 'text-slate-900 font-bold' : 'text-slate-700'}`}>
+                                                {p2Id ? getPlayerName(p2Id) : getPendingPlayerLabel(match.round, match.board || 1, 'black')}
+                                              </span>
+                                            </div>
+                                          </div>
+                                        </td>
+                                        <td className="whitespace-nowrap px-6 py-4 text-center">
+                                          <div className="inline-flex items-center justify-center h-10 px-4 rounded bg-[#f1f1f1] border border-[#e1e1e1] shadow-sm">
+                                            <span className="text-base font-bold text-slate-900 tracking-tight">
+                                              {formatScore(p1Score)} - {formatScore(p2Score)}
+                                            </span>
+                                          </div>
+                                          <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Games: {seriesGames.length}</div>
+                                        </td>
+                                        {isTournamentDirector && (
+                                          <td className="whitespace-nowrap px-6 py-4 text-right">
+                                            <Button
+                                              variant="outline"
+                                              size="sm"
+                                              className="h-8 border-slate-200 text-slate-600 hover:text-blue-600"
+                                              onClick={() => setSelectedMatchForManagement(match)}
+                                            >
+                                              <Swords className="h-3 w-3 mr-2" />
+                                              MANAGE SERIES
+                                            </Button>
+                                          </td>
+                                        )}
+                                      </tr>
+                                      {isExpanded && (
+                                        <tr>
+                                          <td colSpan={isTournamentDirector ? 5 : 4} className="p-0 border-b border-t border-slate-100 bg-slate-50/50">
+                                            <div className="px-14 py-4 space-y-3 shadow-inner">
+                                              <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500">Series History</h4>
+                                              {seriesGames.length === 0 ? (
+                                                <div className="text-sm text-slate-400 italic">No games played yet.</div>
+                                              ) : (
+                                                <div className="grid gap-2">
+                                                  {seriesGames.map((game, i) => (
+                                                    <div key={game.id} className="flex items-center justify-between bg-white px-4 py-2 rounded border border-slate-100 shadow-sm text-sm">
+                                                      <div className="flex items-center gap-4">
+                                                        <Badge variant="outline" className="w-16 justify-center">Game {i + 1}</Badge>
+                                                        <div className="flex items-center gap-2 w-40">
+                                                          <div className="w-3 h-3 border border-slate-300 bg-white" title="White Pieces" />
+                                                          <span className="truncate">{game.whitePlayerId ? getPlayerName(game.whitePlayerId) : "T.B.D."}</span>
+                                                        </div>
+                                                        <span className="text-slate-400 text-xs">vs</span>
+                                                        <div className="flex items-center gap-2 w-40">
+                                                          <div className="w-3 h-3 border border-slate-400 bg-slate-900" title="Black Pieces" />
+                                                          <span className="truncate">{game.blackPlayerId ? getPlayerName(game.blackPlayerId) : "T.B.D."}</span>
+                                                        </div>
+                                                      </div>
+                                                      <Badge
+                                                        variant={game.result ? "default" : "secondary"}
+                                                        className={cn(game.result && "bg-[#81b64c] hover:bg-[#72a344] border-0")}
+                                                      >
+                                                        {game.result || "Ongoing"}
+                                                      </Badge>
+                                                    </div>
+                                                  ))}
+                                                </div>
+                                              )}
+                                            </div>
+                                          </td>
+                                        </tr>
+                                      )}
+                                    </React.Fragment>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
               // Swiss - Show current round only
               <div className="space-y-6">
                 <div className="flex items-center justify-between mb-2">
@@ -1488,96 +1494,96 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
                 </div>
                 {!collapsedRounds.has(currentRound) && (
                   <div className="overflow-x-auto">
-                  {swissMatches.length === 0 ? (
-                    <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-                      No pairings for this section in Round {currentRound}.
-                    </div>
-                  ) : (
-                    <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                            Board
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                            White
-                          </th>
-                          <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500">
-                            vs
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                            Black
-                          </th>
-                          <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500">
-                            Result
-                          </th>
-                          <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500">
-                            Status
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-200 bg-white">
-                        {swissMatches.map((match) => (
-                          <tr key={match.id}>
-                            <td className="whitespace-nowrap px-6 py-4">
-                              <div className="text-sm font-medium text-gray-900">{match.board}</div>
-                            </td>
-                            <td className="whitespace-nowrap px-6 py-4">
-                              <PlayerBox
-                                playerId={match.whitePlayerId}
-                                playerName={getPlayerName(match.whitePlayerId)}
-                                rating={getPlayerRating(match.whitePlayerId)}
-                                points={getPlayerPoints(match.whitePlayerId, match.round)}
-                                matchId={match.id}
-                                color="white"
-                                round={match.round}
-                              />
-                            </td>
-                            <td className="whitespace-nowrap px-6 py-4 text-center">
-                              <span className="text-gray-400">vs</span>
-                            </td>
-                            <td className="whitespace-nowrap px-6 py-4">
-                              <PlayerBox
-                                playerId={match.blackPlayerId}
-                                playerName={match.blackPlayerId ? getPlayerName(match.blackPlayerId) : "See T.D."}
-                                rating={match.blackPlayerId ? getPlayerRating(match.blackPlayerId) : 0}
-                                points={match.blackPlayerId ? getPlayerPoints(match.blackPlayerId, match.round) : 0}
-                                matchId={match.id}
-                                color="black"
-                                round={match.round}
-                              />
-                            </td>
-                            <td className="whitespace-nowrap px-6 py-4 text-center">
-                              {isTournamentDirector ? (
-                                <Select
-                                  value={match.result || "Pending"}
-                                  onValueChange={(value) => handleResultChange(match.id, value)}
-                                >
-                                  <SelectTrigger className="w-24">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="Pending">Pending</SelectItem>
-                                    {(match.blackPlayerId ? HEAD_TO_HEAD_RESULT_OPTIONS : BYE_RESULT_OPTIONS).map(
-                                      (option) => (
-                                        <SelectItem key={option.value} value={option.value}>
-                                          {option.label}
-                                        </SelectItem>
-                                      ),
-                                    )}
-                                  </SelectContent>
-                                </Select>
-                              ) : (
-                                <span className="text-sm font-medium">{match.result || "Pending"}</span>
-                              )}
-                            </td>
-                            <td className="whitespace-nowrap px-6 py-4 text-center">{getStatusBadge(match.status)}</td>
+                    {swissMatches.length === 0 ? (
+                      <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+                        No pairings for this section in Round {currentRound}.
+                      </div>
+                    ) : (
+                      <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                              Board
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                              White
+                            </th>
+                            <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500">
+                              vs
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                              Black
+                            </th>
+                            <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500">
+                              Result
+                            </th>
+                            <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500">
+                              Status
+                            </th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )}
-                </div>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200 bg-white">
+                          {swissMatches.map((match) => (
+                            <tr key={match.id}>
+                              <td className="whitespace-nowrap px-6 py-4">
+                                <div className="text-sm font-medium text-gray-900">{match.board}</div>
+                              </td>
+                              <td className="whitespace-nowrap px-6 py-4">
+                                <PlayerBox
+                                  playerId={match.whitePlayerId}
+                                  playerName={getPlayerName(match.whitePlayerId)}
+                                  rating={getPlayerRating(match.whitePlayerId)}
+                                  points={getPlayerPoints(match.whitePlayerId, match.round)}
+                                  matchId={match.id}
+                                  color="white"
+                                  round={match.round}
+                                />
+                              </td>
+                              <td className="whitespace-nowrap px-6 py-4 text-center">
+                                <span className="text-gray-400">vs</span>
+                              </td>
+                              <td className="whitespace-nowrap px-6 py-4">
+                                <PlayerBox
+                                  playerId={match.blackPlayerId}
+                                  playerName={match.blackPlayerId ? getPlayerName(match.blackPlayerId) : "See T.D."}
+                                  rating={match.blackPlayerId ? getPlayerRating(match.blackPlayerId) : 0}
+                                  points={match.blackPlayerId ? getPlayerPoints(match.blackPlayerId, match.round) : 0}
+                                  matchId={match.id}
+                                  color="black"
+                                  round={match.round}
+                                />
+                              </td>
+                              <td className="whitespace-nowrap px-6 py-4 text-center">
+                                {isTournamentDirector ? (
+                                  <Select
+                                    value={match.result || "Pending"}
+                                    onValueChange={(value) => handleResultChange(match.id, value)}
+                                  >
+                                    <SelectTrigger className="w-24">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="Pending">Pending</SelectItem>
+                                      {(match.blackPlayerId ? HEAD_TO_HEAD_RESULT_OPTIONS : BYE_RESULT_OPTIONS).map(
+                                        (option) => (
+                                          <SelectItem key={option.value} value={option.value}>
+                                            {option.label}
+                                          </SelectItem>
+                                        ),
+                                      )}
+                                    </SelectContent>
+                                  </Select>
+                                ) : (
+                                  <span className="text-sm font-medium">{match.result || "Pending"}</span>
+                                )}
+                              </td>
+                              <td className="whitespace-nowrap px-6 py-4 text-center">{getStatusBadge(match.status)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
                 )}
 
                 {/* Byes Section */}
@@ -1592,8 +1598,8 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
                           </span>
                           <div className="flex items-center gap-2">
                             <Badge variant="outline" className="text-slate-700 border-slate-300">
-                              {byePairing.byeType === 'half_point' ? '½ Point Bye' : 
-                               byePairing.byeType === 'zero_point' ? '0 Point Bye' : '1 Point Bye'}
+                              {byePairing.byeType === 'half_point' ? '½ Point Bye' :
+                                byePairing.byeType === 'zero_point' ? '0 Point Bye' : '1 Point Bye'}
                             </Badge>
                             {byePairing.isRequested && (
                               <Badge variant="secondary" className="text-xs">
@@ -1619,8 +1625,8 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
             <AlertDialogHeader>
               <AlertDialogTitle>Edit Previous Round Result?</AlertDialogTitle>
               <AlertDialogDescription>
-                You are editing a result from Round {currentRound}, which is a previous round. 
-                This will change historical data and may affect future rounds. 
+                You are editing a result from Round {currentRound}, which is a previous round.
+                This will change historical data and may affect future rounds.
                 Are you sure you want to proceed?
               </AlertDialogDescription>
             </AlertDialogHeader>

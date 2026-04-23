@@ -2678,48 +2678,50 @@ function StepTwo({
           <Field label="Expected arrival notes" name="arrivalTime" placeholder="e.g., Arriving Saturday 9AM" />
         </div>
 
-        <div className="space-y-4">
-          <Label className="text-sm font-medium text-slate-700">Bye requests</Label>
-          <RadioGroup
-            value={byePreference}
-            onValueChange={(value) =>
-              form.setValue("byePreference", value as RegistrationFormValues["byePreference"], {
-                shouldDirty: true,
-              })
-            }
-            className="grid gap-3 sm:grid-cols-2"
-          >
-            <RadioOption group="byePreference" value="none" title="No byes" description="I plan to play every round." />
-            <RadioOption group="byePreference" value="yes" title="Request byes" description="Select rounds you cannot attend." />
-          </RadioGroup>
+        {(config?.format !== "arena" && config?.format !== "knockout") && (
+          <div className="space-y-4">
+            <Label className="text-sm font-medium text-slate-700">Bye requests</Label>
+            <RadioGroup
+              value={byePreference}
+              onValueChange={(value) =>
+                form.setValue("byePreference", value as RegistrationFormValues["byePreference"], {
+                  shouldDirty: true,
+                })
+              }
+              className="grid gap-3 sm:grid-cols-2"
+            >
+              <RadioOption group="byePreference" value="none" title="No byes" description="I plan to play every round." />
+              <RadioOption group="byePreference" value="yes" title="Request byes" description="Select rounds you cannot attend." />
+            </RadioGroup>
 
-          {byePreference === "yes" && (
-            <div className="rounded-lg border border-slate-200 p-4">
-              <Label className="text-sm font-medium text-slate-700">Select eligible rounds</Label>
-              <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                {byeRounds.map((label) => {
-                  const checked = form.watch("byeRounds")?.includes(label);
-                  return (
-                    <button
-                      key={label}
-                      type="button"
-                      onClick={() => toggleArrayValue(form, "byeRounds", label)}
-                      className={cn(
-                        "flex items-center justify-between rounded-xl border px-4 py-3 text-sm font-medium transition-all shadow-sm",
-                        checked
-                          ? "border-blue-400 bg-blue-500 text-white shadow-blue-200"
-                          : "border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:bg-blue-50",
-                      )}
-                    >
-                      <span>{label}</span>
-                      <ChevronDown className="h-4 w-4 rotate-180" />
-                    </button>
-                  );
-                })}
+            {byePreference === "yes" && (
+              <div className="rounded-lg border border-slate-200 p-4">
+                <Label className="text-sm font-medium text-slate-700">Select eligible rounds</Label>
+                <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                  {byeRounds.map((label) => {
+                    const checked = form.watch("byeRounds")?.includes(label);
+                    return (
+                      <button
+                        key={label}
+                        type="button"
+                        onClick={() => toggleArrayValue(form, "byeRounds", label)}
+                        className={cn(
+                          "flex items-center justify-between rounded-xl border px-4 py-3 text-sm font-medium transition-all shadow-sm",
+                          checked
+                            ? "border-blue-400 bg-blue-500 text-white shadow-blue-200"
+                            : "border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:bg-blue-50",
+                        )}
+                      >
+                        <span>{label}</span>
+                        {checked && <Check className="h-4 w-4" />}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
 
         <div>
           <Label className="text-sm font-medium text-slate-700">Notes to tournament director</Label>

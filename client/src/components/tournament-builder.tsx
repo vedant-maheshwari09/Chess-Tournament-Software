@@ -1993,13 +1993,13 @@ function StepTwo({ format, mode, builderMode, config, onConfigChange, onBack: _o
         <Card className="overflow-hidden">
           <CardContent className="p-0">
             <Tabs defaultValue="basic" className="w-full">
-            <TabsList className="flex w-full min-h-[44px] h-auto flex-wrap items-center bg-slate-100 p-1 mb-8 rounded-xl border border-slate-200/60 shadow-sm backdrop-blur-sm">
-              <TabsTrigger value="basic" className="flex-1 h-full min-h-[36px] data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-black transition-all font-medium rounded-lg px-4 text-xs xl:text-sm">Basic Info</TabsTrigger>
-              <TabsTrigger value="details" className="flex-1 h-full min-h-[36px] data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-black transition-all font-medium rounded-lg px-4 text-xs xl:text-sm">Details</TabsTrigger>
-              <TabsTrigger value="tournamentPage" className="flex-1 h-full min-h-[36px] data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-black transition-all font-medium rounded-lg px-4 text-xs xl:text-sm">Public Page</TabsTrigger>
-              <TabsTrigger value="payments" className="flex-1 h-full min-h-[36px] data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-black transition-all font-medium rounded-lg px-4 text-xs xl:text-sm">Payments</TabsTrigger>
-              <TabsTrigger value="prizes" className="flex-1 h-full min-h-[36px] data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-black transition-all font-medium rounded-lg px-4 text-xs xl:text-sm">Prizes</TabsTrigger>
-              <TabsTrigger value="options" className="flex-1 h-full min-h-[36px] data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-black transition-all font-medium rounded-lg px-4 text-xs xl:text-sm">Options</TabsTrigger>
+            <TabsList className="flex w-full min-h-[44px] h-auto flex-nowrap overflow-x-auto no-scrollbar items-center bg-slate-100 p-1 mb-8 rounded-xl border border-slate-200/60 shadow-sm backdrop-blur-sm">
+              <TabsTrigger value="basic" className="flex-none md:flex-1 h-full min-h-[36px] data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-black transition-all font-medium rounded-lg px-4 text-xs xl:text-sm">Basic Info</TabsTrigger>
+              <TabsTrigger value="details" className="flex-none md:flex-1 h-full min-h-[36px] data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-black transition-all font-medium rounded-lg px-4 text-xs xl:text-sm">Details</TabsTrigger>
+              <TabsTrigger value="tournamentPage" className="flex-none md:flex-1 h-full min-h-[36px] data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-black transition-all font-medium rounded-lg px-4 text-xs xl:text-sm">Public Page</TabsTrigger>
+              <TabsTrigger value="payments" className="flex-none md:flex-1 h-full min-h-[36px] data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-black transition-all font-medium rounded-lg px-4 text-xs xl:text-sm">Payments</TabsTrigger>
+              <TabsTrigger value="prizes" className="flex-none md:flex-1 h-full min-h-[36px] data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-black transition-all font-medium rounded-lg px-4 text-xs xl:text-sm">Prizes</TabsTrigger>
+              <TabsTrigger value="options" className="flex-none md:flex-1 h-full min-h-[36px] data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-black transition-all font-medium rounded-lg px-4 text-xs xl:text-sm">Options</TabsTrigger>
             </TabsList>
 
               <TabsContent value="basic" className="bg-white p-6 space-y-4">

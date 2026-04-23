@@ -211,18 +211,20 @@ export default function TournamentDirectorDashboard() {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <div className="bg-white dark:bg-gray-800 shadow">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between py-6">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Tournament Director Dashboard</h1>
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 text-center md:text-left py-6">
+            <div className="space-y-1">
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">Tournament Director</h1>
               <p className="text-gray-600 dark:text-gray-300">
                 Welcome back, {user?.firstName} {user?.lastName}
               </p>
             </div>
-            <div className="flex items-center gap-4">
-              <NotificationBell />
-              <SettingsMenu />
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center md:justify-end gap-3 w-full md:w-auto">
+              <div className="flex items-center justify-center gap-2 sm:gap-4 pb-1 sm:pb-0">
+                <NotificationBell />
+                <SettingsMenu />
+              </div>
               <Link href="/tournaments/new">
-                <Button className="flex items-center gap-2">
+                <Button className="flex items-center gap-2 whitespace-nowrap">
                   <Plus className="h-4 w-4" />
                   Host New Tournament
                 </Button>
@@ -235,12 +237,12 @@ export default function TournamentDirectorDashboard() {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
 
         <Tabs value={activeTab} onValueChange={(tab) => setLocation(`/dashboard/${tab}`)} className="w-full">
-          <TabsList className="grid w-full grid-cols-1 gap-3 bg-transparent sm:grid-cols-2 lg:grid-cols-4 mb-6">
+          <TabsList className="flex w-full min-h-[64px] flex-nowrap overflow-x-auto no-scrollbar items-center gap-3 bg-transparent mb-6">
             {sections.map((section) => (
               <TabsTrigger
                 key={section.key}
                 value={section.key}
-                className="flex h-full w-full flex-col items-center justify-center gap-1 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-center text-sm font-medium text-slate-600 shadow-sm transition whitespace-normal break-words data-[state=active]:border-indigo-200 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-900"
+                className="flex-none md:flex-1 flex h-full min-w-[140px] flex-col items-center justify-center gap-1 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-center text-sm font-medium text-slate-600 shadow-sm transition whitespace-nowrap data-[state=active]:border-indigo-200 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-900"
               >
                 <span className="leading-tight">{section.label}</span>
                 <span className="text-xs text-slate-500 leading-tight">{section.items.length} tournament{section.items.length === 1 ? "" : "s"}</span>

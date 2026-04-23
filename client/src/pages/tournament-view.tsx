@@ -1,43 +1,44 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation, useRoute } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Trophy, Users, Settings as SettingsIcon, Pencil, Swords } from "lucide-react";
+import { ArrowLeft, Trophy, Users, Settings as SettingsIcon, Clock as ClockIcon, Info, Share2, Facebook, Twitter, Mail, Award, Link, Swords, Pencil, Plus } from "lucide-react";
 import SwissStandings from "@/components/swiss-standings";
 import SwissPairings from "@/components/swiss-pairings";
 import RoundRobinCrosstable from "@/components/round-robin-crosstable";
 import PairingPredictor from "@/components/pairing-predictor";
 import TournamentByes from "@/components/tournament-byes";
-import { 
-  createDefaultConfig, 
-  parseTournamentConfig, 
-  formatTournamentDateRange 
+import {
+  createDefaultConfig,
+  parseTournamentConfig,
+  formatTournamentDateRange
 } from "@/lib/tournament-config";
 import { renderTournamentPageContent } from "@/lib/tournament-page";
-import { Clock as ClockIcon, Info, Share2, Facebook, Twitter, Mail, Award, Link } from "lucide-react";
 import TournamentCountdown from "@/components/tournament-countdown";
-import type { Tournament } from "@shared/schema";
+import type { Tournament, Player, PlayerRegistration } from "@shared/schema";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
-import type { PlayerRegistration } from "@shared/schema";
 import { RegistrationStatusCard } from "@/components/registration-status-card";
 import KnockoutBracket from "@/components/knockout-bracket";
 import { cn } from "@/lib/utils";
-import { ArenaLobby, ArenaActiveMatches, ArenaStandings, ArenaTimer, TournamentHistory } from "@/components/arena-ui";
+import { ArenaLobby, ArenaActiveMatches, ArenaStandings, ArenaTimer } from "@/components/arena-ui";
+import PlayerManager from "@/components/player-manager";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
-
-type TabKey = "pairings" | "standings" | "byes" | "predictor" | "info" | "lobby";
+type TabKey = "pairings" | "standings" | "byes" | "predictor" | "info" | "lobby" | "players" | "bracket";
 
 const TAB_LABELS: Record<TabKey, string> = {
-  lobby: "Lobby",
+  lobby: "Arena",
   pairings: "Pairings",
   standings: "Standings",
   byes: "Byes",
   predictor: "Pairing Predictor",
-  info: "Info",
+  info: "Information",
+  players: "Players",
+  bracket: "Bracket",
 };
 
 interface TournamentViewProps {
@@ -47,12 +48,16 @@ interface TournamentViewProps {
 export default function TournamentView({ tournamentId }: TournamentViewProps) {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const { user } = useAuth();
   const [match, params] = useRoute("/tournaments/:id/:tab");
-  const tabParam = match && params?.tab ? (params.tab as TabKey) : "pairings";
-  const { user, isLoading: authLoading } = useAuth();
+  const tabParam = (params?.tab as TabKey) || "info";
 
   const { data: tournament, isLoading: tournamentLoading } = useQuery<Tournament>({
     queryKey: [`/api/tournaments/${tournamentId}`],
+  });
+
+  const { data: allPlayers = [] } = useQuery<Player[]>({
+    queryKey: [`/api/tournaments/${tournamentId}/players`],
   });
 
   const { data: registrations } = useQuery<PlayerRegistration[]>({
@@ -64,52 +69,46 @@ export default function TournamentView({ tournamentId }: TournamentViewProps) {
     registrations?.filter(r => r.tournamentId === tournamentId) || [],
     [registrations, tournamentId]
   );
-  
+
   const hasRegistration = myRegistrations.length > 0;
 
-  const config = useMemo(
-    () => (tournament ? parseTournamentConfig(tournament) : createDefaultConfig("swiss")),
-    [tournament],
-  );
+  const config = useMemo(() => (tournament ? parseTournamentConfig(tournament) : createDefaultConfig("swiss")), [tournament]);
   const dateRange = tournament ? formatTournamentDateRange(tournament.startDate, tournament.endDate) : "";
-  const location = tournament?.location || "TBD";
-  const tournamentPageContent = config.tournamentPageContent?.trim() ?? "";
+  const tournamentHasStarted = tournament && ((tournament.currentRound ?? 0) > 0 || tournament.status === "active" || tournament.status === "completed");
   const predictorEnabled = Boolean(config.registers?.enablePairingPredictor);
-  const tournamentHasStarted = Boolean(
-    tournament &&
-    ((tournament.currentRound ?? 0) > 0 || tournament.status === "active" || tournament.status === "completed"),
-  );
+  const showPredictor = predictorEnabled && (tournament?.format ?? config.format) === "swiss" && tournamentHasStarted;
   const isArena = tournament?.format === "arena";
-  const showPredictor =
-    predictorEnabled && (tournament?.format ?? config.format) === "swiss" && tournamentHasStarted;
 
-  const availableTabs = useMemo<TabKey[]>(
-    () => {
-      const tabs: TabKey[] = [];
-      if (isArena) {
-        tabs.push("lobby");
-        // Remove "standings" for Arena as it's now integrated into Lobby
-      }
-      tabs.push("pairings");
-      if (!isArena) {
-        tabs.push("standings");
-        tabs.push("byes");
-      }
+  const availableTabs = useMemo<TabKey[]>(() => {
+    if (tournament?.format === "knockout") {
+      return ["players", "pairings", "bracket", "info"];
+    } else if (tournament?.format === "swiss") {
+      const tabs: TabKey[] = ["standings", "pairings"];
       if (showPredictor) tabs.push("predictor");
-      tabs.push("info");
+      tabs.push("byes", "info");
       return tabs;
-    },
-    [showPredictor, isArena]
-  );
+    } else if (tournament?.format === "arena") {
+      return ["players", "lobby", "standings", "info"];
+    } else if (tournament?.format === "roundrobin") {
+      return ["standings", "pairings", "byes", "info"];
+    }
+    return ["standings", "pairings", "byes", "info"];
+  }, [tournament?.format, showPredictor]);
 
-  const activeTab = useMemo(() => {
-    return availableTabs.includes(tabParam) ? tabParam : availableTabs[0];
-  }, [availableTabs, tabParam]);
+  const activeTab = availableTabs.includes(tabParam) ? tabParam : availableTabs[0];
+  const infoHtml = useMemo(() => (config.tournamentPageContent ? renderTournamentPageContent(config.tournamentPageContent) : ""), [config.tournamentPageContent]);
 
-  const infoHtml = useMemo(
-    () => (tournamentPageContent ? renderTournamentPageContent(tournamentPageContent) : ""),
-    [tournamentPageContent],
-  );
+  const handleRegister = () => {
+    if (!user) {
+      toast({
+        title: "Please log in",
+        description: "You must be logged in to register for a tournament.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setLocation(`/tournaments/${tournamentId}/register`);
+  };
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(window.location.href);
@@ -119,12 +118,12 @@ export default function TournamentView({ tournamentId }: TournamentViewProps) {
     });
   };
 
-  if (tournamentLoading || authLoading) {
+  if (tournamentLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-950">
         <div className="text-center">
-          <div className="mx-auto h-8 w-8 animate-spin rounded-full border-b-2 border-blue-600" />
-          <p className="mt-2 text-gray-600">Loading tournament...</p>
+          <div className="mx-auto h-12 w-12 animate-spin rounded-full border-b-2 border-indigo-600" />
+          <p className="mt-4 text-slate-600 dark:text-slate-400 font-medium">Loading tournament...</p>
         </div>
       </div>
     );
@@ -132,13 +131,13 @@ export default function TournamentView({ tournamentId }: TournamentViewProps) {
 
   if (!tournament) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <Card className="w-96">
-          <CardContent className="pt-6 text-center">
-            <Trophy className="mx-auto mb-4 h-12 w-12 text-gray-400" />
-            <h3 className="mb-2 text-lg font-semibold">Tournament Not Found</h3>
-            <p className="mb-4 text-gray-600">The tournament you're looking for doesn't exist.</p>
-            <Button onClick={() => setLocation("/")}>Back to Dashboard</Button>
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-950">
+        <Card className="w-full max-w-md border-none shadow-xl">
+          <CardContent className="pt-8 pb-8 text-center">
+            <Trophy className="mx-auto mb-6 h-16 w-16 text-slate-200" />
+            <h3 className="mb-2 text-2xl font-bold text-slate-900 dark:text-white">Tournament Not Found</h3>
+            <p className="mb-8 text-slate-500 dark:text-slate-400">The tournament you're looking for doesn't exist or has been moved.</p>
+            <Button onClick={() => setLocation("/")} className="w-full bg-indigo-600 hover:bg-indigo-700">Back to Dashboard</Button>
           </CardContent>
         </Card>
       </div>
@@ -146,141 +145,115 @@ export default function TournamentView({ tournamentId }: TournamentViewProps) {
   }
 
   const canManageTournament = Boolean(user && user.role === "tournament_director");
-  const theme = config.publicPage?.theme || "professional";
-  
-  const themeClasses = cn(
-    "min-h-screen transition-colors duration-500",
-    theme === "professional" && "bg-slate-50 dark:bg-slate-950",
-    theme === "vibrant" && "bg-blue-50/50 dark:bg-indigo-950/20",
-    theme === "dark" && "bg-slate-950 text-slate-100",
-    theme === "glass" && "bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-slate-950 dark:to-indigo-950"
-  );
-
-  const bannerUrl = config.publicPage?.bannerUrl;
 
   return (
-    <div className={themeClasses}>
-      {bannerUrl && (
-        <div className="relative h-64 md:h-80 w-full overflow-hidden">
-          <img 
-            src={bannerUrl} 
-            alt={tournament.name} 
-            className="w-full h-full object-cover"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex items-end">
-            <div className="mx-auto max-w-7xl w-full px-4 py-8 sm:px-6 lg:px-8">
-              <h1 className="text-3xl md:text-5xl font-extrabold text-white tracking-tight drop-shadow-md">
-                {tournament.name}
-              </h1>
-            </div>
-          </div>
+    <div className="min-h-screen bg-slate-50/50 pb-12 dark:bg-slate-950">
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 space-y-8">
+        {/* Navigation */}
+        <div className="flex items-center justify-between">
+          <Button
+            variant="ghost"
+            onClick={() => setLocation("/")}
+            className="flex items-center gap-2 text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to Home
+          </Button>
         </div>
-      )}
 
-      <div className="bg-white shadow dark:bg-gray-800">
-        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <Button variant="ghost" onClick={() => setLocation("/")} className="flex items-center gap-2">
-                <ArrowLeft className="h-4 w-4" />
-                Back to Tournaments
-              </Button>
-              <div>
-                {!bannerUrl && <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{tournament.name}</h1>}
-                <p className="text-gray-600 dark:text-gray-300">
-                  {tournament.format === "swiss" ? "Swiss System" : tournament.format === "arena" ? "Arena" : tournament.format.charAt(0).toUpperCase() + tournament.format.slice(1)} • {isArena ? `${tournament.arenaDuration || 0} mins` : `${tournament.rounds} rounds`}
-                </p>
+        {/* Hero Section */}
+        <Card className="overflow-hidden border-none shadow-xl shadow-slate-200/50 dark:bg-slate-900">
+          {config.publicPage?.bannerUrl && (
+            <div className="h-48 sm:h-64 w-full overflow-hidden relative">
+              <img src={config.publicPage.bannerUrl} className="w-full h-full object-cover" alt={tournament.name} />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex items-end p-8">
+                <h1 className="text-3xl sm:text-4xl font-bold text-white tracking-tight">{tournament.name}</h1>
               </div>
             </div>
-            <div className="flex items-center gap-4 flex-wrap">
-              <Badge variant={tournament.status === "active" ? "default" : tournament.status === "completed" ? "secondary" : "outline"} className={
-                tournament.status === "upcoming" ? "bg-blue-100 text-blue-800 border-none hover:bg-blue-100" : ""
-              }>
-                {tournament.status.charAt(0).toUpperCase() + tournament.status.slice(1)}
-              </Badge>
+          )}
+          <CardContent className={cn("p-6 sm:p-8", !config.publicPage?.bannerUrl && "pt-8")}>
+            {!config.publicPage?.bannerUrl && <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2 text-center md:text-left tracking-tight">{tournament.name}</h1>}
+            <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+              <div className="space-y-1 text-center md:text-left">
+                <p className="text-slate-600 dark:text-slate-300 font-medium">
+                  {tournament.format === "swiss" ? "Swiss System" :
+                   tournament.format === "arena" ? "Arena" :
+                   tournament.format === "knockout" ? "Knockout" :
+                   tournament.format.charAt(0).toUpperCase() + tournament.format.slice(1)}
+                  {" • "}
+                  {tournament.format === "knockout"
+                    ? `${allPlayers.length} players`
+                    : tournament.format === "arena"
+                      ? `${tournament.status === "completed" ? "Completed Arena " : ""}${allPlayers.length} players • ${tournament.arenaDuration || 0} mins`
+                      : `${tournament.rounds} rounds`}
+                </p>
+                <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 text-sm text-slate-500 dark:text-slate-400 mt-2">
+                  <span className="flex items-center gap-1.5"><ClockIcon className="h-4 w-4" /> {dateRange}</span>
+                  <span className="flex items-center gap-1.5"><Trophy className="h-4 w-4" /> {allPlayers.length} Players</span>
+                </div>
+              </div>
 
-              {(tournament.status === "upcoming" || tournament.status === "registration" || tournament.status === "active") && (
-                hasRegistration ? (
-                  config.registers.allowEditRegistration && (
-                    <Button
-                      onClick={() => setLocation(`/tournaments/${tournamentId}/register?edit=true`)}
-                      variant="outline"
-                      className="border-blue-500 text-blue-600 hover:bg-blue-50 font-semibold"
-                    >
-                      <Pencil className="mr-2 h-4 w-4" />
-                      Edit Registration
+              <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+                <Badge
+                  variant={tournament.status === "active" ? "default" : tournament.status === "completed" ? "secondary" : "outline"}
+                  className={cn(
+                    "px-4 py-1 text-xs font-bold uppercase tracking-wider rounded-full border-none",
+                    (tournament.status === "upcoming" || tournament.status === "registration" || tournament.status === "draft") && "bg-blue-100 text-blue-800 hover:bg-blue-100",
+                    tournament.status === "active" && "bg-green-100 text-green-800 hover:bg-green-100",
+                    tournament.status === "completed" && "bg-slate-100 text-slate-600 hover:bg-slate-100"
+                  )}
+                >
+                  {tournament.status === "upcoming" || tournament.status === "registration" || tournament.status === "draft" ? "Upcoming" :
+                   tournament.status === "active" ? "Live" :
+                   tournament.status === "completed" ? "Past" :
+                   tournament.status.charAt(0).toUpperCase() + tournament.status.slice(1)}
+                </Badge>
+
+                {(tournament.status === "upcoming" || tournament.status === "registration") && (
+                  hasRegistration ? (
+                    config.registers?.allowEditRegistration && (
+                      <Button
+                        onClick={() => setLocation(`/tournaments/${tournamentId}/register?edit=true`)}
+                        variant="outline"
+                        className="w-full sm:w-auto rounded-full border-blue-500 text-blue-600 hover:bg-blue-50 font-bold"
+                      >
+                        <Pencil className="mr-2 h-4 w-4" />
+                        Edit Registration
+                      </Button>
+                    )
+                  ) : (
+                    <Button className="w-full sm:w-auto gap-2 bg-indigo-600 hover:bg-indigo-700 shadow-md" onClick={handleRegister}>
+                      <Plus className="h-4 w-4" />
+                      Register Now
                     </Button>
                   )
-                ) : (
+                )}
+
+                {canManageTournament && (
                   <Button
-                    onClick={() => setLocation(`/tournaments/${tournamentId}/register`)}
-                    className="bg-blue-500 hover:bg-blue-600 text-white font-semibold shadow-sm shadow-blue-200"
+                    variant="outline"
+                    onClick={() => setLocation(`/tournaments/${tournamentId}/manage`)}
+                    className="rounded-full border-slate-200 font-bold"
                   >
-                    <Trophy className="mr-2 h-4 w-4" />
-                    Register
+                    <SettingsIcon className="h-4 w-4 mr-2" />
+                    Manage
                   </Button>
-                )
-              )}
-
-              {canManageTournament && (
-                <Button
-                  variant="outline"
-                  onClick={() => setLocation(`/tournaments/${tournamentId}/actions`)}
-                  className="flex items-center gap-2"
-                >
-                  <SettingsIcon className="h-4 w-4" />
-                  Settings
-                </Button>
-              )}
+                )}
+              </div>
             </div>
-          </div>
-        </div>
-      </div>
+          </CardContent>
+        </Card>
 
-      <style dangerouslySetInnerHTML={{ __html: `
-        :root {
-          ${config.publicPage?.customAccentColor ? `--primary: ${config.publicPage.customAccentColor};` : ''}
-        }
-      `}} />
-
-      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        {config.publicPage?.announcement && (
-          <div className="mb-6 bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-lg shadow-sm flex items-start gap-3 animate-in fade-in slide-in-from-top-2 duration-700">
-             <div className="bg-amber-100 p-2 rounded-full">
-               <Info className="h-5 w-5 text-amber-600" />
-             </div>
-             <div>
-               <h4 className="text-sm font-bold text-amber-800 uppercase tracking-tight">Announcement</h4>
-               <p className="text-amber-900 mt-1 font-medium">{config.publicPage.announcement}</p>
-             </div>
-          </div>
-        )}
-
-        {isArena && tournament && (
-          <div className="mb-6 flex justify-center">
-            <ArenaTimer tournament={tournament} />
-          </div>
-        )}
-        {hasRegistration && (
-          <div className="mb-6">
-            <h2 className="text-base font-semibold text-gray-900 dark:text-white mb-3">Registration Status</h2>
-            <RegistrationStatusCard registrations={myRegistrations} />
-          </div>
-        )}
-        <Tabs value={activeTab} onValueChange={(value) => setLocation(`/tournaments/${tournamentId}/${value}`)} className="w-full">
-          <TabsList className={cn(
-            "grid w-full items-stretch gap-0 overflow-hidden rounded-xl border border-slate-200 bg-white p-0",
-            availableTabs.length === 3 ? "grid-cols-3" : 
-            availableTabs.length === 4 ? "grid-cols-4" : 
-            availableTabs.length === 5 ? "grid-cols-5" : "grid-cols-6"
-          )}>
+        {/* Tabs Navigation */}
+        <Tabs value={activeTab} onValueChange={(v) => setLocation(`/tournaments/${tournamentId}/${v}`)} className="w-full">
+          <TabsList className="flex w-full min-h-[48px] h-auto overflow-x-auto no-scrollbar flex-nowrap items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200/60 shadow-sm backdrop-blur-sm">
             {availableTabs.map((tab) => (
-              <TabsTrigger 
-                key={tab} 
-                value={tab} 
+              <TabsTrigger
+                key={tab}
+                value={tab}
                 className={cn(
-                  "flex h-full w-full items-center justify-center gap-2 px-6 py-4 text-center text-sm font-semibold text-slate-600 transition",
-                  "data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-900 data-[state=active]:shadow-none data-[state=active]:rounded-none"
+                  "flex-none md:flex-1 h-full min-h-[38px] min-w-[90px] flex items-center justify-center gap-2 px-3 sm:px-6 rounded-lg text-center text-xs sm:text-sm font-semibold text-slate-500 transition-all whitespace-nowrap",
+                  "data-[state=active]:bg-white data-[state=active]:text-black data-[state=active]:shadow-sm"
                 )}
               >
                 {TAB_LABELS[tab]}
@@ -288,27 +261,29 @@ export default function TournamentView({ tournamentId }: TournamentViewProps) {
             ))}
           </TabsList>
 
-          {isArena && (
-            <>
-              <TabsContent value="lobby" className="mt-6">
-                <ArenaLobby tournamentId={tournamentId} isTD={canManageTournament} userId={user?.id} />
-              </TabsContent>
-            </>
-          )}
+          <TabsContent value="players" className="mt-8">
+            <PlayerManager 
+              tournament={tournament} 
+              tournamentId={tournamentId} 
+              isTD={false} 
+            />
+          </TabsContent>
 
-          <TabsContent value="pairings" className="mt-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  {isArena ? <Swords className="h-5 w-5 text-blue-500" /> : <Users className="h-5 w-5 border-blue-500" />}
-                  <span>{isArena ? "Active Arena Matches" : "Current Pairings"}</span>
+          <TabsContent value="lobby" className="mt-8">
+            <ArenaLobby tournamentId={tournamentId} isTD={false} userId={user?.id} />
+          </TabsContent>
+
+          <TabsContent value="pairings" className="mt-8">
+            <Card className="border-none shadow-sm dark:bg-slate-900">
+              <CardHeader className="border-b border-slate-100 dark:border-slate-800">
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  {isArena ? <Swords className="h-5 w-5 text-indigo-500" /> : <Users className="h-5 w-5 text-indigo-500" />}
+                  <span>{isArena ? "Active Arena Matches" : "Pairings"}</span>
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                {tournament.format === 'knockout' ? (
-                  <KnockoutBracket tournamentId={tournamentId} />
-                ) : tournament.format === 'arena' ? (
-                  <ArenaActiveMatches tournamentId={tournamentId} isTD={canManageTournament} userId={user?.id} />
+              <CardContent className="p-6">
+                {isArena ? (
+                  <ArenaActiveMatches tournamentId={tournamentId} isTD={false} userId={user?.id} />
                 ) : (
                   <SwissPairings tournamentId={tournamentId} activeSection="all" showExportControls={false} />
                 )}
@@ -316,163 +291,95 @@ export default function TournamentView({ tournamentId }: TournamentViewProps) {
             </Card>
           </TabsContent>
 
-          <TabsContent value="standings" className="mt-6">
+          <TabsContent value="standings" className="mt-8">
             {tournament.format === "roundrobin" ? (
               <RoundRobinCrosstable tournamentId={tournamentId} />
             ) : tournament.format === "swiss" ? (
               <SwissStandings tournamentId={tournamentId} showExportControls={false} />
             ) : tournament.format === "arena" ? (
-              <ArenaStandings tournamentId={tournamentId} isTD={canManageTournament} userId={user?.id} />
+              <ArenaStandings tournamentId={tournamentId} isTD={false} userId={user?.id} />
             ) : (
-              <Card>
+              <Card className="border-none shadow-sm">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <Trophy className="h-5 w-5" />
-                    <span>Tournament Standings</span>
-                  </CardTitle>
+                  <CardTitle className="text-lg">Tournament Standings</CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-gray-600">Standings for this tournament format coming soon.</p>
+                <CardContent className="py-12 text-center text-slate-500">
+                  Standings for this tournament format coming soon.
                 </CardContent>
               </Card>
             )}
           </TabsContent>
 
-          {!isArena && (
-            <TabsContent value="byes" className="mt-6">
-              <TournamentByes tournamentId={tournamentId} />
+          <TabsContent value="bracket" className="mt-8">
+            <Card className="border-none shadow-sm dark:bg-slate-900">
+              <CardHeader className="border-b border-slate-100 dark:border-slate-800">
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <Trophy className="h-5 w-5 text-amber-500" />
+                  <span>Knockout Bracket</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-6 overflow-x-auto">
+                <KnockoutBracket tournamentId={tournamentId} />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="byes" className="mt-8">
+            <TournamentByes tournamentId={tournamentId} />
+          </TabsContent>
+
+          {showPredictor && (
+            <TabsContent value="predictor" className="mt-8">
+              <PairingPredictor tournamentId={tournamentId} tournament={tournament} />
             </TabsContent>
           )}
 
-          {showPredictor ? (
-            <TabsContent value="predictor" className="mt-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <Users className="h-5 w-5" />
-                    <span>Pairing Predictor</span>
+          <TabsContent value="info" className="mt-8">
+            <div className="max-w-5xl mx-auto space-y-8">
+              <Card className="border-none shadow-sm dark:bg-slate-900">
+                <CardHeader className="border-b border-slate-100 dark:border-slate-800">
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <Info className="h-5 w-5 text-indigo-500" />
+                    <span>About the Tournament</span>
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <PairingPredictor tournamentId={tournamentId} tournament={tournament} />
+                <CardContent className="p-8">
+                  {infoHtml ? (
+                    <div className="tournament-content prose prose-slate max-w-none dark:prose-invert" dangerouslySetInnerHTML={{ __html: infoHtml }} />
+                  ) : (
+                    <div className="text-center py-12 text-slate-400">
+                      <Info className="h-12 w-12 mx-auto mb-4 opacity-20" />
+                      <p>No information available for this tournament.</p>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
-            </TabsContent>
-          ) : null}
 
-          <TabsContent value="info" className="mt-6">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2 space-y-6">
-                <Card className={cn(theme === "glass" && "bg-white/70 backdrop-blur-md border-white/20 shadow-xl")}>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-base">
-                      <Trophy className="h-5 w-5 text-indigo-500" />
-                      <span>About the Tournament</span>
+              {config.publicPage?.showPrizeFund && config.prizes && config.prizes.length > 0 && (
+                <Card className="border-none shadow-sm dark:bg-slate-900">
+                  <CardHeader className="border-b border-slate-100 dark:border-slate-800">
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                      <Award className="h-5 w-5 text-amber-500" />
+                      <span>Prizes & Awards</span>
                     </CardTitle>
                   </CardHeader>
-                  <CardContent>
-                    {infoHtml ? (
-                      <div className="tournament-content prose prose-slate max-w-none dark:prose-invert" dangerouslySetInnerHTML={{ __html: infoHtml }} />
-                    ) : (
-                      <div className="text-center py-12 text-slate-500">
-                        <Info className="h-12 w-12 mx-auto mb-4 opacity-20" />
-                        <p>The tournament director has not published public page content yet.</p>
-                      </div>
-                    )}
+                  <CardContent className="p-8">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {config.prizes.map((prize, idx) => (
+                        <div key={idx} className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700">
+                          <div className="flex items-center gap-3">
+                            <div className="bg-white dark:bg-slate-900 p-2 rounded-xl shadow-sm">
+                              <Trophy className={cn("h-4 w-4", idx === 0 ? "text-amber-500" : idx === 1 ? "text-slate-400" : "text-amber-700")} />
+                            </div>
+                            <span className="font-bold text-slate-800 dark:text-slate-200">{prize.place}</span>
+                          </div>
+                          <span className="text-xl font-black text-indigo-600 dark:text-indigo-400">${prize.amount}</span>
+                        </div>
+                      ))}
+                    </div>
                   </CardContent>
                 </Card>
-
-
-                {config.publicPage?.showPrizeFund && config.prizes && config.prizes.length > 0 && (
-                  <Card className={cn(theme === "glass" && "bg-white/70 backdrop-blur-md border-white/20 shadow-xl")}>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2 text-base">
-                        <Award className="h-5 w-5 text-amber-500" />
-                        <span>Prizes & Awards</span>
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {config.prizes.map((prize, idx) => (
-                          <div key={idx} className="flex items-center justify-between p-4 rounded-xl bg-slate-50 border border-slate-100 shadow-sm">
-                            <div className="flex items-center gap-3">
-                              <div className="bg-white p-2 rounded-lg shadow-sm">
-                                <Trophy className={cn("h-4 w-4", idx === 0 ? "text-amber-500" : idx === 1 ? "text-slate-400" : "text-amber-700")} />
-                              </div>
-                              <span className="font-semibold text-slate-800">{prize.place}</span>
-                            </div>
-                            <span className="text-lg font-bold text-emerald-600">${prize.amount}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-
-
-              </div>
-
-              <div className="space-y-6">
-                {config.publicPage?.showCountdown && !tournamentHasStarted && tournament.startDate && (
-                  <Card className="bg-indigo-600 text-white overflow-hidden border-none shadow-lg shadow-indigo-200">
-                    <CardContent className="p-6">
-                      <h3 className="text-sm font-bold uppercase tracking-wider opacity-80 mb-4 flex items-center gap-2">
-                        <ClockIcon className="h-4 w-4" />
-                        Event Starts In
-                      </h3>
-                      <TournamentCountdown targetDate={tournament.startDate} />
-                    </CardContent>
-                  </Card>
-                )}
-
-
-                {config.publicPage?.showSocialSharing && (
-                  <Card className={cn(theme === "glass" && "bg-white/70 backdrop-blur-md border-white/20")}>
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm font-bold flex items-center gap-2">
-                        <Share2 className="h-4 w-4 text-blue-500" />
-                        Spread the Word
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex gap-2">
-                        <Button 
-                          variant="outline" 
-                          size="icon" 
-                          className="rounded-full hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200"
-                          onClick={() => window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(window.location.href)}`, '_blank')}
-                        >
-                          <Facebook className="h-4 w-4" />
-                        </Button>
-                        <Button 
-                          variant="outline" 
-                          size="icon" 
-                          className="rounded-full hover:bg-sky-50 hover:text-sky-600 hover:border-sky-200"
-                          onClick={() => window.open(`https://twitter.com/intent/tweet?url=${encodeURIComponent(window.location.href)}&text=${encodeURIComponent('Check out this chess tournament: ' + tournament.name)}`, '_blank')}
-                        >
-                          <Twitter className="h-4 w-4" />
-                        </Button>
-                        <Button 
-                          variant="outline" 
-                          size="icon" 
-                          className="rounded-full hover:bg-red-50 hover:text-red-600 hover:border-red-200"
-                          onClick={() => window.open(`mailto:?subject=${encodeURIComponent(tournament.name)}&body=${encodeURIComponent('Check out this chess tournament: ' + window.location.href)}`, '_blank')}
-                        >
-                          <Mail className="h-4 w-4" />
-                        </Button>
-                        <Button 
-                          variant="outline" 
-                          className="rounded-full flex-1 gap-2 text-xs font-bold uppercase tracking-wider"
-                          onClick={handleCopyLink}
-                        >
-                          <Link className="h-3 w-3" />
-                          Copy Link
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-              </div>
+              )}
             </div>
           </TabsContent>
         </Tabs>
