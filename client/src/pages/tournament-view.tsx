@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation, useRoute } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -98,6 +98,12 @@ export default function TournamentView({ tournamentId }: TournamentViewProps) {
   const activeTab = availableTabs.includes(tabParam) ? tabParam : availableTabs[0];
   const infoHtml = useMemo(() => (config.tournamentPageContent ? renderTournamentPageContent(config.tournamentPageContent) : ""), [config.tournamentPageContent]);
 
+  const [activeRoundSection, setActiveRoundSection] = useState<string>("all");
+
+  const sections = useMemo(() => {
+    return (config.sections || []).filter((s: any) => s.name.trim().length > 0);
+  }, [config.sections]);
+
   const handleRegister = () => {
     if (!user) {
       toast({
@@ -177,9 +183,9 @@ export default function TournamentView({ tournamentId }: TournamentViewProps) {
               <div className="space-y-1 text-center md:text-left">
                 <p className="text-slate-600 dark:text-slate-300 font-medium">
                   {tournament.format === "swiss" ? "Swiss System" :
-                   tournament.format === "arena" ? "Arena" :
-                   tournament.format === "knockout" ? "Knockout" :
-                   tournament.format.charAt(0).toUpperCase() + tournament.format.slice(1)}
+                    tournament.format === "arena" ? "Arena" :
+                      tournament.format === "knockout" ? "Knockout" :
+                        tournament.format.charAt(0).toUpperCase() + tournament.format.slice(1)}
                   {" • "}
                   {tournament.format === "knockout"
                     ? `${allPlayers.length} players`
@@ -204,9 +210,9 @@ export default function TournamentView({ tournamentId }: TournamentViewProps) {
                   )}
                 >
                   {tournament.status === "upcoming" || tournament.status === "registration" || tournament.status === "draft" ? "Upcoming" :
-                   tournament.status === "active" ? "Live" :
-                   tournament.status === "completed" ? "Past" :
-                   tournament.status.charAt(0).toUpperCase() + tournament.status.slice(1)}
+                    tournament.status === "active" ? "Live" :
+                      tournament.status === "completed" ? "Past" :
+                        tournament.status.charAt(0).toUpperCase() + tournament.status.slice(1)}
                 </Badge>
 
                 {(tournament.status === "upcoming" || tournament.status === "registration") && (
@@ -262,10 +268,10 @@ export default function TournamentView({ tournamentId }: TournamentViewProps) {
           </TabsList>
 
           <TabsContent value="players" className="mt-8">
-            <PlayerManager 
-              tournament={tournament} 
-              tournamentId={tournamentId} 
-              isTD={false} 
+            <PlayerManager
+              tournament={tournament}
+              tournamentId={tournamentId}
+              isTD={false}
             />
           </TabsContent>
 
@@ -285,7 +291,36 @@ export default function TournamentView({ tournamentId }: TournamentViewProps) {
                 {isArena ? (
                   <ArenaActiveMatches tournamentId={tournamentId} isTD={false} userId={user?.id} />
                 ) : (
-                  <SwissPairings tournamentId={tournamentId} activeSection="all" showExportControls={false} />
+                  <div className="space-y-4">
+                    {sections.length > 0 && (
+                      <div className="flex w-full items-center justify-end overflow-x-auto no-scrollbar gap-2 pb-2">
+                        <Button
+                          variant={activeRoundSection === "all" ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => setActiveRoundSection("all")}
+                          className={activeRoundSection === "all" ? "bg-blue-600 hover:bg-blue-700" : ""}
+                        >
+                          All Sections
+                        </Button>
+                        {(sections as any[]).map((section) => (
+                          <Button
+                            key={section.id}
+                            variant={activeRoundSection === section.id ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => setActiveRoundSection(section.id)}
+                            className={activeRoundSection === section.id ? "bg-blue-600 hover:bg-blue-700 whitespace-nowrap" : "whitespace-nowrap"}
+                          >
+                            {section.name}
+                          </Button>
+                        ))}
+                      </div>
+                    )}
+                    <SwissPairings 
+                      tournamentId={tournamentId} 
+                      activeSection={activeRoundSection} 
+                      showExportControls={false} 
+                    />
+                  </div>
                 )}
               </CardContent>
             </Card>

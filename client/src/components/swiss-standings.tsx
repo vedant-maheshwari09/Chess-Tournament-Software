@@ -17,15 +17,15 @@ interface PlayerRoundResult {
   opponent: Player | null;
   opponentPosition: number;
   result:
-    | 'W'
-    | 'L'
-    | 'D'
-    | 'bye'
-    | 'withdrawn'
-    | 'forfeit-win'
-    | 'forfeit-loss'
-    | 'unplayed'
-    | 'double-forfeit';
+  | 'W'
+  | 'L'
+  | 'D'
+  | 'bye'
+  | 'withdrawn'
+  | 'forfeit-win'
+  | 'forfeit-loss'
+  | 'unplayed'
+  | 'double-forfeit';
   color: 'white' | 'black' | null;
   points: number;
 }
@@ -222,7 +222,7 @@ export default function SwissStandings({ tournamentId, showExportControls = true
         "Modified Median": (playerId) => {
           const scores = getOpponentScores(playerId);
           if (scores.length <= 2) return scores.reduce((sum, s) => sum + s, 0);
-          
+
           const sorted = [...scores].sort((a, b) => a - b);
           // Standard implementation: exclude lowest if < 9 rounds, highest and lowest if 9+
           if (totalRounds < 9) {
@@ -334,7 +334,7 @@ export default function SwissStandings({ tournamentId, showExportControls = true
       });
 
       // Get active tiebreakers
-      const activeTiebreakRules = tournamentConfig?.details.tiebreaksEnabled 
+      const activeTiebreakRules = tournamentConfig?.details.tiebreaksEnabled
         ? (tournamentConfig.details.tiebreaks || [])
         : [];
 
@@ -509,8 +509,8 @@ export default function SwissStandings({ tournamentId, showExportControls = true
       const baseData = [
         standing.position,
         `${standing.player.firstName} ${standing.player.lastName}`,
-        (tournamentConfig?.details.primaryRatingSystem === 'fide' 
-          ? (standing.player.fideRating ?? standing.player.rating) 
+        (tournamentConfig?.details.primaryRatingSystem === 'fide'
+          ? (standing.player.fideRating ?? standing.player.rating)
           : (standing.player.uscfRating ?? standing.player.rating)) || 'Unrated',
         formatPoints(standing),
       ];
@@ -622,11 +622,11 @@ export default function SwissStandings({ tournamentId, showExportControls = true
     if (result.result === 'bye') {
       return 'bye';
     }
-    
+
     if (result.result === 'unplayed') {
       return `U${result.points}`;
     }
-    
+
     if (result.result === 'withdrawn') {
       return round <= currentRound ? '---' : '';
     }
@@ -641,7 +641,7 @@ export default function SwissStandings({ tournamentId, showExportControls = true
     if (result.result === 'forfeit-win') {
       return `X${opponentPos}`;
     }
-    
+
     if (result.result === 'forfeit-loss') {
       return `F${opponentPos}`;
     }
@@ -657,11 +657,11 @@ export default function SwissStandings({ tournamentId, showExportControls = true
     if (result.result === 'bye') {
       return 'bye';
     }
-    
+
     if (result.result === 'unplayed') {
       return `U${result.points}`;
     }
-    
+
     if (result.result === 'withdrawn') {
       return '---';
     }
@@ -671,14 +671,14 @@ export default function SwissStandings({ tournamentId, showExportControls = true
     }
 
     const colorPrefix = result.color === 'white' ? 'W' : 'B';
-    
+
     // Show "TD" instead of position number if opponent is the houseplayer
     const opponentDisplayText = result.opponent?.isActiveTd ? 'TD' : result.opponentPosition;
 
     if (result.result === 'forfeit-win') {
       return `X${opponentDisplayText}`;
     }
-    
+
     if (result.result === 'forfeit-loss') {
       return `F${opponentDisplayText}`;
     }
@@ -801,8 +801,8 @@ export default function SwissStandings({ tournamentId, showExportControls = true
                         )}
                       </div>
                       <div className="text-xs text-gray-500">
-                        {tournamentConfig?.details.primaryRatingSystem === 'fide' 
-                          ? (standing.player.fideRating ?? standing.player.rating) 
+                        {tournamentConfig?.details.primaryRatingSystem === 'fide'
+                          ? (standing.player.fideRating ?? standing.player.rating)
                           : (standing.player.uscfRating ?? standing.player.rating)}{" "}
                         {standing.player.federation}
                       </div>
@@ -821,7 +821,7 @@ export default function SwissStandings({ tournamentId, showExportControls = true
                       const cumulativePoints = standing.roundResults
                         .slice(0, roundIndex + 1)
                         .reduce((sum, r) => sum + r.points, 0);
-                      
+
                       return (
                         <td key={roundIndex} className="px-2 py-3 whitespace-nowrap text-center">
                           <div className="text-xs text-gray-900">

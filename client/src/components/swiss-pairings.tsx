@@ -1194,27 +1194,8 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
                               );
                             })()}
                           </h3>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => toggleRoundCollapse(round)}
-                            className="h-8 px-2 text-slate-500 hover:text-slate-900"
-                          >
-                            {isCollapsed ? (
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-xs font-medium uppercase tracking-wider">Expand</span>
-                                <ChevronDown className="h-4 w-4" />
-                              </div>
-                            ) : (
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-xs font-medium uppercase tracking-wider">Collapse</span>
-                                <ChevronUp className="h-4 w-4" />
-                              </div>
-                            )}
-                          </Button>
                         </div>
-                        {!isCollapsed && (
-                          <div className="overflow-x-auto">
+                        <div className="overflow-x-auto">
                             <table className="min-w-full divide-y divide-gray-200">
                               <thead className="bg-gray-50">
                                 <tr>
@@ -1289,8 +1270,7 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
                               </tbody>
                             </table>
                           </div>
-                        )}
-                      </div>
+                        </div>
                     );
                   })}
                 </div>
@@ -1473,27 +1453,8 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
                   <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider">
                     Matches
                   </h3>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => toggleRoundCollapse(currentRound)}
-                    className="h-8 px-2 text-slate-500 hover:text-slate-900"
-                  >
-                    {collapsedRounds.has(currentRound) ? (
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xs font-medium uppercase tracking-wider">Expand Round {currentRound}</span>
-                        <ChevronDown className="h-4 w-4" />
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xs font-medium uppercase tracking-wider">Collapse Round {currentRound}</span>
-                        <ChevronUp className="h-4 w-4" />
-                      </div>
-                    )}
-                  </Button>
                 </div>
-                {!collapsedRounds.has(currentRound) && (
-                  <div className="overflow-x-auto">
+                <div className="overflow-x-auto">
                     {swissMatches.length === 0 ? (
                       <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
                         No pairings for this section in Round {currentRound}.
@@ -1584,7 +1545,6 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
                       </table>
                     )}
                   </div>
-                )}
 
                 {/* Byes Section */}
                 {filteredByes.length > 0 && (
