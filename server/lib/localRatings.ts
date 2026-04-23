@@ -44,6 +44,33 @@ const DB_PATH = resolveDataPath("ratings_cache.sqlite", "RATINGS_CACHE_DB_FILE")
 let db: Database.Database | null = null;
 let initPromise: Promise<void> | null = null;
 
+export interface RatingField {
+  value?: string;
+  raw: string;
+}
+
+export interface LocalSearchParams {
+  id?: string;
+  lastName?: string;
+  firstName?: string;
+  term?: string;
+}
+
+export interface LocalRatingResult {
+  id: string;
+  name: string;
+  rating?: RatingField;
+  quickRating?: RatingField;
+  blitzRating?: RatingField;
+  rapidRating?: RatingField;
+  location?: string;
+  federation?: string;
+  title?: string;
+  sex?: string;
+  birthYear?: string;
+  metadata?: Record<string, any>;
+}
+
 function log(message: string, context: string = "system") {
   console.log(`${new Date().toISOString()} [localRatings] [${context}] ${message}`);
 }
