@@ -639,3 +639,7 @@ function hasSufficientInput(query: string) {
   if (trimmed.length >= 2) return true;
   return /^\d+$/.test(trimmed) && trimmed.length > 0;
 }
+
+initializeDatabase().catch(err => {
+  log(`Failed to initialize ratings database: ${err.message}`, 'ratings');
+});
