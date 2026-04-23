@@ -640,6 +640,6 @@ function hasSufficientInput(query: string) {
   return /^\d+$/.test(trimmed) && trimmed.length > 0;
 }
 
-initializeDatabase().catch(err => {
-  log(`Failed to initialize ratings database: ${err.message}`, 'ratings');
+preloadRatingData().catch((err: unknown) => {
+  log(`Failed to initialize ratings database: ${err instanceof Error ? err.message : String(err)}`, 'ratings');
 });
