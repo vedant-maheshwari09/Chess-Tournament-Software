@@ -1,4 +1,4 @@
-import { createReadStream, existsSync, statSync, createWriteStream, unlink } from "fs";
+import { createReadStream, existsSync, statSync, createWriteStream, unlink, unlinkSync, renameSync } from "fs";
 import path from "path";
 import readline from "readline";
 import { fileURLToPath } from "url";
