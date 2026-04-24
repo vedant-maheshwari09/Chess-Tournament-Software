@@ -7,11 +7,9 @@
 
 A modern, full-stack platform designed for chess organizers, tournament directors, and players. This software streamlines the process of managing chess tournaments, from registration and seeding to real-time pairings and result reporting.
 
-![System Architecture](screenshots/diagrams.png)
-
 ## 🚀 Key Features
 
-### 🏆 Multiple Tournament Formats (Technical Depth)
+### 🏆 Multiple Tournament Formats
 
 The platform supports four primary tournament formats, each with specialized pairing and scoring logic:
 
