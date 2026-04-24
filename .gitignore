@@ -24,7 +24,11 @@ desktop.ini
 *.doc
 *.docx
 *.zip
-# Specifically exclude the large data files
+# Specifically exclude the large data files and redundant docs
 players_list-fide-oct-2025.txt
 GDQ2510T.TXT
 GDB2510T.TXT
+supabaseClient.ts
+HOSTING_PLAN.md
+MIGRATION_INSTRUCTIONS.md
+pnpm-lock.yaml
