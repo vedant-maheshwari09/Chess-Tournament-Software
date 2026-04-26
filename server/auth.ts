@@ -53,7 +53,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       }
       
       // Check if session is expired
-      if (new Date() > session.expiresAt) {
+      if (new Date() > new Date(session.expiresAt)) {
         try {
           await storage.deleteSession(token);
         } catch {

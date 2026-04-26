@@ -515,7 +515,7 @@ app.post("/api/auth/verify-email", async (req, res) => {
       if (authHeader && authHeader.startsWith('Bearer ')) {
         const token = authHeader.substring(7);
         const session = await storage.getSessionByToken(token);
-        if (session && new Date() <= session.expiresAt) {
+        if (session && new Date() <= new Date(session.expiresAt)) {
           user = await storage.getUserById(session.userId);
         }
       }
@@ -536,7 +536,7 @@ app.post("/api/auth/verify-email", async (req, res) => {
       // Verify code
       const verificationCode = await storage.getVerificationCodeByCode(code, user.id, 'email_verification');
 
-      if (!verificationCode || verificationCode.used || new Date() > verificationCode.expiresAt) {
+      if (!verificationCode || verificationCode.used || new Date() > new Date(verificationCode.expiresAt)) {
         return res.status(400).json({ message: "Invalid or expired verification code" });
       }
 
@@ -579,7 +579,7 @@ app.post("/api/auth/resend-verification", async (req, res) => {
       if (authHeader && authHeader.startsWith('Bearer ')) {
         const token = authHeader.substring(7);
         const session = await storage.getSessionByToken(token);
-        if (session && new Date() <= session.expiresAt) {
+        if (session && new Date() <= new Date(session.expiresAt)) {
           user = await storage.getUserById(session.userId);
         }
       }
@@ -684,7 +684,7 @@ app.post("/api/auth/reset-password", async (req, res) => {
       // Find password reset record
       const passwordReset = await storage.getPasswordResetByCode(code, user.id);
 
-      if (!passwordReset || passwordReset.used || new Date() > passwordReset.expiresAt) {
+      if (!passwordReset || passwordReset.used || new Date() > new Date(passwordReset.expiresAt)) {
         return res.status(400).json({ message: "Invalid or expired reset code" });
       }
 
