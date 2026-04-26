@@ -5,6 +5,9 @@ import {
   Users,
   Crown,
   ChevronRight,
+  Network,
+  RotateCw,
+  Zap,
 } from "lucide-react";
 
 const CAROUSEL_IMAGES = [
@@ -71,7 +74,7 @@ function HeroCarousel() {
 
 const FORMATS = [
   {
-    icon: "⇄",
+    icon: <Network className="w-6 h-6 text-blue-600" />,
     name: "Swiss System",
     desc: "The open-event standard. Finds a winner without eliminating players.",
     features: [
@@ -82,7 +85,7 @@ const FORMATS = [
     ],
   },
   {
-    icon: "◎",
+    icon: <RotateCw className="w-6 h-6 text-indigo-600" />,
     name: "Round Robin",
     desc: "Perfect for invitationals. Every player faces the entire field.",
     features: [
@@ -93,7 +96,7 @@ const FORMATS = [
     ],
   },
   {
-    icon: "⌥",
+    icon: <Trophy className="w-6 h-6 text-amber-600" />,
     name: "Knockout Brackets",
     desc: "Win to advance, lose and you're out.",
     features: [
@@ -104,7 +107,7 @@ const FORMATS = [
     ],
   },
   {
-    icon: "↺",
+    icon: <Zap className="w-6 h-6 text-orange-600" />,
     name: "Arena Mode",
     desc: "Continuous play. Finish and immediately get re-paired.",
     features: [
@@ -171,17 +174,17 @@ export default function LandingPage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
             {FORMATS.map((f) => (
-              <div key={f.name} className="p-6 rounded-xl border border-gray-200 bg-gray-50/50 hover:bg-gray-100/60 transition-colors flex flex-col gap-4">
+              <div key={f.name} className="p-7 rounded-xl border border-gray-200 bg-gray-50/50 hover:bg-gray-100/60 transition-colors flex flex-col gap-4">
                 <div>
-                  <span className="text-2xl mb-3 block">{f.icon}</span>
-                  <h4 className="font-semibold text-gray-900 text-sm mb-1">{f.name}</h4>
-                  <p className="text-xs text-gray-500 leading-relaxed">{f.desc}</p>
+                  <div className="mb-3">{f.icon}</div>
+                  <h4 className="font-bold text-gray-900 text-lg mb-1">{f.name}</h4>
+                  <p className="text-sm text-gray-500 leading-relaxed">{f.desc}</p>
                 </div>
-                <ul className="space-y-1.5 border-t border-gray-200 pt-4">
+                <ul className="space-y-2 border-t border-gray-200 pt-4">
                   {f.features.map((feat) => (
                     <li key={feat} className="flex items-start gap-2">
                       <Dot />
-                      <span className="text-xs text-gray-500 leading-snug">{feat}</span>
+                      <span className="text-sm text-gray-500 leading-snug">{feat}</span>
                     </li>
                   ))}
                 </ul>
