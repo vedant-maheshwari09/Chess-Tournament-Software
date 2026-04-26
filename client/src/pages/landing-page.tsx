@@ -5,9 +5,6 @@ import {
   Users,
   Crown,
   ChevronRight,
-  Network,
-  RotateCw,
-  Zap,
 } from "lucide-react";
 
 const CAROUSEL_IMAGES = [
@@ -74,7 +71,7 @@ function HeroCarousel() {
 
 const FORMATS = [
   {
-    icon: <Network className="w-6 h-6 text-blue-600" />,
+    icon: "⇄",
     name: "Swiss System",
     desc: "The open-event standard. Finds a winner without eliminating players.",
     features: [
@@ -85,7 +82,7 @@ const FORMATS = [
     ],
   },
   {
-    icon: <RotateCw className="w-6 h-6 text-indigo-600" />,
+    icon: "◎",
     name: "Round Robin",
     desc: "Perfect for invitationals. Every player faces the entire field.",
     features: [
@@ -96,7 +93,7 @@ const FORMATS = [
     ],
   },
   {
-    icon: <Trophy className="w-6 h-6 text-amber-600" />,
+    icon: "⌥",
     name: "Knockout Brackets",
     desc: "Win to advance, lose and you're out.",
     features: [
@@ -107,7 +104,7 @@ const FORMATS = [
     ],
   },
   {
-    icon: <Zap className="w-6 h-6 text-orange-600" />,
+    icon: "↺",
     name: "Arena Mode",
     desc: "Continuous play. Finish and immediately get re-paired.",
     features: [
@@ -121,18 +118,10 @@ const FORMATS = [
 
 export default function LandingPage() {
   return (
-    <div className="font-sans text-gray-900 min-h-screen selection:bg-blue-100 selection:text-blue-900 relative bg-white">
-      {/* Dot Pattern Background */}
-      <div 
-        className="absolute inset-0 -z-10 h-full w-full"
-        style={{
-          backgroundImage: 'radial-gradient(#cbd5e1 1.5px, transparent 1.5px)',
-          backgroundSize: '24px 24px',
-        }}
-      />
+    <div className="bg-white font-sans text-gray-900 min-h-screen selection:bg-green-100 selection:text-green-900">
 
       {/* Navigation */}
-      <nav className="fixed top-0 w-full z-50 bg-white/80 backdrop-blur-md border-b border-gray-100">
+      <nav className="fixed top-0 w-full z-50 bg-white/90 backdrop-blur-md border-b border-gray-100">
         <div className="flex justify-between items-center w-full px-6 md:px-12 py-3 max-w-7xl mx-auto">
           <div className="flex items-center gap-2">
             <img src="/logo.png" alt="ChessSoftware Logo" className="w-12 h-12 object-contain" />
@@ -182,17 +171,17 @@ export default function LandingPage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
             {FORMATS.map((f) => (
-              <div key={f.name} className="p-7 rounded-xl border border-gray-200 bg-gray-50/50 hover:bg-gray-100/60 transition-colors flex flex-col gap-4">
+              <div key={f.name} className="p-6 rounded-xl border border-gray-200 bg-gray-50/50 hover:bg-gray-100/60 transition-colors flex flex-col gap-4">
                 <div>
-                  <div className="mb-3">{f.icon}</div>
-                  <h4 className="font-bold text-gray-900 text-lg mb-1">{f.name}</h4>
-                  <p className="text-sm text-gray-500 leading-relaxed">{f.desc}</p>
+                  <span className="text-2xl mb-3 block">{f.icon}</span>
+                  <h4 className="font-semibold text-gray-900 text-sm mb-1">{f.name}</h4>
+                  <p className="text-xs text-gray-500 leading-relaxed">{f.desc}</p>
                 </div>
-                <ul className="space-y-2 border-t border-gray-200 pt-4">
+                <ul className="space-y-1.5 border-t border-gray-200 pt-4">
                   {f.features.map((feat) => (
                     <li key={feat} className="flex items-start gap-2">
                       <Dot />
-                      <span className="text-sm text-gray-500 leading-snug">{feat}</span>
+                      <span className="text-xs text-gray-500 leading-snug">{feat}</span>
                     </li>
                   ))}
                 </ul>

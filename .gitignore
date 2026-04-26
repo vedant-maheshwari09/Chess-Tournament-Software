@@ -19,8 +19,6 @@ desktop.ini
 *.sqlite-shm
 *.txt
 *.pdf
-*.png
-*.jpg
 *.doc
 *.docx
 *.zip
