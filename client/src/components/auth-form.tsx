@@ -322,7 +322,7 @@ export default function AuthForm() {
           description: "Please check your email for a verification code."
         });
       } else {
-        toast({ title: "Welcome to Rook!", description: "Your account has been created successfully." });
+        toast({ title: "Welcome to ChessSoftware!", description: "Your account has been created successfully." });
       }
     } catch (error) {
       console.error("Registration error:", error);
@@ -851,9 +851,9 @@ export default function AuthForm() {
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <div className="flex items-center justify-center mb-4">
-            <img src="/logo.png" alt="Chess Tournament Pro Logo" className="w-16 h-16 rounded-xl object-contain shadow-sm" />
+            <img src="/logo.png" alt="ChessSoftware Logo" className="w-16 h-16 object-contain mix-blend-multiply" />
           </div>
-          <CardTitle className="text-2xl text-center">Rook</CardTitle>
+          <CardTitle className="text-2xl text-center">ChessSoftware</CardTitle>
           <CardDescription className="text-center">{getTitle()}</CardDescription>
         </CardHeader>
         <CardContent>
