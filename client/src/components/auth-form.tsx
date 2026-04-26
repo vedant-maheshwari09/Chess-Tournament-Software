@@ -347,8 +347,9 @@ export default function AuthForm() {
     onSuccess: (data) => {
       if (data.token) {
         localStorage.setItem("auth_token", data.token);
-        // Invalidate queries to refetch user data, which will trigger redirect
-        queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+        // Set user data immediately to trigger dashboard view
+        queryClient.setQueryData(["/api/auth/me"], data.user);
+        queryClient.invalidateQueries({ queryKey: ["/api"] });
         setLocation("/");
       } else {
         // Fallback if no token (shouldn't happen with updated API)

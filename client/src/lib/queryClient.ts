@@ -39,7 +39,14 @@ export async function apiRequest(
       if (!url.includes('/api/auth/me') && window.location.pathname !== '/login' && window.location.pathname !== '/auth') {
         window.location.href = '/login';
       }
-      throw new Error("Session expired. Please log in again.");
+
+      // Try to get the real error message from the response
+      try {
+        const errorData = await res.json();
+        throw new Error(errorData.message || "Session expired. Please log in again.");
+      } catch (e) {
+        throw new Error("Session expired. Please log in again.");
+      }
     }
 
     await throwIfResNotOk(res);
