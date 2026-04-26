@@ -121,7 +121,44 @@ const FORMATS = [
 
 export default function LandingPage() {
   return (
-    <div className="bg-white font-sans text-gray-900 min-h-screen selection:bg-green-100 selection:text-green-900">
+    <div className="bg-white font-sans text-gray-900 min-h-screen selection:bg-green-100 selection:text-green-900 relative">
+      <style>{`
+        @keyframes drift {
+          from { background-position: 0 0; }
+          to { background-position: 40px 40px; }
+        }
+        @keyframes drift-slow {
+          from { background-position: 0 0; }
+          to { background-position: -60px 60px; }
+        }
+        .animate-drift {
+          animation: drift 20s linear infinite;
+        }
+        .animate-drift-slow {
+          animation: drift-slow 40s linear infinite;
+        }
+      `}</style>
+
+      {/* Animated Background */}
+      <div className="fixed inset-0 -z-10 pointer-events-none overflow-hidden">
+        {/* Layer 1: Small Dots */}
+        <div 
+          className="absolute inset-0 opacity-[0.3] animate-drift"
+          style={{
+            backgroundImage: `radial-gradient(circle, #cbd5e1 1.5px, transparent 1.5px)`,
+            backgroundSize: '40px 40px',
+          }}
+        />
+        {/* Layer 2: Larger, Fainter Dots */}
+        <div 
+          className="absolute inset-0 opacity-[0.15] animate-drift-slow"
+          style={{
+            backgroundImage: `radial-gradient(circle, #94a3b8 2px, transparent 2px)`,
+            backgroundSize: '80px 80px',
+          }}
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-white/40 to-white" />
+      </div>
 
       {/* Navigation */}
       <nav className="fixed top-0 w-full z-50 bg-white/90 backdrop-blur-md border-b border-gray-100">
@@ -165,7 +202,7 @@ export default function LandingPage() {
       </main>
 
       {/* Flexible Formats */}
-      <section className="py-20 bg-white border-t border-gray-100 px-6">
+      <section className="py-20 border-t border-gray-100 px-6">
         <div className="max-w-7xl mx-auto">
           <div className="mb-10">
             <h2 className="text-3xl font-bold text-gray-900 mb-2 tracking-tight">Flexible formats.</h2>
@@ -195,7 +232,7 @@ export default function LandingPage() {
       </section>
 
       {/* Built for every role */}
-      <section id="features" className="py-20 bg-gray-50 border-y border-gray-100 px-6">
+      <section id="features" className="py-20 border-y border-gray-100 px-6">
         <div className="max-w-7xl mx-auto">
 
           <div className="text-center mb-14 max-w-xl mx-auto">
