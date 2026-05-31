@@ -422,12 +422,12 @@ export async function generatePairings(tournament: any, players: any[], matches:
     // Use proper Swiss pairing algorithm
     const swissPairings = await generateSwissPairings(tournament, players, matches, round, existingPairings, boardNumbers);
 
-    // Convert to our pairing format
+    // Convert to our pairing format and persist to database
     for (const pairing of swissPairings) {
       if (pairing.isBye) {
         // Handle bye - use integer mapping: 0=0pts, 1=0.5pts, 2=1pt
         const byePoints = pairing.byeType === 'half_point' ? 1 : 2; // 1=0.5pts, 2=1pt
-        pairings.push({
+        const pObj = {
           tournamentId: tournament.id,
           round,
           playerId: pairing.whitePlayerId,
@@ -435,10 +435,23 @@ export async function generatePairings(tournament: any, players: any[], matches:
           color: null,
           points: byePoints,
           isBye: true,
+        };
+        pairings.push(pObj);
+        await storage.createPairing(pObj);
+
+        await storage.createMatch({
+          tournamentId: tournament.id,
+          round,
+          whitePlayerId: pairing.whitePlayerId,
+          blackPlayerId: null,
+          board: pairing.board ?? 0,
+          result: '1-0', // Automatic bye gets 1.0 point
+          status: 'completed',
+          isBye: true,
         });
       } else {
         // Create pairing entries for both players
-        pairings.push({
+        const pWhite = {
           tournamentId: tournament.id,
           round,
           playerId: pairing.whitePlayerId,
@@ -446,14 +459,30 @@ export async function generatePairings(tournament: any, players: any[], matches:
           color: 'white',
           points: 0,
           isBye: false,
-        });
-        pairings.push({
+        };
+        const pBlack = {
           tournamentId: tournament.id,
           round,
           playerId: pairing.blackPlayerId,
           opponentId: pairing.whitePlayerId,
           color: 'black',
           points: 0,
+          isBye: false,
+        };
+        pairings.push(pWhite);
+        pairings.push(pBlack);
+
+        await storage.createPairing(pWhite);
+        await storage.createPairing(pBlack);
+
+        await storage.createMatch({
+          tournamentId: tournament.id,
+          round,
+          whitePlayerId: pairing.whitePlayerId,
+          blackPlayerId: pairing.blackPlayerId,
+          board: pairing.board ?? 0,
+          result: null,
+          status: 'pending',
           isBye: false,
         });
       }
@@ -634,49 +663,217 @@ export function determineSwissColors(player1: any, player2: any, tournament: any
   }
 }
 
-export async function generateSwissPairings(tournament: any, players: any[], matches: any[], round: number, existingPairings: any[] = [], boardNumbers?: number[]) {
-  console.log(`=== CLEAN SWISS PAIRING: ROUND ${round} ===`);
+function getPlayerRating(player: any, primaryRatingSystem: string): number {
+  const rating = primaryRatingSystem === 'fide' ? player.fideRating : player.uscfRating;
+  return rating ?? player.rating ?? 0;
+}
+
+function isPlayerUnrated(player: any, primaryRatingSystem: string): boolean {
+  const rating = primaryRatingSystem === 'fide' ? player.fideRating : player.uscfRating;
+  return rating === null || rating === 0;
+}
+
+interface PlayerStats {
+  id: number;
+  player: any;
+  points: number;
+  opponents: Set<number>;
+  byesReceived: number;
+  colorHistory: ('white' | 'black' | null)[];
+  colorBalance: number;
+  consecutiveColor: number;
+  lastColor: 'white' | 'black' | null;
+  isUnrated: boolean;
+}
+
+function getColorPreferenceScore(player: PlayerStats, color: 'white' | 'black') {
+  let score = 0;
+  if (color === 'white') {
+    if (player.lastColor === 'black') score += 1;
+    if (player.colorBalance < 0) score += 1;
+    if (player.colorBalance > 0) score -= 1;
+  } else {
+    if (player.lastColor === 'white') score += 1;
+    if (player.colorBalance > 0) score += 1;
+    if (player.colorBalance < 0) score -= 1;
+  }
+  return score;
+}
+
+function getValidColorAssignments(
+  p1: PlayerStats,
+  p2: PlayerStats,
+  strictColors: boolean,
+  allowRepeats: boolean
+): ('p1_white_p2_black' | 'p1_black_p2_white')[] {
+  // Check if they have played before
+  if (!allowRepeats && p1.opponents.has(p2.id)) {
+    return [];
+  }
+
+  const options: ('p1_white_p2_black' | 'p1_black_p2_white')[] = [];
+
+  // Option 1: P1 is White, P2 is Black
+  let p1WhiteOk = true;
+  let p2BlackOk = true;
+
+  if (strictColors) {
+    if (p1.consecutiveColor >= 2) p1WhiteOk = false;
+    if (p1.colorBalance >= 2) p1WhiteOk = false;
+    if (p2.consecutiveColor <= -2) p2BlackOk = false;
+    if (p2.colorBalance <= -2) p2BlackOk = false;
+  }
+
+  if (p1WhiteOk && p2BlackOk) {
+    options.push('p1_white_p2_black');
+  }
+
+  // Option 2: P1 is Black, P2 is White
+  let p1BlackOk = true;
+  let p2WhiteOk = true;
+
+  if (strictColors) {
+    if (p1.consecutiveColor <= -2) p1BlackOk = false;
+    if (p1.colorBalance <= -2) p1BlackOk = false;
+    if (p2.consecutiveColor >= 2) p2WhiteOk = false;
+    if (p2.colorBalance >= 2) p2WhiteOk = false;
+  }
+
+  if (p1BlackOk && p2WhiteOk) {
+    options.push('p1_black_p2_white');
+  }
+
+  // Sort options by color preference score so we try the better one first
+  if (options.length === 2) {
+    const pref1 = getColorPreferenceScore(p1, 'white') + getColorPreferenceScore(p2, 'black');
+    const pref2 = getColorPreferenceScore(p1, 'black') + getColorPreferenceScore(p2, 'white');
+    if (pref2 > pref1) {
+      return ['p1_black_p2_white', 'p1_white_p2_black'];
+    }
+  }
+
+  return options;
+}
+
+function backtrack(
+  unpairedList: PlayerStats[],
+  currentPairings: any[],
+  strictColors: boolean,
+  allowRepeats: boolean,
+  boardNumbers: number[],
+  boardIdx: number
+): boolean {
+  if (unpairedList.length === 0) {
+    return true;
+  }
+
+  // Take the highest-ranked unpaired player
+  const p1 = unpairedList[0];
+
+  // Try to pair p1 with some opponent p2 from the rest of the list
+  for (let i = 1; i < unpairedList.length; i++) {
+    const p2 = unpairedList[i];
+
+    const colorOptions = getValidColorAssignments(p1, p2, strictColors, allowRepeats);
+    for (const option of colorOptions) {
+      const whitePlayer = option === 'p1_white_p2_black' ? p1 : p2;
+      const blackPlayer = option === 'p1_white_p2_black' ? p2 : p1;
+
+      const board = boardNumbers[boardIdx];
+      currentPairings.push({
+        whitePlayerId: whitePlayer.id,
+        blackPlayerId: blackPlayer.id,
+        board,
+        isBye: false,
+      });
+
+      const remaining = unpairedList.filter(p => p.id !== p1.id && p.id !== p2.id);
+
+      if (backtrack(remaining, currentPairings, strictColors, allowRepeats, boardNumbers, boardIdx + 1)) {
+        return true;
+      }
+
+      // Backtrack
+      currentPairings.pop();
+    }
+  }
+
+  return false;
+}
+
+export async function generateSwissPairings(
+  tournament: any,
+  players: any[],
+  matches: any[],
+  round: number,
+  existingPairings: any[] = [],
+  boardNumbers?: number[]
+) {
+  console.log(`=== SWISS PAIRING ENGINE: ROUND ${round} ===`);
   const pairings: any[] = [];
 
   // Filter out withdrawn players and players with round-specific bye requests
-  const withdrawnPlayerIds = new Set();
-  const roundByePlayerIds = new Set();
+  const withdrawnPlayerIds = new Set<number>();
+  const roundByePlayerIds = new Set<number>();
 
   for (const pairing of existingPairings) {
     if (pairing.isBye) {
-      // Withdrawn players have zero-point byes for future rounds
       if (pairing.byeType === 'zero_point' && pairing.round >= round) {
         withdrawnPlayerIds.add(pairing.playerId);
       }
-      // Players with specific bye requests for this round
       if (pairing.round === round) {
         roundByePlayerIds.add(pairing.playerId);
       }
     }
   }
 
-  // Filter to active players only
   const activePlayers = players.filter(player =>
-    !withdrawnPlayerIds.has(player.id) && !roundByePlayerIds.has(player.id)
+    !withdrawnPlayerIds.has(player.id) && !roundByePlayerIds.has(player.id) && player.status !== 'withdrawn'
   );
 
-  console.log(`Active players for round ${round}: ${activePlayers.length} (${withdrawnPlayerIds.size} withdrawn, ${roundByePlayerIds.size} with round byes)`);
+  console.log(`Active players for round ${round}: ${activePlayers.length}`);
+
+  const tournamentConfig = parseTournamentConfig(tournament);
+  const primaryRatingSystem = tournamentConfig.details.primaryRatingSystem || 'uscf';
 
   if (round === 1) {
     // Round 1: Sort by rating, pair upper half vs lower half
-    const tournamentConfig = parseTournamentConfig(tournament);
-    const isFide = tournamentConfig.details.primaryRatingSystem === 'fide';
     const sortedPlayers = [...activePlayers].sort((a, b) => {
-      const ratingA = (isFide ? (a.fideRating ?? a.rating) : (a.uscfRating ?? a.rating)) || 0;
-      const ratingB = (isFide ? (b.fideRating ?? b.rating) : (b.uscfRating ?? b.rating)) || 0;
-      return ratingB - ratingA;
+      const ratingA = getPlayerRating(a, primaryRatingSystem);
+      const ratingB = getPlayerRating(b, primaryRatingSystem);
+      if (ratingB !== ratingA) return ratingB - ratingA;
+      const nameA = `${a.firstName || ''} ${a.lastName || ''}`;
+      const nameB = `${b.firstName || ''} ${b.lastName || ''}`;
+      if (nameA !== nameB) return nameA.localeCompare(nameB);
+      return a.id - b.id;
     });
+
     const isOdd = sortedPlayers.length % 2 === 1;
     const numPairs = Math.floor(sortedPlayers.length / 2);
-    const resolvedBoardNumbers = boardNumbers ?? generateBoardNumberSequence(tournament.boardNumberingSettings, numPairs + (isOdd ? 1 : 0));
+    const numBoards = numPairs + (isOdd ? 1 : 0);
+    const resolvedBoardNumbers = boardNumbers ?? generateBoardNumberSequence(tournament.boardNumberingSettings, numBoards);
 
-    const upperHalf = sortedPlayers.slice(0, numPairs);
-    const lowerHalf = sortedPlayers.slice(numPairs, isOdd ? -1 : sortedPlayers.length);
+    let upperHalf: any[] = [];
+    let lowerHalf: any[] = [];
+    let byePlayer: any = null;
+
+    if (isOdd) {
+      // Find the bye player: lowest-rated rated player who is not unrated.
+      let byeIdx = sortedPlayers.length - 1;
+      for (let i = sortedPlayers.length - 1; i >= 0; i--) {
+        if (!isPlayerUnrated(sortedPlayers[i], primaryRatingSystem)) {
+          byeIdx = i;
+          break;
+        }
+      }
+      byePlayer = sortedPlayers[byeIdx];
+      const remaining = sortedPlayers.filter((_, idx) => idx !== byeIdx);
+      upperHalf = remaining.slice(0, numPairs);
+      lowerHalf = remaining.slice(numPairs);
+    } else {
+      upperHalf = sortedPlayers.slice(0, numPairs);
+      lowerHalf = sortedPlayers.slice(numPairs);
+    }
 
     const firstBoardWhiteIsUpper = Math.random() < 0.5;
 
@@ -693,276 +890,203 @@ export async function generateSwissPairings(tournament: any, players: any[], mat
       });
     }
 
-    if (isOdd) {
-      const byePlayer = sortedPlayers[sortedPlayers.length - 1]; // Lowest-rated player paired with "See T.D."
-      console.log(`Round 1 - Odd number of players, pairing with "See T.D.": ${byePlayer.firstName} (rating ${byePlayer.rating})`);
+    if (isOdd && byePlayer) {
       pairings.push({
         whitePlayerId: byePlayer.id,
         blackPlayerId: null,
         board: resolvedBoardNumbers[numPairs],
-        isBye: false, // Not a bye - it's a pairing with "See T.D."
-        opponentName: "See T.D.",
+        isBye: true,
+        byeType: 'full_point',
       });
     }
   } else {
-    // Calculate player stats with color balance for color assignment
-    const playerStatsWithColors = activePlayers.map(player => {
+    // Round 2+ pairings: calculate standings, histories, and run backtracking search
+    const playerStatsList: PlayerStats[] = activePlayers.map(player => {
       const playerMatches = matches.filter(m =>
         m.whitePlayerId === player.id || m.blackPlayerId === player.id
       );
 
       let points = 0;
+      for (let r = 1; r < round; r++) {
+        const match = playerMatches.find(m => m.round === r);
+        if (match) {
+          if (match.whitePlayerId === player.id) {
+            points += getPointsForResult(match.result, "white");
+          } else if (match.blackPlayerId === player.id) {
+            points += getPointsForResult(match.result, "black");
+          }
+        } else {
+          const bye = existingPairings.find(p => p.playerId === player.id && p.isBye && p.points !== null && p.round === r);
+          if (bye) {
+            const byePoints = bye.points === 1 ? 0.5 : bye.points === 2 ? 1 : 0;
+            points += byePoints;
+          }
+        }
+      }
+
+      const opponents = new Set<number>();
+      for (const match of playerMatches) {
+        if (match.whitePlayerId === player.id && match.blackPlayerId) {
+          opponents.add(match.blackPlayerId);
+        } else if (match.blackPlayerId === player.id && match.whitePlayerId) {
+          opponents.add(match.whitePlayerId);
+        }
+      }
+      for (const pairing of existingPairings) {
+        if (pairing.round < round && pairing.playerId === player.id && !pairing.isBye && pairing.opponentId) {
+          opponents.add(pairing.opponentId);
+        }
+      }
+
+      let byesReceived = 0;
+      for (const pairing of existingPairings) {
+        if (pairing.round < round && pairing.playerId === player.id && pairing.isBye && !pairing.isRequested) {
+          if (pairing.points === 2 || pairing.points === null) {
+            byesReceived++;
+          }
+        }
+      }
+
+      const colorHistory: ('white' | 'black' | null)[] = [];
+      for (let r = 1; r < round; r++) {
+        const p = existingPairings.find(pair => pair.playerId === player.id && pair.round === r);
+        if (p) {
+          if (p.isBye) {
+            colorHistory.push(null);
+          } else {
+            colorHistory.push(p.color as 'white' | 'black');
+          }
+        } else {
+          const m = matches.find(match => match.round === r && (match.whitePlayerId === player.id || match.blackPlayerId === player.id));
+          if (m) {
+            if (m.whitePlayerId === player.id) {
+              colorHistory.push('white');
+            } else {
+              colorHistory.push('black');
+            }
+          } else {
+            colorHistory.push(null);
+          }
+        }
+      }
+
       let whiteGames = 0;
       let blackGames = 0;
+      let consecutiveColor = 0;
+      let lastColor: 'white' | 'black' | null = null;
 
-      // Add points from matches
-      for (const match of playerMatches) {
-        if (match.whitePlayerId === player.id) {
+      for (const col of colorHistory) {
+        if (col === 'white') {
           whiteGames++;
-          points += getPointsForResult(match.result, "white");
-        } else if (match.blackPlayerId === player.id) {
+          if (consecutiveColor > 0) {
+            consecutiveColor++;
+          } else {
+            consecutiveColor = 1;
+          }
+          lastColor = 'white';
+        } else if (col === 'black') {
           blackGames++;
-          points += getPointsForResult(match.result, "black");
-        }
-
-        // Debug logging for this player's matches
-        if (match.whitePlayerId === player.id || match.blackPlayerId === player.id) {
-          console.log(`${player.firstName} match result: ${match.result} (points now: ${points})`);
+          if (consecutiveColor < 0) {
+            consecutiveColor--;
+          } else {
+            consecutiveColor = -1;
+          }
+          lastColor = 'black';
         }
       }
-
-      // Add points from bye pairings (convert from integer mapping: 0=0pts, 1=0.5pts, 2=1pt)
-      const playerByes = existingPairings.filter(p =>
-        p.playerId === player.id && p.isBye && p.points !== null && p.round < round
-      );
-
-      for (const bye of playerByes) {
-        const byePoints = bye.points === 1 ? 0.5 : bye.points === 2 ? 1 : 0;
-        points += byePoints;
-      }
+      const colorBalance = whiteGames - blackGames;
+      const isUnrated = isPlayerUnrated(player, primaryRatingSystem);
 
       return {
+        id: player.id,
         player,
         points,
-        whiteGames,
-        blackGames,
-        colorBalance: whiteGames - blackGames
+        opponents,
+        byesReceived,
+        colorHistory,
+        colorBalance,
+        consecutiveColor,
+        lastColor,
+        isUnrated,
       };
     });
 
-    // Sort by points (highest first), then by rating
-    const tournamentConfig = parseTournamentConfig(tournament);
-    const isFide = tournamentConfig.details.primaryRatingSystem === 'fide';
-    const sortedPlayers = [...playerStatsWithColors].sort((a, b) => {
+    const sortedPlayers = [...playerStatsList].sort((a, b) => {
       if (b.points !== a.points) return b.points - a.points;
-      const ratingA = (isFide ? (a.player.fideRating ?? a.player.rating) : (a.player.uscfRating ?? a.player.rating)) || 0;
-      const ratingB = (isFide ? (b.player.fideRating ?? b.player.rating) : (b.player.uscfRating ?? b.player.rating)) || 0;
-      return ratingB - ratingA;
+      const ratingA = getPlayerRating(a.player, primaryRatingSystem);
+      const ratingB = getPlayerRating(b.player, primaryRatingSystem);
+      if (ratingB !== ratingA) return ratingB - ratingA;
+      const nameA = `${a.player.firstName || ''} ${a.player.lastName || ''}`;
+      const nameB = `${b.player.firstName || ''} ${b.player.lastName || ''}`;
+      if (nameA !== nameB) return nameA.localeCompare(nameB);
+      return a.id - b.id;
     });
 
-    console.log('Current standings:');
-    sortedPlayers.forEach((p, i) => {
-      console.log(`${i + 1}. ${p.player.firstName} ${p.player.lastName}: ${p.points} points`);
-    });
+    const numPairs = Math.floor(sortedPlayers.length / 2);
+    const isOdd = sortedPlayers.length % 2 === 1;
+    const numBoards = numPairs + (isOdd ? 1 : 0);
+    const resolvedBoardNumbers = boardNumbers ?? generateBoardNumberSequence(tournament.boardNumberingSettings, numBoards);
 
-    // Helper function to check if two players have played before
-    const havePlayed = (player1Id: number, player2Id: number) => {
-      return matches.some(m =>
-        (m.whitePlayerId === player1Id && m.blackPlayerId === player2Id) ||
-        (m.whitePlayerId === player2Id && m.blackPlayerId === player1Id)
-      );
+    const getByeCandidates = (playersStats: PlayerStats[]) => {
+      return [...playersStats].sort((a, b) => {
+        if (a.byesReceived !== b.byesReceived) return a.byesReceived - b.byesReceived;
+        if (a.isUnrated !== b.isUnrated) return a.isUnrated ? 1 : -1;
+        if (a.points !== b.points) return a.points - b.points;
+        const ratingA = getPlayerRating(a.player, primaryRatingSystem);
+        const ratingB = getPlayerRating(b.player, primaryRatingSystem);
+        return ratingA - ratingB;
+      });
     };
 
-    // Helper function for USCF color assignment with 2-color max rule
-    const assignColors = (p1: any, p2: any) => {
-      const p1Balance = p1.colorBalance || 0;  // Positive = more whites, Negative = more blacks
-      const p2Balance = p2.colorBalance || 0;
+    let success = false;
+    let pairingsResult: any[] = [];
 
-      console.log(`Color assignment: ${p1.player.firstName} (balance: ${p1Balance}) vs ${p2.player.firstName} (balance: ${p2Balance})`);
+    const relaxationLevels = [
+      { strictColors: true, allowRepeats: false },
+      { strictColors: false, allowRepeats: false },
+      { strictColors: false, allowRepeats: true },
+    ];
 
-      // USCF Rule: Player cannot have more than 2-color difference
-      if (p1Balance >= 2) {
-        console.log(`  ${p1.player.firstName} must get black (has +${p1Balance} color balance)`);
-        return { whitePlayer: p2.player, blackPlayer: p1.player };
-      }
-      if (p1Balance <= -2) {
-        console.log(`  ${p1.player.firstName} must get white (has ${p1Balance} color balance)`);
-        return { whitePlayer: p1.player, blackPlayer: p2.player };
-      }
-      if (p2Balance >= 2) {
-        console.log(`  ${p2.player.firstName} must get black (has +${p2Balance} color balance)`);
-        return { whitePlayer: p1.player, blackPlayer: p2.player };
-      }
-      if (p2Balance <= -2) {
-        console.log(`  ${p2.player.firstName} must get white (has ${p2Balance} color balance)`);
-        return { whitePlayer: p2.player, blackPlayer: p1.player };
-      }
+    for (const level of relaxationLevels) {
+      if (isOdd) {
+        const byeCandidates = getByeCandidates(sortedPlayers);
+        for (const byeCandidate of byeCandidates) {
+          const remainingPlayers = sortedPlayers.filter(p => p.id !== byeCandidate.id);
+          const tempPairings: any[] = [];
 
-      // Normal preference rules
-      if (p1Balance < p2Balance) {
-        return { whitePlayer: p1.player, blackPlayer: p2.player };
-      } else if (p2Balance < p1Balance) {
-        return { whitePlayer: p2.player, blackPlayer: p1.player };
+          if (backtrack(remainingPlayers, tempPairings, level.strictColors, level.allowRepeats, resolvedBoardNumbers, 0)) {
+            pairingsResult = tempPairings;
+            const byeBoard = resolvedBoardNumbers[resolvedBoardNumbers.length - 1];
+            pairingsResult.push({
+              whitePlayerId: byeCandidate.id,
+              blackPlayerId: null,
+              board: byeBoard,
+              isBye: true,
+              byeType: 'full_point',
+            });
+            success = true;
+            break;
+          }
+        }
       } else {
-        // Equal balance - higher rated gets white
-        const p1Rating = (isFide ? (p1.player.fideRating ?? p1.player.rating) : (p1.player.uscfRating ?? p1.player.rating)) || 0;
-        const p2Rating = (isFide ? (p2.player.fideRating ?? p2.player.rating) : (p2.player.uscfRating ?? p2.player.rating)) || 0;
-        return p1Rating > p2Rating
-          ? { whitePlayer: p1.player, blackPlayer: p2.player }
-          : { whitePlayer: p2.player, blackPlayer: p1.player };
-      }
-    };
-
-    // Round 3 pairing logic: Player 3 (highest points) vs Player 8, avoiding repeat pairings
-    if (round === 3 && sortedPlayers.length >= 8) {
-      const p1 = sortedPlayers[0]; // Player 3 (highest points: 2.0)
-      const p2 = sortedPlayers[1]; // Player 4 (1.5 points)
-      const p3 = sortedPlayers[2]; // Player 8 (1.5 points)
-      const p4 = sortedPlayers[3]; // Player 6 (1.0 points)
-      const p5 = sortedPlayers[4]; // Player 5 (1.0 points)
-      const p6 = sortedPlayers[5]; // Player 2 (0.5 points)
-      const p7 = sortedPlayers[6]; // Player 7 (0.5 points)
-      const p8 = sortedPlayers[7]; // Player 1 (0.0 points)
-
-      console.log('Round 3 - Corrected pairings with Player 3 on Board 1:');
-      console.log(`Board 1: ${p1.player.firstName} vs ${p3.player.firstName} (combined: ${p1.points + p3.points} pts)`);
-      console.log(`Board 2: ${p2.player.firstName} vs ${p4.player.firstName} (combined: ${p2.points + p4.points} pts)`);
-      console.log(`Board 3: ${p5.player.firstName} vs ${p6.player.firstName} (combined: ${p5.points + p6.points} pts)`);
-      console.log(`Board 4: ${p7.player.firstName} vs ${p8.player.firstName} (combined: ${p7.points + p8.points} pts)`);
-
-      // Create pairings with proper board ordering by combined points
-      const round3Pairings = [
-        { p1: p1, p2: p3, combined: p1.points + p3.points }, // Player 3 vs 8
-        { p1: p2, p2: p4, combined: p2.points + p4.points }, // Player 4 vs 6
-        { p1: p5, p2: p6, combined: p5.points + p6.points }, // Player 5 vs 2
-        { p1: p7, p2: p8, combined: p7.points + p8.points }  // Player 7 vs 1
-      ];
-
-      // Sort by combined points (highest first) for proper board ordering
-      round3Pairings.sort((a, b) => b.combined - a.combined);
-      const resolvedBoardNumbers = boardNumbers ?? generateBoardNumberSequence(tournament.boardNumberingSettings, round3Pairings.length);
-
-      for (let i = 0; i < round3Pairings.length; i++) {
-        const pairing = round3Pairings[i];
-        const colors = assignColors(pairing.p1, pairing.p2);
-        pairings.push({
-          whitePlayerId: colors.whitePlayer.id,
-          blackPlayerId: colors.blackPlayer.id,
-          board: resolvedBoardNumbers[i],
-          isBye: false,
-        });
-      }
-    } else {
-      // Simple greedy algorithm for other rounds
-      let unpaired = [...sortedPlayers];
-      const tempPairings = [];
-
-      // Track players who have already received "See T.D." pairings
-      const playersWithSeeTD = new Set();
-      for (const match of matches) {
-        if (match.blackPlayerId === null && match.whitePlayerId) {
-          playersWithSeeTD.add(match.whitePlayerId);
+        const tempPairings: any[] = [];
+        if (backtrack(sortedPlayers, tempPairings, level.strictColors, level.allowRepeats, resolvedBoardNumbers, 0)) {
+          pairingsResult = tempPairings;
+          success = true;
         }
       }
 
-      // Check if we have odd number - pair with "See T.D." instead of automatic bye
-      let seeTableDirectorPlayer = null;
-      if (unpaired.length % 2 === 1) {
-        // Find a player who hasn't received "See T.D." yet, preferring lowest-rated
-        let candidateIndex = unpaired.length - 1; // Start with lowest points/rating
-
-        // Look for a player who hasn't had "See T.D." yet
-        for (let i = unpaired.length - 1; i >= 0; i--) {
-          if (!playersWithSeeTD.has(unpaired[i].player.id)) {
-            candidateIndex = i;
-            break;
-          }
-        }
-
-        seeTableDirectorPlayer = unpaired[candidateIndex];
-        console.log(`Odd number of players - pairing with "See T.D.": ${seeTableDirectorPlayer.player.firstName} (${seeTableDirectorPlayer.points} pts, rating ${seeTableDirectorPlayer.player.rating})${playersWithSeeTD.has(seeTableDirectorPlayer.player.id) ? ' [REPEAT - no alternatives]' : ' [FIRST TIME]'}`);
-
-        // Remove "See T.D." player from unpaired list
-        unpaired.splice(candidateIndex, 1);
-      }
-
-      while (unpaired.length > 1) {
-        const player1 = unpaired.shift()!;
-        let bestOpponent = null;
-        let bestOpponentIndex = -1;
-
-        console.log(`Finding opponent for ${player1.player.firstName} (${player1.points}pts)`);
-
-        // First try to find opponents who haven't played this player before
-        for (let i = 0; i < unpaired.length; i++) {
-          const candidate = unpaired[i];
-
-          if (!havePlayed(player1.player.id, candidate.player.id)) {
-            bestOpponent = candidate;
-            bestOpponentIndex = i;
-            console.log(`  ✓ PAIRED: ${player1.player.firstName} vs ${candidate.player.firstName} (first time)`);
-            break;
-          }
-        }
-
-        // If no first-time opponents available, allow repeat pairings (USCF allows this)
-        if (!bestOpponent && unpaired.length > 0) {
-          console.log(`  No first-time opponents available for ${player1.player.firstName} - allowing repeat pairing`);
-          bestOpponent = unpaired[0]; // Pair with the next available player
-          bestOpponentIndex = 0;
-          console.log(`  ✓ REPEAT PAIRING: ${player1.player.firstName} vs ${bestOpponent.player.firstName} (second time)`);
-        }
-
-        if (bestOpponent) {
-          unpaired.splice(bestOpponentIndex, 1);
-          tempPairings.push({
-            p1: player1,
-            p2: bestOpponent,
-            combined: player1.points + bestOpponent.points
-          });
-        } else {
-          // This should only happen if there's only one player left
-          console.log(`  No opponent available for ${player1.player.firstName} - pairing with "See T.D."`);
-          pairings.push({
-            whitePlayerId: player1.player.id,
-            blackPlayerId: null,
-            board: 0,
-            isBye: false, // Not a bye - it's a pairing with "See T.D."
-            opponentName: "See T.D.",
-          });
-        }
-      }
-
-      // All players should be paired now since we handled odd numbers upfront
-      if (unpaired.length === 1) {
-        console.error(`Error: Still have unpaired player: ${unpaired[0].player.firstName}`);
-      }
-
-      // Sort pairings by combined points and assign board numbers
-      tempPairings.sort((a, b) => b.combined - a.combined);
-      const resolvedBoardNumbers = boardNumbers ?? generateBoardNumberSequence(tournament.boardNumberingSettings, tempPairings.length + (seeTableDirectorPlayer ? 1 : 0));
-      for (let i = 0; i < tempPairings.length; i++) {
-        const pairing = tempPairings[i];
-        const colors = assignColors(pairing.p1, pairing.p2);
-        pairings.push({
-          whitePlayerId: colors.whitePlayer.id,
-          blackPlayerId: colors.blackPlayer.id,
-          board: resolvedBoardNumbers[i],
-          isBye: false,
-        });
-      }
-
-      // Add "See T.D." pairing for the odd player
-      if (seeTableDirectorPlayer) {
-        pairings.push({
-          whitePlayerId: seeTableDirectorPlayer.player.id,
-          blackPlayerId: null,
-          board: resolvedBoardNumbers[tempPairings.length],
-          isBye: false, // Not a bye - it's a pairing with "See T.D."
-          opponentName: "See T.D.",
-        });
+      if (success) {
+        console.log(`Swiss pairings for round ${round} generated successfully at level:`, level);
+        break;
       }
     }
+
+    if (!success) {
+      throw new Error(`Failed to generate Swiss pairings for round ${round} even after constraint relaxation.`);
+    }
+
+    pairings.push(...pairingsResult);
   }
 
   return pairings;

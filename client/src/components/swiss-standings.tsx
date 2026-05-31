@@ -50,7 +50,7 @@ function interpretPlayerResult(
   if (!normalized) {
     return { outcome: "unplayed", points: 0 };
   }
-  if (normalized === "1-bye") {
+  if (normalized === "1-bye" || normalized === "1/2-bye" || normalized === "0-bye") {
     return { outcome: "bye", points };
   }
   if (normalized === "1-0") {
@@ -312,19 +312,22 @@ export default function SwissStandings({ tournamentId, showExportControls = true
 
         let totalPoints = 0;
 
-        // Add points from matches
-        playerMatches.forEach((match) => {
-          const normalized = normalizeMatchResult(match.result);
-          if (!normalized) return;
-          const isWhite = match.whitePlayerId === player.id;
-          totalPoints += getPointsForResult(match.result, isWhite ? "white" : "black");
-        });
-
-        // Add points from byes
-        playerByes.forEach((bye) => {
-          const byePoints = bye.points === 1 ? 0.5 : bye.points === 2 ? 1 : 0;
-          totalPoints += byePoints;
-        });
+        for (let round = 1; round <= currentRound; round++) {
+          const match = playerMatches.find((m) => m.round === round);
+          if (match) {
+            const normalized = normalizeMatchResult(match.result);
+            if (normalized) {
+              const isWhite = match.whitePlayerId === player.id;
+              totalPoints += getPointsForResult(match.result, isWhite ? "white" : "black");
+            }
+          } else {
+            const bye = playerByes.find((b) => b.round === round);
+            if (bye) {
+              const byePoints = bye.points === 1 ? 0.5 : bye.points === 2 ? 1 : 0;
+              totalPoints += byePoints;
+            }
+          }
+        }
 
         return {
           player,
@@ -399,7 +402,18 @@ export default function SwissStandings({ tournamentId, showExportControls = true
           );
 
           if (byeThisRound) {
-            const byePoints = byeThisRound.points === 1 ? 0.5 : byeThisRound.points === 2 ? 1 : 0;
+            const matchThisRound = matches.find(
+              (match) => match.round === round && match.whitePlayerId === standing.player.id && match.blackPlayerId === null
+            );
+
+            let byePoints = byeThisRound.points === 1 ? 0.5 : byeThisRound.points === 2 ? 1 : 0;
+            if (matchThisRound) {
+              const normalized = normalizeMatchResult(matchThisRound.result);
+              if (normalized) {
+                byePoints = getPointsForResult(matchThisRound.result, "white");
+              }
+            }
+
             roundResults.push({
               opponent: null,
               opponentPosition: 0,

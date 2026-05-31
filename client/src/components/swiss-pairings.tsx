@@ -14,7 +14,7 @@ import { parseTournamentConfig } from "@/lib/tournament-config";
 import { calculateMatchupScore, type SectionDefinition } from "@shared/tournament-config";
 import { HEAD_TO_HEAD_RESULT_OPTIONS, BYE_RESULT_OPTIONS, getPointsForResult } from "@shared/match-results";
 import { MatchManagementDialog } from "./match-management-dialog";
-import { Swords } from "lucide-react";
+import { Swords, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface TournamentPairingsProps {
@@ -389,6 +389,18 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
 
   const updateMatchMutation = useMutation({
     mutationFn: async ({ matchId, result }: { matchId: number; result: string }) => {
+      const oldMatch = allMatches?.find(m => m.id === matchId);
+      if (oldMatch) {
+        const event = new CustomEvent("matchResultUpdated", {
+          detail: {
+            matchId,
+            previousResult: oldMatch.result || null,
+            previousStatus: oldMatch.status,
+          }
+        });
+        window.dispatchEvent(event);
+      }
+
       return await apiRequest(`/api/matches/${matchId}`, {
         method: "PUT",
         body: JSON.stringify({
@@ -567,20 +579,14 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
 
       let points = 0;
 
-      for (const match of allMatches) {
-        if ((match.whitePlayerId === playerId || match.blackPlayerId === playerId) && match.round < beforeRound) {
+      for (let r = 1; r < beforeRound; r++) {
+        const match = allMatches.find(m => (m.whitePlayerId === playerId || m.blackPlayerId === playerId) && m.round === r);
+        if (match) {
           const color = match.whitePlayerId === playerId ? 'white' : 'black';
           points += getPointsForResult(match.result, color);
-        }
-      }
-
-      if (allTournamentPairings) {
-        for (const pairing of allTournamentPairings) {
-          if (
-            pairing.playerId === playerId &&
-            pairing.isBye &&
-            pairing.round < beforeRound
-          ) {
+        } else if (allTournamentPairings) {
+          const pairing = allTournamentPairings.find(p => p.playerId === playerId && p.isBye && p.round === r);
+          if (pairing) {
             const byePoints = pairing.points === 1 ? 0.5 : pairing.points === 2 ? 1 : 0;
             points += byePoints;
           }

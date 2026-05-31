@@ -15,7 +15,11 @@ export type MatchResultCode =
   | "1F-1FU"
   | "0F-0FU"
   | "1-bye"
-  | "1-byeU";
+  | "1-byeU"
+  | "1/2-bye"
+  | "1/2-byeU"
+  | "0-bye"
+  | "0-byeU";
 
 export const HEAD_TO_HEAD_RESULT_OPTIONS: Array<{ value: string; label: string }> = [
   { value: "1-0", label: "1-0 (White win)" },
@@ -35,14 +39,13 @@ export const HEAD_TO_HEAD_RESULT_OPTIONS: Array<{ value: string; label: string }
 ];
 
 export const BYE_RESULT_OPTIONS: Array<{ value: string; label: string }> = [
-  { value: "1-0", label: "1-0 (Win)" },
-  { value: "0-1", label: "0-1 (Loss)" },
-  { value: "1/2-1/2", label: "½-½ (Draw)" },
+  ...HEAD_TO_HEAD_RESULT_OPTIONS,
   { value: "1-bye", label: "1-point bye" },
-  { value: "1-0U", label: "1-0U (Win, unrated)" },
-  { value: "0-1U", label: "0-1U (Loss, unrated)" },
-  { value: "1/2-1/2U", label: "½-½U (Draw, unrated)" },
+  { value: "1/2-bye", label: "1/2-point bye" },
+  { value: "0-bye", label: "0-point bye" },
   { value: "1-byeU", label: "1-point bye (unrated)" },
+  { value: "1/2-byeU", label: "1/2-point bye (unrated)" },
+  { value: "0-byeU", label: "0-point bye (unrated)" },
 ];
 
 const LEGACY_RESULT_MAP: Record<string, string> = {
@@ -76,6 +79,8 @@ const RESULT_POINTS: Record<string, { white: number; black: number }> = {
   "1F-1F": { white: 0, black: 0 },
   "0F-0F": { white: 0, black: 0 },
   "1-bye": { white: 1, black: 0 },
+  "1/2-bye": { white: 0.5, black: 0 },
+  "0-bye": { white: 0, black: 0 },
 };
 
 export function getPointsForResult(

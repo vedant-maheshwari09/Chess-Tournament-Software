@@ -287,20 +287,16 @@ export function FideRegistrationSection({
                 variant="outline"
                 className="bg-indigo-50 text-indigo-700 border-indigo-100 hover:bg-indigo-100"
                 onClick={onDownloadRegistration}
-                disabled={true}
               >
                 <Download className="mr-2 h-4 w-4" /> Download registration data
-                <Badge variant="secondary" className="ml-2 text-[10px] h-4 bg-indigo-200 text-indigo-700 border-none">Coming Soon</Badge>
               </Button>
               <Button
                 type="button"
                 variant="outline"
                 className="bg-slate-900 text-white hover:bg-slate-800"
                 onClick={onDownloadTrf}
-                disabled={true}
               >
                 <Download className="mr-2 h-4 w-4" /> Download FIDE TRF16
-                <Badge variant="secondary" className="ml-2 text-[10px] h-4 bg-slate-700 text-white border-none">Coming Soon</Badge>
               </Button>
             </div>
           </CardContent>
@@ -444,20 +440,16 @@ export function FideRegistrationSection({
                 variant="outline"
                 className="bg-indigo-50 text-indigo-700 border-indigo-100 hover:bg-indigo-100"
                 onClick={onDownloadFa1}
-                disabled={true}
               >
                 <Download className="mr-2 h-4 w-4" /> Download FA1 Form
-                <Badge variant="secondary" className="ml-2 text-[10px] h-4 bg-indigo-200 text-indigo-700 border-none">Coming Soon</Badge>
               </Button>
               <Button
                 type="button"
                 variant="outline"
                 className="bg-slate-900 text-white hover:bg-slate-800"
                 onClick={onDownloadIa1}
-                disabled={true}
               >
                 <Download className="mr-2 h-4 w-4" /> Download IA1 Form
-                <Badge variant="secondary" className="ml-2 text-[10px] h-4 bg-slate-700 text-white border-none">Coming Soon</Badge>
               </Button>
             </div>
           </CardContent>
@@ -471,9 +463,10 @@ interface UscfReportSectionProps {
   value: UscfReportData;
   onChange: (update: Partial<UscfReportData>) => void;
   onDownload?: () => void;
+  onDownloadZip?: () => void;
 }
 
-export function UscfReportSection({ value, onChange, onDownload }: UscfReportSectionProps) {
+export function UscfReportSection({ value, onChange, onDownload, onDownloadZip }: UscfReportSectionProps) {
   return (
     <Card className="shadow-sm">
       <CardHeader>
@@ -492,7 +485,6 @@ export function UscfReportSection({ value, onChange, onDownload }: UscfReportSec
           >
             <Download className="h-4 w-4" />
             Download Summary
-            <Badge variant="secondary" className="ml-1 bg-indigo-100 text-indigo-700 text-[10px] py-0 px-1.5 font-bold uppercase tracking-wider">Coming Soon</Badge>
           </Button>
         </div>
       </CardHeader>
@@ -629,12 +621,10 @@ export function UscfReportSection({ value, onChange, onDownload }: UscfReportSec
             type="button"
             variant="outline"
             className="bg-indigo-600 text-white hover:bg-indigo-700 shadow-md"
-            disabled={true}
-            onClick={onDownload}
+            onClick={onDownloadZip}
           >
             <Download className="mr-2 h-4 w-4" />
             Generate USCF Report
-            <Badge variant="secondary" className="ml-2 text-[10px] h-4 bg-indigo-500 text-white border-none">Coming Soon</Badge>
           </Button>
         </div>
       </CardContent>

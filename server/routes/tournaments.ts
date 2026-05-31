@@ -1,6 +1,6 @@
 import { insertTournamentSchema, insertPlayerSchema } from '@shared/schema';
 import { updateChessResultsScheduler, testChessResultsConnection, syncChessResults } from '../services/chessResults';
-import type { Express } from "express";
+import type { Express, Request, Response } from "express";
 import { z } from "zod";
 import { normalizePlayerName } from "./util";
 import Stripe from "stripe";
@@ -14,6 +14,7 @@ import { requireAuth, requireRole, requireTournamentAccess } from '../auth';
 import { notificationService } from '../notifications';
 import { parseTournamentConfig, calculateMatchupScore, getMatchFormat, isMatchDecided } from "@shared/tournament-config";
 import { generateFideTrf16Report } from '../lib/fideTrf';
+import { generateUscfDbfZip } from '../lib/uscfDbf';
 import { lookupFideProfiles, searchFideDirectory } from '../lib/fideDirectory';
 import { Player, Pairing, Match, PlayerRegistration } from "@shared/schema";
 import { generateKnockoutPairings, generateDoubleEliminationPairings } from '../knockout';
@@ -1422,7 +1423,7 @@ app.post(
           return res.status(404).json({ message: "Tournament not found" });
         }
 
-        const config = parseTournamentConfig(tournament);
+        const config = req.body.config ? req.body.config : parseTournamentConfig(tournament);
         const result = await syncChessResults({ storage, tournament, config, reason: "manual" });
         await updateChessResultsScheduler(storage, tournament.id, result.config);
 
@@ -1434,6 +1435,30 @@ app.post(
       } catch (error) {
         console.error("Chess-Results sync error:", error);
         res.status(500).json({ message: "Failed to synchronize with Chess-Results" });
+      }
+    }
+  );
+
+  app.post(
+    "/api/tournaments/:id/chess-results/test",
+    requireAuth,
+    requireRole('tournament_director'),
+    requireTournamentAccess,
+    async (req, res) => {
+      try {
+        const id = parseInt(req.params.id);
+        const tournament = await storage.getTournament(id);
+        if (!tournament) {
+          return res.status(404).json({ message: "Tournament not found" });
+        }
+
+        const config = req.body.config ? req.body.config : parseTournamentConfig(tournament);
+        const result = await testChessResultsConnection({ storage, tournament, config });
+
+        res.json(result);
+      } catch (error) {
+        console.error("Chess-Results connection test error:", error);
+        res.status(500).json({ message: "Failed to test connection to Chess-Results" });
       }
     }
   );
@@ -2642,7 +2667,13 @@ app.put("/api/matches/:id", requireAuth, requireRole('tournament_director'), asy
         return res.status(404).json({ message: "Match not found" });
       }
 
-      const updatedMatch = await storage.updateMatch(id, req.body);
+      // Normalize "Pending" sentinel to null so we can properly clear a result
+      const rawResult = req.body.result;
+      const normalizedResult = (rawResult === "Pending" || rawResult === null || rawResult === undefined) ? null : rawResult;
+      const normalizedStatus = normalizedResult ? "completed" : "pending";
+      const updateBody = { ...req.body, result: normalizedResult, status: normalizedStatus };
+
+      const updatedMatch = await storage.updateMatch(id, updateBody);
       if (!updatedMatch) {
         return res.status(404).json({ message: "Match not found" });
       }
@@ -2950,6 +2981,46 @@ app.post("/api/tournaments/:tournamentId/generate-pairings", requireAuth, requir
 
       const playerMap = new Map(allPlayers.map((p: any) => [p.id, p]));
 
+      let currentRound: number;
+      if (regenerate && targetRound) {
+        currentRound = targetRound;
+      } else {
+        currentRound = (tournament.currentRound || 0) + 1;
+      }
+
+      let filteredMatches = [...allMatches];
+      let filteredPairings = [...allPairings];
+
+      if (regenerate && currentRound) {
+        console.log(`Regenerating Swiss pairings for round ${currentRound} - clearing existing round pairings/matches and subsequent rounds`);
+        const pairingsToDelete = allPairings.filter((p: any) => p.round >= currentRound);
+        for (const pairing of pairingsToDelete) {
+          await storage.deletePairing(pairing.id);
+        }
+        filteredPairings = allPairings.filter((p: any) => p.round < currentRound);
+
+        const matchesToDelete = allMatches.filter((m: any) => m.round >= currentRound);
+        for (const match of matchesToDelete) {
+          await storage.deleteMatch(match.id);
+        }
+        filteredMatches = allMatches.filter((m: any) => m.round < currentRound);
+
+        await storage.updateTournament(tournamentId, {
+          currentRound: currentRound
+        });
+
+        await storage.createHistoryEntry({
+          tournamentId,
+          action: 'repair_round',
+          description: `Round ${currentRound} pairings repaired/regenerated, subsequent rounds wiped`,
+          changedBy: user.id,
+          previousState: JSON.stringify({ pairingsCount: pairingsToDelete.length, matchesCount: matchesToDelete.length }),
+          newState: JSON.stringify({ regeneratedRound: currentRound, currentRoundSetTo: currentRound }),
+          round: currentRound,
+          canRevert: false
+        });
+      }
+
       const playersBySection = allPlayers.reduce((acc: any, player: any) => {
         const sectionKey = player.sectionId || 'default';
         if (!acc[sectionKey]) acc[sectionKey] = [];
@@ -2957,7 +3028,7 @@ app.post("/api/tournaments/:tournamentId/generate-pairings", requireAuth, requir
         return acc;
       }, {} as Record<string, any[]>);
 
-      const matchesBySection = allMatches.reduce((acc: any, match: any) => {
+      const matchesBySection = filteredMatches.reduce((acc: any, match: any) => {
         const player = playerMap.get(match.whitePlayerId!) ?? playerMap.get(match.blackPlayerId!);
         if (player) {
           const sectionKey = player.sectionId || 'default';
@@ -2967,7 +3038,7 @@ app.post("/api/tournaments/:tournamentId/generate-pairings", requireAuth, requir
         return acc;
       }, {} as Record<string, any[]>);
 
-      const pairingsBySection = allPairings.reduce((acc: any, pairing: any) => {
+      const pairingsBySection = filteredPairings.reduce((acc: any, pairing: any) => {
         const player: any = playerMap.get(pairing.playerId);
         if (player) {
           const sectionKey = player.sectionId || 'default';
@@ -2982,13 +3053,6 @@ app.post("/api/tournaments/:tournamentId/generate-pairings", requireAuth, requir
         matches: [] as any[],
         message: "Pairings generated successfully for all sections.",
       };
-
-      let currentRound: number;
-      if (regenerate && targetRound) {
-        currentRound = targetRound;
-      } else {
-        currentRound = (tournament.currentRound || 0) + 1;
-      }
 
       // Pre-calculate total matches for board numbering
       let totalMatches = 0;
@@ -3152,8 +3216,26 @@ app.post("/api/tournaments/:tournamentId/generate-pairings", requireAuth, requir
           const numSectionMatches = Math.floor(sectionPlayers.length / 2) + (sectionPlayers.length % 2);
           const boardNumbersForSection = allBoardNumbers.slice(boardNumberOffset, boardNumberOffset + numSectionMatches);
           boardNumberOffset += numSectionMatches;
-          await generatePairings(tournament, sectionPlayers, [], [], 1, boardNumbersForSection);
+
+          const sectionMatches = matchesBySection[sectionKey] || [];
+          const sectionPairings = pairingsBySection[sectionKey] || [];
+
+          await generatePairings(
+            tournament,
+            sectionPlayers,
+            sectionMatches,
+            sectionPairings,
+            currentRound,
+            boardNumbersForSection
+          );
         }
+      }
+
+      if (!regenerate) {
+        await storage.updateTournament(tournamentId, {
+          status: "active",
+          currentRound: currentRound
+        });
       }
 
       finalResults.message = `Pairings generated for round ${currentRound}.`;
@@ -3164,4 +3246,365 @@ app.post("/api/tournaments/:tournamentId/generate-pairings", requireAuth, requir
       res.status(500).json({ error: "Failed to generate pairings" });
     }
   });
+
+  app.post(
+    "/api/tournaments/:id/swap-players",
+    requireAuth,
+    requireRole('tournament_director'),
+    requireTournamentAccess,
+    async (req: Request, res: Response) => {
+      try {
+        const tournamentId = parseInt(req.params.id);
+        const { match1Id, match2Id, player1Id, player2Id, color1, color2 } = req.body;
+
+        if (!match1Id || !match2Id) {
+          return res.status(400).json({ message: "Invalid match IDs provided." });
+        }
+
+        const match1 = await storage.getMatch(match1Id);
+        const match2 = await storage.getMatch(match2Id);
+
+        if (!match1 || !match2) {
+          return res.status(404).json({ message: "Match not found." });
+        }
+
+        const round = match1.round;
+
+        const previousState = {
+          match1: { ...match1 },
+          match2: { ...match2 },
+        };
+
+        const match1Updates: Partial<Match> = {};
+        const match2Updates: Partial<Match> = {};
+
+        if (color1 === 'white') {
+          match1Updates.whitePlayerId = player2Id;
+        } else {
+          match1Updates.blackPlayerId = player2Id;
+        }
+
+        if (color2 === 'white') {
+          match2Updates.whitePlayerId = player1Id;
+        } else {
+          match2Updates.blackPlayerId = player1Id;
+        }
+
+        const updatedMatch1 = await storage.updateMatch(match1Id, match1Updates);
+        const updatedMatch2 = await storage.updateMatch(match2Id, match2Updates);
+
+        if (!updatedMatch1 || !updatedMatch2) {
+          return res.status(500).json({ message: "Failed to update match records." });
+        }
+
+        const roundPairings = await storage.getPairingsByRound(tournamentId, round);
+
+        const updatePlayerPairing = async (playerId: number, opponentId: number | null, color: string | null, isBye: boolean, points: number) => {
+          const pair = roundPairings.find(p => p.playerId === playerId);
+          if (pair) {
+            await storage.updatePairing(pair.id, {
+              opponentId,
+              color,
+              isBye,
+              points,
+            });
+          } else {
+            await storage.createPairing({
+              tournamentId,
+              round,
+              playerId,
+              opponentId,
+              color,
+              isBye,
+              points,
+            });
+          }
+        };
+
+        const syncPairingsForMatch = async (match: Match) => {
+          if (match.isBye || match.blackPlayerId === null) {
+            if (match.whitePlayerId) {
+              await updatePlayerPairing(match.whitePlayerId, null, null, true, 2);
+            }
+          } else {
+            if (match.whitePlayerId && match.blackPlayerId) {
+              await updatePlayerPairing(match.whitePlayerId, match.blackPlayerId, 'white', false, 0);
+              await updatePlayerPairing(match.blackPlayerId, match.whitePlayerId, 'black', false, 0);
+            }
+          }
+        };
+
+        await syncPairingsForMatch(updatedMatch1);
+        await syncPairingsForMatch(updatedMatch2);
+
+        const p1 = player1Id ? await storage.getPlayer(player1Id) : null;
+        const p2 = player2Id ? await storage.getPlayer(player2Id) : null;
+        const p1Name = p1 ? `${p1.firstName} ${p1.lastName}` : "Bye";
+        const p2Name = p2 ? `${p2.firstName} ${p2.lastName}` : "Bye";
+
+        await storage.createHistoryEntry({
+          tournamentId,
+          action: 'manual_swap',
+          description: `Swapped player ${p1Name} (from Match ${match1Id}) with ${p2Name} (from Match ${match2Id}) in Round ${round}`,
+          changedBy: req.user!.id,
+          previousState: JSON.stringify(previousState),
+          newState: JSON.stringify({ match1: updatedMatch1, match2: updatedMatch2 }),
+          round,
+          canRevert: true,
+        });
+
+        res.json({ message: "Players swapped successfully." });
+      } catch (error: any) {
+        console.error("Error swapping players:", error);
+        res.status(500).json({ message: "Failed to swap players: " + error.message });
+      }
+    }
+  );
+
+  app.post(
+    "/api/tournaments/:id/import-players",
+    requireAuth,
+    requireRole('tournament_director'),
+    requireTournamentAccess,
+    async (req, res) => {
+      try {
+        const targetTournamentId = parseInt(req.params.id);
+        const { sourceTournamentId, playerIds } = req.body;
+
+        if (!sourceTournamentId || !Array.isArray(playerIds) || playerIds.length === 0) {
+          return res.status(400).json({ message: "Source tournament and player IDs are required" });
+        }
+
+        const sourcePlayers = await storage.getPlayersByTournament(sourceTournamentId);
+        const playersToClone = sourcePlayers.filter(p => playerIds.includes(p.id));
+
+        if (playersToClone.length === 0) {
+          return res.status(400).json({ message: "No players found to clone" });
+        }
+
+        const clonedPlayers = [];
+        for (const p of playersToClone) {
+          const clonedPlayer = await storage.createPlayer({
+            tournamentId: targetTournamentId,
+            userId: p.userId,
+            firstName: p.firstName,
+            lastName: p.lastName,
+            rating: p.rating,
+            uscfRating: p.uscfRating,
+            fideRating: p.fideRating,
+            federation: p.federation || 'USCF',
+            email: p.email,
+            club: p.club,
+            title: p.title,
+            birthdate: p.birthdate,
+            sex: p.sex,
+            localId: p.localId,
+            ratingLocal: p.ratingLocal,
+            ratingRapid: p.ratingRapid,
+            ratingBlitz: p.ratingBlitz,
+            isActiveTd: false,
+            sectionId: p.sectionId,
+            sectionName: p.sectionName,
+            status: 'active'
+          });
+          clonedPlayers.push(clonedPlayer);
+        }
+
+        res.json({ message: `Successfully imported ${clonedPlayers.length} players`, players: clonedPlayers });
+      } catch (error) {
+        console.error("Import players error:", error);
+        res.status(500).json({ message: "Failed to import players" });
+      }
+    }
+  );
+
+  app.post(
+    "/api/tournaments/:id/predict-pairings",
+    requireAuth,
+    async (req, res) => {
+      try {
+        const tournamentId = parseInt(req.params.id);
+        const tournament = await storage.getTournament(tournamentId);
+        if (!tournament) {
+          return res.status(404).json({ message: "Tournament not found" });
+        }
+
+        if (tournament.format !== 'swiss') {
+          return res.status(400).json({ message: "Pairing predictor is only available for Swiss events" });
+        }
+
+        const currentRound = tournament.currentRound || 0;
+        if (currentRound === 0) {
+          return res.status(400).json({ message: "Tournament has not started yet" });
+        }
+
+        const totalRounds = tournament.rounds || 0;
+        if (currentRound >= totalRounds) {
+          return res.status(400).json({ message: "All rounds are already completed" });
+        }
+
+        const [players, matches, pairings] = await Promise.all([
+          storage.getPlayersByTournament(tournamentId),
+          storage.getMatchesByTournament(tournamentId),
+          storage.getPairingsByTournament(tournamentId),
+        ]);
+
+        const simulatedResultsList = req.body.simulatedResults || [];
+        const simMap = new Map<number, string>();
+        for (const item of simulatedResultsList) {
+          let dbRes = item.result;
+          if (item.result === 'white-win') dbRes = '1-0';
+          else if (item.result === 'black-win') dbRes = '0-1';
+          else if (item.result === 'draw') dbRes = '1/2-1/2';
+          simMap.set(Number(item.matchId), dbRes);
+        }
+
+        const simulatedMatches = matches.map(match => {
+          if (match.round === currentRound) {
+            if (match.result) return match;
+
+            const simRes = simMap.get(match.id);
+            if (simRes && simRes !== 'unplayed') {
+              return {
+                ...match,
+                result: simRes,
+                status: 'completed'
+              };
+            }
+
+            return {
+              ...match,
+              result: '1/2-1/2',
+              status: 'completed'
+            };
+          }
+          return match;
+        });
+
+        const nextRound = currentRound + 1;
+        const playerMap = new Map(players.map((p: any) => [p.id, p]));
+        const playersBySection = players.reduce((acc: any, player: any) => {
+          const sectionKey = player.sectionId || 'default';
+          if (!acc[sectionKey]) {
+            acc[sectionKey] = [];
+          }
+          acc[sectionKey].push(player);
+          return acc;
+        }, {} as Record<string, Player[]>);
+
+        const matchesBySection = simulatedMatches.reduce((acc: any, match: any) => {
+          const player = playerMap.get(match.whitePlayerId!) ?? playerMap.get(match.blackPlayerId!);
+          if (player) {
+            const sectionKey = player.sectionId || 'default';
+            if (!acc[sectionKey]) {
+              acc[sectionKey] = [];
+            }
+            acc[sectionKey].push(match);
+          }
+          return acc;
+        }, {} as Record<string, any[]>);
+
+        const pairingsBySection = pairings.reduce((acc, pairing: any) => {
+          const player = playerMap.get(pairing.playerId);
+          if (player) {
+            const sectionKey = player.sectionId || 'default';
+            if (!acc[sectionKey]) {
+              acc[sectionKey] = [];
+            }
+            acc[sectionKey].push(pairing);
+          }
+          return acc;
+        }, {} as Record<string, any[]>);
+
+        let allPredictedPairings: any[] = [];
+
+        // Pre-calculate total matches for board numbering sequence
+        let totalMatches = 0;
+        for (const sectionKey in playersBySection) {
+          const sectionPlayers = playersBySection[sectionKey];
+          const sectionPairings = pairingsBySection[sectionKey] || [];
+          const isWithdrawn = (playerId: number) => sectionPairings.some((p: any) => p.playerId === playerId && p.isBye && p.byeType === 'zero_point' && p.round < nextRound);
+          const activePlayers = sectionPlayers.filter((p: any) => !isWithdrawn(p.id));
+          if (activePlayers.length < 1) continue;
+          totalMatches += Math.floor(activePlayers.length / 2) + (activePlayers.length % 2 === 1 ? 1 : 0);
+        }
+
+        const allBoardNumbers = generateBoardNumberSequence(tournament.boardNumberingSettings as BoardNumberingSettings, totalMatches);
+        let boardNumberOffset = 0;
+
+        for (const sectionKey in playersBySection) {
+          const sectionPlayers = playersBySection[sectionKey];
+          const sectionMatches = matchesBySection[sectionKey] || [];
+          const sectionPairings = pairingsBySection[sectionKey] || [];
+          const isWithdrawn = (playerId: number) => sectionPairings.some((p: any) => p.playerId === playerId && p.isBye && p.byeType === 'zero_point' && p.round < nextRound);
+          const activePlayers = sectionPlayers.filter((p: any) => !isWithdrawn(p.id));
+          if (activePlayers.length < 1) continue;
+
+          const numSectionMatches = Math.floor(activePlayers.length / 2) + (activePlayers.length % 2 === 1 ? 1 : 0);
+          const boardNumbersForSection = allBoardNumbers.slice(boardNumberOffset, boardNumberOffset + numSectionMatches);
+          boardNumberOffset += numSectionMatches;
+
+          const predictedSectionPairings = await generateSwissPairings(
+            tournament,
+            activePlayers,
+            sectionMatches,
+            nextRound,
+            sectionPairings,
+            boardNumbersForSection
+          );
+
+          // Add section info to predicted pairings
+          const pairingsWithSection = predictedSectionPairings.map(p => ({
+            ...p,
+            sectionId: sectionKey === 'default' ? null : sectionKey
+          }));
+
+          allPredictedPairings.push(...pairingsWithSection);
+        }
+
+        res.json({ pairings: allPredictedPairings });
+      } catch (error) {
+        console.error("Predict pairings error:", error);
+        res.status(500).json({ message: "Failed to predict next round pairings" });
+      }
+    }
+  );
+
+  app.get(
+    "/api/tournaments/:id/exports/uscf-dbf",
+    requireAuth,
+    requireRole('tournament_director'),
+    requireTournamentAccess,
+    async (req, res) => {
+      try {
+        const id = parseInt(req.params.id);
+        const tournament = await storage.getTournament(id);
+        if (!tournament) {
+          return res.status(404).json({ message: "Tournament not found" });
+        }
+
+        const config = parseTournamentConfig(tournament);
+        const [players, matches, pairings] = await Promise.all([
+          storage.getPlayersByTournament(id),
+          storage.getMatchesByTournament(id),
+          storage.getPairingsByTournament(id),
+        ]);
+
+        const zipBuffer = generateUscfDbfZip({
+          tournament,
+          config,
+          players,
+          matches,
+          pairings,
+        });
+
+        res.setHeader("Content-Type", "application/zip");
+        res.setHeader("Content-Disposition", `attachment; filename=uscf-export-${id}.zip`);
+        res.send(zipBuffer);
+      } catch (error: any) {
+        console.error("USCF DBF Export error:", error);
+        res.status(500).json({ message: "Failed to generate USCF DBF files: " + error.message });
+      }
+    }
+  );
 }

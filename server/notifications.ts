@@ -93,15 +93,19 @@ class NotificationService {
 
     const isGmailSender = this.fromAddress.toLowerCase().includes("gmail.com");
 
-    // Prioritize Resend if enabled, unless explicitly told to use Gmail for a Gmail address
-    // and Resend is known to fail with Gmail from-addresses on unverified domains.
-    // However, if the user explicitly wants Resend, we try it first.
+    // Prioritize Resend if enabled, but rewrite the from address to onboarding@resend.dev
+    // if the configured sender is a Gmail/webmail address to avoid unverified domain errors.
     if (this.resendEnabled && this.resend) {
       try {
         log(`Attempting email send via Resend to ${recipients.join(", ")}...`, "notifications");
+        
+        const isPublicDomain = /@(gmail|yahoo|outlook|hotmail|live|icloud|mail)\.com/i.test(this.fromAddress);
+        const resendFrom = isPublicDomain ? "Chess Tournament <onboarding@resend.dev>" : this.fromAddress;
+        
         const { data, error } = await this.resend.emails.send({
-          from: this.fromAddress,
+          from: resendFrom,
           to: recipients,
+          replyTo: this.fromAddress,
           subject,
           text: text ?? "",
           html: html,

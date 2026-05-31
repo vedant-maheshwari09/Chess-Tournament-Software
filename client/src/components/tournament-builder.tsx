@@ -1998,7 +1998,10 @@ function StepTwo({ format, mode, builderMode, config, onConfigChange, onBack: _o
               <TabsTrigger value="details" className="flex-none md:flex-1 h-full min-h-[36px] data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-black transition-all font-medium rounded-lg px-4 text-xs xl:text-sm">Details</TabsTrigger>
               <TabsTrigger value="tournamentPage" className="flex-none md:flex-1 h-full min-h-[36px] data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-black transition-all font-medium rounded-lg px-4 text-xs xl:text-sm">Public Page</TabsTrigger>
               <TabsTrigger value="payments" className="flex-none md:flex-1 h-full min-h-[36px] data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-black transition-all font-medium rounded-lg px-4 text-xs xl:text-sm">Payments</TabsTrigger>
-              <TabsTrigger value="prizes" className="flex-none md:flex-1 h-full min-h-[36px] data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-black transition-all font-medium rounded-lg px-4 text-xs xl:text-sm">Prizes</TabsTrigger>
+              <TabsTrigger value="prizes" disabled className="flex-none md:flex-1 h-full min-h-[36px] data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-black transition-all font-medium rounded-lg px-4 text-xs xl:text-sm opacity-40 cursor-not-allowed pointer-events-none flex items-center justify-center gap-1.5">
+                Prizes
+                <span className="text-[9px] font-semibold text-slate-500 bg-slate-200/80 px-1 py-0.5 rounded leading-none">Soon</span>
+              </TabsTrigger>
               <TabsTrigger value="options" className="flex-none md:flex-1 h-full min-h-[36px] data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-black transition-all font-medium rounded-lg px-4 text-xs xl:text-sm">Options</TabsTrigger>
             </TabsList>
 

@@ -118,6 +118,16 @@ function mapMatchResultToTrf(
         code: "F",
         points: scoring.win,
       };
+    case "1/2-bye":
+      return {
+        code: "H",
+        points: scoring.draw,
+      };
+    case "0-bye":
+      return {
+        code: "Z",
+        points: scoring.loss,
+      };
     default:
       return { code: " ", points: 0 };
   }

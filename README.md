@@ -5,7 +5,9 @@
 [![React](https://img.shields.io/badge/React-20232A?style=flat&logo=react&logoColor=61DAFB)](https://reactjs.org/)
 [![Drizzle](https://img.shields.io/badge/Drizzle-C5F74F?style=flat&logo=drizzle&logoColor=000)](https://orm.drizzle.team/)
 
-A modern, full-stack platform designed for chess organizers, tournament directors, and players. This software streamlines the process of managing chess tournaments, from registration and seeding to real-time pairings and result reporting.
+A modern, full-stack platform designed for chess organizers, tournament directors, and players. This software streamlines the process of managing chess tournaments — from registration and seeding to real-time pairings, result reporting, and official rating submission.
+
+---
 
 ## Key Features
 
@@ -16,9 +18,10 @@ The platform supports four primary tournament formats, each with specialized pai
 #### **1. Swiss System (Standard & Professional)**
 - **Pairing Engine**: Implements a professional Swiss pairing algorithm that adheres to USCF and FIDE principles.
 - **Round Logic**: Sorts players by rating and splits the field into upper and lower halves. The top of the upper half is paired against the top of the lower half (Seeded Pairing).
-- **Subsequent Rounds**: Grouping players by tournament points (score groups). Within each group, the "Upper vs Lower" method is applied while strictly avoiding repeat pairings.
+- **Subsequent Rounds**: Groups players by tournament points (score groups). Within each group, the "Upper vs Lower" method is applied while strictly avoiding repeat pairings.
 - **Color Balancing**: Ensures no player receives the same color more than twice in a row, maintaining a `colorDelta` near zero for all participants.
-- **Bye Management**: Automatically handles odd numbers of players by assigning a full-point or half-point bye to the lowest-ranked player in the lowest score group who hasn't already received one.
+- **Bye Management**: Automatically handles odd numbers of players by assigning a full-point or half-point bye to the lowest-ranked player in the lowest score group who hasn't already received one. Supports **1-point, ½-point, and 0-point** bye result types, each correctly scored in standings.
+- **Multi-Section Support**: Full pairing isolation across tournament sections with per-section standings and results.
 
 #### **2. Arena (Real-time Continuous Pairing)**
 - **Dynamic Queue**: Players join a "pairing pool" and are matched as soon as they (and a suitable opponent) finish their previous game.
@@ -43,11 +46,59 @@ The platform supports four primary tournament formats, each with specialized pai
 - **Fair Color Assignment**: Uses Berger Tables or the Circle Algorithm to ensure an equal distribution of White and Black games across the tournament.
 - **Round Management**: Simple round advancement that moves through the pre-defined pairing matrix.
 
+---
+
+### Tournament Director Tools
+
+#### **Swiss Pairing Predictor**
+An in-browser simulation engine for Swiss tournaments:
+- Players search for their name using autocomplete and select themselves.
+- All current-round matches are displayed in **board order** with result dropdowns.
+- Completed matches show their real result (which can be overridden for simulation purposes).
+- Pending matches default to showing as unplayed ("Pending").
+- Players can set hypothetical results for any match and click **Predict Matchup**.
+- The system runs the full Swiss pairing backtracking algorithm in-memory on the server and returns the player's predicted next-round opponent, color, and board number.
+- If unset results exist, the system asks for confirmation and defaults them to ½-½.
+- Multi-section tournaments show only the selected player's section for simulation.
+
+#### **Pairing Adjustments & Result Management**
+- Manual player swaps (drag-and-drop style, click-to-swap) with an **Undo** button.
+- Ability to repair pairings from any past round — subsequent rounds are wiped and regenerated.
+- All results can be edited at any time, including setting them back to **Pending** to clear an incorrect entry.
+- Result history and audit log with revert support.
+
+#### **Bye Result Options**
+For any bye match (odd-player-out), the tournament director can select from:
+- **1-point bye** — full point awarded (default for last-minute byes)
+- **½-point bye** — half point, used for requested half-point byes
+- **0-point bye** — zero points, for zero-point byes or forfeits
+- All standard head-to-head results (forfeit wins, double forfeit, etc.) are also available for bye matches
+
+#### **Player Roster Templates (Import from Previous Tournament)**
+- In **Settings → Players**, tournament directors can select any past tournament they own.
+- The player list from that tournament is displayed with checkboxes.
+- Selected players are imported into the current tournament with all prior results, byes, and seeds reset to fresh defaults.
+
+---
+
 ### Professional Chess Integration
+
 - **Rating Systems**: Native support for **USCF** and **FIDE** ratings (Standard, Rapid, Blitz).
 - **Advanced Seeding**: Algorithms including FIDE World Cup, Slaughter, Random, and Manual.
 - **Automated Tiebreaks**: Professional calculation of Modified Median, Solkoff, and Cumulative tiebreaks.
 - **Ratings Cache**: High-performance local SQLite cache (FTS5) for instant USCF/FIDE player lookups.
+- **FIDE TRF16 Export**: Standards-compliant TRF16 file generation for FIDE rating report submission.
+- **USCF DBF Export**: Generates all three required USCF `.dbf` files (`THEXPORT.DBF`, `TSEXPORT.DBF`, `TDEXPORT.DBF`) bundled as a ZIP archive for direct upload to MSA.
+- **Chess-Results Server Integration**: Sync pairings and results to Chess-Results.com with support for testing the connection before saving credentials.
+
+---
+
+### Player Experience
+
+- **Public Registration Form**: A styled, branded form matching the tournament dashboard's indigo theme. Supports single and batch registrations, with optional USCF/FIDE ID lookup.
+- **Live Standings**: Real-time standings updated after each result is entered, with tiebreaks displayed.
+- **My Matches**: Players can view their own round-by-round pairings and results after logging in.
+- **Notifications**: In-app and push notifications for result updates, pairing announcements, and match invitations.
 
 ---
 
@@ -58,6 +109,10 @@ The platform supports four primary tournament formats, each with specialized pai
 ├── client/                 # React Frontend (Vite + Tailwind)
 │   ├── src/
 │   │   ├── components/     # UI Components (Radix, Lucide, Custom)
+│   │   │   ├── swiss-pairings.tsx        # Main pairing view & result entry
+│   │   │   ├── swiss-standings.tsx       # Live standings component
+│   │   │   ├── pairing-predictor.tsx     # Next-round pairing prediction tool
+│   │   │   └── tournament-settings/      # Settings sub-components
 │   │   ├── hooks/          # Custom Hooks (Auth, API queries, UI state)
 │   │   ├── lib/            # Utilities (Stripe, Socket.io, formatters)
 │   │   ├── pages/          # Application Screens (Dashboards, Auth, Tournaments)
@@ -66,16 +121,19 @@ The platform supports four primary tournament formats, each with specialized pai
 │   ├── lib/                # Business Logic & Algorithms
 │   │   ├── arenaPairing.ts # Arena pairing & cost function logic
 │   │   ├── pairings.ts     # Swiss/RoundRobin pairing logic
-│   │   └── tiebreaks.ts    # Standard tiebreak calculation logic
+│   │   ├── tiebreaks.ts    # Standard tiebreak calculation logic
+│   │   ├── fideTrf.ts      # FIDE TRF16 export builder
+│   │   └── uscfDbf.ts      # USCF DBF export builder (ZIP)
 │   ├── routes/             # Modular API Endpoints
 │   │   ├── arena.ts        # Arena specific endpoints
 │   │   ├── auth.ts         # Authentication & User Management
 │   │   ├── payments.ts     # Stripe integration & webhooks
-│   │   └── tournaments.ts  # Tournament & Player CRUD
+│   │   └── tournaments.ts  # Tournament & Player CRUD, predict-pairings, imports
 │   ├── storage.ts          # Drizzle ORM Database Interface (PostgreSQL)
 │   └── index.ts            # Server entry point
 ├── shared/                 # Shared TypeScript Definitions & Validation
 │   ├── schema.ts           # Drizzle Schemas & Zod Validation
+│   ├── match-results.ts    # Match result types, point calculations, options
 │   └── tournament-config.ts # Global configuration types and helpers
 ├── attached_assets/        # Reports, templates, and official PDFs
 ├── screenshots/            # System diagrams and UI previews
@@ -83,9 +141,6 @@ The platform supports four primary tournament formats, each with specialized pai
 ├── AGENTS.md               # Agent instructions for coding assistants
 └── SKILLS/                 # Custom skills for agentic workflows
 ```
-
----
-
 
 ---
 
@@ -128,6 +183,22 @@ The platform supports four primary tournament formats, each with specialized pai
    npm run dev
    ```
    The application will be accessible at `http://localhost:5010`.
+
+---
+
+## API Reference (Key Endpoints)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/tournaments/:id/generate-pairings` | Generate or regenerate Swiss pairings for a round |
+| `POST` | `/api/tournaments/:id/predict-pairings` | Simulate round results and predict next-round pairings |
+| `POST` | `/api/tournaments/:id/import-players` | Import a player roster from another tournament |
+| `PUT`  | `/api/matches/:id` | Update match result (supports `"Pending"` to clear a result) |
+| `POST` | `/api/tournaments/:id/swap-players` | Swap two players between boards |
+| `GET`  | `/api/tournaments/:id/exports/fide-trf` | Download FIDE TRF16 rating report |
+| `GET`  | `/api/tournaments/:id/exports/uscf-dbf` | Download USCF DBF ZIP rating report |
+| `POST` | `/api/tournaments/:id/chess-results/test` | Test Chess-Results server connection |
+| `POST` | `/api/tournaments/:id/chess-results/sync` | Sync data to Chess-Results.com |
 
 ---
 

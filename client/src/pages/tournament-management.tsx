@@ -53,6 +53,54 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
+  const [latestResultChange, setLatestResultChange] = useState<{
+    matchId: number;
+    previousResult: string | null;
+    previousStatus: string;
+  } | null>(null);
+
+  useEffect(() => {
+    const handleResultUpdate = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      setLatestResultChange(detail);
+    };
+
+    window.addEventListener("matchResultUpdated", handleResultUpdate);
+    return () => {
+      window.removeEventListener("matchResultUpdated", handleResultUpdate);
+    };
+  }, []);
+
+  const undoResultMutation = useMutation({
+    mutationFn: async () => {
+      if (!latestResultChange) return;
+      await apiRequest(`/api/matches/${latestResultChange.matchId}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          result: latestResultChange.previousResult || null,
+          status: latestResultChange.previousStatus === "completed" ? "completed" : "pending",
+        }),
+      });
+    },
+    onSuccess: () => {
+      setLatestResultChange(null);
+      queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/matches`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/pairings`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/players`] });
+      toast({
+        title: "Action Undone",
+        description: "The latest match result update has been undone.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to undo the latest result update.",
+        variant: "destructive",
+      });
+    }
+  });
+
   // Fetch tournament details
   const { data: tournament, isLoading: tournamentLoading } = useQuery<Tournament>({
     queryKey: [`/api/tournaments/${tournamentId}`],
@@ -612,25 +660,16 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="h-8 px-3 text-blue-600 hover:text-blue-700 hover:bg-blue-50/50 rounded-lg font-medium"
+                            disabled={!latestResultChange || undoResultMutation.isPending}
+                            onClick={() => undoResultMutation.mutate()}
+                            className="h-8 px-3 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50/50 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg font-medium"
                           >
                             <Undo className="h-3.5 w-3.5 mr-1.5" />
-                            Undo
+                            {undoResultMutation.isPending ? "Undoing..." : "Undo"}
                           </Button>
                         )}
                       </div>
                       <div className="flex items-center gap-2">
-                        {canGenerateNextRound && tournament.format !== 'knockout' && (
-                          <Button
-                            size="sm"
-                            onClick={() => nextRoundMutation.mutate()}
-                            disabled={nextRoundMutation.isPending}
-                            className="h-8 bg-blue-600 hover:bg-blue-700 text-[11px] font-bold"
-                          >
-                            <Plus className="h-3.5 w-3.5 mr-1" />
-                            {nextRoundMutation.isPending ? "Generating..." : "Next Round"}
-                          </Button>
-                        )}
 
                         <Sheet>
                           <SheetTrigger asChild>

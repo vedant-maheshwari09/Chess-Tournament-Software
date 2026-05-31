@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { Tournament } from "@shared/schema";
+import type { Tournament, Player } from "@shared/schema";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   type ChessResultsConfig,
   type FideRegistrationData,
@@ -405,6 +407,27 @@ export default function TournamentSettingsPage({ tournamentId, section }: Tourna
     });
   }, [config, tournament?.name, tournamentId]);
 
+  const handleDownloadUscfZip = useCallback(async () => {
+    try {
+      const response = await apiRequest(`/api/tournaments/${tournamentId}/exports/uscf-dbf`);
+      if (!(response instanceof Response)) {
+        throw new Error("Unexpected response payload");
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `tournament-${tournamentId}-uscf-export.zip`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+      toast({ title: "USCF DBF ZIP downloaded" });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to download USCF DBF export.";
+      toast({ title: "USCF export failed", description: message, variant: "destructive" });
+    }
+  }, [toast, tournamentId]);
+
   const handleDownloadChessResults = useCallback(() => {
     if (!config) return;
     downloadJson(`tournament-${tournamentId}-chess-results.json`, {
@@ -588,7 +611,7 @@ export default function TournamentSettingsPage({ tournamentId, section }: Tourna
           )}
 
           {currentSection === "uscf" && (
-            <UscfReportSection value={config.uscf} onChange={updateUscf} onDownload={handleDownloadUscf} />
+            <UscfReportSection value={config.uscf} onChange={updateUscf} onDownload={handleDownloadUscf} onDownloadZip={handleDownloadUscfZip} />
           )}
 
           {currentSection === "chess-results" && (
@@ -613,6 +636,10 @@ export default function TournamentSettingsPage({ tournamentId, section }: Tourna
             </>
           )}
 
+          {currentSection === "player-signup" && (
+            <PlayerImportCard tournamentId={tournamentId} targetTournamentName={tournament?.name} />
+          )}
+
           {currentSection === "arena" && config.arena && (
             <ArenaSettingsCard value={config.arena} onChange={updateArena} />
           )}
@@ -620,5 +647,195 @@ export default function TournamentSettingsPage({ tournamentId, section }: Tourna
       </div>
     </div>
   </div>
+  );
+}
+
+function PlayerImportCard({ tournamentId, targetTournamentName }: { tournamentId: number; targetTournamentName?: string }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [selectedSourceId, setSelectedSourceId] = useState<string>("");
+  const [selectedPlayerIds, setSelectedPlayerIds] = useState<Set<number>>(new Set());
+
+  // Fetch all my tournaments
+  const { data: tournaments = [], isLoading: loadingTournaments } = useQuery<Tournament[]>({
+    queryKey: ["/api/my-tournaments"],
+  });
+
+  // Filter out current tournament
+  const sourceTournaments = tournaments.filter(t => t.id !== tournamentId);
+
+  // Fetch players for selected source tournament
+  const { data: sourcePlayers = [], isLoading: loadingPlayers } = useQuery<Player[]>({
+    queryKey: [`/api/tournaments/${selectedSourceId}/players`],
+    enabled: !!selectedSourceId,
+  });
+
+  // Update selected players when source tournament changes
+  useEffect(() => {
+    setSelectedPlayerIds(new Set());
+  }, [selectedSourceId]);
+
+  const togglePlayer = (id: number) => {
+    setSelectedPlayerIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const toggleAll = () => {
+    if (selectedPlayerIds.size === sourcePlayers.length) {
+      setSelectedPlayerIds(new Set());
+    } else {
+      setSelectedPlayerIds(new Set(sourcePlayers.map(p => p.id)));
+    }
+  };
+
+  const importMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest(`/api/tournaments/${tournamentId}/import-players`, {
+        method: "POST",
+        body: JSON.stringify({
+          sourceTournamentId: parseInt(selectedSourceId),
+          playerIds: Array.from(selectedPlayerIds),
+        }),
+      });
+    },
+    onSuccess: async (res) => {
+      const responseData = await res.json();
+      toast({
+        title: "Players Imported",
+        description: responseData.message || `Successfully imported ${selectedPlayerIds.size} players.`,
+      });
+      queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/players`] });
+      setSelectedPlayerIds(new Set());
+      setSelectedSourceId("");
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Import failed",
+        description: error?.message ?? "An error occurred during import.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  return (
+    <Card className="shadow-sm">
+      <CardHeader>
+        <CardTitle className="text-2xl font-bold text-indigo-900 flex items-center gap-2">
+          <UserPlus className="h-6 w-6 text-indigo-600" />
+          <span>Import Players from Template</span>
+        </CardTitle>
+        <p className="text-sm text-slate-500">
+          Clone player rosters from your previous tournaments to quickly sign up the same set of players.
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <div className="space-y-2">
+          <label className="text-sm font-semibold text-slate-700">Select Past Tournament</label>
+          {loadingTournaments ? (
+            <div className="flex items-center gap-2 text-slate-500 text-sm py-2">
+              <Loader2 className="h-4 w-4 animate-spin text-indigo-500" />
+              <span>Loading tournaments...</span>
+            </div>
+          ) : sourceTournaments.length === 0 ? (
+            <p className="text-sm text-slate-500 italic py-2">No other tournaments available to clone from.</p>
+          ) : (
+            <Select value={selectedSourceId} onValueChange={setSelectedSourceId}>
+              <SelectTrigger className="w-full md:w-80">
+                <SelectValue placeholder="Choose a tournament..." />
+              </SelectTrigger>
+              <SelectContent>
+                {sourceTournaments.map(t => (
+                  <SelectItem key={t.id} value={String(t.id)}>
+                    {t.name} ({t.status})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
+
+        {selectedSourceId && (
+          <div className="space-y-4 pt-4 border-t">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-slate-800">
+                Available Players ({sourcePlayers.length})
+              </h3>
+              {sourcePlayers.length > 0 && (
+                <Button variant="outline" size="sm" onClick={toggleAll}>
+                  {selectedPlayerIds.size === sourcePlayers.length ? "Deselect All" : "Select All"}
+                </Button>
+              )}
+            </div>
+
+            {loadingPlayers ? (
+              <div className="flex items-center justify-center py-8 text-slate-500 text-sm">
+                <Loader2 className="h-6 w-6 animate-spin text-indigo-500 mr-2" />
+                <span>Loading players roster...</span>
+              </div>
+            ) : sourcePlayers.length === 0 ? (
+              <p className="text-sm text-slate-500 italic py-4 text-center">No players found in this tournament.</p>
+            ) : (
+              <div className="border rounded-lg overflow-hidden max-h-[300px] overflow-y-auto">
+                <table className="w-full text-left text-sm text-slate-600 border-collapse">
+                  <thead className="bg-slate-50 text-slate-700 uppercase text-xs font-semibold border-b sticky top-0">
+                    <tr>
+                      <th className="p-3 w-12 text-center">Select</th>
+                      <th className="p-3">Name</th>
+                      <th className="p-3">Rating</th>
+                      <th className="p-3">Section</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {sourcePlayers.map(p => {
+                      const isSelected = selectedPlayerIds.has(p.id);
+                      return (
+                        <tr
+                          key={p.id}
+                          className={cn(
+                            "hover:bg-slate-50 cursor-pointer transition-colors",
+                            isSelected && "bg-indigo-50/50"
+                          )}
+                          onClick={() => togglePlayer(p.id)}
+                        >
+                          <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
+                            <Checkbox
+                              checked={isSelected}
+                              onCheckedChange={() => togglePlayer(p.id)}
+                            />
+                          </td>
+                          <td className="p-3 font-medium text-slate-900">
+                            {p.firstName} {p.lastName}
+                          </td>
+                          <td className="p-3">{p.rating ?? "1000"}</td>
+                          <td className="p-3 text-slate-500">{p.sectionName || "Open"}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <div className="flex justify-end pt-4 border-t">
+              <Button
+                onClick={() => importMutation.mutate()}
+                disabled={selectedPlayerIds.size === 0 || importMutation.isPending}
+                className="bg-indigo-600 text-white hover:bg-indigo-700 flex items-center gap-2"
+              >
+                {importMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                <span>Import Selected ({selectedPlayerIds.size})</span>
+              </Button>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

@@ -177,8 +177,8 @@ const formatDate = (value: string | Date | null | undefined) => {
 };
 
 const statusStyles: Record<string, string> = {
-  draft: "bg-blue-100/80 text-blue-800 border border-blue-200/50",
-  upcoming: "bg-blue-50/80 text-blue-700 border border-blue-200/50",
+  draft: "bg-indigo-100/80 text-indigo-800 border border-indigo-200/50",
+  upcoming: "bg-indigo-50/80 text-indigo-700 border border-indigo-200/50",
   active: "bg-emerald-50 text-emerald-700 border border-emerald-200/50",
   completed: "bg-slate-100 text-slate-600 border border-slate-200/50",
 };
@@ -1086,9 +1086,9 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
                 </div>
               </div>
             ) : (
-              <div className="flex items-center gap-3 border-b border-gray-100 bg-blue-50 px-6 py-4">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100">
-                  <Clock className="h-4 w-4 text-blue-600" />
+              <div className="flex items-center gap-3 border-b border-gray-100 bg-indigo-50 px-6 py-4">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100">
+                  <Clock className="h-4 w-4 text-indigo-600" />
                 </div>
                 <div>
                   <h2 className="text-sm font-semibold text-gray-900">Registration Pending</h2>
@@ -1436,7 +1436,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
                 <Link href={`/tournaments/${tournamentId}`}>
                   <button
                     type="button"
-                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-blue-300 hover:text-blue-600 active:scale-95"
+                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-indigo-300 hover:text-indigo-600 active:scale-95"
                     title="Back to tournament"
                   >
                     <ArrowLeft className="h-4 w-4" />
@@ -1451,7 +1451,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
                     tournament.status === "active"
                       ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                       : tournament.status === "upcoming"
-                        ? "bg-blue-50 text-blue-700 border-blue-200"
+                        ? "bg-indigo-50 text-indigo-700 border-indigo-200"
                         : "bg-gray-100 text-gray-600 border-gray-200",
                   )}
                   variant="outline"
@@ -1466,7 +1466,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
                     isAutosaving ? "opacity-100 translate-y-0" : "opacity-40 -translate-y-0"
                   )}>
                     {isAutosaving ? (
-                      <Loader2 className="h-3 w-3 animate-spin text-blue-500" />
+                      <Loader2 className="h-3 w-3 animate-spin text-indigo-500" />
                     ) : (
                       <div className="flex h-3 w-3 items-center justify-center rounded-full bg-emerald-500/10">
                         <Check className="h-2 w-2 text-emerald-600" />
@@ -1511,9 +1511,9 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
                         className={cn(
                           "flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold transition-all duration-300",
                           isDone
-                            ? "bg-blue-600 text-white shadow-sm"
+                            ? "bg-indigo-600 text-white shadow-sm"
                             : isActive
-                              ? "border-[1.5px] border-blue-600 text-blue-600 bg-blue-50 ring-2 ring-blue-100"
+                              ? "border-[1.5px] border-indigo-600 text-indigo-600 bg-indigo-50 ring-2 ring-indigo-100"
                               : "border-[1.5px] border-gray-200 text-gray-400 bg-white",
                         )}
                       >
@@ -1521,14 +1521,14 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
                       </div>
                       <span className={cn(
                         "hidden text-[13px] font-medium sm:block",
-                        isDone ? "text-blue-600" : isActive ? "text-gray-900" : "text-gray-400"
+                        isDone ? "text-indigo-600" : isActive ? "text-gray-900" : "text-gray-400"
                       )}>{meta.title}</span>
                     </div>
                     {index < stepMeta.length - 1 && (
                       <div
                         className={cn(
                           "mx-3 h-px w-10 transition-all duration-500",
-                          currentStep > step ? "bg-blue-600" : "bg-gray-200",
+                          currentStep > step ? "bg-indigo-600" : "bg-gray-200",
                         )}
                       />
                     )}
@@ -1569,14 +1569,14 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
                             key={entry.id}
                             className={cn(
                               "flex items-center gap-3 px-5 py-3.5 transition",
-                              isEditing && "bg-blue-50/60",
+                              isEditing && "bg-indigo-50/60",
                             )}
                           >
                             <div
                               className={cn(
                                 "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-medium",
                                 isEditing
-                                  ? "bg-blue-50 text-blue-700 border border-blue-200"
+                                  ? "bg-indigo-50 text-indigo-700 border border-indigo-200"
                                   : "bg-gray-50 text-gray-500 border border-gray-100",
                               )}
                             >
@@ -1712,7 +1712,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
                                 return (
                                   <div key={entry.id} className="flex items-center justify-between px-6 py-4 transition hover:bg-slate-50/50">
                                     <div className="flex min-w-0 flex-1 items-center gap-4">
-                                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-50 text-xs font-bold text-blue-700 shadow-sm ring-1 ring-blue-100/50">
+                                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-xs font-bold text-indigo-700 shadow-sm ring-1 ring-indigo-100/50">
                                         {getInitials(values.firstName ?? "", values.lastName ?? "") || (index + 1)}
                                       </div>
                                       <div className="min-w-0 flex-1">
@@ -1722,7 +1722,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
                                             "rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide",
                                             (registerMutation.isSuccess || groupRegisterMutation.isSuccess)
                                               ? "bg-amber-100 text-amber-700 border border-amber-200"
-                                              : "bg-blue-100 text-blue-700 border border-blue-200"
+                                              : "bg-indigo-100 text-indigo-700 border border-indigo-200"
                                           )}>
                                             {(registerMutation.isSuccess || groupRegisterMutation.isSuccess) ? "Pending Approval" : "Ready to Submit"}
                                           </span>
@@ -1742,7 +1742,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
                                     </div>
                                     <div className="ml-4 flex items-center gap-4">
                                       <div className="text-right">
-                                        <span className="block text-sm font-bold text-blue-700">
+                                        <span className="block text-sm font-bold text-indigo-700">
                                           {formatCurrency(totals.total, totals.currency)}
                                         </span>
                                         {totals.feeAmount > 0 && (
@@ -1753,7 +1753,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
                                         <button
                                           type="button"
                                           onClick={() => isDraft ? handleEditDraft(entry.id) : setCurrentStep(1)}
-                                          className="rounded p-1.5 text-slate-400 transition hover:bg-white hover:text-blue-600 hover:shadow-sm"
+                                          className="rounded p-1.5 text-slate-400 transition hover:bg-white hover:text-indigo-600 hover:shadow-sm"
                                           title="Edit player"
                                         >
                                           <Pencil className="h-3.5 w-3.5" />
@@ -1777,7 +1777,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
 
                             <div className="flex items-center justify-between border-t border-gray-200 bg-gray-50 px-6 py-4">
                               <span className="text-sm font-medium text-gray-900">Combined registration total</span>
-                              <span className="text-lg font-bold text-blue-700">
+                              <span className="text-lg font-bold text-indigo-700">
                                 {formatCurrency(
                                   displayDrafts.reduce((sum, entry) => {
                                     const fee = entryFees.find((f) => f.id === entry.values.entryFeeId) ?? null;
@@ -2180,14 +2180,14 @@ function StepOne({
                 onChange={(event) => setSearchTerm(event.target.value)}
                 placeholder="Type name or ID (Min 3 chars)..."
                 autoComplete="off"
-                className="h-11 pl-10 pr-10 focus-visible:ring-blue-500/30"
+                className="h-11 pl-10 pr-10 focus-visible:ring-indigo-500/30"
               />
               <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             </div>
 
             {isSearching ? (
               <div className="my-2 flex flex-col items-center justify-center gap-3 py-8 rounded-lg border border-dashed border-slate-200 bg-slate-50/50">
-                <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
+                <Loader2 className="h-6 w-6 animate-spin text-indigo-500" />
                 <span className="text-sm font-medium text-slate-500">Searching USCF & FIDE databases...</span>
               </div>
             ) : (
@@ -2341,7 +2341,7 @@ function StepOne({
                             </span>
                           )}
                           {showEligibilityWarning && numericRating !== null && (
-                            <span className="text-[11px] text-blue-600">
+                            <span className="text-[11px] text-indigo-600">
                               Not eligible with {config?.details.primaryRatingSystem === "fide" ? "FIDE" : "USCF"} rating {numericRating}.
                             </span>
                           )}
@@ -2532,16 +2532,16 @@ function StepTwo({
               <Label className="text-sm font-bold text-slate-900 tracking-tight">Entry fee type</Label>
               <p className="text-xs font-medium text-slate-500">Pick the pricing tier for your section.</p>
             </div>
-            <Badge variant="outline" className="w-fit border-blue-200 bg-blue-50/70 text-blue-800 font-bold px-3 py-1">
+            <Badge variant="outline" className="w-fit border-indigo-200 bg-indigo-50/70 text-indigo-800 font-bold px-3 py-1">
               {numericRating !== null ? `Live Rating: ${numericRating}` : "Status: Unrated"}
             </Badge>
           </div>
           {entryFees.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-blue-200 bg-blue-50/70 p-4 text-sm text-blue-700">
+            <div className="rounded-lg border border-dashed border-indigo-200 bg-indigo-50/70 p-4 text-sm text-indigo-700">
               Entry fees will be confirmed by the tournament director. Continue to acknowledge payment on the next step.
             </div>
           ) : entryFeeOptions.length === 0 ? (
-            <div className="flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-700">
+            <div className="flex items-start gap-3 rounded-lg border border-indigo-200 bg-indigo-50 p-4 text-sm text-indigo-700">
               <AlertCircle className="h-4 w-4 shrink-0" />
               <p>No pricing has been configured for the selected section. Please contact the director for assistance.</p>
             </div>
@@ -2566,8 +2566,8 @@ function StepTwo({
                       className={cn(
                         "relative flex cursor-pointer flex-col gap-2 rounded-xl border p-5 transition-all shadow-sm ring-1 ring-inset ring-transparent",
                         isSelected
-                          ? "border-blue-400 bg-blue-50/80 ring-blue-400/20 shadow-md"
-                          : "border-slate-200 bg-white hover:border-blue-300 hover:bg-blue-50/30",
+                          ? "border-indigo-400 bg-indigo-50/80 ring-indigo-400/20 shadow-md"
+                          : "border-slate-200 bg-white hover:border-indigo-300 hover:bg-indigo-50/30",
                       )}
                     >
                       <RadioGroupItem id={`entry-fee-${fee.id}`} value={fee.id} className="sr-only" />
@@ -2590,7 +2590,7 @@ function StepTwo({
                             "border text-xs",
                             eligible
                               ? "border-emerald-200 bg-emerald-50/70 text-emerald-700"
-                              : "border-blue-200 bg-blue-50/70 text-blue-700",
+                              : "border-indigo-200 bg-indigo-50/70 text-indigo-700",
                           )}
                         >
                           {eligible ? "Matches rating" : "Director review required"}
@@ -2655,11 +2655,11 @@ function StepTwo({
               </SelectContent>
             </Select>
           </div>
-          <div className="flex items-start gap-4 rounded-xl border border-slate-200 bg-slate-50/50 p-5 transition-all group hover:bg-white hover:shadow-md hover:border-blue-200">
+          <div className="flex items-start gap-4 rounded-xl border border-slate-200 bg-slate-50/50 p-5 transition-all group hover:bg-white hover:shadow-md hover:border-indigo-200">
             <input
               id="newsletter"
               type="checkbox"
-              className="mt-1 h-4 w-4 rounded-md border-slate-300 text-blue-600 focus:ring-blue-500"
+              className="mt-1 h-4 w-4 rounded-md border-slate-300 text-indigo-600 focus:ring-indigo-500"
               checked={form.watch("newsletter") ?? false}
               onChange={(event) => form.setValue("newsletter", event.target.checked)}
             />
@@ -2708,8 +2708,8 @@ function StepTwo({
                         className={cn(
                           "flex items-center justify-between rounded-xl border px-4 py-3 text-sm font-medium transition-all shadow-sm",
                           checked
-                            ? "border-blue-400 bg-blue-500 text-white shadow-blue-200"
-                            : "border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:bg-blue-50",
+                            ? "border-indigo-400 bg-indigo-500 text-white shadow-blue-200"
+                            : "border-slate-200 bg-white text-slate-600 hover:border-indigo-200 hover:bg-indigo-50",
                         )}
                       >
                         <span>{label}</span>
@@ -2851,7 +2851,7 @@ function StepThreeContent({
 
   const statusStyles: Record<PaymentStatusKey, string> = {
     unpaid: "bg-slate-100 text-slate-700",
-    processing: "bg-blue-100 text-blue-700",
+    processing: "bg-indigo-100 text-indigo-700",
     paid: "bg-emerald-100 text-emerald-700",
     failed: "bg-red-100 text-red-700",
     refunded: "bg-slate-100 text-slate-600 border border-slate-200",
@@ -3058,7 +3058,7 @@ function StepThreeContent({
           <div className="mt-3 space-y-3 text-sm text-slate-600">
             <div className="flex items-center justify-between font-medium">
               <span>{playerDrafts.length > 1 ? `Subtotal (${playerDrafts.length} players)` : "Entry fee"}</span>
-              <span className="text-blue-700">
+              <span className="text-indigo-700">
                 {formatCurrency(paymentTotals.subtotal, paymentTotals.currency)}
               </span>
             </div>
@@ -3104,7 +3104,7 @@ function StepThreeContent({
                 <span>{formatCurrency(paymentTotals.feeAmount, paymentTotals.currency)}</span>
               </div>
             )}
-            <div className="flex items-center justify-between border-t border-slate-200 pt-3 text-sm font-semibold text-blue-700">
+            <div className="flex items-center justify-between border-t border-slate-200 pt-3 text-sm font-semibold text-indigo-700">
               <span>Total due</span>
               <span>{formatCurrency(paymentTotals.total, paymentTotals.currency)}</span>
             </div>
@@ -3152,12 +3152,12 @@ function StepThreeContent({
             {canAcceptOnlinePayment ? (
               <div className="space-y-3">
                 {paymentIntentLoading ? (
-                  <div className="flex items-center justify-center gap-2 rounded-lg border border-dashed border-blue-200 bg-blue-50/60 p-4 text-sm text-blue-600">
+                  <div className="flex items-center justify-center gap-2 rounded-lg border border-dashed border-indigo-200 bg-indigo-50/60 p-4 text-sm text-indigo-600">
                     <Loader2 className="h-4 w-4 animate-spin" />
                     Preparing secure checkout...
                   </div>
                 ) : (
-                  <div className="rounded-lg border border-blue-200 bg-white p-4">
+                  <div className="rounded-lg border border-indigo-200 bg-white p-4">
                     <PaymentElement
                       options={{ layout: "tabs" }}
                       onReady={() => onPaymentElementReady(!requiresPayment)}
@@ -3215,7 +3215,7 @@ function StepThreeContent({
               <div className="space-y-3">
                 <div className="flex flex-wrap gap-2">
                   {offlineMethods.map((method) => (
-                    <span key={method} className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">
+                    <span key={method} className="rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-700">
                       {OFFLINE_METHOD_LABELS[method] ?? method}
                     </span>
                   ))}
@@ -3238,7 +3238,7 @@ function StepThreeContent({
               .map((block, index) => (
                 <div
                   key={`${index}-${block.slice(0, 12)}`}
-                  className="rounded-lg border border-blue-200 bg-blue-50/70 p-3 text-xs leading-5 text-blue-700"
+                  className="rounded-lg border border-indigo-200 bg-indigo-50/70 p-3 text-xs leading-5 text-indigo-700"
                 >
                   {block}
                 </div>
@@ -3257,7 +3257,7 @@ function StepThreeContent({
                   shouldValidate: true,
                 })
               }
-              className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-500 focus:ring-blue-500"
+              className="mt-1 h-4 w-4 rounded border-slate-300 text-indigo-500 focus:ring-indigo-500"
             />
             <span>{acknowledgementLabel}</span>
           </label>
@@ -3286,8 +3286,8 @@ function RadioOption({
   return (
     <label
       className={cn(
-        "flex flex-1 cursor-pointer items-start gap-3 rounded-lg border border-slate-200 p-4 transition hover:border-blue-300",
-        current === value && "border-blue-500 bg-blue-50",
+        "flex flex-1 cursor-pointer items-start gap-3 rounded-lg border border-slate-200 p-4 transition hover:border-indigo-300",
+        current === value && "border-indigo-500 bg-indigo-50",
       )}
     >
       <RadioGroupItem value={value} />
@@ -3316,7 +3316,7 @@ function Field({
   const error = form.formState.errors[name];
   return (
     <div className="group space-y-2">
-      <Label className="text-sm font-medium text-slate-700 transition-colors group-focus-within:text-blue-700">
+      <Label className="text-sm font-medium text-slate-700 transition-colors group-focus-within:text-indigo-700">
         {label}
         {required && <span className="ml-1 text-red-500">*</span>}
       </Label>
@@ -3324,7 +3324,7 @@ function Field({
         placeholder={placeholder}
         type={valueAs === "email" ? "email" : "text"}
         {...form.register(name)}
-        className="focus:border-blue-400 focus:ring-blue-200"
+        className="focus:border-indigo-400 focus:ring-indigo-200"
       />
       {error && <p className="text-xs text-red-500">{error.message as string}</p>}
     </div>
