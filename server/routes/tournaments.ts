@@ -3418,6 +3418,58 @@ app.post("/api/tournaments/:tournamentId/generate-pairings", requireAuth, requir
     }
   );
 
+  // Bulk-create players from a template file (no source tournament needed)
+  app.post(
+    "/api/tournaments/:id/bulk-create-players",
+    requireAuth,
+    requireRole('tournament_director'),
+    requireTournamentAccess,
+    async (req, res) => {
+      try {
+        const targetTournamentId = parseInt(req.params.id);
+        const { players } = req.body as { players: any[] };
+
+        if (!Array.isArray(players) || players.length === 0) {
+          return res.status(400).json({ message: "players array is required and must not be empty" });
+        }
+
+        const created = [];
+        for (const p of players) {
+          if (!p.firstName || !p.lastName) continue;
+          const newPlayer = await storage.createPlayer({
+            tournamentId: targetTournamentId,
+            userId: null,
+            firstName: String(p.firstName),
+            lastName: String(p.lastName),
+            rating: typeof p.rating === "number" ? p.rating : null,
+            uscfRating: typeof p.uscfRating === "number" ? p.uscfRating : null,
+            fideRating: typeof p.fideRating === "number" ? p.fideRating : null,
+            federation: p.federation ? String(p.federation) : "USCF",
+            email: p.email ? String(p.email) : null,
+            club: p.club ? String(p.club) : null,
+            title: p.title ? String(p.title) : null,
+            birthdate: p.birthdate ? String(p.birthdate) : null,
+            sex: p.sex ? String(p.sex) : null,
+            localId: p.localId ? String(p.localId) : null,
+            ratingLocal: typeof p.ratingLocal === "number" ? p.ratingLocal : null,
+            ratingRapid: typeof p.ratingRapid === "number" ? p.ratingRapid : null,
+            ratingBlitz: typeof p.ratingBlitz === "number" ? p.ratingBlitz : null,
+            isActiveTd: false,
+            sectionId: p.sectionId ? String(p.sectionId) : null,
+            sectionName: p.sectionName ? String(p.sectionName) : null,
+            status: "active",
+          });
+          created.push(newPlayer);
+        }
+
+        res.json({ message: `Successfully imported ${created.length} players from template`, players: created });
+      } catch (error) {
+        console.error("Bulk create players error:", error);
+        res.status(500).json({ message: "Failed to bulk-create players from template" });
+      }
+    }
+  );
+
   app.post(
     "/api/tournaments/:id/predict-pairings",
     requireAuth,

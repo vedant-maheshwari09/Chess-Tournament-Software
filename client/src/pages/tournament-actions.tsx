@@ -24,7 +24,8 @@ import {
   type TemplateSectionKey,
   type TournamentTemplateSnapshot,
 } from "@/lib/tournament-templates";
-import type { Tournament } from "@shared/schema";
+import type { Tournament, Player } from "@shared/schema";
+
 
 
 interface TournamentActionsPageProps {
@@ -104,7 +105,7 @@ export default function TournamentActionsPage({ tournamentId }: TournamentAction
     setTemplateSelections([]);
   };
 
-  const handleTemplateExport = () => {
+  const handleTemplateExport = async () => {
     if (!parsedConfig) {
       toast({ title: "Tournament not ready", variant: "destructive" });
       return;
@@ -114,9 +115,28 @@ export default function TournamentActionsPage({ tournamentId }: TournamentAction
       return;
     }
 
+    // Fetch player roster if "players" section is selected
+    let players: Player[] | undefined;
+    if (templateSelections.includes("players")) {
+      try {
+        const res = await apiRequest(`/api/tournaments/${tournamentId}/players`);
+        const data = res instanceof Response ? await res.json() : res;
+        players = Array.isArray(data) ? data : [];
+      } catch {
+        toast({ title: "Could not fetch player roster", variant: "destructive" });
+        return;
+      }
+    }
+
     const format = parsedConfig.format ?? tournament.format;
     const mode = parsedConfig.mode ?? "rated";
-    const snapshot = buildTournamentTemplateSnapshot(parsedConfig, format, mode, templateSelections);
+    const snapshot = buildTournamentTemplateSnapshot(
+      parsedConfig,
+      format,
+      mode,
+      templateSelections,
+      players,
+    );
     const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const slug = tournament.name
@@ -129,8 +149,10 @@ export default function TournamentActionsPage({ tournamentId }: TournamentAction
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-    toast({ title: "Template exported", description: "Download complete." });
+    const playerNote = players && players.length > 0 ? ` Includes ${players.length} player(s).` : "";
+    toast({ title: "Template exported", description: `Download complete.${playerNote}` });
   };
+
 
   const handleTemplateImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -165,9 +187,27 @@ export default function TournamentActionsPage({ tournamentId }: TournamentAction
         method: "PUT",
         body: JSON.stringify(payload),
       });
+
+      // Import players if the snapshot includes them
+      let playerImportNote = "";
+      if (snapshot.selected.includes("players") && Array.isArray(snapshot.data.players) && snapshot.data.players.length > 0) {
+        try {
+          const playerRes = await apiRequest(`/api/tournaments/${tournamentId}/bulk-create-players`, {
+            method: "POST",
+            body: JSON.stringify({ players: snapshot.data.players }),
+          });
+          const playerData = playerRes instanceof Response ? await playerRes.json() : playerRes;
+          const count = playerData?.players?.length ?? snapshot.data.players.length;
+          playerImportNote = ` ${count} player(s) imported.`;
+          queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/players`] });
+        } catch {
+          playerImportNote = " (Player import failed — check console for details.";
+        }
+      }
+
       setTemplateSelections(snapshot.selected);
       queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}`] });
-      toast({ title: "Template applied", description: "Tournament configuration updated." });
+      toast({ title: "Template applied", description: `Tournament configuration updated.${playerImportNote}` });
     } catch (error) {
       toast({
         title: "Template import failed",
@@ -181,6 +221,7 @@ export default function TournamentActionsPage({ tournamentId }: TournamentAction
       }
     }
   };
+
 
   const handleDelete = async () => {
     if (!window.confirm("Are you sure you want to delete this tournament? This action cannot be undone.")) {

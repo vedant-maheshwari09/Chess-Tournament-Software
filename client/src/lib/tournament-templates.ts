@@ -1,6 +1,27 @@
 import type { Tournament } from "@shared/schema";
 import type { TournamentConfig, TournamentMode } from "@/lib/tournament-config";
 
+// Minimal player shape stored in a template snapshot
+export interface TemplatePlayer {
+  firstName: string;
+  lastName: string;
+  rating?: number | null;
+  uscfRating?: number | null;
+  fideRating?: number | null;
+  federation?: string | null;
+  email?: string | null;
+  club?: string | null;
+  title?: string | null;
+  birthdate?: string | null;
+  sex?: string | null;
+  localId?: string | null;
+  ratingLocal?: number | null;
+  ratingRapid?: number | null;
+  ratingBlitz?: number | null;
+  sectionId?: string | null;
+  sectionName?: string | null;
+}
+
 export const TOURNAMENT_TEMPLATE_OPTIONS = [
   {
     id: "basic" as const,
@@ -52,6 +73,11 @@ export const TOURNAMENT_TEMPLATE_OPTIONS = [
     label: "Public page copy",
     description: "Custom content for the tournament landing page",
   },
+  {
+    id: "players" as const,
+    label: "Players",
+    description: "Full player roster with ratings and section assignments",
+  },
 ] as const;
 
 export type TemplateSectionKey = (typeof TOURNAMENT_TEMPLATE_OPTIONS)[number]["id"];
@@ -74,6 +100,7 @@ export interface TournamentTemplateSnapshot {
     registers?: TournamentConfig["registers"];
     contacts?: TournamentConfig["contacts"];
     tournamentPageContent?: TournamentConfig["tournamentPageContent"];
+    players?: TemplatePlayer[];
   };
 }
 
@@ -84,6 +111,7 @@ export function buildTournamentTemplateSnapshot(
   format: Tournament["format"],
   mode: TournamentMode,
   sections: TemplateSectionKey[],
+  players?: TemplatePlayer[],
 ): TournamentTemplateSnapshot {
   const data: TournamentTemplateSnapshot["data"] = {};
 
@@ -118,6 +146,11 @@ export function buildTournamentTemplateSnapshot(
         break;
       case "pageContent":
         data.tournamentPageContent = config.tournamentPageContent;
+        break;
+      case "players":
+        if (players && players.length > 0) {
+          data.players = cloneConfig(players);
+        }
         break;
       default:
         break;
@@ -176,6 +209,7 @@ export function applyTournamentTemplateSnapshot(
   if (selected.includes("pageContent") && typeof data.tournamentPageContent === "string") {
     next.tournamentPageContent = data.tournamentPageContent;
   }
+  // "players" is handled separately in tournament-actions.tsx via API call after config save
 
   return next;
 }
