@@ -423,7 +423,13 @@ export function generateFideTrf16Report(options: GenerateTrf16Options): { conten
   });
 
   const tournamentLines: string[] = [];
-  const tournamentName = config.basic?.name || tournament.name || "";
+  
+  // Detect if all players belong to a single section to append section name to the TRF header
+  const sectionNames = Array.from(new Set(players.map((p) => p.sectionName).filter(Boolean)));
+  const sectionName = sectionNames.length === 1 ? sectionNames[0] : "";
+  const baseName = config.basic?.name || tournament.name || "";
+  const tournamentName = sectionName ? `${baseName} - ${sectionName}` : baseName;
+  
   tournamentLines.push(`012 ${tournamentName}`.trimEnd());
 
   const city = config.basic?.city || tournament.location || "";
@@ -449,8 +455,55 @@ export function generateFideTrf16Report(options: GenerateTrf16Options): { conten
   tournamentLines.push(`062 ${players.length}`);
   tournamentLines.push(`072 ${players.length}`);
 
-  if (config.details?.chiefArbiter) {
-    tournamentLines.push(`102 ${config.details.chiefArbiter}`.trimEnd());
+  // 092 Type of Tournament
+  const pairingSystem = config.details?.pairingSystem || (tournament.format === "roundrobin" ? "Round Robin" : "Swiss System");
+  tournamentLines.push(`092 Individual ${pairingSystem}`);
+
+  // 102 Chief Arbiter
+  const chiefArbiterName = config.fide?.chiefArbiter || config.details?.chiefArbiter || "";
+  const chiefArbiterId = (config.fide as any)?.chiefArbiterId || "";
+  const chiefArbiterTitle = (config.fide as any)?.chiefArbiterTitle || "";
+  
+  if (chiefArbiterName) {
+    let chiefArbiterLine = chiefArbiterName;
+    if (chiefArbiterTitle) chiefArbiterLine = `${chiefArbiterTitle} ${chiefArbiterLine}`;
+    if (chiefArbiterId) chiefArbiterLine = `${chiefArbiterLine} (${chiefArbiterId})`;
+    tournamentLines.push(`102 ${chiefArbiterLine}`.trimEnd());
+  }
+
+  // 112 Deputy Chief Arbiter(s)
+  const deputyArbiters = new Set<string>();
+  const primaryDeputy = config.fide?.arbiterSurname || "";
+  if (primaryDeputy.trim()) {
+    deputyArbiters.add(primaryDeputy.trim());
+  }
+  const assistantsStr = config.fide?.assistants || "";
+  if (assistantsStr.trim()) {
+    assistantsStr.split(",").forEach((name) => {
+      const trimmed = name.trim();
+      if (trimmed) deputyArbiters.add(trimmed);
+    });
+  } else if (config.details?.assistantTDs && config.details.assistantTDs.length > 0) {
+    config.details.assistantTDs.forEach((name) => {
+      const trimmed = name.trim();
+      if (trimmed) deputyArbiters.add(trimmed);
+    });
+  }
+  deputyArbiters.forEach((name) => {
+    tournamentLines.push(`112 ${name}`);
+  });
+
+  // 122 Allotted times per moves/game (Time Control)
+  const timeControl = config.fide?.timeControl || "";
+  let timeControlStr = timeControl.trim();
+  if (!timeControlStr && config.details?.timeControls && config.details.timeControls.length > 0) {
+    const tc = config.details.timeControls[0];
+    timeControlStr = tc.addonValue
+      ? `${tc.minutes} min + ${tc.addonValue}s increment`
+      : `${tc.minutes} min`;
+  }
+  if (timeControlStr) {
+    tournamentLines.push(`122 ${timeControlStr}`);
   }
 
   if (totalRounds > 0) {

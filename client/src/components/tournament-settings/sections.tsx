@@ -28,10 +28,6 @@ interface FideRegistrationSectionProps {
   tournamentName?: string;
   tournamentCity?: string;
   federationName?: string;
-  onDownloadTrf?: () => void;
-  onDownloadRegistration?: () => void;
-  onDownloadFa1?: () => void;
-  onDownloadIa1?: () => void;
 }
 
 const fideToggleFields: Array<{ key: keyof FideRegistrationData; label: string }> = [
@@ -118,10 +114,6 @@ export function FideRegistrationSection({
   tournamentName,
   tournamentCity,
   federationName,
-  onDownloadTrf,
-  onDownloadRegistration,
-  onDownloadFa1,
-  onDownloadIa1,
 }: FideRegistrationSectionProps) {
   const [activeTab, setActiveTab] = useState<"registration" | "norm">("registration");
   const toggleColumns = useMemo(() => {
@@ -243,62 +235,93 @@ export function FideRegistrationSection({
               </div>
             </section>
 
-            <section className="space-y-4">
+            <section className="space-y-6">
               <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Arbiters</h3>
-              <div className="grid gap-4 md:grid-cols-2">
+              
+              <div className="grid gap-6 md:grid-cols-3">
                 <div className="space-y-2">
-                  <Label className="text-slate-700">Chief Arbiter</Label>
+                  <Label className="text-slate-700 font-medium">Chief Arbiter Name</Label>
                   <Input 
                     value={value.chiefArbiter ?? ""} 
                     onChange={(event) => onChange({ chiefArbiter: event.target.value })}
-                    placeholder="Chief Arbiter's name"
+                    placeholder="e.g. John Doe"
                     className="border-slate-200 focus:border-indigo-500 focus:ring-indigo-500"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-slate-700">Assistant Arbiters</Label>
-                  <Input
-                    placeholder="List names separated by commas"
-                    value={value.assistants ?? ""}
-                    onChange={(event) => onChange({ assistants: event.target.value })}
+                  <Label className="text-slate-700 font-medium">Chief Arbiter FIDE ID</Label>
+                  <Input 
+                    value={(value as any).chiefArbiterId ?? ""} 
+                    onChange={(event) => onChange({ chiefArbiterId: event.target.value } as any)}
+                    placeholder="e.g. 1234567"
                     className="border-slate-200 focus:border-indigo-500 focus:ring-indigo-500"
                   />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-slate-700 font-medium">Chief Arbiter Title</Label>
+                  <Select 
+                    value={(value as any).chiefArbiterTitle || "None"} 
+                    onValueChange={(val) => onChange({ chiefArbiterTitle: val === "None" ? "" : val } as any)}
+                  >
+                    <SelectTrigger className="border-slate-200 focus:border-indigo-500 focus:ring-indigo-500">
+                      <SelectValue placeholder="Select Title" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="None">No Title</SelectItem>
+                      <SelectItem value="IA">IA (International Arbiter)</SelectItem>
+                      <SelectItem value="FA">FA (FIDE Arbiter)</SelectItem>
+                      <SelectItem value="NA">NA (National Arbiter)</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
-              <div className="grid gap-4 md:grid-cols-3">
-                <div className="space-y-2">
-                  <Label>Surname, name (Deputy)</Label>
-                  <Input value={value.arbiterSurname ?? ""} onChange={(event) => onChange({ arbiterSurname: event.target.value })} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Role</Label>
-                  <Input value={value.arbiterRole ?? ""} onChange={(event) => onChange({ arbiterRole: event.target.value })} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Federation</Label>
-                  <Input value={value.arbiterFederation ?? ""} onChange={(event) => onChange({ arbiterFederation: event.target.value })} />
+
+              <div className="space-y-2">
+                <Label className="text-slate-700 font-medium">Other Assistant Arbiters</Label>
+                <Input
+                  placeholder="e.g. Bob Johnson, Alice Williams"
+                  value={value.assistants ?? ""}
+                  onChange={(event) => onChange({ assistants: event.target.value })}
+                  className="border-slate-200 focus:border-indigo-500 focus:ring-indigo-500"
+                />
+                <p className="text-[11px] text-slate-400">List additional assistant arbiters separated by commas. Each will be listed as a Deputy Arbiter (code 112) in the TRF file.</p>
+              </div>
+
+              <div className="border border-slate-100 rounded-lg p-4 bg-slate-50/50 space-y-4">
+                <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wider">Primary Deputy Chief Arbiter Details (for norm forms)</h4>
+                <div className="grid gap-4 md:grid-cols-3">
+                  <div className="space-y-2">
+                    <Label className="text-slate-700">Surname, name (Deputy)</Label>
+                    <Input 
+                      value={value.arbiterSurname ?? ""} 
+                      onChange={(event) => onChange({ arbiterSurname: event.target.value })} 
+                      placeholder="e.g. Smith, Jane"
+                      className="bg-white border-slate-200"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-slate-700">Role</Label>
+                    <Input 
+                      value={value.arbiterRole ?? ""} 
+                      onChange={(event) => onChange({ arbiterRole: event.target.value })} 
+                      placeholder="e.g. Deputy Chief Arbiter"
+                      className="bg-white border-slate-200"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-slate-700">Federation</Label>
+                    <Input 
+                      value={value.arbiterFederation ?? ""} 
+                      onChange={(event) => onChange({ arbiterFederation: event.target.value })} 
+                      placeholder="e.g. USA"
+                      className="bg-white border-slate-200"
+                    />
+                  </div>
                 </div>
               </div>
             </section>
 
-            <div className="flex flex-wrap justify-end gap-3">
-              <Button
-                type="button"
-                variant="outline"
-                className="bg-indigo-50 text-indigo-700 border-indigo-100 hover:bg-indigo-100"
-                onClick={onDownloadRegistration}
-              >
-                <Download className="mr-2 h-4 w-4" /> Download registration data
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="bg-slate-900 text-white hover:bg-slate-800"
-                onClick={onDownloadTrf}
-              >
-                <Download className="mr-2 h-4 w-4" /> Download FIDE TRF16
-              </Button>
-            </div>
+
           </CardContent>
         </Card>
       </TabsContent>
@@ -336,20 +359,20 @@ export function FideRegistrationSection({
                   />
                 </div>
               </div>
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid gap-6 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label className="text-slate-700">Chief Arbiter</Label>
+                  <Label className="text-slate-700">Chief Arbiter Name</Label>
                   <Input 
                     value={value.chiefArbiter ?? ""} 
                     onChange={(event) => onChange({ chiefArbiter: event.target.value })}
-                    placeholder="Chief Arbiter's name"
+                    placeholder="e.g. John Doe"
                     className="border-slate-200 focus:border-indigo-500 focus:ring-indigo-500"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-slate-700">Assistant Arbiters</Label>
+                  <Label className="text-slate-700">Other Assistant Arbiters</Label>
                   <Input
-                    placeholder="List names separated by commas"
+                    placeholder="e.g. Bob Johnson, Alice Williams"
                     value={value.assistants ?? ""}
                     onChange={(event) => onChange({ assistants: event.target.value })}
                     className="border-slate-200 focus:border-indigo-500 focus:ring-indigo-500"
@@ -434,24 +457,7 @@ export function FideRegistrationSection({
               </div>
             </section>
 
-            <div className="flex flex-wrap justify-end gap-3">
-              <Button
-                type="button"
-                variant="outline"
-                className="bg-indigo-50 text-indigo-700 border-indigo-100 hover:bg-indigo-100"
-                onClick={onDownloadFa1}
-              >
-                <Download className="mr-2 h-4 w-4" /> Download FA1 Form
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="bg-slate-900 text-white hover:bg-slate-800"
-                onClick={onDownloadIa1}
-              >
-                <Download className="mr-2 h-4 w-4" /> Download IA1 Form
-              </Button>
-            </div>
+
           </CardContent>
         </Card>
       </TabsContent>
@@ -462,11 +468,9 @@ export function FideRegistrationSection({
 interface UscfReportSectionProps {
   value: UscfReportData;
   onChange: (update: Partial<UscfReportData>) => void;
-  onDownload?: () => void;
-  onDownloadZip?: () => void;
 }
 
-export function UscfReportSection({ value, onChange, onDownload, onDownloadZip }: UscfReportSectionProps) {
+export function UscfReportSection({ value, onChange }: UscfReportSectionProps) {
   return (
     <Card className="shadow-sm">
       <CardHeader>
@@ -477,15 +481,6 @@ export function UscfReportSection({ value, onChange, onDownload, onDownloadZip }
               Configure the tournament details for submission to the United States Chess Federation.
             </CardDescription>
           </div>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="flex items-center gap-2 border-indigo-200 text-indigo-700 hover:bg-indigo-50"
-            onClick={onDownload}
-          >
-            <Download className="h-4 w-4" />
-            Download Summary
-          </Button>
         </div>
       </CardHeader>
 
@@ -540,23 +535,67 @@ export function UscfReportSection({ value, onChange, onDownload, onDownloadZip }
           </div>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="uscf-director">Chief Tournament Director</Label>
-            <Input
-              id="uscf-director"
-              value={value.tournamentDirector ?? value.chiefArbiter ?? ""}
-              onChange={(event) => onChange({ tournamentDirector: event.target.value })}
-            />
+        <div className="border border-slate-100 rounded-lg p-4 bg-slate-50/50 space-y-4">
+          <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wider">Tournament Directors</h4>
+          
+          <div className="grid gap-6 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="uscf-director" className="text-slate-700 font-medium">Chief TD Name</Label>
+              <Input
+                id="uscf-director"
+                value={value.tournamentDirector ?? value.chiefArbiter ?? ""}
+                onChange={(event) => onChange({ tournamentDirector: event.target.value })}
+                placeholder="e.g. John Doe"
+                className="bg-white border-slate-200"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="uscf-director-id" className="text-slate-700 font-medium">
+                Chief TD USCF ID (8 digits) <span className="text-red-500 font-bold">*</span>
+              </Label>
+              <Input
+                id="uscf-director-id"
+                value={(value as any).chiefTdId ?? ""}
+                onChange={(event) => onChange({ chiefTdId: event.target.value } as any)}
+                placeholder="e.g. 12345678"
+                className="bg-white border-slate-200"
+              />
+            </div>
           </div>
+
+          <div className="grid gap-6 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="uscf-assistant" className="text-slate-700 font-medium">Assistant TD Name</Label>
+              <Input
+                id="uscf-assistant"
+                value={value.assistantDirector ?? value.assistants ?? ""}
+                onChange={(event) => onChange({ assistantDirector: event.target.value })}
+                placeholder="e.g. Jane Smith"
+                className="bg-white border-slate-200"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="uscf-assistant-id" className="text-slate-700 font-medium">Assistant TD USCF ID (8 digits)</Label>
+              <Input
+                id="uscf-assistant-id"
+                value={(value as any).assistantTdId ?? ""}
+                onChange={(event) => onChange({ assistantTdId: event.target.value } as any)}
+                placeholder="e.g. 87654321"
+                className="bg-white border-slate-200"
+              />
+            </div>
+          </div>
+
           <div className="space-y-2">
-            <Label htmlFor="uscf-assistant">Assistant tournament director(s)</Label>
+            <Label htmlFor="uscf-other-tds" className="text-slate-700 font-medium">Other Assistants / Arbiters</Label>
             <Input
-              id="uscf-assistant"
-              placeholder="List names separated by commas"
-              value={value.assistantDirector ?? value.assistants ?? ""}
-              onChange={(event) => onChange({ assistantDirector: event.target.value })}
+              id="uscf-other-tds"
+              placeholder="e.g. Bob Johnson, Alice Williams"
+              value={value.assistants ?? ""}
+              onChange={(event) => onChange({ assistants: event.target.value })}
+              className="bg-white border-slate-200"
             />
+            <p className="text-[11px] text-slate-400">List other directing staff separated by commas.</p>
           </div>
         </div>
 
@@ -616,17 +655,7 @@ export function UscfReportSection({ value, onChange, onDownload, onDownloadZip }
           />
         </div>
 
-        <div className="flex justify-end">
-          <Button
-            type="button"
-            variant="outline"
-            className="bg-indigo-600 text-white hover:bg-indigo-700 shadow-md"
-            onClick={onDownloadZip}
-          >
-            <Download className="mr-2 h-4 w-4" />
-            Generate USCF Report
-          </Button>
-        </div>
+
       </CardContent>
     </Card>
   );

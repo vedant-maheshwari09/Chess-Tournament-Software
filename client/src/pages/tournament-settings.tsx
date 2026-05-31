@@ -603,15 +603,11 @@ export default function TournamentSettingsPage({ tournamentId, section }: Tourna
             <FideRegistrationSection
               value={config.fide}
               onChange={updateFide}
-              onDownloadTrf={handleDownloadFideTrf}
-              onDownloadRegistration={handleDownloadFideRegistration}
-              onDownloadFa1={handleDownloadFideFa1}
-              onDownloadIa1={handleDownloadFideIa1}
             />
           )}
 
           {currentSection === "uscf" && (
-            <UscfReportSection value={config.uscf} onChange={updateUscf} onDownload={handleDownloadUscf} onDownloadZip={handleDownloadUscfZip} />
+            <UscfReportSection value={config.uscf} onChange={updateUscf} />
           )}
 
           {currentSection === "chess-results" && (

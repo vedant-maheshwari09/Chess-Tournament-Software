@@ -29,7 +29,9 @@ import {
 } from "@/lib/tournament-config";
 import { FideRegistrationSection, UscfReportSection } from "@/components/tournament-settings/sections";
 import { cn } from "@/lib/utils";
-import type { Tournament } from "@shared/schema";
+import type { Tournament, Player } from "@shared/schema";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 
 interface TournamentReportsPageProps {
   tournamentId: number;
@@ -86,16 +88,19 @@ function getFideValidation(config: TournamentConfig, tournament: Tournament): Va
 function getUscfValidation(config: TournamentConfig, tournament: Tournament): ValidationItem[] {
   const b = config.basic;
   const u = config.uscf;
+  const chiefTdVal = (u as any)?.chiefTdId || u?.tournamentDirector || "";
+  const hasChiefTdId = /^\d{8}$/.test(chiefTdVal.replace(/[^0-9]/g, ""));
+
   return [
     { label: "Tournament name", ok: !!(b?.name || tournament.name), required: true },
-    { label: "State", ok: !!u?.state, required: true },
-    { label: "Affiliate ID", ok: !!u?.affiliateId, required: true },
-    { label: "Chief TD USCF ID / Name", ok: !!u?.tournamentDirector, required: true },
+    { label: "State", ok: !!u?.state && u.state !== "unset", required: true },
+    { label: "Affiliate ID", ok: !!u?.affiliateId && u.affiliateId.trim().length > 0, required: true },
+    { label: "Chief TD USCF ID (8 digits)", ok: hasChiefTdId, required: true },
     { label: "Time control", ok: !!u?.timeControl, required: true },
     { label: "Start date", ok: !!b?.startDate, required: true },
     { label: "End date", ok: !!b?.endDate, required: true },
     { label: "Organizer", ok: !!u?.organizer, required: false },
-    { label: "Assistant TD", ok: !!u?.assistantDirector, required: false },
+    { label: "Assistant TD", ok: !!u?.assistantDirector || !!(u as any)?.assistantTdId, required: false },
     { label: "Grand Prix points", ok: !!u?.grandPrixPoints, required: false },
   ];
 }
@@ -110,9 +115,42 @@ export default function TournamentReportsPage({ tournamentId, type }: Tournament
     queryKey: [`/api/tournaments/${tournamentId}`],
   });
 
+  const { data: players } = useQuery<Player[]>({
+    queryKey: [`/api/tournaments/${tournamentId}/players`],
+  });
+
   const [draftConfig, setDraftConfig] = useState<TournamentConfig | null>(null);
   const [isDirty, setIsDirty] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
+
+  const [selectedSectionId, setSelectedSectionId] = useState<string>("all");
+
+  const sections = useMemo(() => {
+    const list: { id: string; name: string }[] = [];
+    const seen = new Set<string>();
+
+    if (draftConfig?.sections) {
+      draftConfig.sections.forEach((s) => {
+        if (s.name && !seen.has(s.id)) {
+          seen.add(s.id);
+          list.push({ id: s.id, name: s.name });
+        }
+      });
+    }
+
+    if (players) {
+      players.forEach((p) => {
+        const id = p.sectionId || p.sectionName;
+        const name = p.sectionName || p.sectionId;
+        if (id && name && !seen.has(id)) {
+          seen.add(id);
+          list.push({ id, name });
+        }
+      });
+    }
+
+    return list;
+  }, [draftConfig?.sections, players]);
 
   const baseConfig = useMemo(() => {
     if (!tournament?.roundTimings) return null;
@@ -198,9 +236,11 @@ export default function TournamentReportsPage({ tournamentId, type }: Tournament
 
   // ---------- Download handlers ----------
 
-  const handleDownloadFideTrf = useCallback(async () => {
+  const handleDownloadFideTrf = useCallback(async (sectionId?: string) => {
     try {
-      const response = await apiRequest(`/api/tournaments/${tournamentId}/exports/fide-trf`);
+      const targetSec = sectionId || selectedSectionId;
+      const query = targetSec && targetSec !== "all" ? `?sectionId=${encodeURIComponent(targetSec)}` : "";
+      const response = await apiRequest(`/api/tournaments/${tournamentId}/exports/fide-trf${query}`);
       if (!(response instanceof Response)) throw new Error("Unexpected response payload");
       const blob = await response.blob();
       const suggestedName = extractFilenameFromDisposition(response.headers.get("content-disposition"));
@@ -220,7 +260,7 @@ export default function TournamentReportsPage({ tournamentId, type }: Tournament
     } catch (error) {
       toast({ title: "TRF export failed", description: error instanceof Error ? error.message : "Unable to download TRF export.", variant: "destructive" });
     }
-  }, [toast, tournamentId]);
+  }, [toast, tournamentId, selectedSectionId]);
 
   const handleDownloadFideRegistration = useCallback(() => {
     if (!draftConfig || !tournament) return;
@@ -367,23 +407,73 @@ export default function TournamentReportsPage({ tournamentId, type }: Tournament
                 <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
               </div>
             ) : isFide ? (
-              <FideRegistrationSection
-                value={draftConfig.fide}
-                onChange={(update) => updateConfig({ fide: { ...draftConfig.fide, ...update } })}
-                tournamentName={tournament.name}
-                tournamentCity={tournament.location ?? ""}
-                onDownloadTrf={handleDownloadFideTrf}
-                onDownloadRegistration={handleDownloadFideRegistration}
-                onDownloadFa1={handleDownloadFideFa1}
-                onDownloadIa1={handleDownloadFideIa1}
-              />
+              <div className="space-y-6">
+                {sections.length > 0 && (
+                  <Card className="border-slate-200 bg-slate-50/50 shadow-sm">
+                    <CardContent className="pt-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div>
+                        <h3 className="font-bold text-slate-800 text-sm">FIDE Section Filter</h3>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          FIDE requires separate rating reports (TRF files) for each playing section.
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <Label htmlFor="reports-section-select" className="text-xs font-semibold text-slate-600 uppercase shrink-0">
+                          Select Section:
+                        </Label>
+                        <Select
+                          value={selectedSectionId}
+                          onValueChange={setSelectedSectionId}
+                        >
+                          <SelectTrigger id="reports-section-select" className="w-56 border-slate-200 bg-white">
+                            <SelectValue placeholder="All Sections" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Sections (Combined)</SelectItem>
+                            {sections.map((sec) => (
+                              <SelectItem key={sec.id} value={sec.id}>
+                                {sec.name} Section
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+                <FideRegistrationSection
+                  value={draftConfig.fide}
+                  onChange={(update) => updateConfig({ fide: { ...draftConfig.fide, ...update } })}
+                  tournamentName={tournament.name}
+                  tournamentCity={tournament.location ?? ""}
+                />
+              </div>
             ) : (
-              <UscfReportSection
-                value={draftConfig.uscf}
-                onChange={(update) => updateConfig({ uscf: { ...draftConfig.uscf, ...update } })}
-                onDownload={handleDownloadUscfSummary}
-                onDownloadZip={handleDownloadUscfZip}
-              />
+              <div className="space-y-6">
+                {sections.length > 0 && (
+                  <Card className="border-slate-200 bg-slate-50/50 shadow-sm">
+                    <CardContent className="pt-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div>
+                        <h3 className="font-bold text-slate-800 text-sm">Detected Sections</h3>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          The following sections will be bundled automatically into your USCF rating report:
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {sections.map((sec) => (
+                          <Badge key={sec.id} variant="secondary" className="bg-white border-slate-200 text-slate-700">
+                            {sec.name}
+                          </Badge>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+                <UscfReportSection
+                  value={draftConfig.uscf}
+                  onChange={(update) => updateConfig({ uscf: { ...draftConfig.uscf, ...update } })}
+                />
+              </div>
             )}
           </div>
 
@@ -446,12 +536,19 @@ export default function TournamentReportsPage({ tournamentId, type }: Tournament
                 {isFide ? (
                   <>
                     <Button
-                      className="w-full bg-slate-900 text-white hover:bg-slate-800 justify-start gap-2"
-                      onClick={handleDownloadFideTrf}
+                      className="w-full bg-slate-900 text-white hover:bg-slate-800 justify-start gap-2 animate-in fade-in"
+                      onClick={() => handleDownloadFideTrf(selectedSectionId)}
+                      disabled={!allRequired}
                     >
                       <Download className="h-4 w-4" />
-                      Download TRF16 (.trf)
+                      Download {selectedSectionId !== "all" ? `${sections.find(s => s.id === selectedSectionId)?.name || selectedSectionId} TRF` : "TRF16 (.trf)"}
                     </Button>
+                    {!allRequired && (
+                      <p className="text-[11px] text-amber-600 px-1 flex items-start gap-1.5">
+                        <AlertTriangle className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+                        Fill in required fields before downloading.
+                      </p>
+                    )}
                     <p className="text-[11px] text-slate-400 px-1">
                       TRF16 is the standard FIDE Tournament Report Format for rating submission.
                     </p>

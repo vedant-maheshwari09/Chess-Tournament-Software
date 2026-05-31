@@ -141,9 +141,24 @@ export function generateUscfDbfZip(options: GenerateUscfDbfOptions): Buffer {
   const sectionKeys = Object.keys(playersBySection);
   const totalSections = Math.max(1, sectionKeys.length);
 
-  const chiefTdId = (config.uscf.tournamentDirector || config.details.chiefArbiter || "").replace(/[^0-9]/g, "").substring(0, 8);
-  const assistantTdId = (config.uscf.assistantDirector || "").replace(/[^0-9]/g, "").substring(0, 8);
-  const otherTds = (config.uscf.assistants || "").substring(0, 255);
+  const chiefTdId = (
+    (config.uscf as any).chiefTdId ||
+    config.uscf.tournamentDirector ||
+    config.details.chiefArbiter ||
+    ""
+  ).replace(/[^0-9]/g, "").substring(0, 8);
+
+  const assistantTdId = (
+    (config.uscf as any).assistantTdId ||
+    config.uscf.assistantDirector ||
+    ""
+  ).replace(/[^0-9]/g, "").substring(0, 8);
+
+  const otherTds = (
+    config.uscf.assistants ||
+    (config.details.assistantTDs && config.details.assistantTDs.join(", ")) ||
+    ""
+  ).substring(0, 255);
 
   const affiliateId = (config.uscf.affiliateId || config.details.affiliate || "").trim().substring(0, 8);
   const eventName = (config.basic.name || tournament.name || "").substring(0, 35);

@@ -742,13 +742,32 @@ app.get(
         ]);
 
         const config = parseTournamentConfig(tournament);
-        const fideProfiles = await lookupFideProfiles(players);
+
+        const sectionId = req.query.sectionId as string | undefined;
+        let filteredPlayers = players;
+        let filteredMatches = matches;
+        let filteredPairings = pairings;
+
+        if (sectionId && sectionId !== "all") {
+          filteredPlayers = players.filter(
+            (p) => p.sectionId === sectionId || p.sectionName === sectionId
+          );
+          const playerIds = new Set(filteredPlayers.map((p) => p.id));
+          filteredMatches = matches.filter(
+            (m) =>
+              (m.whitePlayerId && playerIds.has(m.whitePlayerId)) ||
+              (m.blackPlayerId && playerIds.has(m.blackPlayerId))
+          );
+          filteredPairings = pairings.filter((p) => playerIds.has(p.playerId));
+        }
+
+        const fideProfiles = await lookupFideProfiles(filteredPlayers);
         const { content, warnings } = generateFideTrf16Report({
           tournament,
           config,
-          players,
-          matches,
-          pairings,
+          players: filteredPlayers,
+          matches: filteredMatches,
+          pairings: filteredPairings,
           fideProfiles,
         });
 
@@ -759,7 +778,8 @@ app.get(
         const filenameBase = tournament.name?.trim().length
           ? tournament.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")
           : `tournament-${id}`;
-        const filename = `${filenameBase || `tournament-${id}`}-fide-trf16.trf`;
+        const sectionSuffix = sectionId && sectionId !== "all" ? `-${sectionId.toLowerCase().replace(/[^a-z0-9]+/g, "-")}` : "";
+        const filename = `${filenameBase || `tournament-${id}`}${sectionSuffix}-fide-trf16.trf`;
 
         if (warnings.length > 0) {
           res.setHeader("X-Export-Warnings", warnings.join(" | "));
