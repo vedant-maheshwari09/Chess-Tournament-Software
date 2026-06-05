@@ -30,7 +30,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { requestFirebaseToken } from "@/lib/firebase";
-
+import { UscfVerificationCard } from "@/components/uscf-verification-card";
 
 export default function SettingsPage() {
   const { user, logout } = useAuth();
@@ -271,6 +271,8 @@ export default function SettingsPage() {
 
           </CardContent>
         </Card>
+
+        <UscfVerificationCard />
 
         <Card>
           <CardHeader className="flex flex-row items-center gap-3">

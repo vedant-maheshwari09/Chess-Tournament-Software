@@ -18,6 +18,17 @@ export const users = pgTable("users", {
   notifyPairings: boolean("notify_pairings").default(true),
   notifyRegistration: boolean("notify_registration").default(true),
   notifyTournamentStatus: boolean("notify_tournament_status").default(true),
+  uscfId: text("uscf_id"),
+  uscfVerificationStatus: text("uscf_verification_status").default("unverified"), // 'unverified', 'pending', 'verified'
+  uscfVerifiedAt: timestamp("uscf_verified_at"),
+  uscfName: text("uscf_name"),
+  uscfRatingRegular: integer("uscf_rating_regular"),
+  uscfRatingQuick: integer("uscf_rating_quick"),
+  uscfRatingBlitz: integer("uscf_rating_blitz"),
+  uscfState: text("uscf_state"),
+  uscfMemberExpiry: text("uscf_member_expiry"),
+  uscfFideId: text("uscf_fide_id"),
+  uscfThinPhpLastFetched: timestamp("uscf_thin_php_last_fetched"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -414,3 +425,35 @@ export type InsertTournamentStar = z.infer<typeof insertTournamentStarSchema>;
 export type Notification = typeof notifications.$inferSelect;
 export type InsertNotification = z.infer<typeof insertNotificationSchema>;
 
+// USCF Verification Tables
+export const uscfChallengeCodes = pgTable("uscf_challenge_codes", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  code: text("code").notNull(),         // e.g., "CHESS-4729-X8K2"
+  expiresAt: timestamp("expires_at").notNull(),
+  used: boolean("used").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const uscfVerificationAttempts = pgTable("uscf_verification_attempts", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  challengeCodeId: integer("challenge_code_id").notNull(),
+  videoPath: text("video_path").notNull(),
+  videoDurationSeconds: integer("video_duration_seconds"),
+  // Automated analysis
+  confidenceScore: integer("confidence_score"),
+  codeFound: boolean("code_found"),
+  uscfUrlFound: boolean("uscf_url_found"),
+  memberIdExtracted: text("member_id_extracted"),
+  emailExtracted: text("email_extracted"),
+  reloadDetected: boolean("reload_detected"),
+  orderingCorrect: boolean("ordering_correct"),
+  failureReason: text("failure_reason"),     // Shown to user if rejected
+  keyFramePaths: text("key_frame_paths"),    // JSON array
+  // Outcome
+  status: text("status").default("processing"),
+  // 'processing' | 'approved' | 'rejected'
+  createdAt: timestamp("created_at").defaultNow(),
+  completedAt: timestamp("completed_at"),
+});

@@ -83,6 +83,7 @@ For any bye match (odd-player-out), the tournament director can select from:
 
 ### Professional Chess Integration
 
+- **USCF Account Verification (PoLS-SR)**: Native integration for players to verify their USCF identity via a Proof of Live Session Screen Recording. Users record a video of their USCF profile including a page refresh; the server automatically extracts their Member ID, Name, and Email via OCR (Tesseract) and validates the session against spoofing, unlocking a "Verified USCF Member" badge and auto-populating their ratings.
 - **Rating Systems**: Native support for **USCF** and **FIDE** ratings (Standard, Rapid, Blitz).
 - **Advanced Seeding**: Algorithms including FIDE World Cup, Slaughter, Random, and Manual.
 - **Automated Tiebreaks**: Professional calculation of Modified Median, Solkoff, and Cumulative tiebreaks.
