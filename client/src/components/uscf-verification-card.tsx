@@ -55,12 +55,10 @@ export function UscfVerificationCard() {
       formData.append("video", file);
       formData.append("challengeCodeId", challengeId.toString());
 
-      const res = await fetch("/api/verification/uscf/submit", {
+      return await apiRequest("/api/verification/uscf/submit", {
         method: "POST",
         body: formData,
       });
-      if (!res.ok) throw new Error(await res.text());
-      return res.json();
     },
     onSuccess: (data) => {
       setAttemptId(data.attemptId);
