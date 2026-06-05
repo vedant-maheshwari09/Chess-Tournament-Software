@@ -26,7 +26,8 @@ export function UscfVerificationCard() {
 
   const { data: statusData, isLoading: isLoadingStatus } = useQuery({
     queryKey: ["/api/verification/uscf/me"],
-    refetchInterval: (data) => {
+    refetchInterval: (query) => {
+      const data = query.state.data as any;
       // If we are waiting on a pending verification, poll faster
       return (attemptId || data?.status === 'pending') ? 3000 : false;
     }
@@ -91,20 +92,22 @@ export function UscfVerificationCard() {
   }, [step, toast]);
 
   // Polling for attempt status
-  useQuery({
+  const { data: attemptData } = useQuery({
     queryKey: ["/api/verification/uscf/status", attemptId],
     enabled: !!attemptId,
-    refetchInterval: (data) => {
+    refetchInterval: (query) => {
+      const data = query.state.data as any;
       if (data?.status === "approved" || data?.status === "rejected") return false;
       return 3000;
-    },
-    onSuccess: (data) => {
-      if (data.status === "approved" || data.status === "rejected") {
-        setAttemptId(null);
-        queryClient.invalidateQueries({ queryKey: ["/api/verification/uscf/me"] });
-      }
     }
   });
+
+  useEffect(() => {
+    if (attemptData && ((attemptData as any).status === "approved" || (attemptData as any).status === "rejected")) {
+      setAttemptId(null);
+      queryClient.invalidateQueries({ queryKey: ["/api/verification/uscf/me"] });
+    }
+  }, [attemptData, queryClient]);
 
   const startRecording = async () => {
     try {
@@ -162,7 +165,7 @@ export function UscfVerificationCard() {
     return <Card><CardContent className="p-6 flex justify-center"><Loader2 className="animate-spin h-6 w-6 text-primary" /></CardContent></Card>;
   }
 
-  const { status, name, uscfId, ratingRegular, ratingQuick, ratingBlitz, state, expiry, fideId } = statusData || {};
+  const { status, name, uscfId, ratingRegular, ratingQuick, ratingBlitz, state, expiry, fideId } = (statusData as any) || {};
 
   const isVerified = status === 'verified';
   const isProcessing = !!attemptId;
