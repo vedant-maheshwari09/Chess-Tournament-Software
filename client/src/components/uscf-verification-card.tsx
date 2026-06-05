@@ -35,8 +35,8 @@ export function UscfVerificationCard() {
 
   const generateChallengeMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest("/api/verification/uscf/challenge", { method: "POST" });
-      return res.json();
+      const data = await apiRequest("/api/verification/uscf/challenge", { method: "POST" });
+      return data;
     },
     onSuccess: (data) => {
       setChallengeCode(data.code);
