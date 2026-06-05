@@ -71,11 +71,17 @@ export async function analyzeUscfVideo(attemptId: number, videoPath: string, cha
       console.log(`[USCF Verification] Analyzing frame ${index + 1}/${framesToAnalyze.length} (${frame})...`);
       const { data: { text } } = await worker.recognize(framePath);
 
-      // Check challenge code (case-insensitive, ignores hyphens and spaces)
+      // Check challenge code (fuzzy matching: case-insensitive, ignores symbols, allows up to 3 OCR character errors)
       const cleanText = text.toLowerCase().replace(/[^a-z0-9]/g, "");
       const cleanCode = challengeCode.toLowerCase().replace(/[^a-z0-9]/g, "");
-      if (!codeFound && cleanText.includes(cleanCode)) {
-        console.log(`[USCF Verification] Challenge code '${challengeCode}' matched in OCR text (normalized).`);
+      
+      let minDistance = cleanCode.length;
+      if (cleanText.length >= cleanCode.length) {
+        minDistance = getMinLevenshteinDistance(cleanText, cleanCode);
+      }
+      
+      if (!codeFound && minDistance <= 3) {
+        console.log(`[USCF Verification] Challenge code '${challengeCode}' matched via fuzzy Levenshtein (min distance: ${minDistance}/13).`);
         codeFound = true;
       }
 
@@ -220,4 +226,41 @@ export async function analyzeUscfVideo(attemptId: number, videoPath: string, cha
       })
       .where(eq(uscfVerificationAttempts.id, attemptId));
   }
+}
+
+function levenshteinDistance(a: string, b: string): number {
+  const matrix = Array.from({ length: a.length + 1 }, () => Array(b.length + 1).fill(0));
+  
+  for (let i = 0; i <= a.length; i++) matrix[i][0] = i;
+  for (let j = 0; j <= b.length; j++) matrix[0][j] = j;
+  
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      matrix[i][j] = Math.min(
+        matrix[i - 1][j] + 1, // deletion
+        matrix[i][j - 1] + 1, // insertion
+        matrix[i - 1][j - 1] + cost // substitution
+      );
+    }
+  }
+  
+  return matrix[a.length][b.length];
+}
+
+function getMinLevenshteinDistance(text: string, code: string): number {
+  if (text.length < code.length) return code.length;
+  
+  let minDistance = code.length;
+  const len = code.length;
+  
+  for (let i = 0; i <= text.length - len; i++) {
+    const windowText = text.substring(i, i + len);
+    const dist = levenshteinDistance(windowText, code);
+    if (dist < minDistance) {
+      minDistance = dist;
+    }
+  }
+  
+  return minDistance;
 }
