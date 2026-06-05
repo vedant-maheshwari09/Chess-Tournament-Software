@@ -3,8 +3,8 @@ import multer from "multer";
 import path from "path";
 import fs from "fs/promises";
 import crypto from "crypto";
-import { db } from "../../shared/db";
-import { users, uscfChallengeCodes, uscfVerificationAttempts } from "../../shared/schema";
+import { db } from "../db";
+import { users, uscfChallengeCodes, uscfVerificationAttempts } from "@shared/schema";
 import { eq, and, desc, gt } from "drizzle-orm";
 import { analyzeUscfVideo } from "../lib/video-analysis";
 

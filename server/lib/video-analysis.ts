@@ -4,8 +4,8 @@ import { exec } from "child_process";
 import util from "util";
 import Tesseract from "tesseract.js";
 import ffmpegPath from "ffmpeg-static";
-import { db } from "../../shared/db";
-import { uscfVerificationAttempts, users } from "../../shared/schema";
+import { db } from "../db";
+import { uscfVerificationAttempts, users } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { load } from "cheerio"; // We might fetch thin.php
 
