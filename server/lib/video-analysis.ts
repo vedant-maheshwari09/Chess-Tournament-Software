@@ -71,13 +71,24 @@ export async function analyzeUscfVideo(attemptId: number, videoPath: string, cha
       console.log(`[USCF Verification] Analyzing frame ${index + 1}/${framesToAnalyze.length} (${frame})...`);
       const { data: { text } } = await worker.recognize(framePath);
 
-      // Check challenge code
-      if (!codeFound && text.includes(challengeCode)) {
+      // Check challenge code (case-insensitive, ignores hyphens and spaces)
+      const cleanText = text.toLowerCase().replace(/[^a-z0-9]/g, "");
+      const cleanCode = challengeCode.toLowerCase().replace(/[^a-z0-9]/g, "");
+      if (!codeFound && cleanText.includes(cleanCode)) {
+        console.log(`[USCF Verification] Challenge code '${challengeCode}' matched in OCR text (normalized).`);
         codeFound = true;
       }
 
-      // Check URL
-      if (!uscfUrlFound && (text.includes("new.uschess.org") || text.includes("new.uschess.org/user"))) {
+      // Check URL or Page headers unique to USCF (handles tab-sharing where address bar is hidden)
+      const lowerText = text.toLowerCase();
+      if (!uscfUrlFound && (
+        lowerText.includes("new.uschess.org") || 
+        lowerText.includes("us chess") || 
+        lowerText.includes("chess life") ||
+        lowerText.includes("muir") ||
+        lowerText.includes("safe play training")
+      )) {
+        console.log(`[USCF Verification] USCF site signature/URL detected in OCR text.`);
         uscfUrlFound = true;
       }
 
