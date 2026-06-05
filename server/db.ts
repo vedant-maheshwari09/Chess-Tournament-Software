@@ -72,7 +72,12 @@ function resolveConnectionString(): string {
 
 function resolveSsl(connectionString: string): PoolConfig["ssl"] {
   const sslEnv = readEnv("DATABASE_SSL") ?? readEnv("SUPABASE_DB_SSL");
-  const useSsl = sslEnv ? sslEnv.toLowerCase() !== "false" : connectionString.includes("supabase.co");
+  const useSsl = sslEnv ? sslEnv.toLowerCase() !== "false" : (
+    connectionString.includes("supabase.co") || 
+    connectionString.includes("render.com") || 
+    connectionString.includes("neon.tech") ||
+    connectionString.includes("sslmode=require")
+  );
   return useSsl ? { rejectUnauthorized: false } : undefined;
 }
 
