@@ -36,13 +36,7 @@ const upload = multer({
   }
 });
 
-// Middleware to ensure user is authenticated
-const requireAuth = (req: any, res: any, next: any) => {
-  if (!req.isAuthenticated()) {
-    return res.status(401).json({ message: "Unauthorized" });
-  }
-  next();
-};
+import { requireAuth } from "../auth";
 
 // Generate a challenge code
 router.post("/uscf/challenge", requireAuth, async (req, res) => {
