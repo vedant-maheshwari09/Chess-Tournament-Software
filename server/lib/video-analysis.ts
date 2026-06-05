@@ -42,7 +42,8 @@ export async function analyzeUscfVideo(attemptId: number, videoPath: string, cha
     let reloadDetected = false;
     let codeBeforeReload = false;
 
-    let preReloadFrames = 0;
+    let pageSignatureSeen = false;
+    let blankFrameSeen = false;
     
     // We'll just pick a few evenly spaced frames to speed up OCR since it can be slow
     // Limit to max 15 frames for analysis
@@ -70,6 +71,7 @@ export async function analyzeUscfVideo(attemptId: number, videoPath: string, cha
       const framePath = path.join(framesDir, frame);
       console.log(`[USCF Verification] Analyzing frame ${index + 1}/${framesToAnalyze.length} (${frame})...`);
       const { data: { text } } = await worker.recognize(framePath);
+      const lowerText = text.toLowerCase();
 
       // Check challenge code (fuzzy matching: case-insensitive, ignores symbols, allows up to 3 OCR character errors)
       const cleanText = text.toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -85,16 +87,9 @@ export async function analyzeUscfVideo(attemptId: number, videoPath: string, cha
         codeFound = true;
       }
 
-      // Check URL or Page headers unique to USCF (handles tab-sharing where address bar is hidden)
-      const lowerText = text.toLowerCase();
-      if (!uscfUrlFound && (
-        lowerText.includes("new.uschess.org") || 
-        lowerText.includes("us chess") || 
-        lowerText.includes("chess life") ||
-        lowerText.includes("muir") ||
-        lowerText.includes("safe play training")
-      )) {
-        console.log(`[USCF Verification] USCF site signature/URL detected in OCR text.`);
+      // Check URL strictly (browser address bar must contain new.uschess.org)
+      if (!uscfUrlFound && lowerText.includes("new.uschess.org")) {
+        console.log(`[USCF Verification] Verified 'new.uschess.org' in browser address bar.`);
         uscfUrlFound = true;
       }
 
@@ -113,13 +108,30 @@ export async function analyzeUscfVideo(attemptId: number, videoPath: string, cha
         emailExtracted = emailMatch[0];
       }
 
-      // Reload detection (very naive: if text suddenly loses "uschess" then regains it, or based on a "Loading" text)
-      // Since this is a prototype, we'll simulate reload detection if we see the code first then the email later.
-      if (codeFound && emailExtracted && !reloadDetected) {
-         console.log(`[USCF Verification] Reload sequence simulated/detected.`);
-         reloadDetected = true;
-         codeBeforeReload = true;
+      // Real Algorithmic Reload Detection
+      // A reload sequence: signature seen -> page goes blank/loading -> signature returns
+      const hasSignature = lowerText.includes("member id") || lowerText.includes("safe play training");
+      if (hasSignature) {
+        if (pageSignatureSeen && blankFrameSeen && !reloadDetected) {
+          console.log(`[USCF Verification] Reload sequence algorithmically verified!`);
+          reloadDetected = true;
+          codeBeforeReload = true; // Mark ordering as correct
+        }
+        pageSignatureSeen = true;
+      } else if (pageSignatureSeen) {
+        blankFrameSeen = true; // Page went blank or changed pages during refresh
       }
+
+      // Update database progress in real-time so the user checklist reacts immediately
+      await db.update(uscfVerificationAttempts)
+        .set({
+          codeFound,
+          uscfUrlFound,
+          memberIdExtracted: memberIdExtracted || null,
+          emailExtracted: emailExtracted || null,
+          reloadDetected
+        })
+        .where(eq(uscfVerificationAttempts.id, attemptId));
     }
     
     console.log(`[USCF Verification] OCR analysis complete in ${Date.now() - ocrStartTime}ms.`);

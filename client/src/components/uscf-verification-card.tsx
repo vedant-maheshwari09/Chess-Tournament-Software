@@ -16,6 +16,7 @@ export function UscfVerificationCard() {
   const [challengeId, setChallengeId] = useState<number>(0);
   const [countdown, setCountdown] = useState(600);
   const [attemptId, setAttemptId] = useState<number | null>(null);
+  const [lastFailureReason, setLastFailureReason] = useState<string | null>(null);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -91,19 +92,27 @@ export function UscfVerificationCard() {
 
   // Polling for attempt status
   const { data: attemptData } = useQuery({
-    queryKey: ["/api/verification/uscf/status", attemptId],
+    queryKey: [`/api/verification/uscf/status/${attemptId}`],
     enabled: !!attemptId,
     refetchInterval: (query) => {
       const data = query.state.data as any;
       if (data?.status === "approved" || data?.status === "rejected") return false;
-      return 3000;
+      return 2000;
     }
   });
 
   useEffect(() => {
-    if (attemptData && ((attemptData as any).status === "approved" || (attemptData as any).status === "rejected")) {
-      setAttemptId(null);
-      queryClient.invalidateQueries({ queryKey: ["/api/verification/uscf/me"] });
+    if (attemptData) {
+      const status = (attemptData as any).status;
+      if (status === "approved") {
+        setAttemptId(null);
+        setLastFailureReason(null);
+        queryClient.invalidateQueries({ queryKey: ["/api/verification/uscf/me"] });
+      } else if (status === "rejected") {
+        setAttemptId(null);
+        setLastFailureReason((attemptData as any).failureReason || "Verification rejected.");
+        queryClient.invalidateQueries({ queryKey: ["/api/verification/uscf/me"] });
+      }
     }
   }, [attemptData, queryClient]);
 
@@ -111,8 +120,22 @@ export function UscfVerificationCard() {
     try {
       recordedChunksRef.current = []; // Reset chunks for new recording
       const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: { displaySurface: "browser" }
+        video: { displaySurface: "monitor" }
       });
+      
+      const track = stream.getVideoTracks()[0];
+      const settings = track.getSettings();
+      
+      // Enforce sharing entire screen so we can read the browser address bar (security check)
+      if (settings.displaySurface && settings.displaySurface !== "monitor") {
+        track.stop();
+        toast({
+          title: "Entire Screen Required",
+          description: "For security verification, you must share your ENTIRE SCREEN, not just a tab or window.",
+          variant: "destructive"
+        });
+        return;
+      }
       
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -205,6 +228,13 @@ export function UscfVerificationCard() {
 
         {!isVerified && step === "initial" && !isProcessing && (
           <div className="space-y-4">
+            {lastFailureReason && (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Verification Failed</AlertTitle>
+                <AlertDescription className="mt-1">{lastFailureReason}</AlertDescription>
+              </Alert>
+            )}
             <div className="text-sm text-muted-foreground">
               By linking your USCF account, your official rating and name will be used when you register for tournaments.
             </div>
@@ -215,15 +245,97 @@ export function UscfVerificationCard() {
           </div>
         )}
 
-        {isProcessing && (
-          <div className="flex flex-col items-center justify-center p-6 space-y-4 bg-accent/20 rounded-md">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            <div className="text-center">
-              <h3 className="font-medium">Processing your video...</h3>
-              <p className="text-sm text-muted-foreground mt-1">This usually takes about 30 to 90 seconds.</p>
+        {isProcessing && (() => {
+          const attempt = attemptData as any;
+          return (
+            <div className="space-y-5 p-6 bg-accent/20 rounded-md border border-primary/10">
+              <div className="flex items-center gap-3">
+                <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                <h3 className="font-semibold text-base">Processing your video...</h3>
+              </div>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Our automated system is performing Optical Character Recognition (OCR) frame analysis to verify your USCF session. This usually takes 20 to 45 seconds.
+              </p>
+              
+              <div className="space-y-3 border-t border-primary/5 pt-4">
+                {/* 1. Challenge Code */}
+                <div className="flex items-center gap-2.5 text-sm">
+                  {attempt?.codeFound ? (
+                    <span className="text-green-600 dark:text-green-400 font-medium flex items-center gap-1.5">
+                      <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+                      Challenge Code Found
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground flex items-center gap-2">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                      Locating Challenge Code...
+                    </span>
+                  )}
+                </div>
+
+                {/* 2. URL Check */}
+                <div className="flex items-center gap-2.5 text-sm">
+                  {attempt?.uscfUrlFound ? (
+                    <span className="text-green-600 dark:text-green-400 font-medium flex items-center gap-1.5">
+                      <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+                      Verified Browser URL (new.uschess.org)
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground flex items-center gap-2">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                      Checking Browser Address Bar...
+                    </span>
+                  )}
+                </div>
+
+                {/* 3. Member ID Check */}
+                <div className="flex items-center gap-2.5 text-sm">
+                  {attempt?.memberIdExtracted ? (
+                    <span className="text-green-600 dark:text-green-400 font-medium flex items-center gap-1.5">
+                      <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+                      Read Member ID: <code className="bg-background px-1.5 py-0.5 rounded border text-xs font-mono font-bold text-foreground">{attempt.memberIdExtracted}</code>
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground flex items-center gap-2">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                      Extracting Member ID...
+                    </span>
+                  )}
+                </div>
+
+                {/* 4. Email check */}
+                <div className="flex items-center gap-2.5 text-sm">
+                  {attempt?.emailExtracted ? (
+                    <span className="text-green-600 dark:text-green-400 font-medium flex items-center gap-1.5">
+                      <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+                      Read Profile Email: <code className="bg-background px-1.5 py-0.5 rounded border text-xs font-mono text-foreground">{attempt.emailExtracted}</code>
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground flex items-center gap-2">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                      Matching Account Email...
+                    </span>
+                  )}
+                </div>
+
+                {/* 5. Live refresh check */}
+                <div className="flex items-center gap-2.5 text-sm">
+                  {attempt?.reloadDetected ? (
+                    <span className="text-green-600 dark:text-green-400 font-medium flex items-center gap-1.5">
+                      <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+                      Page Reload Verified (Anti-Spoof)
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground flex items-center gap-2">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                      Verifying Browser Refresh Sequence...
+                    </span>
+                  )}
+                </div>
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {(step === "wizard" || step === "recording" || step === "uploading") && (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
@@ -242,12 +354,13 @@ export function UscfVerificationCard() {
             <div className="grid md:grid-cols-2 gap-6">
               <div className="space-y-4 p-4 bg-accent/20 rounded-lg">
                 <h3 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground">What to record:</h3>
-                <ol className="list-decimal list-inside space-y-3 text-sm font-medium">
-                  <li>Show this page with your challenge code</li>
-                  <li>Open a new tab and log into <a href="https://new.uschess.org" target="_blank" rel="noreferrer" className="text-primary hover:underline">new.uschess.org</a></li>
-                  <li>Go to your Profile page</li>
-                  <li>Hit the Refresh button (↻) in your browser</li>
-                  <li>Wait for it to fully load, then stop recording</li>
+                <ol className="list-decimal list-inside space-y-3.5 text-sm font-medium leading-relaxed">
+                  <li>Start recording (you <strong>MUST</strong> select <strong>"Entire Screen"</strong> in the browser prompt so the address bar is visible).</li>
+                  <li>Ensure this page with your <span className="text-primary font-mono font-bold bg-background px-1 py-0.5 rounded border">{challengeCode}</span> is visible at the start of the recording for 3 seconds.</li>
+                  <li>Open a new tab, go to your dashboard on <a href="https://new.uschess.org" target="_blank" rel="noreferrer" className="text-primary hover:underline font-bold">new.uschess.org</a>, and log in.</li>
+                  <li>Hit the browser's <strong>Refresh button (↻)</strong> to reload the USCF page live (this defeats inspect-element spoofing).</li>
+                  <li>Wait for the page to finish reloading so your Member ID and email are fully visible.</li>
+                  <li>Switch back here and click <strong>Stop & Submit</strong>.</li>
                 </ol>
               </div>
 
