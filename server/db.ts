@@ -71,14 +71,14 @@ function resolveConnectionString(): string {
 }
 
 function resolveSsl(connectionString: string): PoolConfig["ssl"] {
+  // If the user explicitly disabled SSL, respect it
   const sslEnv = readEnv("DATABASE_SSL") ?? readEnv("SUPABASE_DB_SSL");
-  const useSsl = sslEnv ? sslEnv.toLowerCase() !== "false" : (
-    connectionString.includes("supabase.co") || 
-    connectionString.includes("render.com") || 
-    connectionString.includes("neon.tech") ||
-    connectionString.includes("sslmode=require")
-  );
-  return useSsl ? { rejectUnauthorized: false } : undefined;
+  if (sslEnv && sslEnv.toLowerCase() === "false") {
+    return undefined;
+  }
+  
+  // For all other cases, if SSL is used, do not reject unauthorized (fixes self-signed cert errors for cloud proxies)
+  return { rejectUnauthorized: false };
 }
 
 const connectionString = resolveConnectionString();
