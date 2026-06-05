@@ -87,25 +87,35 @@ export async function analyzeUscfVideo(attemptId: number, videoPath: string, cha
         codeFound = true;
       }
 
-      // Check URL strictly (browser address bar must contain new.uschess.org)
-      if (!uscfUrlFound && lowerText.includes("new.uschess.org")) {
-        console.log(`[USCF Verification] Verified 'new.uschess.org' in browser address bar.`);
-        uscfUrlFound = true;
+      // Check URL, Member ID, and Email (Enforces simultaneous visibility in post-reload frames)
+      const frameIdMatch = text.match(/\b\d{7,8}\b/);
+      const frameEmailMatch = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+      
+      let frameHasMemberId = false;
+      let frameMemberId = null;
+      if (frameIdMatch && (text.includes("Member ID") || text.includes("ID:"))) {
+        frameHasMemberId = true;
+        frameMemberId = frameIdMatch[0];
       }
 
-      // Check Member ID (7 or 8 digits)
-      const idMatch = text.match(/\b\d{7,8}\b/);
-      if (!memberIdExtracted && idMatch) {
-         // rudimentary check if it's near "Member ID" or just pick the first valid looking one
-         if(text.includes("Member ID") || text.includes("ID:")) {
-            memberIdExtracted = idMatch[0];
-         }
+      // Extract details for checklist immediately when found in any frame
+      if (!memberIdExtracted && frameHasMemberId) {
+        memberIdExtracted = frameMemberId;
+      }
+      if (!emailExtracted && frameEmailMatch) {
+        emailExtracted = frameEmailMatch[0];
       }
 
-      // Check Email
-      const emailMatch = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
-      if (!emailExtracted && emailMatch) {
-        emailExtracted = emailMatch[0];
+      // Strict URL Check: browser address bar containing the domain must be visible
+      // SIMULTANEOUSLY alongside the Member ID and email in a post-reload frame
+      if (blankFrameSeen && pageSignatureSeen) {
+        const frameHasUrl = lowerText.includes("new.uschess.org") || lowerText.includes("uschess.org");
+        if (frameHasUrl && frameHasMemberId && frameEmailMatch) {
+          console.log(`[USCF Verification] Simultaneously verified URL, Member ID (${frameMemberId}), and Email (${frameEmailMatch[0]}) in post-refresh Frame ${index + 1}.`);
+          uscfUrlFound = true;
+          memberIdExtracted = frameMemberId; // Lock in the verified values
+          emailExtracted = frameEmailMatch[0];
+        }
       }
 
       // Real Algorithmic Reload Detection
@@ -135,7 +145,7 @@ export async function analyzeUscfVideo(attemptId: number, videoPath: string, cha
     }
     
     console.log(`[USCF Verification] OCR analysis complete in ${Date.now() - ocrStartTime}ms.`);
-    console.log(`[USCF Verification] OCR Results -> Code Found: ${codeFound}, URL Found: ${uscfUrlFound}, Member ID: ${memberIdExtracted}, Email: ${emailExtracted}`);
+    console.log(`[USCF Verification] OCR Results -> Code Found: ${codeFound}, URL Found: ${uscfUrlFound}, Member ID: ${memberIdExtracted}, Email: ${emailExtracted}, Reload: ${reloadDetected}`);
     
     await worker.terminate();
 
@@ -144,53 +154,46 @@ export async function analyzeUscfVideo(attemptId: number, videoPath: string, cha
     // Also remove the video to save space
     await fs.rm(videoPath, { force: true });
 
-    // Compute score
+    // Compute score (strictly requiring 100/100 for approval)
     let confidenceScore = 0;
     let failureReason = null;
 
-    if (codeFound) confidenceScore += 35;
-    if (uscfUrlFound) confidenceScore += 25;
-    if (memberIdExtracted) confidenceScore += 15;
-    if (emailExtracted) confidenceScore += 15;
-    if (reloadDetected) confidenceScore += 10;
+    if (codeFound) confidenceScore += 20;
+    if (uscfUrlFound) confidenceScore += 20;
+    if (memberIdExtracted) confidenceScore += 20;
+    if (emailExtracted) confidenceScore += 20;
+    if (reloadDetected) confidenceScore += 20;
 
     if (!codeFound) {
-      failureReason = "Challenge code was not found in the video. Please make sure the code is visible at the start.";
+      failureReason = "Challenge code was not found in the video. Please make sure to record our website displaying the code at the start of your recording.";
+    } else if (!reloadDetected) {
+      failureReason = "Page refresh sequence was not detected. You must click the browser reload button during the recording to verify the session is live.";
     } else if (!uscfUrlFound) {
-      failureReason = "Could not detect new.uschess.org in the browser address bar.";
+      failureReason = "Browser address bar containing 'new.uschess.org' was not found in the post-refresh frames. Make sure you share your 'Entire Screen'.";
     } else if (!emailExtracted || !memberIdExtracted) {
-      failureReason = "Could not clearly read your Member ID or Email on the profile page.";
+      failureReason = "Could not clearly read your Member ID or Email on the profile page after refreshing.";
     }
 
-    const isApproved = confidenceScore >= 75 && !failureReason;
-    console.log(`[USCF Verification] Final Score: ${confidenceScore}/100. Status: ${isApproved ? 'APPROVED' : 'REJECTED'}`);
-    if (failureReason) console.log(`[USCF Verification] Failure Reason: ${failureReason}`);
-    
-    // Update attempt record
-    await db.update(uscfVerificationAttempts)
-      .set({
-        confidenceScore,
-        codeFound,
-        uscfUrlFound,
-        memberIdExtracted: memberIdExtracted || null,
-        emailExtracted: emailExtracted || null,
-        reloadDetected,
-        orderingCorrect: codeBeforeReload,
-        status: isApproved ? 'approved' : 'rejected',
-        failureReason,
-        completedAt: new Date()
-      })
-      .where(eq(uscfVerificationAttempts.id, attemptId));
+    let isApproved = confidenceScore === 100 && !failureReason;
+    let ratingsData = null;
+    let thinPhpSuccess = false;
 
     if (isApproved && memberIdExtracted) {
-      // We need to fetch thin.php data now
-      console.log(`[USCF Verification] Verification passed! Fetching official USCF ratings from thin.php for Member ID: ${memberIdExtracted}...`);
+      console.log(`[USCF Verification] Video verified. Fetching ratings from thin.php for Member ID: ${memberIdExtracted}...`);
       try {
-        const response = await fetch(`https://www.uschess.org/msa/thin.php?${memberIdExtracted}`);
+        const response = await fetch(`https://www.uschess.org/msa/thin.php?${memberIdExtracted}`, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+          }
+        });
+        
+        if (!response.ok) {
+          throw new Error(`USCF server returned status ${response.status}`);
+        }
+        
         const html = await response.text();
         const $ = load(html);
         
-        // Very basic parsing based on the thin.php structure
         const name = $("input[name='memname']").val() as string;
         const regRatingStr = $("input[name='rating1']").val() as string;
         const quickRatingStr = $("input[name='rating2']").val() as string;
@@ -199,33 +202,70 @@ export async function analyzeUscfVideo(attemptId: number, videoPath: string, cha
         const fideIdStr = $("input[name='memfideid']").val() as string;
         const expiry = $("input[name='memexpdt']").val() as string;
 
+        if (!name || name.trim().length === 0) {
+          throw new Error("Could not find member name (invalid Member ID or database block)");
+        }
+
         const parseRating = (r: string) => {
             if(!r || r === 'Unrated') return null;
             const match = r.match(/\d+/);
             return match ? parseInt(match[0], 10) : null;
         };
 
-        await db.update(users)
-          .set({
-            uscfVerificationStatus: 'verified',
-            uscfVerifiedAt: new Date(),
-            uscfId: memberIdExtracted,
-            uscfName: name || '',
-            uscfRatingRegular: parseRating(regRatingStr),
-            uscfRatingQuick: parseRating(quickRatingStr),
-            uscfRatingBlitz: parseRating(blitzRatingStr),
-            uscfState: state || '',
-            uscfMemberExpiry: expiry || '',
-            uscfFideId: fideIdStr ? fideIdStr.split(' - ')[0] : '',
-            uscfThinPhpLastFetched: new Date()
-          })
-          .where(eq(users.id, userId));
-
-        console.log(`[USCF Verification] Successfully populated user profile with official USCF data for ${name}.`);
-
+        ratingsData = {
+          name: name.trim(),
+          ratingRegular: parseRating(regRatingStr),
+          ratingQuick: parseRating(quickRatingStr),
+          ratingBlitz: parseRating(blitzRatingStr),
+          state: state || '',
+          expiry: expiry || '',
+          fideId: fideIdStr ? fideIdStr.split(' - ')[0] : ''
+        };
+        
+        thinPhpSuccess = true;
       } catch (err) {
         console.error("[USCF Verification] Error fetching thin.php:", err);
+        isApproved = false;
+        failureReason = "Your video was verified, but we encountered a connection error retrieving your official ratings from the USCF server. Please try again in a few minutes.";
       }
+    }
+
+    const finalStatus = isApproved && thinPhpSuccess ? 'approved' : 'rejected';
+
+    // Update attempt record
+    await db.update(uscfVerificationAttempts)
+      .set({
+        confidenceScore: finalStatus === 'approved' ? 100 : confidenceScore,
+        codeFound,
+        uscfUrlFound,
+        memberIdExtracted: memberIdExtracted || null,
+        emailExtracted: emailExtracted || null,
+        reloadDetected,
+        orderingCorrect: codeBeforeReload,
+        status: finalStatus,
+        failureReason,
+        completedAt: new Date()
+      })
+      .where(eq(uscfVerificationAttempts.id, attemptId));
+
+    if (finalStatus === 'approved' && ratingsData && memberIdExtracted) {
+      await db.update(users)
+        .set({
+          uscfVerificationStatus: 'verified',
+          uscfVerifiedAt: new Date(),
+          uscfId: memberIdExtracted,
+          uscfName: ratingsData.name,
+          uscfRatingRegular: ratingsData.ratingRegular,
+          uscfRatingQuick: ratingsData.ratingQuick,
+          uscfRatingBlitz: ratingsData.ratingBlitz,
+          uscfState: ratingsData.state,
+          uscfMemberExpiry: ratingsData.expiry,
+          uscfFideId: ratingsData.fideId,
+          uscfThinPhpLastFetched: new Date()
+        })
+        .where(eq(users.id, userId));
+
+      console.log(`[USCF Verification] Successfully populated user profile with official USCF data for ${ratingsData.name}.`);
     }
     
   } catch (err) {
