@@ -19,7 +19,7 @@ export function UscfVerificationCard() {
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const [recordedChunks, setRecordedChunks] = useState<Blob[]>([]);
+  const recordedChunksRef = useRef<Blob[]>([]);
   
   const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
   const canScreenRecord = !isMobile && !!navigator.mediaDevices?.getDisplayMedia;
@@ -109,6 +109,7 @@ export function UscfVerificationCard() {
 
   const startRecording = async () => {
     try {
+      recordedChunksRef.current = []; // Reset chunks for new recording
       const stream = await navigator.mediaDevices.getDisplayMedia({
         video: { displaySurface: "browser" }
       });
@@ -122,7 +123,7 @@ export function UscfVerificationCard() {
       
       mediaRecorder.ondataavailable = (e) => {
         if (e.data.size > 0) {
-          setRecordedChunks((prev) => [...prev, e.data]);
+          recordedChunksRef.current.push(e.data);
         }
       };
       
@@ -130,7 +131,7 @@ export function UscfVerificationCard() {
         stream.getTracks().forEach(track => track.stop());
       };
       
-      mediaRecorder.start();
+      mediaRecorder.start(1000);
       setStep("recording");
     } catch (err) {
       console.error(err);
@@ -141,7 +142,7 @@ export function UscfVerificationCard() {
   const stopAndSubmitRecording = () => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
       mediaRecorderRef.current.onstop = () => {
-        const blob = new Blob(recordedChunks, { type: "video/webm" });
+        const blob = new Blob(recordedChunksRef.current, { type: "video/webm" });
         const file = new File([blob], "screen-record.webm", { type: "video/webm" });
         setStep("uploading");
         submitVideoMutation.mutate(file);
