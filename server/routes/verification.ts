@@ -106,12 +106,14 @@ router.post("/uscf/submit", requireAuth, upload.single('video'), async (req, res
     }
 
     if (new Date() > new Date(challenge.expiresAt)) {
+      console.log(`[USCF Verification] Rejecting attempt: Challenge code expired for User ${userId}`);
       await db.update(uscfChallengeCodes).set({ used: true }).where(eq(uscfChallengeCodes.id, challenge.id));
       await fs.rm(file.path, { force: true });
       return res.status(400).json({ message: "Challenge code has expired. Please start over." });
     }
 
     // Mark as used
+    console.log(`[USCF Verification] Challenge code validated and marked as used for User ${userId}`);
     await db.update(uscfChallengeCodes).set({ used: true }).where(eq(uscfChallengeCodes.id, challenge.id));
 
     // Create attempt
@@ -124,14 +126,16 @@ router.post("/uscf/submit", requireAuth, upload.single('video'), async (req, res
       })
       .returning();
 
+    console.log(`[USCF Verification] Attempt #${attempt.id} created. Video saved to ${file.path}. Dispatching background job...`);
+
     // Launch background processing
     analyzeUscfVideo(attempt.id, file.path, challenge.code, userId).catch(err => {
-      console.error(`Background analysis failed for attempt ${attempt.id}:`, err);
+      console.error(`[USCF Verification] Background analysis failed for attempt ${attempt.id}:`, err);
     });
 
     res.json({ attemptId: attempt.id });
   } catch (error) {
-    console.error("Error submitting video:", error);
+    console.error("[USCF Verification] Error submitting video:", error);
     res.status(500).json({ message: "Failed to submit verification video" });
   }
 });

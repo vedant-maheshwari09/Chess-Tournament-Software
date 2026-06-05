@@ -12,8 +12,11 @@ import { load } from "cheerio"; // We might fetch thin.php
 const execAsync = util.promisify(exec);
 
 export async function analyzeUscfVideo(attemptId: number, videoPath: string, challengeCode: string, userId: number) {
+  console.log(`[USCF Verification] Starting analysis for attempt #${attemptId} (User ID: ${userId})`);
+  console.log(`[USCF Verification] Challenge Code to find: ${challengeCode}`);
   try {
     // 1. Create a temp directory for frames
+    console.log(`[USCF Verification] Creating temp directory for frames...`);
     const framesDir = path.join(process.cwd(), "uploads", "frames", attemptId.toString());
     await fs.mkdir(framesDir, { recursive: true });
 
@@ -21,11 +24,16 @@ export async function analyzeUscfVideo(attemptId: number, videoPath: string, cha
     const framesPattern = path.join(framesDir, "frame-%04d.jpg");
     // Ensure ffmpegPath is treated as a valid string
     if (!ffmpegPath) throw new Error("ffmpeg not found");
+    
+    console.log(`[USCF Verification] Extracting frames from video at 1 FPS using ffmpeg...`);
+    const startTime = Date.now();
     await execAsync(`"${ffmpegPath}" -i "${videoPath}" -r 1 -q:v 2 "${framesPattern}"`);
+    console.log(`[USCF Verification] Frame extraction completed in ${Date.now() - startTime}ms.`);
 
     // 3. Read extracted frames
     const files = await fs.readdir(framesDir);
     const frameFiles = files.filter(f => f.endsWith('.jpg')).sort();
+    console.log(`[USCF Verification] Extracted ${frameFiles.length} total frames.`);
 
     let codeFound = false;
     let uscfUrlFound = false;
@@ -49,12 +57,18 @@ export async function analyzeUscfVideo(attemptId: number, videoPath: string, cha
     }
 
     framesToAnalyze.sort();
+    console.log(`[USCF Verification] Selected ${framesToAnalyze.length} frames for OCR analysis to save processing time.`);
 
     // Initialize Tesseract worker
+    console.log(`[USCF Verification] Initializing Tesseract OCR worker...`);
+    const ocrStartTime = Date.now();
     const worker = await Tesseract.createWorker("eng");
+    console.log(`[USCF Verification] Tesseract worker ready.`);
     
-    for (const frame of framesToAnalyze) {
+    for (let index = 0; index < framesToAnalyze.length; index++) {
+      const frame = framesToAnalyze[index];
       const framePath = path.join(framesDir, frame);
+      console.log(`[USCF Verification] Analyzing frame ${index + 1}/${framesToAnalyze.length} (${frame})...`);
       const { data: { text } } = await worker.recognize(framePath);
 
       // Check challenge code
@@ -84,11 +98,15 @@ export async function analyzeUscfVideo(attemptId: number, videoPath: string, cha
 
       // Reload detection (very naive: if text suddenly loses "uschess" then regains it, or based on a "Loading" text)
       // Since this is a prototype, we'll simulate reload detection if we see the code first then the email later.
-      if (codeFound && emailExtracted) {
+      if (codeFound && emailExtracted && !reloadDetected) {
+         console.log(`[USCF Verification] Reload sequence simulated/detected.`);
          reloadDetected = true;
          codeBeforeReload = true;
       }
     }
+    
+    console.log(`[USCF Verification] OCR analysis complete in ${Date.now() - ocrStartTime}ms.`);
+    console.log(`[USCF Verification] OCR Results -> Code Found: ${codeFound}, URL Found: ${uscfUrlFound}, Member ID: ${memberIdExtracted}, Email: ${emailExtracted}`);
     
     await worker.terminate();
 
@@ -116,6 +134,8 @@ export async function analyzeUscfVideo(attemptId: number, videoPath: string, cha
     }
 
     const isApproved = confidenceScore >= 75 && !failureReason;
+    console.log(`[USCF Verification] Final Score: ${confidenceScore}/100. Status: ${isApproved ? 'APPROVED' : 'REJECTED'}`);
+    if (failureReason) console.log(`[USCF Verification] Failure Reason: ${failureReason}`);
     
     // Update attempt record
     await db.update(uscfVerificationAttempts)
@@ -135,6 +155,7 @@ export async function analyzeUscfVideo(attemptId: number, videoPath: string, cha
 
     if (isApproved && memberIdExtracted) {
       // We need to fetch thin.php data now
+      console.log(`[USCF Verification] Verification passed! Fetching official USCF ratings from thin.php for Member ID: ${memberIdExtracted}...`);
       try {
         const response = await fetch(`https://www.uschess.org/msa/thin.php?${memberIdExtracted}`);
         const html = await response.text();
@@ -171,13 +192,15 @@ export async function analyzeUscfVideo(attemptId: number, videoPath: string, cha
           })
           .where(eq(users.id, userId));
 
+        console.log(`[USCF Verification] Successfully populated user profile with official USCF data for ${name}.`);
+
       } catch (err) {
-        console.error("Error fetching thin.php:", err);
+        console.error("[USCF Verification] Error fetching thin.php:", err);
       }
     }
     
   } catch (err) {
-    console.error("Video analysis failed:", err);
+    console.error("[USCF Verification] Video analysis failed with error:", err);
     await db.update(uscfVerificationAttempts)
       .set({
         status: 'rejected',
