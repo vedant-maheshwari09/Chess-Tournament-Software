@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Link as LinkIcon, RefreshCcw, Monitor, Upload, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Loader2, Link as LinkIcon, RefreshCcw, Monitor, Upload, AlertTriangle, CheckCircle2, Trash2 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 export function UscfVerificationCard() {
@@ -45,8 +45,8 @@ export function UscfVerificationCard() {
       setCountdown(600);
       setStep("wizard");
     },
-    onError: () => {
-      toast({ title: "Error", description: "Failed to generate challenge code.", variant: "destructive" });
+    onError: (err: any) => {
+      toast({ title: "Action Blocked", description: err.message || "Failed to generate challenge code.", variant: "destructive" });
     }
   });
 
@@ -69,6 +69,19 @@ export function UscfVerificationCard() {
     onError: (err: any) => {
       toast({ title: "Upload Failed", description: err.message || "Failed to submit video.", variant: "destructive" });
       setStep("wizard");
+    }
+  });
+
+  const disconnectMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest("/api/verification/uscf/disconnect", { method: "POST" });
+    },
+    onSuccess: () => {
+      toast({ title: "Disconnected", description: "Your USCF account has been disconnected." });
+      queryClient.invalidateQueries({ queryKey: ["/api/verification/uscf/me"] });
+    },
+    onError: (err: any) => {
+      toast({ title: "Disconnect Failed", description: err.message || "Failed to disconnect account.", variant: "destructive" });
     }
   });
 
@@ -220,9 +233,20 @@ export function UscfVerificationCard() {
               <div><span className="font-medium">Expires:</span> {expiry}</div>
               <div><span className="font-medium">FIDE ID:</span> {fideId || 'None'}</div>
             </div>
-            <Button variant="outline" size="sm" onClick={() => generateChallengeMutation.mutate()}>
-              <RefreshCcw className="h-3 w-3 mr-2" /> Re-verify / Update
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => generateChallengeMutation.mutate()}>
+                <RefreshCcw className="h-3 w-3 mr-2" /> Re-verify / Update
+              </Button>
+              <Button 
+                variant="destructive" 
+                size="sm" 
+                onClick={() => disconnectMutation.mutate()} 
+                disabled={disconnectMutation.isPending}
+              >
+                {disconnectMutation.isPending ? <Loader2 className="h-3 w-3 mr-2 animate-spin" /> : <Trash2 className="h-3 w-3 mr-2" />}
+                Disconnect Account
+              </Button>
+            </div>
           </div>
         )}
 
@@ -238,10 +262,15 @@ export function UscfVerificationCard() {
             <div className="text-sm text-muted-foreground">
               By linking your USCF account, your official rating and name will be used when you register for tournaments.
             </div>
-            <Button onClick={() => generateChallengeMutation.mutate()} disabled={generateChallengeMutation.isPending}>
-              {generateChallengeMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Start Verification
-            </Button>
+            <div className="space-y-2">
+              <Button onClick={() => generateChallengeMutation.mutate()} disabled={generateChallengeMutation.isPending}>
+                {generateChallengeMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Start Verification
+              </Button>
+              <p className="text-xs text-muted-foreground italic">
+                Note: There is a mandatory 1-minute cooldown period between verification attempts.
+              </p>
+            </div>
           </div>
         )}
 
@@ -258,80 +287,177 @@ export function UscfVerificationCard() {
               </p>
               
               <div className="space-y-3 border-t border-primary/5 pt-4">
-                {/* 1. Challenge Code */}
-                <div className="flex items-center gap-2.5 text-sm">
-                  {attempt?.codeFound ? (
-                    <span className="text-green-600 dark:text-green-400 font-medium flex items-center gap-1.5">
-                      <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
-                      Challenge Code Found
-                    </span>
-                  ) : (
-                    <span className="text-muted-foreground flex items-center gap-2">
-                      <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
-                      Locating Challenge Code...
-                    </span>
-                  )}
-                </div>
+                {(() => {
+                  // All variables used by StepItem must be declared first.
+                  const s = attempt || {};
+                  const isRejected = s?.status === 'rejected';
 
-                {/* 2. URL Check */}
-                <div className="flex items-center gap-2.5 text-sm">
-                  {attempt?.uscfUrlFound ? (
-                    <span className="text-green-600 dark:text-green-400 font-medium flex items-center gap-1.5">
-                      <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
-                      Verified Browser URL (new.uschess.org)
-                    </span>
-                  ) : (
-                    <span className="text-muted-foreground flex items-center gap-2">
-                      <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
-                      Checking Browser Address Bar...
-                    </span>
-                  )}
-                </div>
+                  const StepItem = ({ isComplete, isFailed, completeText, pendingText, failText }: { isComplete: boolean, isFailed: boolean, completeText: React.ReactNode, pendingText: string, failText: string }) => {
+                    if (isComplete) {
+                      return (
+                        <div className="flex items-center gap-2.5 text-sm">
+                          <span className="text-green-600 dark:text-green-400 font-medium flex items-center gap-1.5">
+                            <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+                            {completeText}
+                          </span>
+                        </div>
+                      );
+                    }
+                    if (isFailed) {
+                      return (
+                        <div className="flex items-center gap-2.5 text-sm">
+                          <span className="text-red-600 dark:text-red-400 font-medium flex items-center gap-1.5">
+                            <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
+                            {failText}
+                          </span>
+                        </div>
+                      );
+                    }
+                    return (
+                      <div className="flex items-center gap-2.5 text-sm">
+                        <span className="text-muted-foreground flex items-center gap-2 opacity-60">
+                          {isRejected ? <div className="h-3.5 w-3.5 rounded-full border-2 border-muted" /> : <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+                          {pendingText}
+                        </span>
+                      </div>
+                    );
+                  };
 
-                {/* 3. Member ID Check */}
-                <div className="flex items-center gap-2.5 text-sm">
-                  {attempt?.memberIdExtracted ? (
-                    <span className="text-green-600 dark:text-green-400 font-medium flex items-center gap-1.5">
-                      <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
-                      Read Member ID: <code className="bg-background px-1.5 py-0.5 rounded border text-xs font-mono font-bold text-foreground">{attempt.memberIdExtracted}</code>
-                    </span>
-                  ) : (
-                    <span className="text-muted-foreground flex items-center gap-2">
-                      <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
-                      Extracting Member ID...
-                    </span>
-                  )}
-                </div>
 
-                {/* 4. Email check */}
-                <div className="flex items-center gap-2.5 text-sm">
-                  {attempt?.emailExtracted ? (
-                    <span className="text-green-600 dark:text-green-400 font-medium flex items-center gap-1.5">
-                      <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
-                      Read Profile Email: <code className="bg-background px-1.5 py-0.5 rounded border text-xs font-mono text-foreground">{attempt.emailExtracted}</code>
-                    </span>
-                  ) : (
-                    <span className="text-muted-foreground flex items-center gap-2">
-                      <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
-                      Matching Account Email...
-                    </span>
-                  )}
-                </div>
+                  // Compute step-by-step pass state for cascade logic
+                  const step1ok = !!s.codeFound;
+                  const step2ok = !!s.urlBeforeReload;
+                  const step3ok = !!s.memberIdBefore;
+                  const step4ok = !!s.emailBefore;
+                  const step5ok = !!s.reloadDetected;
+                  const step6ok = !!s.urlAfterReload;
+                  const step7ok = !!s.memberIdAfter;
+                  const step8ok = !!s.emailAfter;
+                  const step9ok = !!s.detailsMatch;
+                  const step10ok = s?.status === 'approved';
 
-                {/* 5. Live refresh check */}
-                <div className="flex items-center gap-2.5 text-sm">
-                  {attempt?.reloadDetected ? (
-                    <span className="text-green-600 dark:text-green-400 font-medium flex items-center gap-1.5">
-                      <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
-                      Page Reload Verified (Anti-Spoof)
-                    </span>
-                  ) : (
-                    <span className="text-muted-foreground flex items-center gap-2">
-                      <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
-                      Verifying Browser Refresh Sequence...
-                    </span>
-                  )}
-                </div>
+                  // A step fails only if the attempt is rejected AND it is the first step that failed.
+                  // Steps after the first failure remain "pending" (grayed out, not red).
+                  const firstFail = isRejected
+                    ? (!step1ok ? 1 : !step2ok ? 2 : !step3ok ? 3 : !step4ok ? 4 : !step5ok ? 5
+                       : !step6ok ? 6 : !step7ok ? 7 : !step8ok ? 8 : !step9ok ? 9 : !step10ok ? 10 : 0)
+                    : 0;
+
+                  return (
+                    <>
+                      {/* Step 1: Challenge Code */}
+                      <StepItem
+                        isComplete={step1ok}
+                        isFailed={firstFail === 1}
+                        completeText="Challenge Code Found"
+                        pendingText="Locating challenge code in recording..."
+                        failText="Challenge code was NOT found — record this page with the code visible for 3 seconds at the start"
+                      />
+
+                      {/* Step 2: USCF URL Before Reload */}
+                      <StepItem
+                        isComplete={step2ok}
+                        isFailed={firstFail === 2}
+                        completeText="USCF User URL verified (before refresh)"
+                        pendingText="Checking address bar before refresh..."
+                        failText="'new.uschess.org/user/<id>' not found in address bar before the refresh — share Entire Screen and go to your profile page"
+                      />
+
+                      {/* Step 3: Member ID Before Reload */}
+                      <StepItem
+                        isComplete={step3ok}
+                        isFailed={firstFail === 3}
+                        completeText={
+                          <>
+                            Member ID extracted (before refresh):{" "}
+                            <code className="bg-background px-1.5 py-0.5 rounded border text-xs font-mono font-bold text-foreground">
+                              {s.memberIdBefore}
+                            </code>
+                          </>
+                        }
+                        pendingText="Extracting your Member ID (before refresh)..."
+                        failText="Member ID could not be read before the refresh — make sure the USCF dashboard is fully loaded and Member ID is visible"
+                      />
+
+                      {/* Step 4: Email Before Reload */}
+                      <StepItem
+                        isComplete={step4ok}
+                        isFailed={firstFail === 4}
+                        completeText="Email extracted (before refresh)"
+                        pendingText="Extracting your email address (before refresh)..."
+                        failText="Email address could not be read before the refresh — ensure your registered email is visible on the USCF dashboard"
+                      />
+
+                      {/* Step 5: Page Reload */}
+                      <StepItem
+                        isComplete={step5ok}
+                        isFailed={firstFail === 5}
+                        completeText="Live page refresh detected"
+                        pendingText="Waiting for browser reload button click..."
+                        failText="No page refresh was detected — you MUST click the browser reload (↺) button while recording to prove the session is live"
+                      />
+
+                      {/* Step 6: USCF URL After Reload */}
+                      <StepItem
+                        isComplete={step6ok}
+                        isFailed={firstFail === 6}
+                        completeText="USCF User URL confirmed (after refresh)"
+                        pendingText="Verifying address bar after refresh..."
+                        failText="'new.uschess.org/user/<id>' not found in the address bar after the refresh — share Entire Screen so the full address bar is visible"
+                      />
+
+                      {/* Step 7: Member ID After Reload */}
+                      <StepItem
+                        isComplete={step7ok}
+                        isFailed={firstFail === 7}
+                        completeText={
+                          <>
+                            Member ID confirmed (after refresh):{" "}
+                            <code className="bg-background px-1.5 py-0.5 rounded border text-xs font-mono font-bold text-foreground">
+                              {s.memberIdAfter}
+                            </code>
+                          </>
+                        }
+                        pendingText="Extracting your Member ID (after refresh)..."
+                        failText="Member ID could not be read after the refresh — wait for the page to fully reload before stopping the recording"
+                      />
+
+                      {/* Step 8: Email After Reload */}
+                      <StepItem
+                        isComplete={step8ok}
+                        isFailed={firstFail === 8}
+                        completeText="Email confirmed (after refresh)"
+                        pendingText="Extracting your email address (after refresh)..."
+                        failText="Email could not be read after the refresh — wait for the page to fully reload before stopping the recording"
+                      />
+
+                      {/* Step 9: Details Match */}
+                      <StepItem
+                        isComplete={step9ok}
+                        isFailed={firstFail === 9}
+                        completeText="Member ID and email match before & after refresh"
+                        pendingText="Verifying profile continuity across the refresh..."
+                        failText="Member ID or email changed between the refresh — the same account must be visible before and after the reload"
+                      />
+
+                      {/* Step 10: Final USCF Profile Fetch */}
+                      <StepItem
+                        isComplete={step10ok}
+                        isFailed={firstFail === 10}
+                        completeText={
+                          <>
+                            USCF profile fetched &amp; verified:{" "}
+                            <code className="bg-background px-1.5 py-0.5 rounded border text-xs font-mono font-bold text-foreground">
+                              {s.memberIdExtracted}
+                            </code>
+                          </>
+                        }
+                        pendingText="Fetching official USCF profile data..."
+                        failText="Could not retrieve your official USCF profile — the USCF server may be temporarily unavailable; please try again"
+                      />
+                    </>
+                  );
+                })()}
               </div>
             </div>
           );
@@ -346,7 +472,7 @@ export function UscfVerificationCard() {
               <AlertDescription className="mt-2 text-sm flex items-center justify-between">
                 <span>Keep this page visible at the start of your recording.</span>
                 <span className="font-mono font-medium text-amber-600 bg-amber-100 dark:bg-amber-900/30 px-2 py-1 rounded">
-                  ⏱ {Math.floor(countdown / 60)}:{(countdown % 60).toString().padStart(2, '0')}
+                  {Math.floor(countdown / 60)}:{(countdown % 60).toString().padStart(2, '0')}
                 </span>
               </AlertDescription>
             </Alert>
@@ -357,11 +483,23 @@ export function UscfVerificationCard() {
                 <ol className="list-decimal list-inside space-y-3.5 text-sm font-medium leading-relaxed">
                   <li>Start recording (you <strong>MUST</strong> select <strong>"Entire Screen"</strong> in the browser prompt so the address bar is visible).</li>
                   <li>Ensure this page with your <span className="text-primary font-mono font-bold bg-background px-1 py-0.5 rounded border">{challengeCode}</span> is visible at the start of the recording for 3 seconds.</li>
-                  <li>Open a new tab, go to your dashboard on <a href="https://new.uschess.org" target="_blank" rel="noreferrer" className="text-primary hover:underline font-bold">new.uschess.org</a>, and log in.</li>
-                  <li>Hit the browser's <strong>Refresh button (↻)</strong> to reload the USCF page live (this defeats inspect-element spoofing).</li>
-                  <li>Wait for the page to finish reloading so your Member ID and email are fully visible.</li>
+                  <li><strong>BEFORE Reload:</strong> Open a new tab, log in to <a href="https://new.uschess.org" target="_blank" rel="noreferrer" className="text-primary hover:underline font-bold">new.uschess.org</a>, and go to your user profile page <code>https://new.uschess.org/user/&lt;your-id&gt;</code>. Ensure your Member ID and email are clearly visible.</li>
+                  <li><strong>THE Reload:</strong> Hit the browser's <strong>Refresh/Reload button (↺)</strong> to reload the USCF page live (this proves the session is live).</li>
+                  <li><strong>AFTER Reload:</strong> <strong className="text-amber-600 dark:text-amber-400">Wait at least 3 to 5 seconds</strong> after the page has completely finished reloading. This gives the browser time to clear any loading progress bars/spinners in the address bar and fully render your Member ID and email on a clean background before you stop recording.</li>
                   <li>Switch back here and click <strong>Stop & Submit</strong>.</li>
                 </ol>
+                
+                <div className="mt-4 pt-3 border-t border-primary/10 text-xs text-muted-foreground leading-relaxed space-y-2">
+                  <p className="font-semibold text-foreground flex items-center gap-1.5">
+                    🔒 Privacy Commitment:
+                  </p>
+                  <p>
+                    We strictly extract only your public name, USCF ID, and email address to verify your profile. Other details visible on your screen (such as phone numbers, billing details, or mailing addresses) are completely ignored and never stored.
+                  </p>
+                  <p>
+                    All video recordings are permanently deleted from our servers immediately after the automated verification process finishes.
+                  </p>
+                </div>
               </div>
 
               <div className="space-y-4">

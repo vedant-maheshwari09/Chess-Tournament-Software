@@ -699,6 +699,28 @@ function hasSufficientInput(query: string) {
   return /^\d+$/.test(trimmed) && trimmed.length > 0;
 }
 
+export async function getLocalUSCFPlayerById(id: string): Promise<LocalRatingResult | null> {
+  await preloadRatingData();
+  if (!db) return null;
+  try {
+    const stmt = db.prepare(`SELECT * FROM uscf WHERE id = ?`);
+    const row = stmt.get(id) as any;
+    if (!row) return null;
+    return {
+      id: row.id,
+      name: row.name,
+      rating: row.rating_value ? { value: row.rating_value, raw: row.rating_raw } : undefined,
+      quickRating: row.quick_rating_value ? { value: row.quick_rating_value, raw: row.quick_rating_raw } : undefined,
+      blitzRating: row.blitz_rating_value ? { value: row.blitz_rating_value, raw: row.blitz_rating_raw } : undefined,
+      location: row.state,
+      metadata: row.expiration ? { expiration: row.expiration } : undefined,
+    };
+  } catch (error) {
+    console.error(`[localRatings] Error looking up player ${id} locally:`, error);
+    return null;
+  }
+}
+
 preloadRatingData().catch((err: unknown) => {
   log(`Failed to initialize ratings database: ${err instanceof Error ? err.message : String(err)}`, 'ratings');
 });

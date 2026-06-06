@@ -445,9 +445,17 @@ export const uscfVerificationAttempts = pgTable("uscf_verification_attempts", {
   confidenceScore: integer("confidence_score"),
   codeFound: boolean("code_found"),
   uscfUrlFound: boolean("uscf_url_found"),
+  urlBeforeReload: boolean("url_before_reload"),
+  memberIdBefore: text("member_id_before"),
+  emailBefore: text("email_before"),
+  reloadDetected: boolean("reload_detected"),
+  urlAfterReload: boolean("url_after_reload"),
+  memberIdAfter: text("member_id_after"),
+  emailAfter: text("email_after"),
+  detailsMatch: boolean("details_match"),
+  // Legacy combined fields (kept for backward-compat)
   memberIdExtracted: text("member_id_extracted"),
   emailExtracted: text("email_extracted"),
-  reloadDetected: boolean("reload_detected"),
   orderingCorrect: boolean("ordering_correct"),
   failureReason: text("failure_reason"),     // Shown to user if rejected
   keyFramePaths: text("key_frame_paths"),    // JSON array

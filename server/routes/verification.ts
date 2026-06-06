@@ -43,6 +43,24 @@ router.post("/uscf/challenge", requireAuth, async (req, res) => {
   try {
     const userId = req.user!.id;
 
+    // Enforce a 1-minute gap between verification attempts to cool down
+    const [lastAttempt] = await db.select()
+      .from(uscfVerificationAttempts)
+      .where(eq(uscfVerificationAttempts.userId, userId))
+      .orderBy(desc(uscfVerificationAttempts.createdAt))
+      .limit(1);
+
+    if (lastAttempt && lastAttempt.completedAt) {
+      const timeSinceDiff = Date.now() - new Date(lastAttempt.completedAt).getTime();
+      const oneMinute = 60 * 1000;
+      if (timeSinceDiff < oneMinute) {
+        const secondsLeft = Math.ceil((oneMinute - timeSinceDiff) / 1000);
+        return res.status(429).json({ 
+          message: `Please wait ${secondsLeft} seconds before initiating a new verification attempt.` 
+        });
+      }
+    }
+
     // Invalidate previous unused codes
     await db.update(uscfChallengeCodes)
       .set({ used: true })
@@ -170,6 +188,34 @@ router.get("/uscf/me", requireAuth, async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: "Failed to fetch status" });
+  }
+});
+
+// Disconnect USCF account
+router.post("/uscf/disconnect", requireAuth, async (req, res) => {
+  try {
+    const userId = req.user!.id;
+    await db.update(users)
+      .set({
+        uscfVerificationStatus: 'unverified',
+        uscfVerifiedAt: null,
+        uscfId: null,
+        uscfName: null,
+        uscfRatingRegular: null,
+        uscfRatingQuick: null,
+        uscfRatingBlitz: null,
+        uscfState: null,
+        uscfMemberExpiry: null,
+        uscfFideId: null,
+        uscfThinPhpLastFetched: null
+      })
+      .where(eq(users.id, userId));
+
+    console.log(`[USCF Verification] User ${userId} disconnected their USCF account.`);
+    res.json({ message: "USCF account disconnected successfully." });
+  } catch (error) {
+    console.error("Error disconnecting USCF account:", error);
+    res.status(500).json({ message: "Failed to disconnect USCF account." });
   }
 });
 
