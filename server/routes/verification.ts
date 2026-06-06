@@ -50,7 +50,13 @@ router.post("/uscf/challenge", requireAuth, async (req, res) => {
       .orderBy(desc(uscfVerificationAttempts.createdAt))
       .limit(1);
 
-    if (lastAttempt && lastAttempt.completedAt) {
+    if (lastAttempt) {
+      if (!lastAttempt.completedAt) {
+        return res.status(429).json({
+          message: "You have a verification attempt currently processing. Please wait for it to finish."
+        });
+      }
+
       const timeSinceDiff = Date.now() - new Date(lastAttempt.completedAt).getTime();
       const oneMinute = 60 * 1000;
       if (timeSinceDiff < oneMinute) {

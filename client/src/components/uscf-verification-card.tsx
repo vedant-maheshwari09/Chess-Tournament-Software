@@ -326,21 +326,17 @@ export function UscfVerificationCard() {
 
                   // Compute step-by-step pass state for cascade logic
                   const step1ok = !!s.codeFound;
-                  const step2ok = !!s.urlBeforeReload;
-                  const step3ok = !!s.memberIdBefore;
-                  const step4ok = !!s.emailBefore;
-                  const step5ok = !!s.reloadDetected;
-                  const step6ok = !!s.urlAfterReload;
-                  const step7ok = !!s.memberIdAfter;
-                  const step8ok = !!s.emailAfter;
-                  const step9ok = !!s.detailsMatch;
-                  const step10ok = s?.status === 'approved';
+                  const step2ok = !!s.startedOffProfile;
+                  const step3ok = !!s.navigatedToProfile;
+                  const step4ok = !!s.uscfUrlFound;
+                  const step5ok = !!s.memberIdExtracted;
+                  const step6ok = !!s.emailExtracted;
+                  const step7ok = s?.status === 'approved';
 
                   // A step fails only if the attempt is rejected AND it is the first step that failed.
                   // Steps after the first failure remain "pending" (grayed out, not red).
                   const firstFail = isRejected
-                    ? (!step1ok ? 1 : !step2ok ? 2 : !step3ok ? 3 : !step4ok ? 4 : !step5ok ? 5
-                       : !step6ok ? 6 : !step7ok ? 7 : !step8ok ? 8 : !step9ok ? 9 : !step10ok ? 10 : 0)
+                    ? (!step1ok ? 1 : !step2ok ? 2 : !step3ok ? 3 : !step4ok ? 4 : !step5ok ? 5 : !step6ok ? 6 : !step7ok ? 7 : 0)
                     : 0;
 
                   return (
@@ -354,96 +350,62 @@ export function UscfVerificationCard() {
                         failText="Challenge code was NOT found — record this page with the code visible for 3 seconds at the start"
                       />
 
-                      {/* Step 2: USCF URL Before Reload */}
+                      {/* Step 2: Started Off Profile */}
                       <StepItem
                         isComplete={step2ok}
                         isFailed={firstFail === 2}
-                        completeText="USCF User URL verified (before refresh)"
-                        pendingText="Checking address bar before refresh..."
-                        failText="'new.uschess.org/user/<id>' not found in address bar before the refresh — share Entire Screen and go to your profile page"
+                        completeText="Started on non-profile USCF page (e.g. Dashboard)"
+                        pendingText="Verifying video starts outside the profile page..."
+                        failText="Video did not start on a non-profile page — you MUST navigate TO your profile during the recording"
                       />
 
-                      {/* Step 3: Member ID Before Reload */}
+                      {/* Step 3: Navigated to Profile */}
                       <StepItem
                         isComplete={step3ok}
                         isFailed={firstFail === 3}
-                        completeText={
-                          <>
-                            Member ID extracted (before refresh):{" "}
-                            <code className="bg-background px-1.5 py-0.5 rounded border text-xs font-mono font-bold text-foreground">
-                              {s.memberIdBefore}
-                            </code>
-                          </>
-                        }
-                        pendingText="Extracting your Member ID (before refresh)..."
-                        failText="Member ID could not be read before the refresh — make sure the USCF dashboard is fully loaded and Member ID is visible"
+                        completeText="Navigation to profile detected"
+                        pendingText="Waiting for navigation to your profile..."
+                        failText="No profile navigation detected — you must click your profile link during the recording"
                       />
 
-                      {/* Step 4: Email Before Reload */}
+                      {/* Step 4: USCF URL Verified */}
                       <StepItem
                         isComplete={step4ok}
                         isFailed={firstFail === 4}
-                        completeText="Email extracted (before refresh)"
-                        pendingText="Extracting your email address (before refresh)..."
-                        failText="Email address could not be read before the refresh — ensure your registered email is visible on the USCF dashboard"
+                        completeText="USCF User URL verified"
+                        pendingText="Verifying address bar URL..."
+                        failText="'new.uschess.org/user/<id>' not found in address bar — share Entire Screen and go to your profile page"
                       />
 
-                      {/* Step 5: Page Reload */}
+                      {/* Step 5: Member ID Extracted */}
                       <StepItem
                         isComplete={step5ok}
                         isFailed={firstFail === 5}
-                        completeText="Live page refresh detected"
-                        pendingText="Waiting for browser reload button click..."
-                        failText="No page refresh was detected — you MUST click the browser reload (↺) button while recording to prove the session is live"
-                      />
-
-                      {/* Step 6: USCF URL After Reload */}
-                      <StepItem
-                        isComplete={step6ok}
-                        isFailed={firstFail === 6}
-                        completeText="USCF User URL confirmed (after refresh)"
-                        pendingText="Verifying address bar after refresh..."
-                        failText="'new.uschess.org/user/<id>' not found in the address bar after the refresh — share Entire Screen so the full address bar is visible"
-                      />
-
-                      {/* Step 7: Member ID After Reload */}
-                      <StepItem
-                        isComplete={step7ok}
-                        isFailed={firstFail === 7}
                         completeText={
                           <>
-                            Member ID confirmed (after refresh):{" "}
+                            Member ID extracted:{" "}
                             <code className="bg-background px-1.5 py-0.5 rounded border text-xs font-mono font-bold text-foreground">
-                              {s.memberIdAfter}
+                              {s.memberIdExtracted}
                             </code>
                           </>
                         }
-                        pendingText="Extracting your Member ID (after refresh)..."
-                        failText="Member ID could not be read after the refresh — wait for the page to fully reload before stopping the recording"
+                        pendingText="Extracting your Member ID..."
+                        failText="Member ID could not be clearly read from the profile page"
                       />
 
-                      {/* Step 8: Email After Reload */}
+                      {/* Step 6: Email Extracted */}
                       <StepItem
-                        isComplete={step8ok}
-                        isFailed={firstFail === 8}
-                        completeText="Email confirmed (after refresh)"
-                        pendingText="Extracting your email address (after refresh)..."
-                        failText="Email could not be read after the refresh — wait for the page to fully reload before stopping the recording"
+                        isComplete={step6ok}
+                        isFailed={firstFail === 6}
+                        completeText="Email extracted"
+                        pendingText="Extracting your email address..."
+                        failText="Email address could not be clearly read from the profile page"
                       />
 
-                      {/* Step 9: Details Match */}
+                      {/* Step 7: Final USCF Profile Fetch */}
                       <StepItem
-                        isComplete={step9ok}
-                        isFailed={firstFail === 9}
-                        completeText="Member ID and email match before & after refresh"
-                        pendingText="Verifying profile continuity across the refresh..."
-                        failText="Member ID or email changed between the refresh — the same account must be visible before and after the reload"
-                      />
-
-                      {/* Step 10: Final USCF Profile Fetch */}
-                      <StepItem
-                        isComplete={step10ok}
-                        isFailed={firstFail === 10}
+                        isComplete={step7ok}
+                        isFailed={firstFail === 7}
                         completeText={
                           <>
                             USCF profile fetched &amp; verified:{" "}
@@ -481,11 +443,11 @@ export function UscfVerificationCard() {
               <div className="space-y-4 p-4 bg-accent/20 rounded-lg">
                 <h3 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground">What to record:</h3>
                 <ol className="list-decimal list-inside space-y-3.5 text-sm font-medium leading-relaxed">
+                  <li><strong>BEFORE recording:</strong> Open a new tab and log in to <a href="https://new.uschess.org" target="_blank" rel="noreferrer" className="text-primary hover:underline font-bold">new.uschess.org</a>. Once you are logged in, keep that tab open and come back to this verification page.</li>
                   <li>Start recording (you <strong>MUST</strong> select <strong>"Entire Screen"</strong> in the browser prompt so the address bar is visible).</li>
                   <li>Ensure this page with your <span className="text-primary font-mono font-bold bg-background px-1 py-0.5 rounded border">{challengeCode}</span> is visible at the start of the recording for 3 seconds.</li>
-                  <li><strong>BEFORE Reload:</strong> Open a new tab, log in to <a href="https://new.uschess.org" target="_blank" rel="noreferrer" className="text-primary hover:underline font-bold">new.uschess.org</a>, and go to your user profile page <code>https://new.uschess.org/user/&lt;your-id&gt;</code>. Ensure your Member ID and email are clearly visible.</li>
-                  <li><strong>THE Reload:</strong> Hit the browser's <strong>Refresh/Reload button (↺)</strong> to reload the USCF page live (this proves the session is live).</li>
-                  <li><strong>AFTER Reload:</strong> <strong className="text-amber-600 dark:text-amber-400">Wait at least 3 to 5 seconds</strong> after the page has completely finished reloading. This gives the browser time to clear any loading progress bars/spinners in the address bar and fully render your Member ID and email on a clean background before you stop recording.</li>
+                  <li><strong>THE Navigation:</strong> Go to the USCF tab you opened. Click on your profile link to navigate to your user profile page (<code>https://new.uschess.org/user/&lt;your-id&gt;</code>). This proves the page loaded fresh and wasn't altered.</li>
+                  <li><strong>AFTER Navigation:</strong> Ensure your Member ID and email are clearly visible. <strong className="text-amber-600 dark:text-amber-400">Wait at least 3 to 5 seconds</strong> after the page has completely finished loading before you stop recording.</li>
                   <li>Switch back here and click <strong>Stop & Submit</strong>.</li>
                 </ol>
                 

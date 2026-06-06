@@ -69,51 +69,92 @@ export function logSeparator(label: string) {
 
 // ─── Extraction Functions ────────────────────────────────────────────────────
 
+// Reject non-live schemes that indicate a screenshot or local file.
+const REJECTED_SCHEMES = [
+  "file:///", "file://", "localhost", "127.0.0.1", "chrome-extension://", 
+  "data:", "blob:", "c:/", "d:/", "filec:", "filed:", "users/"
+];
+
+// Screen sharing banners (Chrome, Edge, Firefox) float at the bottom of the screen
+// and contain localhost:5010 in local dev mode. We must discard these lines to
+// avoid false-positives/rejections in development.
+const BANNER_REGEX = /(?:sharing|shari|stop\s*shari|hide|hlde|1ssharing)/i;
+
 /**
  * Checks whether the given OCR text (from the address-bar strip of a frame)
- * shows the USCF dashboard URL.
+ * shows ANY new.uschess.org domain page (e.g., the dashboard).
  *
  * SECURITY: We also check that no non-live URL scheme appears in the same strip.
  * This prevents screenshots (file:///...) or localhost pages from passing.
- * The text must come from a top-strip crop of the frame — NOT the full frame —
- * so we are reading the browser address bar, not page content.
  */
-export async function isUscfDomain(addressBarText: string): Promise<boolean> {
-  const clean = addressBarText.toLowerCase().replace(/\s+/g, "");
+export async function isUscfBaseDomain(addressBarText: string): Promise<boolean> {
+  const lines = addressBarText.split(/\r?\n/);
+  let hasValidDomain = false;
 
-  // Strip screen sharing banner indicators (e.g. "localhost:5010/settings is sharing your screen.")
-  // so they don't trigger false positives in the security checks below.
-  // We match loca[l]?host to tolerate minor OCR character misses, and allow any path/port
-  // characters before the sharing indicator to handle different initiating pages.
-  const cleanWithoutBanner = clean
-    .replace(/(?:https?:\/\/)?loca[l]?host(?::\d+)?(?:[a-z0-9_\-/]*)(?:issharing|sharing)[a-z]*/gi, "")
-    .replace(/(?:issharing|sharing)your(?:screen|window|tab|page)[a-z]*/gi, "");
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
 
-  // Reject non-live schemes that indicate a screenshot or local file.
-  const REJECTED_SCHEMES = ["file:///", "file://", "localhost", "127.0.0.1", "chrome-extension://", "data:", "blob:"];
-  for (const scheme of REJECTED_SCHEMES) {
-    if (cleanWithoutBanner.includes(scheme.replace(/\s/g, ""))) {
-      const msg = `[USCF-Verify][isUscfDomain] Rejecting due to non-live scheme "${scheme}" in "${cleanWithoutBanner}"`;
-      console.log(msg);
-      writeToLogFile(msg);
-      return false;
+    // Discard lines that contain screen sharing banner elements
+    if (BANNER_REGEX.test(trimmed)) {
+      continue;
+    }
+
+    const clean = trimmed.toLowerCase().replace(/\s+/g, "");
+
+    // Check for rejected schemes on the remaining active lines
+    for (const scheme of REJECTED_SCHEMES) {
+      if (clean.includes(scheme.replace(/\s/g, ""))) return false;
+    }
+
+    // Check for the base domain specifically
+    const targetUrl = "newuschessorg";
+    const cleanForEditDistance = clean.replace(/[^a-z0-9]/g, "");
+    const minDistance = getMinLevenshteinDistance(cleanForEditDistance, targetUrl);
+    if (minDistance <= 2) {
+      hasValidDomain = true;
     }
   }
 
-  // Allow up to 3 character substitutions/omissions using mathematical edit-distance.
-  // This handles common OCR errors on tiny address bar text (e.g., "newusdessorg").
-  // We check for "newuschessorguser" since that's the base profile URL.
-  const targetUrl = "newuschessorguser";
-  const cleanForEditDistance = cleanWithoutBanner.replace(/[^a-z0-9]/g, "");
-  const minDistance = getMinLevenshteinDistance(cleanForEditDistance, targetUrl);
-  
-  const matched = minDistance <= 3;
+  return hasValidDomain;
+}
 
-  const msg = `[USCF-Verify][isUscfDomain] Input: "${addressBarText.replace(/\r?\n/g, "\\n")}" | Cleaned: "${cleanForEditDistance}" | Distance to target: ${minDistance} | Matched: ${matched}`;
-  console.log(msg);
-  writeToLogFile(msg);
+/**
+ * Checks whether the given OCR text strictly shows the user profile URL (new.uschess.org/user/...).
+ */
+export async function isUscfProfileUrl(addressBarText: string): Promise<boolean> {
+  const lines = addressBarText.split(/\r?\n/);
+  let hasValidDomain = false;
 
-  return matched;
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+
+    // Discard lines that contain screen sharing banner elements
+    if (BANNER_REGEX.test(trimmed)) {
+      continue;
+    }
+
+    const clean = trimmed.toLowerCase().replace(/\s+/g, "");
+
+    // Check for rejected schemes on the remaining active lines
+    for (const scheme of REJECTED_SCHEMES) {
+      if (clean.includes(scheme.replace(/\s/g, ""))) return false;
+    }
+
+    const targetUrl = "newuschessorguser";
+    const cleanForEditDistance = clean.replace(/[^a-z0-9]/g, "");
+    const minDistance = getMinLevenshteinDistance(cleanForEditDistance, targetUrl);
+    
+    // Ensure it's not a false positive on just the base domain by checking length
+    if (cleanForEditDistance.length < 14) continue;
+    
+    if (minDistance <= 3) {
+      hasValidDomain = true;
+    }
+  }
+
+  return hasValidDomain;
 }
 
 /**
@@ -121,39 +162,35 @@ export async function isUscfDomain(addressBarText: string): Promise<boolean> {
  * Used as an additional cross-check on the full frame text.
  */
 export function hasNonLiveUrl(text: string): boolean {
-  const clean = text.toLowerCase().replace(/\s+/g, "");
-  
-  // Strip screen sharing banner indicators
-  const cleanWithoutBanner = clean
-    .replace(/(?:https?:\/\/)?loca[l]?host(?::\d+)?(?:[a-z0-9_\-/]*)(?:issharing|sharing)[a-z]*/gi, "")
-    .replace(/(?:issharing|sharing)your(?:screen|window|tab|page)[a-z]*/gi, "");
-
-  const REJECTED_SCHEMES = ["file:///", "file://", "localhost:", "127.0.0.1", "chrome-extension://", "blob:http"];
-  for (const scheme of REJECTED_SCHEMES) {
-    if (cleanWithoutBanner.includes(scheme.replace(/\s/g, ""))) return true;
+  const lines = text.split(/\r?\n/);
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    if (BANNER_REGEX.test(trimmed)) continue; // ignore sharing banner
+    
+    const clean = trimmed.toLowerCase().replace(/\s+/g, "");
+    for (const scheme of REJECTED_SCHEMES) {
+      if (clean.includes(scheme.replace(/\s/g, ""))) return true;
+    }
   }
   return false;
 }
 
 export function extractMemberId(text: string): string | null {
+  // Relaxed regex to account for OCR noise (e.g., "Member 0:", "ID:", "MembIer lD:")
+  // We look for 'member' or 'id', followed by up to 15 characters of noise, followed by 6-8 digits.
+  const regex = /(?:member|id\b).{0,15}?(\d{6,8})\b/i;
+  
   // 1. Line-by-line search
   const lines = text.split(/\r?\n/);
   for (let line of lines) {
-    const normalized = line.toLowerCase()
-      .replace(/nnember/g, "member")
-      .replace(/membler/g, "member")
-      .replace(/memb/g, "member");
-    const match = normalized.match(/(?:member\s*(?:id|num(?:ber)?)|id\b)[:\s#\-–—]*(\d{7,8})\b/);
+    const match = line.match(regex);
     if (match) return match[1];
   }
 
   // 2. Global search on collapsed text
-  const collapsed = text.toLowerCase()
-    .replace(/[\r\n]+/g, " ")
-    .replace(/nnember/g, "member")
-    .replace(/membler/g, "member")
-    .replace(/memb/g, "member");
-  const globalMatch = collapsed.match(/(?:member\s*(?:id|num(?:ber)?)|id\b)[:\s#\-–—]*(\d{7,8})\b/);
+  const collapsed = text.replace(/[\r\n]+/g, " ");
+  const globalMatch = collapsed.match(regex);
   if (globalMatch) return globalMatch[1];
 
   return null;
@@ -165,17 +202,17 @@ export function extractMemberId(text: string): string | null {
  * Important design decision: we do NOT compare against the user's platform email.
  * The USCF dashboard will show whatever email is linked to the user's USCF account,
  * which may differ from their Chess Tournament Manager registration email.
- * Our only requirement is that the SAME email appears before AND after the page reload
- * (proving the session was not swapped). The actual address is irrelevant.
+ * We extract this email address to verify that a valid email was found on the profile page.
  *
  * OCR can introduce spaces inside tokens, so we collapse whitespace per-line
  * and also try on the fully collapsed text as a fallback.
  */
 export function extractAnyEmail(text: string): string | null {
-  // Regex: standard email pattern with restricted TLD length and word boundary.
-  const emailRegex = /[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,6}\b/;
+  // Regex: relaxed email pattern to handle OCR noise like apostrophes in domain (e.g. gma'l.com)
+  const emailRegex = /[a-z0-9._%+\-]+@[^\s@]+?\.[a-z]{2,6}\b/i;
 
-  const lines = text.split(/\r?\n/);
+  const normalizedText = text.replace(/[’‘]/g, "'");
+  const lines = normalizedText.split(/\r?\n/);
 
   // Pass 0: Scan original raw lines. This prevents merging emails with adjacent text.
   for (const line of lines) {
@@ -193,7 +230,7 @@ export function extractAnyEmail(text: string): string | null {
   }
 
   // Pass 2: Collapse the entire text and scan.
-  const collapsed = text.replace(/\s+/g, "").toLowerCase();
+  const collapsed = normalizedText.replace(/\s+/g, "").toLowerCase();
   const globalMatch = collapsed.match(emailRegex);
   if (globalMatch) return globalMatch[0];
 
@@ -230,6 +267,8 @@ export async function analyzeUscfVideo(
     startedAt: new Date().toISOString(),
   });
 
+  let framesDir: string | undefined;
+
   try {
     // ── Step 1: Load User Record ────────────────────────────────────────────
     log("UserLookup", `Fetching user record from DB for User ID ${userId}...`);
@@ -248,7 +287,7 @@ export async function analyzeUscfVideo(
     });
 
     // ── Step 2: Create Frames Directory ────────────────────────────────────
-    const framesDir = path.join(process.cwd(), "uploads", "frames", attemptId.toString());
+    framesDir = path.join(process.cwd(), "uploads", "frames", attemptId.toString());
     log("Setup", `Creating frames directory: ${framesDir}`);
     await fs.mkdir(framesDir, { recursive: true });
     log("Setup", "Frames directory ready.");
@@ -284,25 +323,24 @@ export async function analyzeUscfVideo(
     // ── Step 4: Frame Extraction ────────────────────────────────────────────
     const framesPattern    = path.join(framesDir, "frame-%04d.jpg");
     const framesTopPattern = path.join(framesDir, "top-%04d.jpg");
-    // 4 FPS gives us 250ms resolution. At 2 FPS we had 500ms per frame —
-    // a fast reload (< 500ms blank) could go completely undetected because the
-    // blank window fell entirely between two sample points.
+    // 4 FPS gives us 250ms resolution. This is fast enough to catch
+    // transient address bar states during the navigation flow.
     const EXTRACT_FPS = 4;
     const ffmpegFilter = "format=gray,eq=contrast=1.5:brightness=-0.05";
-    const ffmpegCmd    = `"${ffmpegPath}" -i "${videoPath}" -vf "${ffmpegFilter}" -r ${EXTRACT_FPS} -q:v 2 "${framesPattern}"`;
+    const ffmpegCmd    = `"${ffmpegPath}" -i "${videoPath}" -t 60 -vf "${ffmpegFilter}" -r ${EXTRACT_FPS} -q:v 2 "${framesPattern}"`;
 
     // Address-bar strip: Crop the top 15% AND the bottom 15% of the frame (catches mobile bottom address bars),
     // stack them vertically, and upscale the combined strip 4x using Lanczos filter for razor-sharp text.
     // Apply high contrast and unsharp mask to create a perfect OCR-ready image that prevents typos.
     const ffmpegTopFilter = "[0:v]crop=iw:ih*0.15:0:0[top];[0:v]crop=iw:ih*0.15:0:ih*0.85[bottom];[top][bottom]vstack,scale=iw*4:ih*4:flags=lanczos,unsharp=5:5:1.0:5:5:0.0,format=gray,eq=contrast=2.0:brightness=-0.05";
-    const ffmpegTopCmd    = `"${ffmpegPath}" -i "${videoPath}" -filter_complex "${ffmpegTopFilter}" -r ${EXTRACT_FPS} -q:v 1 "${framesTopPattern}"`;
+    const ffmpegTopCmd    = `"${ffmpegPath}" -i "${videoPath}" -t 60 -filter_complex "${ffmpegTopFilter}" -r ${EXTRACT_FPS} -q:v 1 "${framesTopPattern}"`;
 
     log("FFmpeg", `Extracting frames at ${EXTRACT_FPS} FPS with high-quality OCR filter...`, {
       filter: ffmpegFilter,
       outputPattern: framesPattern,
       topStripOutputPattern: framesTopPattern,
       fps: EXTRACT_FPS,
-      reason: "4 FPS = 250ms resolution — catches fast reloads that were invisible at 2 FPS",
+      reason: "4 FPS = 250ms resolution — captures fast navigation transitions",
       topStripReason: "Top 15% and Bottom 15% combined strip upscaled 4x to ensure razor-sharp address bar text capture on both desktop and mobile.",
     });
 
@@ -336,32 +374,10 @@ export async function analyzeUscfVideo(
     // ── Step 6: State Machine ──────────────────────────────────────────────
     const state = {
       codeFound: false,
-      isReloading: false,
-      hasReloaded: false,
-      extractedBefore: { url: false, memberId: null as string | null, email: null as string | null },
-      extractedAfter:  { url: false, memberId: null as string | null, email: null as string | null },
-      maxTextLength: 0,
-      //
-      // Reload detection — dual-signal approach:
-      //
-      // Signal A: "member ID disappears" (primary)
-      //   After we've established memberIdBefore, we track how many consecutive
-      //   frames pass without seeing ANY member-ID-like value. If this reaches
-      //   RELOAD_ABSENT_THRESHOLD we assume the page is mid-reload.
-      //   This catches button clicks, CTRL+R, and any other reload method,
-      //   even if the blank period was too short to land between sample points.
-      //
-      // Signal B: "blank frame" (secondary)
-      //   Text drops to < 20% of the peak seen so far.
-      //   Kept as an additional trigger for slower reloads.
-      //
-      consecutiveMissingMemberIdFrames: 0,
+      hasStartedOffProfile: false,
+      hasNavigatedToProfile: false,
+      extracted: { url: false, memberId: null as string | null, email: null as string | null },
     };
-    // Number of consecutive frames without member ID that triggers reload detection.
-    // At 4 FPS, 2 frames = 500ms — long enough to exclude single-frame OCR misses.
-    const RELOAD_ABSENT_THRESHOLD = 2;
-    // Blank threshold: text < 20% of peak seen (was 35% — too strict, missed fast reloads)
-    const BLANK_RATIO = 0.20;
 
     logSeparator(`ATTEMPT #${attemptId} — FRAME ANALYSIS (${frameFiles.length} frames)`);
 
@@ -376,8 +392,6 @@ export async function analyzeUscfVideo(
       const { data: { text, confidence } } = await worker.recognize(framePath);
 
       // Also OCR the top-strip (address bar) frame if it exists.
-      // This is what we use exclusively for URL detection — prevents page body
-      // text (e.g. "new.uschess.org" in nav links) from falsely matching.
       const topFrameFile = topFrameFiles[index];
       let   topText      = "";
       if (topFrameFile) {
@@ -388,58 +402,32 @@ export async function analyzeUscfVideo(
 
       const frameElapsed = Date.now() - frameStart;
 
-      const textLength = text.replace(/\s+/g, "").length;
-      // Signal B blank threshold: 20% of max seen (down from 35%)
-      const blankThreshold = Math.max(50, state.maxTextLength * BLANK_RATIO);
-      const isBlank = textLength < blankThreshold;
-      if (textLength > state.maxTextLength) state.maxTextLength = textLength;
+      // Primary check: strictly find the URLs in the address-bar top strip crop.
+      // We do NOT fall back to checking the full frame text because that would allow
+      // fullscreen screenshots or arbitrary text on the page to spoof the address bar.
+      let frameHasBaseDomain = await isUscfBaseDomain(topText);
+      let frameHasProfileUrl = await isUscfProfileUrl(topText);
 
-      // URL detection: use ONLY the top-strip OCR text (address bar region).
-      // If the top strip is unavailable (extraction failed), fall back to full text but
-      // apply hasNonLiveUrl as a disqualifier.
-      // Primary check: try to find the URL in the address-bar top strip crop.
-      let frameHasUrl = await isUscfDomain(topText);
-      if (!frameHasUrl) {
-        // Fallback: search full-frame text, but strictly reject if any non-live URL
-        // (like file:/// or localhost) is visible anywhere on screen.
-        frameHasUrl = (await isUscfDomain(text)) && !hasNonLiveUrl(text);
-        if (frameHasUrl) {
-          log(
-            `Frame ${frameNum}/${frameFiles.length}`,
-            `[URL-Fallback] URL not found in top-strip crop, but verified in full-frame text.`
-          );
-        }
-      }
       let frameMemberId: string | null = null;
       let extractedEmail: string | null = null;
 
-      if (frameHasUrl) {
+      // Only attempt to extract sensitive data if they are on the profile page
+      if (frameHasProfileUrl) {
         frameMemberId = extractMemberId(text);
-
+        
         // Fallback: if the regex-based extraction missed the member ID but we
-        // already know what it should be (from BEFORE_RELOAD), search for that
-        // exact digit sequence directly in the raw OCR text. The post-reload
-        // page may render the ID in a slightly different layout that the label-
-        // anchored regex doesn't match, but the 7–8 digit number itself will
-        // still be present somewhere in the text.
-        if (!frameMemberId && state.extractedBefore.memberId) {
-          const knownId = state.extractedBefore.memberId;
-          // Collapse whitespace from text so "173 18177" becomes "17318177"
+        // already know what it should be (from a previous frame), search for that
+        // exact digit sequence directly in the raw OCR text.
+        if (!frameMemberId && state.extracted.memberId) {
+          const knownId = state.extracted.memberId;
           const collapsed = text.replace(/\s+/g, "");
           if (collapsed.includes(knownId)) {
             frameMemberId = knownId;
-            log(
-              `Frame ${frameNum}/${frameFiles.length}`,
-              `[MemberID-Fallback] Regex missed ID but digit string "${knownId}" found via direct text scan.`
-            );
           }
         }
 
-        // Extract any email visible on screen — no comparison against platform email.
         extractedEmail = extractAnyEmail(text);
       }
-
-      const hasProfileInfo = frameMemberId !== null;
 
       // Challenge code check (only until found)
       let codeScanResult = "already found";
@@ -460,9 +448,9 @@ export async function analyzeUscfVideo(
       }
 
       // Determine current phase label
-      const phase = state.hasReloaded   ? "AFTER_RELOAD"
-                  : state.isReloading   ? "RELOADING"
-                  : "BEFORE_RELOAD";
+      const phase = state.hasNavigatedToProfile ? "PROFILE_LOADED"
+                  : state.hasStartedOffProfile  ? "NAVIGATING"
+                  : "START";
 
       log(
         `Frame ${frameNum}/${frameFiles.length}`,
@@ -471,163 +459,63 @@ export async function analyzeUscfVideo(
           file: frame,
           ocrMs: frameElapsed,
           ocrConfidence: `${confidence?.toFixed(1)}%`,
-          textChars: textLength,
-          isBlank,
-          blankThreshold: blankThreshold.toFixed(0),
-          maxTextSeen: state.maxTextLength,
-          // Extractions
-          urlFound: frameHasUrl,
-          urlDetectionMethod: topText ? "top-strip-ocr" : "full-frame-fallback",
-          topStripHasUscf: topText ? topText.toLowerCase().replace(/\s+/g, "").includes("new.uschess.org") : null,
+          urlFound: frameHasProfileUrl ? "Profile" : frameHasBaseDomain ? "Base" : "None",
           memberIdFound: frameMemberId ?? null,
-          // Email: show what was found on screen (not the platform email)
           emailFound: extractedEmail !== null,
-          emailExtractedFromScreen: extractedEmail ?? null,
-          // Reload signals
-          consecutiveMissingMemberIdFrames: state.consecutiveMissingMemberIdFrames,
-          // Challenge code
           challengeCode: codeScanResult,
-          // Raw strings (newlines formatted for single line logging)
-          rawTopText: topText ? topText.replace(/\r?\n/g, "\\n") : null,
-          rawFullText: text ? text.replace(/\r?\n/g, "\\n") : null,
+          rawTopText: topText.trim().replace(/\r?\n/g, " | "),
         }
       );
 
       // ── State Machine Transitions ─────────────────────────────────────────
-      if (!state.isReloading && !state.hasReloaded) {
-        // ── BEFORE_RELOAD phase ───────────────────────────────────────────────
-        let updates: string[] = [];
-        if (frameHasUrl && !state.extractedBefore.url) {
-          state.extractedBefore.url = true;
-          updates.push("urlBefore=true");
+      if (!state.hasStartedOffProfile) {
+        // We are waiting for the user to be on a base USCF page (NOT the profile page)
+        // This ensures they didn't just start the recording already on the profile page
+        // (which would allow Inspect Element spoofing).
+        if (frameHasBaseDomain && !frameHasProfileUrl) {
+          state.hasStartedOffProfile = true;
+          log(`Frame ${frameNum}/${frameFiles.length}`, `✅ TRANSITION → Started Off-Profile (on base domain)`);
         }
-        if (frameMemberId && !state.extractedBefore.memberId) {
-          state.extractedBefore.memberId = frameMemberId;
-          updates.push(`memberIdBefore="${frameMemberId}"`);
-        }
-        if (extractedEmail && !state.extractedBefore.email) {
-          state.extractedBefore.email = extractedEmail;
-          updates.push(`emailBefore="${extractedEmail}"`);
-        }
-        if (updates.length > 0) {
-          log(`Frame ${frameNum}/${frameFiles.length}`, `[BEFORE_RELOAD] State updated: ${updates.join(", ")}`);
-        }
-
-        // ── Reload detection: dual-signal ──────────────────────────────────
-        // We only start watching for a reload once memberIdBefore is established.
-        if (state.extractedBefore.memberId) {
-          if (!hasProfileInfo) {
-            // Member ID is gone from this frame — count it.
-            state.consecutiveMissingMemberIdFrames++;
-            log(
-              `Frame ${frameNum}/${frameFiles.length}`,
-              `[ReloadWatch] Member ID absent — consecutive missing frames: ${state.consecutiveMissingMemberIdFrames}/${RELOAD_ABSENT_THRESHOLD}`,
-              { textLength, isBlank, blankThreshold: blankThreshold.toFixed(0) }
-            );
-          } else {
-            // Member ID is still present — reset the consecutive counter.
-            if (state.consecutiveMissingMemberIdFrames > 0) {
-              log(
-                `Frame ${frameNum}/${frameFiles.length}`,
-                `[ReloadWatch] Member ID reappeared — resetting missing-frames counter (was ${state.consecutiveMissingMemberIdFrames}).`
-              );
-            }
-            state.consecutiveMissingMemberIdFrames = 0;
-          }
-
-          // Signal A: member ID absent for RELOAD_ABSENT_THRESHOLD consecutive frames
-          const signalA = state.consecutiveMissingMemberIdFrames >= RELOAD_ABSENT_THRESHOLD;
-          // Signal B: text drops to less than BLANK_RATIO of peak
-          const signalB = isBlank;
-
-          if (signalA || signalB) {
-            state.isReloading = true;
-            state.consecutiveMissingMemberIdFrames = 0;
-            log(
-              `Frame ${frameNum}/${frameFiles.length}`,
-              `🔄 TRANSITION → RELOADING detected`,
-              {
-                trigger: signalA && signalB ? "both-signals" : signalA ? "signal-A:member-id-disappeared" : "signal-B:blank-frame",
-                memberIdBefore: state.extractedBefore.memberId,
-                textLength,
-                blankThreshold: blankThreshold.toFixed(0),
-                consecutiveMissingMemberIdFrames: signalA ? RELOAD_ABSENT_THRESHOLD : state.consecutiveMissingMemberIdFrames,
-              }
-            );
-          }
-        }
-
-      } else if (state.isReloading && !state.hasReloaded) {
-        // ── RELOADING phase — wait for page to not be blank ──────────────────
-        if (!isBlank) {
-          state.hasReloaded = true;
-          state.isReloading = false;
-          state.consecutiveMissingMemberIdFrames = 0;
-          log(`Frame ${frameNum}/${frameFiles.length}`, "✅ TRANSITION → AFTER_RELOAD detected (page is not blank)", {
-            textLength,
-          });
+      } else if (!state.hasNavigatedToProfile) {
+        // We are waiting for the user to navigate TO the profile page
+        if (frameHasProfileUrl) {
+          state.hasNavigatedToProfile = true;
+          state.extracted.url = true;
+          log(`Frame ${frameNum}/${frameFiles.length}`, `✅ TRANSITION → Navigated to Profile URL detected`);
           
-          // Apply extractions immediately to this first non-blank frame
-          if (frameHasUrl && !state.extractedAfter.url) state.extractedAfter.url = true;
-          if (frameMemberId && !state.extractedAfter.memberId) state.extractedAfter.memberId = frameMemberId;
-          if (extractedEmail && !state.extractedAfter.email) state.extractedAfter.email = extractedEmail;
-        } else {
-          log(`Frame ${frameNum}/${frameFiles.length}`, `[RELOADING] Waiting for page to load (currently blank)...`, {
-            textLength,
-            isBlank,
-          });
+          if (frameMemberId) state.extracted.memberId = frameMemberId;
+          if (extractedEmail) state.extracted.email = extractedEmail;
         }
-      }
-
-      if (state.hasReloaded) {
-        // AFTER_RELOAD phase
-        let afterUpdates: string[] = [];
-        if (frameHasUrl && !state.extractedAfter.url) {
-          state.extractedAfter.url = true;
-          afterUpdates.push("urlAfter=true");
+      } else {
+        // We are ON the profile page. Extract data.
+        if (frameMemberId && !state.extracted.memberId) {
+          state.extracted.memberId = frameMemberId;
         }
-        if (frameMemberId && !state.extractedAfter.memberId) {
-          state.extractedAfter.memberId = frameMemberId;
-          afterUpdates.push(`memberIdAfter="${frameMemberId}"`);
-        }
-        if (extractedEmail && !state.extractedAfter.email) {
-          state.extractedAfter.email = extractedEmail;
-          afterUpdates.push(`emailAfter="${extractedEmail}"`);
-        }
-        if (afterUpdates.length > 0) {
-          log(`Frame ${frameNum}/${frameFiles.length}`, `[AFTER_RELOAD] State updated: ${afterUpdates.join(", ")}`);
+        if (extractedEmail && !state.extracted.email) {
+          state.extracted.email = extractedEmail;
         }
       }
 
       // ── Live DB Update ────────────────────────────────────────────────────
-      const currentMemberId = state.hasReloaded ? state.extractedAfter.memberId : state.extractedBefore.memberId;
-      const currentEmail    = state.hasReloaded ? state.extractedAfter.email    : state.extractedBefore.email;
-
       await db.update(uscfVerificationAttempts)
         .set({
-          codeFound:      state.codeFound,
-          uscfUrlFound:   state.extractedBefore.url && state.extractedAfter.url,
-          urlBeforeReload: state.extractedBefore.url,
-          memberIdBefore:  state.extractedBefore.memberId || null,
-          emailBefore:     state.extractedBefore.email || null,
-          reloadDetected:  state.hasReloaded,
-          urlAfterReload:  state.extractedAfter.url,
-          memberIdAfter:   state.extractedAfter.memberId || null,
-          emailAfter:      state.extractedAfter.email || null,
-          memberIdExtracted: currentMemberId || null,
-          emailExtracted:    currentEmail || null,
+          codeFound: state.codeFound,
+          uscfUrlFound: state.extracted.url,
+          startedOffProfile: state.hasStartedOffProfile,
+          navigatedToProfile: state.hasNavigatedToProfile,
+          memberIdExtracted: state.extracted.memberId || null,
+          emailExtracted: state.extracted.email || null,
         })
         .where(eq(uscfVerificationAttempts.id, attemptId));
 
       // ── Early Exit ────────────────────────────────────────────────────────
       if (
         state.codeFound &&
-        state.hasReloaded &&
-        state.extractedAfter.url &&
-        state.extractedAfter.memberId &&
-        state.extractedAfter.email &&
-        state.extractedBefore.memberId === state.extractedAfter.memberId &&
-        state.extractedBefore.email === state.extractedAfter.email
+        state.hasStartedOffProfile &&
+        state.hasNavigatedToProfile &&
+        state.extracted.url &&
+        state.extracted.memberId &&
+        state.extracted.email
       ) {
         log(
           `Frame ${frameNum}/${frameFiles.length}`,
@@ -642,131 +530,71 @@ export async function analyzeUscfVideo(
     // ── Step 7: OCR Complete — Print Full State Summary ────────────────────
     logSeparator(`ATTEMPT #${attemptId} — OCR COMPLETE (${ocrLoopElapsed}ms)`);
     log("Summary", "Final state machine snapshot", {
-      codeFound:         state.codeFound,
-      reloadDetected:    state.hasReloaded,
-      // Before reload
-      urlBeforeReload:   state.extractedBefore.url,
-      memberIdBefore:    state.extractedBefore.memberId,
-      emailBefore:       state.extractedBefore.email,
-      // After reload
-      urlAfterReload:    state.extractedAfter.url,
-      memberIdAfter:     state.extractedAfter.memberId,
-      emailAfter:        state.extractedAfter.email,
-      // Continuity
-      memberIdMatch: state.extractedBefore.memberId === state.extractedAfter.memberId,
-      emailMatch:    state.extractedBefore.email    === state.extractedAfter.email,
+      codeFound:            state.codeFound,
+      startedOffProfile:    state.hasStartedOffProfile,
+      navigatedToProfile:   state.hasNavigatedToProfile,
+      urlExtracted:         state.extracted.url,
+      memberIdExtracted:    state.extracted.memberId,
+      emailExtracted:       state.extracted.email,
     });
 
     await worker.terminate();
     log("Cleanup", "Tesseract worker terminated.");
 
-    await fs.rm(framesDir, { recursive: true, force: true });
-    log("Cleanup", `Frames directory deleted: ${framesDir}`);
-
-    await fs.rm(videoPath, { force: true });
-    log("Cleanup", `Video file deleted: ${videoPath}`);
-
     // ── Step 8: Continuity Validation ─────────────────────────────────────
     logSeparator(`ATTEMPT #${attemptId} — VALIDATION`);
-
-    const memberIdMatch =
-      state.extractedBefore.memberId &&
-      state.extractedAfter.memberId &&
-      state.extractedBefore.memberId === state.extractedAfter.memberId;
-
-    const emailMatch =
-      state.extractedBefore.email &&
-      state.extractedAfter.email &&
-      state.extractedBefore.email === state.extractedAfter.email;
 
     let confidenceScore = 0;
     if (state.codeFound)             { confidenceScore += 20; log("Validation", "✅ +20 — Challenge code found"); }
     else                             { log("Validation", "❌   0 — Challenge code NOT found"); }
 
-    if (state.extractedBefore.url)   { confidenceScore += 10; log("Validation", "✅ +10 — USCF URL found before reload"); }
-    else                             { log("Validation", "❌   0 — USCF URL NOT found before reload"); }
+    if (state.hasStartedOffProfile)  { confidenceScore += 20; log("Validation", "✅ +20 — Video started off-profile (proven fresh DOM)"); }
+    else                             { log("Validation", "❌   0 — Video did not start on non-profile USCF page"); }
 
-    if (state.extractedAfter.url)    { confidenceScore += 10; log("Validation", "✅ +10 — USCF URL found after reload"); }
-    else                             { log("Validation", "❌   0 — USCF URL NOT found after reload"); }
+    if (state.hasNavigatedToProfile) { confidenceScore += 20; log("Validation", "✅ +20 — Profile navigation transition detected"); }
+    else                             { log("Validation", "❌   0 — Did not navigate to profile URL"); }
 
-    if (state.hasReloaded)           { confidenceScore += 20; log("Validation", "✅ +20 — Page reload detected"); }
-    else                             { log("Validation", "❌   0 — Page reload NOT detected"); }
+    if (state.extracted.url)         { confidenceScore += 10; log("Validation", "✅ +10 — Profile URL verified"); }
+    else                             { log("Validation", "❌   0 — Profile URL NOT verified"); }
 
-    if (memberIdMatch)               { confidenceScore += 20; log("Validation", `✅ +20 — Member ID matches before & after (${state.extractedBefore.memberId})`); }
-    else {
-      log("Validation", "❌   0 — Member ID mismatch or missing", {
-        before: state.extractedBefore.memberId,
-        after:  state.extractedAfter.memberId,
-      });
-    }
+    if (state.extracted.memberId)    { confidenceScore += 15; log("Validation", `✅ +15 — Member ID extracted (${state.extracted.memberId})`); }
+    else                             { log("Validation", "❌   0 — Member ID missing"); }
 
-    if (emailMatch) { confidenceScore += 20; log("Validation", `✅ +20 — Email visible and consistent before & after (${state.extractedBefore.email})`); }
-    else {
-      log("Validation", "❌   0 — Email missing or inconsistent", {
-        // Note: we do NOT compare against targetEmail (the platform email).
-        // Both values must simply be non-null and equal to each other.
-        emailBefore: state.extractedBefore.email,
-        emailAfter:  state.extractedAfter.email,
-        note: "Email extraction is independent of the platform registration email.",
-      });
-    }
+    if (state.extracted.email)       { confidenceScore += 15; log("Validation", `✅ +15 — Email extracted (${state.extracted.email})`); }
+    else                             { log("Validation", "❌   0 — Email missing"); }
 
-    log("Validation", `Total confidence score: ${confidenceScore}/100`);
+    const isSuccess =
+      state.codeFound &&
+      state.hasStartedOffProfile &&
+      state.hasNavigatedToProfile &&
+      state.extracted.memberId &&
+      state.extracted.email;
 
-    // ── Step 9: Determine Failure Reason ──────────────────────────────────
-    let failureReason: string | null = null;
-
-    // IMPORTANT: The failure cascade must follow the SAME chronological order as
-    // the 10-step UI. Steps 1–4 are BEFORE reload; step 5 IS the reload;
-    // steps 6–9 are AFTER reload. Email (steps 4 & 8) must not fire before
-    // the reload step (step 5) even though it is logically earlier, because
-    // the reload is what gates whether the email could ever be seen post-reload.
-    // Crucially, email check (step 4) must only fail if steps 1–3 passed AND
-    // the reload also failed — the email and reload failures are independent.
-    // We resolve the ordering precisely: if reload failed, that is the
-    // primary reason even if email was also not found.
+    let failureReason = null;
     if (!state.codeFound) {
       failureReason = "Challenge code was not found in the video. Please make sure to record our website displaying the code at the start of your recording.";
       log("Validation", `FAIL — Step 1 (challenge code): ${failureReason}`);
-    } else if (!state.extractedBefore.url) {
-      failureReason = "The address bar showing 'new.uschess.org/user/<id>' (e.g. new.uschess.org/user/290819) was not visible before the page reload. Navigate to your logged-in user page, and share your Entire Screen (not just a tab) so the address bar is captured.";
-      log("Validation", `FAIL — Step 2 (URL before reload): ${failureReason}`);
-    } else if (!state.extractedBefore.memberId) {
-      failureReason = "Member ID could not be read before the page refresh. Make sure your USCF dashboard is fully loaded with your Member ID clearly visible before you hit reload.";
-      log("Validation", `FAIL — Step 3 (member ID before reload): ${failureReason}`);
-    } else if (!state.extractedBefore.email) {
-      failureReason = "Email address could not be read before the page refresh. Ensure your email is fully visible on the USCF dashboard. If it's hidden in a dropdown menu, make sure you click your name to open the dropdown so the email is clearly readable.";
-      log("Validation", `FAIL — Step 4 (email not found before reload): ${failureReason}`);
-    } else if (!state.hasReloaded) {
-      if (state.isReloading) {
-        failureReason = "Page refresh was detected, but the video ended before the page finished reloading. Please ensure you keep recording until your profile fully loads after the refresh.";
-      } else {
-        failureReason = "Page refresh was not detected. You must click the browser reload button (↺) while recording — this proves the session is live and not a screenshot or recording replay.";
-      }
-      log("Validation", `FAIL — Step 5 (page reload not detected): ${failureReason}`);
-    } else if (!state.extractedAfter.url) {
-      failureReason = "The address bar showing 'new.uschess.org/user/<id>' (e.g. new.uschess.org/user/290819) was not visible after the page reload. Share your Entire Screen so the address bar is captured after the page reloads.";
-      log("Validation", `FAIL — Step 6 (URL after reload): ${failureReason}`);
-    } else if (!state.extractedAfter.memberId) {
-      failureReason = "Member ID could not be read after the page refresh. Make sure your Member ID is clearly visible after the page finishes loading. If it's in a dropdown, you must open the dropdown after reloading so it can be verified.";
-      log("Validation", `FAIL — Step 7 (member ID after reload): ${failureReason}`);
-    } else if (!state.extractedAfter.email) {
-      failureReason = "No email address was visible on the USCF dashboard after the page refresh. Make sure your account email is shown on the page after the refresh. If it's in a dropdown, you must open the dropdown after reloading so it can be verified.";
-      log("Validation", `FAIL — Step 8 (email not found after reload): ${failureReason}`);
-    } else if (!memberIdMatch || !emailMatch) {
-      failureReason = "The Member ID or email address visible on the USCF dashboard changed between before and after the page refresh. The same account must appear throughout the recording.";
-      log("Validation", `FAIL — Step 9 (continuity mismatch)`, {
-        memberIdBefore: state.extractedBefore.memberId,
-        memberIdAfter:  state.extractedAfter.memberId,
-        emailBefore:    state.extractedBefore.email,
-        emailAfter:     state.extractedAfter.email,
-      });
+    } else if (!state.hasStartedOffProfile) {
+      failureReason = "Video did not start on a non-profile USCF page (e.g. Dashboard). You must navigate TO your profile during the recording so we can verify the profile loads fresh.";
+      log("Validation", `FAIL — Step 2 (started off profile): ${failureReason}`);
+    } else if (!state.hasNavigatedToProfile) {
+      failureReason = "Navigation to the user profile URL (new.uschess.org/user/...) was not detected.";
+      log("Validation", `FAIL — Step 3 (navigated to profile): ${failureReason}`);
+    } else if (!state.extracted.url) {
+      failureReason = "The profile address bar was not clearly visible. Share your Entire Screen so the URL is captured.";
+      log("Validation", `FAIL — Step 4 (profile url): ${failureReason}`);
+    } else if (!state.extracted.memberId) {
+      failureReason = "Member ID could not be clearly read from the profile page. Make sure it is fully visible.";
+      log("Validation", `FAIL — Step 5 (member id): ${failureReason}`);
+    } else if (!state.extracted.email) {
+      failureReason = "Email address could not be clearly read from the profile page. Ensure your email is fully visible on the USCF dashboard.";
+      log("Validation", `FAIL — Step 6 (email): ${failureReason}`);
     }
 
     let isApproved = confidenceScore === 100 && !failureReason;
     let ratingsData = null;
     let thinPhpSuccess = false;
-    const finalMemberId = state.extractedAfter.memberId;
+    const finalMemberId = state.extracted.memberId;
 
     // ── Step 10: Fetch USCF Ratings (thin.php) ────────────────────────────
     if (isApproved && finalMemberId) {
@@ -898,18 +726,11 @@ export async function analyzeUscfVideo(
       .set({
         confidenceScore:  finalStatus === "approved" ? 100 : confidenceScore,
         codeFound:        state.codeFound,
-        uscfUrlFound:     state.extractedBefore.url && state.extractedAfter.url,
-        urlBeforeReload:  state.extractedBefore.url,
-        memberIdBefore:   state.extractedBefore.memberId || null,
-        emailBefore:      state.extractedBefore.email || null,
-        reloadDetected:   state.hasReloaded,
-        urlAfterReload:   state.extractedAfter.url,
-        memberIdAfter:    state.extractedAfter.memberId || null,
-        emailAfter:       state.extractedAfter.email || null,
-        detailsMatch:     !!(memberIdMatch && emailMatch),
+        uscfUrlFound:     state.extracted.url,
+        startedOffProfile: state.hasStartedOffProfile,
+        navigatedToProfile: state.hasNavigatedToProfile,
         memberIdExtracted: finalMemberId || null,
-        emailExtracted:   state.extractedAfter.email || null,
-        orderingCorrect:  state.hasReloaded,
+        emailExtracted:   state.extracted.email || null,
         status:           finalStatus,
         failureReason,
         completedAt:      new Date(),
@@ -959,6 +780,21 @@ export async function analyzeUscfVideo(
       .where(eq(uscfVerificationAttempts.id, attemptId));
 
     log("Fatal", "Attempt record marked as rejected in DB.");
+  } finally {
+    // ── Cleanup (Always run) ────────────────────────────────────────────────
+    try {
+      if (typeof framesDir !== 'undefined') {
+        await fs.rm(framesDir, { recursive: true, force: true }).catch(() => {});
+        log("Cleanup", `Frames directory deleted: ${framesDir}`);
+      }
+    } catch (e) {}
+
+    try {
+      if (videoPath) {
+        await fs.rm(videoPath, { force: true }).catch(() => {});
+        log("Cleanup", `Video file deleted: ${videoPath}`);
+      }
+    } catch (e) {}
   }
 }
 

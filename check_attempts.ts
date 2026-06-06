@@ -16,12 +16,10 @@ async function check() {
       console.log(`Confidence Score: ${attempt.confidenceScore}`);
       console.log(`Code Found: ${attempt.codeFound}`);
       console.log(`URL Found: ${attempt.uscfUrlFound}`);
-      console.log(`URL Before: ${attempt.urlBeforeReload}`);
-      console.log(`URL After: ${attempt.urlAfterReload}`);
+      console.log(`Started Off Profile: ${attempt.startedOffProfile}`);
+      console.log(`Navigated To Profile: ${attempt.navigatedToProfile}`);
       console.log(`Member ID: ${attempt.memberIdExtracted}`);
       console.log(`Email: ${attempt.emailExtracted}`);
-      console.log(`Reload Detected: ${attempt.reloadDetected}`);
-      console.log(`Ordering Correct: ${attempt.orderingCorrect}`);
       console.log(`Failure Reason: ${attempt.failureReason}`);
       console.log(`Created At: ${attempt.createdAt}`);
       console.log(`Completed At: ${attempt.completedAt}`);
