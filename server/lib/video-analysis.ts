@@ -376,7 +376,12 @@ export async function analyzeUscfVideo(
       codeFound: false,
       hasStartedOffProfile: false,
       hasNavigatedToProfile: false,
-      extracted: { url: false, memberId: null as string | null, email: null as string | null },
+      extracted: { 
+        url: false, 
+        memberId: null as string | null, 
+        email: null as string | null,
+        profileUrls: [] as string[]
+      },
     };
 
     logSeparator(`ATTEMPT #${attemptId} — FRAME ANALYSIS (${frameFiles.length} frames)`);
@@ -413,6 +418,8 @@ export async function analyzeUscfVideo(
 
       // Only attempt to extract sensitive data if they are on the profile page
       if (frameHasProfileUrl) {
+        state.extracted.profileUrls.push(topText);
+
         frameMemberId = extractMemberId(text);
         
         // Fallback: if the regex-based extraction missed the member ID but we
@@ -563,12 +570,40 @@ export async function analyzeUscfVideo(
     if (state.extracted.email)       { confidenceScore += 15; log("Validation", `✅ +15 — Email extracted (${state.extracted.email})`); }
     else                             { log("Validation", "❌   0 — Email missing"); }
 
+    // Enforce matching between URL ID and webpage Member ID to prevent replaceState/screenshot spoofing
+    let idUrlMatchOk = true;
+    if (state.extracted.memberId) {
+      const cleanMemberId = state.extracted.memberId.replace(/\D/g, "");
+      if (cleanMemberId.length > 0) {
+        let matched = false;
+        let bestDistance = cleanMemberId.length;
+        for (const urlText of state.extracted.profileUrls) {
+          const cleanUrl = urlText.toLowerCase().replace(/[^a-z0-9]/g, "");
+          const dist = getMinLevenshteinDistance(cleanUrl, cleanMemberId);
+          if (dist < bestDistance) {
+            bestDistance = dist;
+          }
+          if (dist <= 2) {
+            matched = true;
+            break;
+          }
+        }
+        if (!matched) {
+          idUrlMatchOk = false;
+          log("Validation", `❌ FAIL — Extracted Member ID (${cleanMemberId}) does not match the ID shown in the address bar (best edit-distance: ${bestDistance}).`);
+        } else {
+          log("Validation", `✅ URL and Webpage Member ID match verified.`);
+        }
+      }
+    }
+
     const isSuccess =
       state.codeFound &&
       state.hasStartedOffProfile &&
       state.hasNavigatedToProfile &&
       state.extracted.memberId &&
-      state.extracted.email;
+      state.extracted.email &&
+      idUrlMatchOk;
 
     let failureReason = null;
     if (!state.codeFound) {
@@ -586,12 +621,15 @@ export async function analyzeUscfVideo(
     } else if (!state.extracted.memberId) {
       failureReason = "Member ID could not be clearly read from the profile page. Make sure it is fully visible.";
       log("Validation", `FAIL — Step 5 (member id): ${failureReason}`);
+    } else if (!idUrlMatchOk) {
+      failureReason = "Verification Failed: The Member ID in the browser address bar does not match the Member ID displayed on the page.";
+      log("Validation", `FAIL — Step 5b (member id mismatch): ${failureReason}`);
     } else if (!state.extracted.email) {
       failureReason = "Email address could not be clearly read from the profile page. Ensure your email is fully visible on the USCF dashboard.";
       log("Validation", `FAIL — Step 6 (email): ${failureReason}`);
     }
 
-    let isApproved = confidenceScore === 100 && !failureReason;
+    let isApproved = confidenceScore === 100 && isSuccess && !failureReason;
     let ratingsData = null;
     let thinPhpSuccess = false;
     const finalMemberId = state.extracted.memberId;
