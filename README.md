@@ -93,7 +93,7 @@ For any bye match (odd-player-out), the tournament director can select from:
 - **Ratings Cache**: High-performance local SQLite cache (FTS5) for instant USCF/FIDE player lookups.
 - **FIDE TRF16 Export**: Standards-compliant TRF16 file generation for FIDE rating report submission.
 - **USCF DBF Export**: Generates all three required USCF `.dbf` files (`THEXPORT.DBF`, `TSEXPORT.DBF`, `TDEXPORT.DBF`) bundled as a ZIP archive for direct upload to MSA.
-- **Chess-Results Server Integration**: Sync pairings and results to Chess-Results.com with support for testing the connection before saving credentials.
+- **Webhook Sync**: Webhook synchronization to export pairings and results directly to external HTTP endpoints or third-party webhooks. Supports webhook connection testing and detailed manual synchronization.
 
 ---
 
@@ -201,8 +201,8 @@ For any bye match (odd-player-out), the tournament director can select from:
 | `POST` | `/api/tournaments/:id/swap-players` | Swap two players between boards |
 | `GET`  | `/api/tournaments/:id/exports/fide-trf` | Download FIDE TRF16 rating report |
 | `GET`  | `/api/tournaments/:id/exports/uscf-dbf` | Download USCF DBF ZIP rating report |
-| `POST` | `/api/tournaments/:id/chess-results/test` | Test Chess-Results server connection |
-| `POST` | `/api/tournaments/:id/chess-results/sync` | Sync data to Chess-Results.com |
+| `POST` | `/api/tournaments/:id/webhook-sync/test` | Test external Webhook server connection |
+| `POST` | `/api/tournaments/:id/webhook-sync` | Sync tournament data, pairings, and results to configured webhook |
 
 ---
 

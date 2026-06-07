@@ -47,7 +47,7 @@ async function fetchTournamentPayload(storage: IStorage, tournamentId: number) {
   };
 }
 
-async function postToChessResults(endpoint: string, authHeader: string, payload: unknown) {
+async function postToWebhook(endpoint: string, authHeader: string, payload: unknown) {
   const response = await fetch(endpoint, {
     method: "POST",
     headers: {
@@ -66,21 +66,21 @@ async function postToChessResults(endpoint: string, authHeader: string, payload:
 }
 
 function applySyncResult(config: TournamentConfig, outcome: { success: boolean; message?: string }): TournamentConfig {
-  const next = { ...config, chessResults: { ...config.chessResults } };
-  next.chessResults.lastSyncAt = new Date().toISOString();
-  next.chessResults.lastSyncStatus = outcome.success ? "success" : "error";
-  next.chessResults.lastSyncMessage = outcome.message ?? null;
+  const next = { ...config, webhookSync: { ...config.webhookSync } };
+  next.webhookSync.lastSyncAt = new Date().toISOString();
+  next.webhookSync.lastSyncStatus = outcome.success ? "success" : "error";
+  next.webhookSync.lastSyncMessage = outcome.message ?? null;
   return next;
 }
 
-export async function syncChessResults({ storage, tournament, config, reason = "manual" }: SyncContext): Promise<SyncOutcome> {
-  const credentials = config.chessResults;
+export async function syncWebhook({ storage, tournament, config, reason = "manual" }: SyncContext): Promise<SyncOutcome> {
+  const credentials = config.webhookSync;
 
   if (credentials.syncMode === "disabled") {
     return {
       success: false,
       status: 400,
-      message: "Chess-Results sync is disabled.",
+      message: "Webhook sync is disabled.",
       config,
     };
   }
@@ -113,7 +113,7 @@ export async function syncChessResults({ storage, tournament, config, reason = "
   };
 
   try {
-    const response = await postToChessResults(credentials.endpoint, buildAuthHeader(credentials.personalNumber, credentials.password), requestBody);
+    const response = await postToWebhook(credentials.endpoint, buildAuthHeader(credentials.personalNumber, credentials.password), requestBody);
 
     const success = response.ok;
     const nextConfig = applySyncResult(config, {
@@ -132,7 +132,7 @@ export async function syncChessResults({ storage, tournament, config, reason = "
       config: nextConfig,
     };
   } catch (error: any) {
-    const message = error?.message ?? "Unexpected error while contacting Chess-Results.";
+    const message = error?.message ?? "Unexpected error while contacting Webhook.";
     const nextConfig = applySyncResult(config, { success: false, message });
     await storage.updateTournament(tournament.id, {
       roundTimings: serializeTournamentConfig(nextConfig),
@@ -146,8 +146,8 @@ export async function syncChessResults({ storage, tournament, config, reason = "
   }
 }
 
-export async function testChessResultsConnection({ storage, tournament, config }: SyncContext): Promise<{ success: boolean; status: number; message?: string }> {
-  const credentials = config.chessResults;
+export async function testWebhookConnection({ storage, tournament, config }: SyncContext): Promise<{ success: boolean; status: number; message?: string }> {
+  const credentials = config.webhookSync;
 
   if (!credentials.endpoint || !credentials.personalNumber || !credentials.password) {
     return {
@@ -164,12 +164,12 @@ export async function testChessResultsConnection({ storage, tournament, config }
   };
 
   try {
-    const response = await postToChessResults(credentials.endpoint, buildAuthHeader(credentials.personalNumber, credentials.password), body);
+    const response = await postToWebhook(credentials.endpoint, buildAuthHeader(credentials.personalNumber, credentials.password), body);
     if (!response.ok) {
       return {
         success: false,
         status: response.status,
-        message: response.body || "Chess-Results returned an error.",
+        message: response.body || "Webhook returned an error.",
       };
     }
     return { success: true, status: response.status };
@@ -177,12 +177,12 @@ export async function testChessResultsConnection({ storage, tournament, config }
     return {
       success: false,
       status: 500,
-      message: error?.message ?? "Unable to reach Chess-Results endpoint.",
+      message: error?.message ?? "Unable to reach Webhook endpoint.",
     };
   }
 }
 
-export function stopChessResultsScheduler(tournamentId: number) {
+export function stopWebhookScheduler(tournamentId: number) {
   const handle = schedulerHandles.get(tournamentId);
   if (handle) {
     clearInterval(handle);
@@ -190,14 +190,14 @@ export function stopChessResultsScheduler(tournamentId: number) {
   }
 }
 
-export function updateChessResultsScheduler(storage: IStorage, tournamentId: number, config: TournamentConfig) {
-  stopChessResultsScheduler(tournamentId);
+export function updateWebhookScheduler(storage: IStorage, tournamentId: number, config: TournamentConfig) {
+  stopWebhookScheduler(tournamentId);
 
-  if (config.chessResults.syncMode !== "automatic") {
+  if (config.webhookSync.syncMode !== "automatic") {
     return;
   }
 
-  const interval = ensureIntervalMinutes(config.chessResults.autoSyncIntervalMinutes);
+  const interval = ensureIntervalMinutes(config.webhookSync.autoSyncIntervalMinutes);
   if (!interval) {
     return;
   }
@@ -208,33 +208,33 @@ export function updateChessResultsScheduler(storage: IStorage, tournamentId: num
     try {
       const current = await storage.getTournament(tournamentId);
       if (!current) {
-        stopChessResultsScheduler(tournamentId);
+        stopWebhookScheduler(tournamentId);
         return;
       }
       const parsed = parseTournamentConfig(current);
-      if (parsed.chessResults.syncMode !== "automatic") {
-        stopChessResultsScheduler(tournamentId);
+      if (parsed.webhookSync.syncMode !== "automatic") {
+        stopWebhookScheduler(tournamentId);
         return;
       }
-      await syncChessResults({ storage, tournament: current, config: parsed, reason: "auto" });
+      await syncWebhook({ storage, tournament: current, config: parsed, reason: "auto" });
     } catch (error) {
-      console.error("Automatic Chess-Results sync failed", error);
+      console.error("Automatic Webhook sync failed", error);
     }
   }, intervalMs);
 
   schedulerHandles.set(tournamentId, handle);
 }
 
-export async function initializeChessResultsSchedulers(storage: IStorage) {
+export async function initializeWebhookSchedulers(storage: IStorage) {
   try {
     const tournaments = await storage.getAllTournaments();
     for (const tournament of tournaments) {
       if (!tournament.roundTimings) continue;
       try {
         const parsed = parseTournamentConfig(tournament);
-        updateChessResultsScheduler(storage, tournament.id, parsed);
+        updateWebhookScheduler(storage, tournament.id, parsed);
       } catch (error) {
-        console.error(`Failed to initialize Chess-Results schedule for tournament ${tournament.id}`, error);
+        console.error(`Failed to initialize Webhook schedule for tournament ${tournament.id}`, error);
       }
     }
   } catch (error) {
@@ -245,7 +245,7 @@ export async function initializeChessResultsSchedulers(storage: IStorage) {
         errorMessage.includes('Failed to list from') ||
         errorMessage.includes('connection') ||
         errorMessage.includes('ECONNREFUSED')) {
-      console.warn('Database connection not available - Chess-Results schedulers will initialize when database is ready');
+      console.warn('Database connection not available - Webhook schedulers will initialize when database is ready');
     } else {
       // Re-throw unexpected errors
       throw error;

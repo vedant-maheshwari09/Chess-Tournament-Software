@@ -661,9 +661,9 @@ export function UscfReportSection({ value, onChange }: UscfReportSectionProps) {
   );
 }
 
-interface ChessResultsSettingsCardProps {
-  value: ChessResultsConfig;
-  onChange: (update: Partial<ChessResultsConfig>) => void;
+interface WebhookSyncSettingsCardProps {
+  value: WebhookSyncConfig;
+  onChange: (update: Partial<WebhookSyncConfig>) => void;
   onTest: () => void;
   onSync: () => void;
   testing: boolean;
@@ -674,7 +674,7 @@ interface ChessResultsSettingsCardProps {
   onEnabledChange: (enabled: boolean) => void;
 }
 
-export function ChessResultsSettingsCard({
+export function WebhookSyncSettingsCard({
   value,
   onChange,
   onTest,
@@ -685,33 +685,17 @@ export function ChessResultsSettingsCard({
   onDownload,
   enabled,
   onEnabledChange,
-}: ChessResultsSettingsCardProps) {
+}: WebhookSyncSettingsCardProps) {
   const syncDisabled = value.syncMode === "disabled" || disabled;
-  const trimmedTournamentId = value.tournamentId?.trim();
-  const chessResultsUrl = trimmedTournamentId
-    ? `https://chess-results.com/tnr${trimmedTournamentId}.aspx`
-    : "https://chess-results.com";
-
-  const openTournamentPage = () => {
-    if (!trimmedTournamentId) return;
-    window.open(chessResultsUrl, "_blank", "noopener,noreferrer");
-  };
 
   return (
     <Card className="shadow-sm">
           <CardHeader className="border-b pb-6 flex flex-row items-center justify-between">
             <div>
-              <Label className="text-sm font-medium">Chess-Results Server Integration</Label>
-              <p className="text-xs text-muted-foreground">
-                <a
-                  href="https://chess-results.com"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-2 text-indigo-700 hover:text-indigo-800 hover:underline"
-                >
-                  https://chess-results.com
-                  <ExternalLink className="h-4 w-4" />
-                </a>
+              <Label className="text-sm font-medium">Custom API Webhook Sync</Label>
+              <p className="text-xs text-muted-foreground mt-1 text-slate-500">
+                Send your tournament data to a custom JSON API endpoint. <br/>
+                <strong className="text-amber-600">Note: Chess-Results.com does not support JSON APIs.</strong> To publish to Chess-Results, please use the <strong className="text-slate-700">FIDE TRF16 Export</strong> button on the General tab.
               </p>
             </div>
             <Switch checked={enabled} onCheckedChange={onEnabledChange} />
@@ -723,7 +707,7 @@ export function ChessResultsSettingsCard({
               <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Synchronization</h3>
               <RadioGroup
                 value={value.syncMode}
-                onValueChange={(next) => onChange({ syncMode: next as ChessResultsConfig["syncMode"] })}
+                onValueChange={(next) => onChange({ syncMode: next as WebhookSyncConfig["syncMode"] })}
                 className="space-y-3"
               >
                 {[
@@ -752,7 +736,7 @@ export function ChessResultsSettingsCard({
               <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Export scope</h3>
               <RadioGroup
                 value={value.exportMode}
-                onValueChange={(next) => onChange({ exportMode: next as ChessResultsConfig["exportMode"] })}
+                onValueChange={(next) => onChange({ exportMode: next as WebhookSyncConfig["exportMode"] })}
                 className="space-y-3"
               >
                 {[
@@ -781,36 +765,36 @@ export function ChessResultsSettingsCard({
 
           <div className="grid gap-6 md:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="chess-results-endpoint">Chess-Results endpoint</Label>
+              <Label htmlFor="webhook-endpoint">Webhook API Endpoint</Label>
               <Input
-                id="chess-results-endpoint"
+                id="webhook-endpoint"
                 value={value.endpoint ?? ""}
-                placeholder="https://chess-results.com/tnr_api/"
+                placeholder="https://example.com/api/webhook"
                 onChange={(event) => onChange({ endpoint: event.target.value })}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="chess-results-tnr">Tournament number (TNR)</Label>
+              <Label htmlFor="webhook-tournament-id">Tournament Identifier</Label>
               <Input
-                id="chess-results-tnr"
+                id="webhook-tournament-id"
                 value={value.tournamentId ?? ""}
                 placeholder="e.g. 842391"
                 onChange={(event) => onChange({ tournamentId: event.target.value })}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="chess-results-pno">Organizer personal number (PNo)</Label>
+              <Label htmlFor="webhook-username">Auth Username / ID</Label>
               <Input
-                id="chess-results-pno"
+                id="webhook-username"
                 value={value.personalNumber ?? ""}
-                placeholder="Assigned Chess-Results account ID"
+                placeholder="Assigned API user ID"
                 onChange={(event) => onChange({ personalNumber: event.target.value })}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="chess-results-password">Password</Label>
+              <Label htmlFor="webhook-password">Auth Password / Token</Label>
               <Input
-                id="chess-results-password"
+                id="webhook-password"
                 type="password"
                 value={value.password ?? ""}
                 placeholder="••••••••"
@@ -821,26 +805,26 @@ export function ChessResultsSettingsCard({
 
           <div className="grid gap-6 md:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="chess-results-organizer">Organizer name</Label>
+              <Label htmlFor="webhook-organizer">Organizer name</Label>
               <Input
-                id="chess-results-organizer"
+                id="webhook-organizer"
                 value={value.organizerName ?? ""}
                 onChange={(event) => onChange({ organizerName: event.target.value })}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="chess-results-email">Organizer email</Label>
+              <Label htmlFor="webhook-email">Organizer email</Label>
               <Input
-                id="chess-results-email"
+                id="webhook-email"
                 type="email"
                 value={value.organizerEmail ?? ""}
                 onChange={(event) => onChange({ organizerEmail: event.target.value })}
               />
             </div>
             <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="chess-results-event-code">Event code or remarks</Label>
+              <Label htmlFor="webhook-event-code">Event code or remarks</Label>
               <Input
-                id="chess-results-event-code"
+                id="webhook-event-code"
                 value={value.eventCode ?? ""}
                 onChange={(event) => onChange({ eventCode: event.target.value })}
               />
@@ -903,14 +887,6 @@ export function ChessResultsSettingsCard({
             </Button>
             <Button type="button" onClick={onSync} disabled={syncDisabled || syncing}>
               {syncing ? "Syncing..." : "Sync now"}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={openTournamentPage}
-              disabled={!trimmedTournamentId}
-            >
-              <ExternalLink className="mr-2 h-4 w-4" /> View event on Chess-Results
             </Button>
             <Button type="button" variant="outline" onClick={onDownload}>
               <Download className="mr-2 h-4 w-4" /> Download configuration

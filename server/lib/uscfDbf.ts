@@ -277,7 +277,7 @@ export function generateUscfDbfZip(options: GenerateUscfDbfOptions): Buffer {
       S_ATD_ID: assistantTdId,
       S_TRN_TYPE: trnType,
       S_TOT_RNDS: String(numRounds).padEnd(2),
-      S_LST_PAIR: String(sortedSecPlayers.length).padEnd(4),
+      S_LST_PAIR: String(sortedSecPlayers.length).padStart(4, '0'),
       S_BEG_DATE: formatDate(config.basic.startDate),
       S_END_DATE: formatDate(config.basic.endDate),
       S_SCH_LVL: scholastic,
@@ -296,7 +296,7 @@ export function generateUscfDbfZip(options: GenerateUscfDbfOptions): Buffer {
       const record: Record<string, string> = {
         D_EVENT_ID: eventId,
         D_SEC_NUM: secNum,
-        D_PAIR_NUM: String(pairNum).padEnd(4),
+        D_PAIR_NUM: String(pairNum).padStart(4, '0'),
         D_MEM_ID: memId,
         D_NAME: name,
         D_STATE: state,
@@ -342,7 +342,7 @@ export function generateUscfDbfZip(options: GenerateUscfDbfOptions): Buffer {
         const isWhite = match.whitePlayerId === player.id;
         const opponentId = isWhite ? match.blackPlayerId : match.whitePlayerId;
         const opponentPairNum = opponentId ? pairingNumMap.get(opponentId) || 0 : 0;
-        const oppNumStr = String(opponentPairNum).padStart(4, ' ');
+        const oppNumStr = String(opponentPairNum).padStart(4, '0');
 
         const colorChar = isWhite ? 'W' : 'B';
         let resultChar = 'U';

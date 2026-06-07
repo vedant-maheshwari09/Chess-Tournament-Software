@@ -90,16 +90,16 @@ export interface UscfReportData {
   timeControl?: string;
 }
 
-export type ChessResultsSyncMode = "disabled" | "manual" | "automatic";
-export type ChessResultsExportMode =
+export type WebhookSyncMode = "disabled" | "manual" | "automatic";
+export type WebhookExportMode =
   | "page"
   | "participants"
   | "participants_standings"
   | "participants_standings_rounds";
 
-export interface ChessResultsConfig {
-  syncMode: ChessResultsSyncMode;
-  exportMode: ChessResultsExportMode;
+export interface WebhookSyncConfig {
+  syncMode: WebhookSyncMode;
+  exportMode: WebhookExportMode;
   endpoint?: string;
   personalNumber?: string;
   password?: string;
@@ -248,7 +248,7 @@ export interface TournamentConfig {
   registers: RegistersConfig;
   fide: FideRegistrationData;
   uscf: UscfReportData;
-  chessResults: ChessResultsConfig;
+  webhookSync: WebhookSyncConfig;
   contacts: ContactEntry[];
   tournamentPageContent: string;
   publicPage?: {
@@ -453,10 +453,10 @@ export function createDefaultConfig(format: Tournament["format"], mode: Tourname
       scholastic: false,
       grandPrixPoints: "",
     },
-    chessResults: {
+    webhookSync: {
       syncMode: "disabled",
       exportMode: "participants_standings_rounds",
-      endpoint: "https://chess-results.com/tnr_api/",
+      endpoint: "https://example.com/api/webhook",
       personalNumber: "",
       password: "",
       tournamentId: "",
@@ -677,13 +677,13 @@ export function parseTournamentConfig(tournament: Tournament | undefined | null)
         ...defaults.uscf,
         ...parsed.uscf,
       },
-      chessResults: {
-        ...defaults.chessResults,
-        ...parsed.chessResults,
+      webhookSync: {
+        ...defaults.webhookSync,
+        ...(parsed.webhookSync || parsed.chessResults || {}),
         autoSyncIntervalMinutes:
-          parsed.chessResults?.autoSyncIntervalMinutes && Number.isFinite(parsed.chessResults.autoSyncIntervalMinutes)
-            ? parsed.chessResults.autoSyncIntervalMinutes
-            : defaults.chessResults.autoSyncIntervalMinutes,
+          (parsed.webhookSync?.autoSyncIntervalMinutes || parsed.chessResults?.autoSyncIntervalMinutes) && Number.isFinite((parsed.webhookSync || parsed.chessResults).autoSyncIntervalMinutes)
+            ? (parsed.webhookSync || parsed.chessResults).autoSyncIntervalMinutes
+            : defaults.webhookSync.autoSyncIntervalMinutes,
       },
       sections: sanitizedSections,
       entryFees: normalizedEntryFees,

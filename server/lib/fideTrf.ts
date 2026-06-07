@@ -213,8 +213,8 @@ function buildPlayerLine(entry: PlayerLinePayload, totalRounds: number): string 
 
   entry.rounds.forEach((round, index) => {
     const base = 91 + index * 10;
-    const opponent = round.opponentStartNumber ?? 0;
-    set(base, `${opponent}`.padStart(4, " ").slice(0, 4));
+    const opponentStr = round.opponentStartNumber ? String(round.opponentStartNumber).padStart(4, " ") : "0000";
+    set(base, opponentStr.slice(0, 4));
     set(base + 5, round.color);
     set(base + 7, round.result);
   });

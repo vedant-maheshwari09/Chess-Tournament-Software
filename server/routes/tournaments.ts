@@ -1,5 +1,5 @@
 import { insertTournamentSchema, insertPlayerSchema } from '@shared/schema';
-import { updateChessResultsScheduler, testChessResultsConnection, syncChessResults } from '../services/chessResults';
+import { updateWebhookScheduler, testWebhookConnection, syncWebhook } from '../services/webhookSync';
 import type { Express, Request, Response } from "express";
 import { z } from "zod";
 import { normalizePlayerName } from "./util";
@@ -1442,8 +1442,8 @@ app.post("/api/tournaments/:id/next-round", requireAuth, requireRole('tournament
   }
 );
 
-app.post(
-    "/api/tournaments/:id/chess-results/sync",
+  app.post(
+    "/api/tournaments/:id/webhook-sync",
     requireAuth,
     requireRole('tournament_director'),
     requireTournamentAccess,
@@ -1456,8 +1456,8 @@ app.post(
         }
 
         const config = req.body.config ? req.body.config : parseTournamentConfig(tournament);
-        const result = await syncChessResults({ storage, tournament, config, reason: "manual" });
-        await updateChessResultsScheduler(storage, tournament.id, result.config);
+        const result = await syncWebhook({ storage, tournament, config, reason: "manual" });
+        await updateWebhookScheduler(storage, tournament.id, result.config);
 
         if (!result.success) {
           return res.status(result.status).json({ message: result.message, config: result.config });
@@ -1465,14 +1465,14 @@ app.post(
 
         res.json(result);
       } catch (error) {
-        console.error("Chess-Results sync error:", error);
-        res.status(500).json({ message: "Failed to synchronize with Chess-Results" });
+        console.error("Webhook sync error:", error);
+        res.status(500).json({ message: "Failed to synchronize with Webhook" });
       }
     }
   );
 
   app.post(
-    "/api/tournaments/:id/chess-results/test",
+    "/api/tournaments/:id/webhook-sync/test",
     requireAuth,
     requireRole('tournament_director'),
     requireTournamentAccess,
@@ -1485,12 +1485,12 @@ app.post(
         }
 
         const config = req.body.config ? req.body.config : parseTournamentConfig(tournament);
-        const result = await testChessResultsConnection({ storage, tournament, config });
+        const result = await testWebhookConnection({ storage, tournament, config });
 
         res.json(result);
       } catch (error) {
-        console.error("Chess-Results connection test error:", error);
-        res.status(500).json({ message: "Failed to test connection to Chess-Results" });
+        console.error("Webhook connection test error:", error);
+        res.status(500).json({ message: "Failed to test connection to Webhook" });
       }
     }
   );

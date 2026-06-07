@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { QRCodeCanvas } from "qrcode.react";
-import { ChessResultsSettingsCard } from "@/components/tournament-settings/sections";
+import { WebhookSyncSettingsCard } from "@/components/tournament-settings/sections";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
@@ -59,7 +59,7 @@ import { TimePicker } from "@/components/ui/time-picker";
 import { parseISO, format as formatDateFn } from "date-fns";
 
 type BuilderMode = "create" | "edit";
-type SettingsShortcutTab = "rate-tournament" | "fide" | "uscf" | "chess-results";
+type SettingsShortcutTab = "rate-tournament" | "fide" | "uscf" | "webhook-sync";
 
 interface TournamentBuilderProps {
   mode: BuilderMode;
@@ -1636,13 +1636,13 @@ function StepTwo({ format, mode, builderMode, config, onConfigChange, onBack: _o
   const testMutation = useMutation({
     mutationFn: async () => {
       if (!config) throw new Error("Configuration not ready");
-      await apiRequest(`/api/tournaments/${tournamentId}/chess-results/test`, {
+      await apiRequest(`/api/tournaments/${tournamentId}/webhook-sync/test`, {
         method: "POST",
         body: JSON.stringify({ config }),
       });
     },
     onSuccess: () => {
-      toast({ title: "Chess-Results connection successful" });
+      toast({ title: "Webhook connection successful" });
     },
     onError: (error: any) => {
       toast({
@@ -1656,7 +1656,7 @@ function StepTwo({ format, mode, builderMode, config, onConfigChange, onBack: _o
   const syncMutation = useMutation({
     mutationFn: async () => {
       if (!config) throw new Error("Configuration not ready");
-      const response = await apiRequest(`/api/tournaments/${tournamentId}/chess-results/sync`, {
+      const response = await apiRequest(`/api/tournaments/${tournamentId}/webhook-sync`, {
         method: "POST",
         body: JSON.stringify({ config }),
       });
@@ -1664,9 +1664,9 @@ function StepTwo({ format, mode, builderMode, config, onConfigChange, onBack: _o
     },
     onSuccess: (result) => {
       if (result?.config) {
-        onConfigChange(cloneConfig(result.config));
+        setConfig(cloneConfig(result.config));
       }
-      toast({ title: "Chess-Results sync complete" });
+      toast({ title: "Webhook sync complete" });
       queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}`] });
     },
     onError: (error: any) => {
@@ -1731,18 +1731,15 @@ function StepTwo({ format, mode, builderMode, config, onConfigChange, onBack: _o
     onSave();
   };
 
-  const handleDownloadChessResults = () => {
+  const handleDownloadWebhookSync = () => {
     if (!config) return;
-    downloadJson(`tournament-${tournamentId}-chess-results.json`, {
+    downloadJson(`tournament-${tournamentId}-webhook-sync.json`, {
       tournamentId,
       tournamentName: tournament?.name,
-      form: "ChessResults",
-      data: config.chessResults,
+      form: WebhookSyncConfig,
+      data: config.webhookSync,
     });
   };
-
-
-
 
   const defaultTimeControlFor = (type: TimeControlType): TimeControlDefinition => {
     switch (type) {
@@ -2897,17 +2894,23 @@ function StepTwo({ format, mode, builderMode, config, onConfigChange, onBack: _o
                   <div className="flex items-center gap-2 px-2">
                      <h3 className="text-base font-semibold text-black tracking-tight">Extensions</h3>
                   </div>
-                  <ChessResultsSettingsCard
-                    value={config.chessResults}
-                    onChange={updateChessResults}
+                  <WebhookSyncSettingsCard
+                    value={config.webhookSync}
+                    onChange={(update) => {
+                      setConfig((prev) => ({
+                        ...prev,
+                        webhookSync: { ...prev.webhookSync, ...update },
+                      }));
+                      setIsDirty(true);
+                    }}
                     onTest={() => testMutation.mutate()}
                     onSync={() => syncMutation.mutate()}
                     testing={testMutation.isPending}
                     syncing={syncMutation.isPending}
-                    disabled={config.chessResults.syncMode === "disabled"}
-                    onDownload={handleDownloadChessResults}
-                    enabled={chessResultsEnabled}
-                    onEnabledChange={setChessResultsEnabled}
+                    disabled={config.webhookSync.syncMode === "disabled"}
+                    onDownload={handleDownloadWebhookSync}
+                    enabled={true}
+                    onEnabledChange={() => {}}
                   />
                 </div>
 

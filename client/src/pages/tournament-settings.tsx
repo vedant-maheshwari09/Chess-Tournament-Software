@@ -5,7 +5,7 @@ import type { Tournament, Player } from "@shared/schema";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  type ChessResultsConfig,
+  type WebhookSyncConfig,
   type FideRegistrationData,
   type RegistersConfig,
   type TournamentConfig,
@@ -24,7 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  ChessResultsSettingsCard,
+  WebhookSyncSettingsCard,
   FideRegistrationSection,
   UscfReportSection,
   ArenaSettingsCard,
@@ -50,7 +50,7 @@ import {
 } from "lucide-react";
 
 
-type SettingsSection = "basic" | "details" | "schedule" | "payments" | "prizes" | "player-signup" | "rate-tournament" | "general" | "board-numbering" | "fide" | "uscf" | "chess-results" | "arena";
+type SettingsSection = "basic" | "details" | "schedule" | "payments" | "prizes" | "player-signup" | "rate-tournament" | "general" | "board-numbering" | "fide" | "uscf" | "webhook-sync" | "arena";
 
 interface TournamentSettingsPageProps {
   tournamentId: number;
@@ -116,7 +116,7 @@ export default function TournamentSettingsPage({ tournamentId, section }: Tourna
     "rate-tournament",
     "fide",
     "uscf",
-    "chess-results",
+    "webhook-sync",
     "board-numbering",
     "arena",
   ] satisfies SettingsSection[];
@@ -212,14 +212,14 @@ export default function TournamentSettingsPage({ tournamentId, section }: Tourna
     markDirty();
   };
 
-  const updateChessResults = (update: Partial<ChessResultsConfig>) => {
+  const updateWebhookSync = (update: Partial<any>) => {
     if (!config) return;
     setConfig((prev) => {
       if (!prev) return prev;
       return {
         ...prev,
-        chessResults: {
-          ...prev.chessResults,
+        webhookSync: {
+          ...prev.webhookSync,
           ...update,
         },
       };
@@ -284,13 +284,13 @@ export default function TournamentSettingsPage({ tournamentId, section }: Tourna
   const testMutation = useMutation({
     mutationFn: async () => {
       if (!config) throw new Error("Configuration not ready");
-      await apiRequest(`/api/tournaments/${tournamentId}/chess-results/test`, {
+      await apiRequest(`/api/tournaments/${tournamentId}/webhook-sync/test`, {
         method: "POST",
         body: JSON.stringify({ config }),
       });
     },
     onSuccess: () => {
-      toast({ title: "Chess-Results connection successful" });
+      toast({ title: "Webhook connection successful" });
     },
     onError: (error: any) => {
       toast({
@@ -304,7 +304,7 @@ export default function TournamentSettingsPage({ tournamentId, section }: Tourna
   const syncMutation = useMutation({
     mutationFn: async () => {
       if (!config) throw new Error("Configuration not ready");
-      const response = await apiRequest(`/api/tournaments/${tournamentId}/chess-results/sync`, {
+      const response = await apiRequest(`/api/tournaments/${tournamentId}/webhook-sync`, {
         method: "POST",
         body: JSON.stringify({ config }),
       });
@@ -314,7 +314,7 @@ export default function TournamentSettingsPage({ tournamentId, section }: Tourna
       if (result?.config) {
         setConfig(cloneConfig(result.config));
       }
-      toast({ title: "Chess-Results sync complete" });
+      toast({ title: "Webhook sync complete" });
       queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}`] });
       setIsDirty(true);
     },
@@ -428,13 +428,13 @@ export default function TournamentSettingsPage({ tournamentId, section }: Tourna
     }
   }, [toast, tournamentId]);
 
-  const handleDownloadChessResults = useCallback(() => {
+  const handleDownloadWebhookSync = useCallback(() => {
     if (!config) return;
-    downloadJson(`tournament-${tournamentId}-chess-results.json`, {
+    downloadJson(`tournament-${tournamentId}-webhook-sync.json`, {
       tournamentId,
       tournamentName: tournament?.name,
-      form: "ChessResults",
-      data: config.chessResults,
+      form: "WebhookSync",
+      data: config.webhookSync,
     });
   }, [config, tournament?.name, tournamentId]);
 
@@ -460,7 +460,7 @@ export default function TournamentSettingsPage({ tournamentId, section }: Tourna
     "rate-tournament": "Rating Hub",
     fide: "FIDE Settings",
     uscf: "USCF Settings",
-    "chess-results": "Chess-Results",
+    "webhook-sync": "Custom API Sync",
     "board-numbering": "Boards",
     arena: "Arena Scoring",
   };
@@ -476,7 +476,7 @@ export default function TournamentSettingsPage({ tournamentId, section }: Tourna
     "rate-tournament": BarChart3,
     fide: Globe,
     uscf: Flag,
-    "chess-results": RotateCw,
+    "webhook-sync": RotateCw,
     "board-numbering": Hash,
     arena: Timer,
   };
@@ -610,25 +610,20 @@ export default function TournamentSettingsPage({ tournamentId, section }: Tourna
             <UscfReportSection value={config.uscf} onChange={updateUscf} />
           )}
 
-          {currentSection === "chess-results" && (
+          {currentSection === "webhook-sync" && (
             <>
-              <ChessResultsSettingsCard
-                value={config.chessResults}
-                onChange={updateChessResults}
+              <WebhookSyncSettingsCard
+                value={config.webhookSync}
+                onChange={updateWebhookSync}
                 onTest={() => testMutation.mutate()}
                 onSync={() => syncMutation.mutate()}
                 testing={testMutation.isPending}
                 syncing={syncMutation.isPending}
-                disabled={config.chessResults.syncMode === "disabled"}
-                onDownload={handleDownloadChessResults}
-                enabled={chessResultsEnabled}
-                onEnabledChange={setChessResultsEnabled}
+                disabled={config.webhookSync.syncMode === "disabled"}
+                onDownload={handleDownloadWebhookSync}
+                enabled={true}
+                onEnabledChange={() => {}}
               />
-              {chessResultsEnabled && (
-                <Button onClick={() => setLocation("/tournaments/" + tournamentId + "/settings/chess-results-connection")}>
-                  Connect to Chess-Results
-                </Button>
-              )}
             </>
           )}
 
