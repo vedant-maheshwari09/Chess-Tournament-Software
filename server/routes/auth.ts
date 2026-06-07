@@ -315,6 +315,45 @@ app.post("/api/auth/login", async (req, res) => {
     }
   });
 
+  // Update TD Credentials
+  app.patch('/api/auth/profile/td-credentials', requireAuth, async (req, res) => {
+    try {
+      const { uscfAffiliateId, fideArbiterId, fideArbiterTitle } = req.body;
+      const [updatedUser] = await db.update(users)
+        .set({
+          uscfAffiliateId: uscfAffiliateId || null,
+          fideArbiterId: fideArbiterId || null,
+          fideArbiterTitle: fideArbiterTitle || null,
+        })
+        .where(eq(users.id, req.user!.id))
+        .returning();
+
+      const userWithoutPassword = { ...updatedUser };
+      delete (userWithoutPassword as any).passwordHash;
+      res.json({ message: 'Director credentials updated successfully', user: userWithoutPassword });
+    } catch (error) {
+      console.error('Failed to update credentials:', error);
+      res.status(500).json({ message: 'Failed to update credentials' });
+    }
+  });
+
+  // Mark Onboarding Complete
+  app.post('/api/auth/onboard', requireAuth, async (req, res) => {
+    try {
+      const [updatedUser] = await db.update(users)
+        .set({ hasOnboarded: true })
+        .where(eq(users.id, req.user!.id))
+        .returning();
+
+      const userWithoutPassword = { ...updatedUser };
+      delete (userWithoutPassword as any).passwordHash;
+      res.json({ message: 'Onboarding completed', user: userWithoutPassword });
+    } catch (error) {
+      console.error('Failed to complete onboarding:', error);
+      res.status(500).json({ message: 'Failed to complete onboarding' });
+    }
+  });
+
 
 app.post("/api/auth/logout", requireAuth, async (req, res) => {
     try {

@@ -1,4 +1,5 @@
-import { Switch, Route, Redirect } from "wouter";
+import { useEffect } from "react";
+import { Switch, Route, Redirect, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -20,12 +21,21 @@ import TournamentActionsPage from "@/pages/tournament-actions";
 import TournamentRegistrationFormPage from "@/pages/tournament-registration-form";
 import TournamentPaymentSetupPage from "@/pages/tournament-payment-setup";
 import TournamentReportsPage from "@/pages/tournament-reports";
+import OnboardingPage from "@/pages/onboarding";
 
 import LandingPage from "@/pages/landing-page";
 import ScrollToTop from "@/components/scroll-to-top";
 
 function AuthenticatedApp() {
   const { user, isLoading } = useAuth();
+  const [location, setLocation] = useLocation();
+
+  // Global check to enforce onboarding
+  useEffect(() => {
+    if (!isLoading && user && !user.hasOnboarded && location !== '/onboarding') {
+      setLocation('/onboarding');
+    }
+  }, [user, location, setLocation, isLoading]);
 
   if (isLoading) {
     return (
@@ -36,6 +46,10 @@ function AuthenticatedApp() {
         </div>
       </div>
     );
+  }
+
+  if (user && !user.hasOnboarded && location !== '/onboarding') {
+    return null; // prevent rendering other routes until redirect completes
   }
 
   return (
@@ -63,6 +77,7 @@ function AuthenticatedApp() {
               <Redirect to="/" />
             </Route>
             <Route path="/settings" component={SettingsPage} />
+            <Route path="/onboarding" component={OnboardingPage} />
             {(user as any)?.role === 'tournament_director' ? (
               <>
                 <Route path="/">

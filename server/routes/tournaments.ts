@@ -762,6 +762,18 @@ app.get(
         }
 
         const fideProfiles = await lookupFideProfiles(filteredPlayers);
+        const director = await storage.getUserById(tournament.createdBy);
+        
+        if (director) {
+          if (!config.fide) config.fide = {} as any;
+          if (!(config.fide as any).chiefArbiterId && director.fideArbiterId) {
+            (config.fide as any).chiefArbiterId = director.fideArbiterId;
+          }
+          if (!(config.fide as any).chiefArbiterTitle && director.fideArbiterTitle) {
+            (config.fide as any).chiefArbiterTitle = director.fideArbiterTitle;
+          }
+        }
+
         const { content, warnings } = generateFideTrf16Report({
           tournament,
           config,
@@ -3656,6 +3668,17 @@ app.post("/api/tournaments/:tournamentId/generate-pairings", requireAuth, requir
         }
 
         const config = parseTournamentConfig(tournament);
+        const director = await storage.getUserById(tournament.createdBy);
+        if (director) {
+          if (!config.uscf) config.uscf = {} as any;
+          if (!config.uscf.affiliateId && director.uscfAffiliateId) {
+            config.uscf.affiliateId = director.uscfAffiliateId;
+          }
+          if (!(config.uscf as any).chiefTdId && director.uscfId) {
+            (config.uscf as any).chiefTdId = director.uscfId;
+          }
+        }
+
         const [players, matches, pairings] = await Promise.all([
           storage.getPlayersByTournament(id),
           storage.getMatchesByTournament(id),

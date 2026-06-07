@@ -174,7 +174,7 @@ function buildPlayerLine(entry: PlayerLinePayload, totalRounds: number): string 
   chars[1] = "0";
   chars[2] = "1";
 
-  set(4, `${entry.startNumber}`.padStart(4, "0"));
+  set(4, `${entry.startNumber}`.padStart(4, " ").slice(0, 4));
 
   if (entry.sex && entry.sex.trim()) {
     set(9, entry.sex.trim().charAt(0).toLowerCase());
@@ -214,7 +214,7 @@ function buildPlayerLine(entry: PlayerLinePayload, totalRounds: number): string 
   entry.rounds.forEach((round, index) => {
     const base = 91 + index * 10;
     const opponent = round.opponentStartNumber ?? 0;
-    set(base, `${opponent}`.padStart(4, "0"));
+    set(base, `${opponent}`.padStart(4, " ").slice(0, 4));
     set(base + 5, round.color);
     set(base + 7, round.result);
   });

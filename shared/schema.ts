@@ -29,6 +29,10 @@ export const users = pgTable("users", {
   uscfMemberExpiry: text("uscf_member_expiry"),
   uscfFideId: text("uscf_fide_id"),
   uscfThinPhpLastFetched: timestamp("uscf_thin_php_last_fetched"),
+  hasOnboarded: boolean("has_onboarded").default(false).notNull(),
+  uscfAffiliateId: text("uscf_affiliate_id"),
+  fideArbiterId: text("fide_arbiter_id"),
+  fideArbiterTitle: text("fide_arbiter_title"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

@@ -25,12 +25,13 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Separator } from "@/components/ui/separator";
-import { LogOut, Trash2, ArrowLeft, SlidersHorizontal, User2, Mail, Smartphone, Bell, Trophy, Users, Loader2, Check } from "lucide-react";
+import { LogOut, Trash2, ArrowLeft, SlidersHorizontal, User2, Mail, Smartphone, Bell, Trophy, Users, Loader2, Check, BadgeCheck } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { requestFirebaseToken } from "@/lib/firebase";
 import { UscfVerificationCard } from "@/components/uscf-verification-card";
+import { FideVerificationCard } from "@/components/fide-verification-card";
 
 export default function SettingsPage() {
   const { user, logout } = useAuth();
@@ -54,6 +55,22 @@ export default function SettingsPage() {
     setNotifyRegistration(user?.notifyRegistration ?? true);
     setNotifyTournamentStatus(user?.notifyTournamentStatus ?? true);
   }, [user]);
+
+  // Auto-save preferences when they change
+  useEffect(() => {
+    if (!user) return;
+    if (
+      notifyEmail !== user.notifyEmail ||
+      notifyPairings !== user.notifyPairings ||
+      notifyRegistration !== user.notifyRegistration ||
+      notifyTournamentStatus !== user.notifyTournamentStatus
+    ) {
+      const timer = setTimeout(() => {
+        updatePreferencesMutation.mutate();
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [notifyEmail, notifyPairings, notifyRegistration, notifyTournamentStatus, user]);
 
 
   const logoutMutation = useMutation({
@@ -134,6 +151,26 @@ export default function SettingsPage() {
       toast({
         title: "Change failed",
         description: error?.message ?? "Unable to update password.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const tdCredentialsMutation = useMutation({
+    mutationFn: async (body: any) => {
+      return apiRequest("/api/auth/profile/td-credentials", {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      });
+    },
+    onSuccess: async () => {
+      toast({ title: "Director credentials saved" });
+      await queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Update failed",
+        description: error?.message ?? "Unable to save director credentials.",
         variant: "destructive",
       });
     },
@@ -273,6 +310,72 @@ export default function SettingsPage() {
         </Card>
 
         <UscfVerificationCard />
+        <FideVerificationCard />
+
+        {user?.role === 'tournament_director' && (
+          <Card>
+            <CardHeader className="flex flex-row items-center gap-3">
+              <BadgeCheck className="h-5 w-5 text-primary" />
+              <div>
+                <CardTitle>Director Credentials</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Official USCF/FIDE credentials used for rating report generation.
+                </p>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="uscf-affiliate">USCF Affiliate ID</Label>
+                  <Input 
+                    id="uscf-affiliate" 
+                    defaultValue={user?.uscfAffiliateId || ""}
+                    placeholder="e.g. A1234567"
+                    onBlur={(e) => tdCredentialsMutation.mutate({
+                      uscfAffiliateId: e.target.value,
+                      fideArbiterId: user?.fideArbiterId,
+                      fideArbiterTitle: user?.fideArbiterTitle
+                    })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="fide-arbiter">FIDE Arbiter ID</Label>
+                  <Input 
+                    id="fide-arbiter" 
+                    defaultValue={user?.fideArbiterId || ""}
+                    placeholder="Optional"
+                    onBlur={(e) => tdCredentialsMutation.mutate({
+                      uscfAffiliateId: user?.uscfAffiliateId,
+                      fideArbiterId: e.target.value,
+                      fideArbiterTitle: user?.fideArbiterTitle
+                    })}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Arbiter Title</Label>
+                <Select 
+                  defaultValue={user?.fideArbiterTitle || "none"}
+                  onValueChange={(val) => tdCredentialsMutation.mutate({
+                    uscfAffiliateId: user?.uscfAffiliateId,
+                    fideArbiterId: user?.fideArbiterId,
+                    fideArbiterTitle: val === "none" ? null : val
+                  })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select Title" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    <SelectItem value="NA">National Arbiter (NA)</SelectItem>
+                    <SelectItem value="FA">FIDE Arbiter (FA)</SelectItem>
+                    <SelectItem value="IA">International Arbiter (IA)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader className="flex flex-row items-center gap-3">
