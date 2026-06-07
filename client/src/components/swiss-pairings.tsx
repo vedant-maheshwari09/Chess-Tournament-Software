@@ -16,6 +16,7 @@ import { HEAD_TO_HEAD_RESULT_OPTIONS, BYE_RESULT_OPTIONS, getPointsForResult } f
 import { MatchManagementDialog } from "./match-management-dialog";
 import { Swords, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
+import QRCode from "qrcode";
 
 interface TournamentPairingsProps {
   tournamentId: number;
@@ -573,6 +574,14 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
     [players, tournamentConfig],
   );
 
+  const getPlayerObject = useCallback(
+    (playerId: number | null) => {
+      if (!playerId || !players) return null;
+      return players.find((p) => p.id === playerId) ?? null;
+    },
+    [players],
+  );
+
   const getPlayerPoints = useCallback(
     (playerId: number | null, beforeRound: number = 999) => {
       if (!playerId || !allMatches) return 0;
@@ -598,7 +607,7 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
     [allMatches, allTournamentPairings],
   );
 
-  const handlePrintPairings = useCallback(() => {
+  const handlePrintPairings = useCallback(async () => {
     if (!hasPrintableMatches || typeof window === "undefined") return;
     const headingSuffix = activeSection === "all" ? "" : ` – ${selectedSectionLabel}`;
     const title = `${tournament?.name ?? "Tournament"} Pairings${headingSuffix}`;
@@ -606,25 +615,56 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
     if (!printWindow) return;
 
     printWindow.document.write(
-      `<html><head><title>${title}</title><style>body{font-family:Arial,Helvetica,sans-serif;padding:24px;color:#0f172a;}h1{font-size:24px;margin-bottom:16px;}h2{font-size:18px;margin:24px 0 12px;}table{width:100%;border-collapse:collapse;margin-bottom:24px;}th,td{border:1px solid #cbd5f5;padding:8px;text-align:left;font-size:14px;}th{background:#f1f5f9;text-transform:uppercase;letter-spacing:0.05em;font-size:12px;color:#475569;}</style></head><body>`,
+      `<html><head><title>${title}</title><style>
+        body { font-family: 'Courier New', Courier, monospace; padding: 24px; color: #000; font-size: 13px; background-color: #fff; }
+        h1 { font-size: 18px; margin-bottom: 12px; font-weight: bold; font-family: Arial, sans-serif; text-align: center; }
+        h2 { font-size: 14px; margin: 20px 0 8px; font-weight: bold; font-family: Arial, sans-serif; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 24px; font-size: 13px; }
+        th { text-align: left; padding: 4px; border: 1px solid #000; background-color: #e8e8e8; font-weight: bold; }
+        td { padding: 4px; border: 1px solid #000; }
+      </style></head><body>`,
     );
     printWindow.document.write(`<h1>${title}</h1>`);
 
-    pairingGroups.forEach(({ round, matches }) => {
-      if (!matches.length) return;
+    const baseUrl = window.location.origin;
+
+    for (const { round, matches } of pairingGroups) {
+      if (!matches.length) continue;
       printWindow.document.write(
-        `<h2>Round ${round}</h2><table><thead><tr><th>Board</th><th>White</th><th>Black</th><th>Result</th></tr></thead><tbody>`,
+        `<h2>Round ${round}</h2><table><thead><tr><th>Bd</th><th>QR</th><th>White</th><th>Res</th><th>Black</th><th>Res</th></tr></thead><tbody>`,
       );
-      matches.forEach((match) => {
+      for (const match of matches) {
         const whiteName = getPlayerName(match.whitePlayerId);
+        const whiteRating = getPlayerRating(match.whitePlayerId);
         const blackName = match.blackPlayerId ? getPlayerName(match.blackPlayerId) : "Bye";
-        const result = match.result ?? "";
+        const blackRating = match.blackPlayerId ? getPlayerRating(match.blackPlayerId) : 0;
+        
+        let qrDataUrl = "";
+        try {
+          qrDataUrl = await QRCode.toDataURL(`${baseUrl}/mobile/matches/${match.id}/submit`, { margin: 1, width: 100 });
+        } catch (err) {
+          console.error("QR Code generation failed", err);
+        }
+
+        const isWhiteWin = match.result === "1-0" || match.result === "1F-0F";
+        const isBlackWin = match.result === "0-1" || match.result === "0F-1F";
+        const isDraw = match.result === "1/2-1/2";
+        const wRes = isWhiteWin ? "1" : isDraw ? "½" : isBlackWin ? "0" : "";
+        const bRes = isBlackWin ? "1" : isDraw ? "½" : isWhiteWin ? "0" : "";
+
         printWindow.document.write(
-          `<tr><td>${match.board ?? ""}</td><td>${whiteName}</td><td>${blackName}</td><td>${result}</td></tr>`,
+          `<tr>
+            <td>${match.board ?? ""}</td>
+            <td class="qr-cell">${qrDataUrl ? `<img src="${qrDataUrl}" class="qr-img" />` : ""}</td>
+            <td>${whiteName} (${whiteRating})</td>
+            <td style="text-align: center; font-weight: bold;">${wRes}</td>
+            <td>${blackName} (${blackRating})</td>
+            <td style="text-align: center; font-weight: bold;">${bRes}</td>
+          </tr>`,
         );
-      });
+      }
       printWindow.document.write(`</tbody></table>`);
-    });
+    }
 
     if (tournament?.format === 'swiss' && filteredByes.length > 0) {
       printWindow.document.write(
@@ -634,16 +674,20 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
         const playerName = getPlayerName(bye.playerId);
         const points = bye.points === 1 ? "0.5" : bye.points === 2 ? "1" : "0";
         const type = bye.byeType === 'half_point' ? '½ Point Bye' : bye.byeType === 'zero_point' ? '0 Point Bye' : '1 Point Bye';
-        printWindow.document.write(`<tr><td>${playerName}</td><td>${points}</td><td>${type}</td></tr>`);
+        printWindow.document.write(`<tr><td colspan="2">${playerName}</td><td>${points}</td><td colspan="3">${type}</td></tr>`);
       });
       printWindow.document.write(`</tbody></table>`);
     }
 
     printWindow.document.write(`</body></html>`);
     printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
-  }, [filteredByes, getPlayerName, hasPrintableMatches, pairingGroups, activeSection, selectedSectionLabel, tournament?.name]);
+    
+    // Slight delay to allow images to load before printing
+    setTimeout(() => {
+      printWindow.focus();
+      printWindow.print();
+    }, 500);
+  }, [filteredByes, getPlayerName, getPlayerRating, hasPrintableMatches, pairingGroups, activeSection, selectedSectionLabel, tournament?.name]);
 
   const handleDownloadPairings = useCallback(() => {
     if (!hasPrintableMatches || typeof window === "undefined") return;
@@ -1202,79 +1246,176 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
                           </h3>
                         </div>
                         <div className="overflow-x-auto">
-                            <table className="min-w-full divide-y divide-gray-200">
-                              <thead className="bg-gray-50">
+                          <div className="overflow-hidden border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm bg-white dark:bg-slate-950">
+                            <table className="min-w-full text-slate-700 dark:text-slate-300">
+                              <thead className="bg-slate-50/80 dark:bg-slate-900/60 border-b border-slate-100 dark:border-slate-800">
                                 <tr>
-                                  <th className="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Board</th>
-                                  <th className="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">White</th>
-                                  <th className="px-4 py-2 text-center text-xs font-medium uppercase text-gray-500">vs</th>
-                                  <th className="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Black</th>
-                                  <th className="px-4 py-2 text-center text-xs font-medium uppercase text-gray-500">{isTournamentDirector ? "Result" : "Score"}</th>
-                                  <th className="px-4 py-2 text-center text-xs font-medium uppercase text-gray-500">Status</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-gray-200 bg-white">
-                                {roundMatches.map((match) => (
-                                  <tr key={match.id}>
-                                    <td className="whitespace-nowrap px-4 py-3">
-                                      <div className="text-sm font-medium text-gray-900">{match.board}</div>
-                                    </td>
-                                    <td className="whitespace-nowrap px-4 py-3">
-                                      <PlayerBox
-                                        playerId={match.whitePlayerId}
-                                        playerName={getPlayerName(match.whitePlayerId)}
-                                        rating={getPlayerRating(match.whitePlayerId)}
-                                        points={getPlayerPoints(match.whitePlayerId, round)}
-                                        matchId={match.id}
-                                        color="white"
-                                        round={round}
-                                      />
-                                    </td>
-                                    <td className="whitespace-nowrap px-4 py-3 text-center">
-                                      <span className="text-gray-400">vs</span>
-                                    </td>
-                                    <td className="whitespace-nowrap px-4 py-3">
-                                      <PlayerBox
-                                        playerId={match.blackPlayerId}
-                                        playerName={match.blackPlayerId ? getPlayerName(match.blackPlayerId) : "See T.D."}
-                                        rating={match.blackPlayerId ? getPlayerRating(match.blackPlayerId) : 0}
-                                        points={match.blackPlayerId ? getPlayerPoints(match.blackPlayerId, round) : 0}
-                                        matchId={match.id}
-                                        color="black"
-                                        round={round}
-                                      />
-                                    </td>
-                                    <td className="whitespace-nowrap px-4 py-3 text-center">
-                                      {isTournamentDirector ? (
-                                        <Select
-                                          value={match.result || "Pending"}
-                                          onValueChange={(value) => handleResultChange(match.id, value)}
-                                        >
-                                          <SelectTrigger className="w-24">
-                                            <SelectValue />
-                                          </SelectTrigger>
-                                          <SelectContent>
-                                            <SelectItem value="Pending">Pending</SelectItem>
-                                            {(match.blackPlayerId ? HEAD_TO_HEAD_RESULT_OPTIONS : BYE_RESULT_OPTIONS).map(
-                                              (option) => (
-                                                <SelectItem key={option.value} value={option.value}>
-                                                  {option.label}
-                                                </SelectItem>
-                                              ),
-                                            )}
-                                          </SelectContent>
-                                        </Select>
-                                      ) : (
-                                        <div className="text-sm font-bold text-slate-900">
-                                          {match.result || "—"}
-                                        </div>
-                                      )}
-                                    </td>
-                                    <td className="whitespace-nowrap px-4 py-3 text-center">{getStatusBadge(match.status)}</td>
+                                  <th className="px-4 py-3.5 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-16">Bd</th>
+                                  {isTournamentDirector ? (
+                                      <>
+                                        <th className="px-2 py-3.5 text-center text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-16">Res</th>
+                                        <th className="px-4 py-3.5 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">White</th>
+                                        <th className="px-2 py-3.5 text-center text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-16">Res</th>
+                                        <th className="px-4 py-3.5 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Black</th>
+                                        <th className="px-4 py-3.5 text-right text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-24">Edit</th>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <th className="px-4 py-3.5 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">White</th>
+                                        <th className="px-4 py-3.5 text-center text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-24">Res</th>
+                                        <th className="px-4 py-3.5 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Black</th>
+                                        <th className="px-4 py-3.5 text-center text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-24">Res</th>
+                                      </>
+                                    )}
                                   </tr>
-                                ))}
-                              </tbody>
-                            </table>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/40">
+                                  {roundMatches.map((match) => {
+                                    const whiteName = getPlayerName(match.whitePlayerId);
+                                    const whiteRating = getPlayerRating(match.whitePlayerId);
+                                    const blackName = match.blackPlayerId ? getPlayerName(match.blackPlayerId) : "Bye";
+                                    const blackRating = match.blackPlayerId ? getPlayerRating(match.blackPlayerId) : 0;
+                                    
+                                    const isWhiteWin = match.result === "1-0" || match.result === "1F-0F";
+                                    const isBlackWin = match.result === "0-1" || match.result === "0F-1F";
+                                    const isDraw = match.result === "1/2-1/2";
+                                    
+                                    const wResDisplay = isWhiteWin ? "1" : isDraw ? "½" : isBlackWin ? "0" : "";
+                                    const bResDisplay = isBlackWin ? "1" : isDraw ? "½" : isWhiteWin ? "0" : "";
+
+                                    if (isTournamentDirector) {
+                                      const whiteObj = getPlayerObject(match.whitePlayerId);
+                                      const blackObj = getPlayerObject(match.blackPlayerId);
+                                      return (
+                                        <tr key={match.id} className="hover:bg-indigo-50/20 dark:hover:bg-indigo-950/10 transition-colors border-b border-slate-50 dark:border-slate-800/40 last:border-0">
+                                          <td className="px-4 py-3">
+                                            <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 font-mono text-xs font-bold text-slate-500 dark:text-slate-400 border border-slate-200/40 dark:border-slate-700/40">
+                                              {match.board}
+                                            </span>
+                                          </td>
+                                          <td className="px-2 py-3 text-center">
+                                            <input
+                                              type="text"
+                                              className="w-10 h-8 text-center border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all uppercase font-black text-xs text-slate-800 dark:text-slate-100 shadow-sm"
+                                              value={wResDisplay}
+                                              onChange={(e) => {
+                                                const val = e.target.value.toUpperCase();
+                                                if (val === '1') handleResultChange(match.id, "1-0");
+                                                else if (val === '0') handleResultChange(match.id, "0-1");
+                                                else if (val === '5' || val === '1/2' || val === '½') handleResultChange(match.id, "1/2-1/2");
+                                                else if (val === '1F') handleResultChange(match.id, "1F-0F");
+                                                else if (val === '0F') handleResultChange(match.id, "0F-1F");
+                                                else if (val === '') handleResultChange(match.id, "Pending");
+                                              }}
+                                            />
+                                          </td>
+                                          <td 
+                                            className="px-4 py-3 cursor-pointer select-none"
+                                            onDoubleClick={() => handleResultChange(match.id, "1-0")}
+                                          >
+                                            <div className="flex flex-col">
+                                              <span className="font-semibold text-slate-800 dark:text-slate-100 text-sm hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
+                                                {whiteName}
+                                              </span>
+                                              <span className="text-[10px] font-mono font-medium text-slate-400 dark:text-slate-500">
+                                                Rating: {whiteRating} {whiteObj?.localId ? `• ID: ${whiteObj.localId}` : ''}
+                                              </span>
+                                            </div>
+                                          </td>
+                                          <td className="px-2 py-3 text-center">
+                                            <input
+                                              type="text"
+                                              className="w-10 h-8 text-center border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all uppercase font-black text-xs text-slate-800 dark:text-slate-100 shadow-sm"
+                                              value={bResDisplay}
+                                              onChange={(e) => {
+                                                const val = e.target.value.toUpperCase();
+                                                if (val === '1') handleResultChange(match.id, "0-1");
+                                                else if (val === '0') handleResultChange(match.id, "1-0");
+                                                else if (val === '5' || val === '1/2' || val === '½') handleResultChange(match.id, "1/2-1/2");
+                                                else if (val === '1F') handleResultChange(match.id, "0F-1F");
+                                                else if (val === '0F') handleResultChange(match.id, "1F-0F");
+                                                else if (val === '') handleResultChange(match.id, "Pending");
+                                              }}
+                                            />
+                                          </td>
+                                          <td 
+                                            className="px-4 py-3 cursor-pointer select-none"
+                                            onDoubleClick={() => handleResultChange(match.id, "0-1")}
+                                          >
+                                            <div className="flex flex-col">
+                                              <span className="font-semibold text-slate-800 dark:text-slate-100 text-sm hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
+                                                {blackName}
+                                              </span>
+                                              <span className="text-[10px] font-mono font-medium text-slate-400 dark:text-slate-500">
+                                                Rating: {blackRating} {blackObj?.localId ? `• ID: ${blackObj.localId}` : ''}
+                                              </span>
+                                            </div>
+                                          </td>
+                                          <td className="px-4 py-3 text-right">
+                                            <Button variant="ghost" size="sm" onClick={() => setSelectedMatchForManagement(match)} className="rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300">Edit</Button>
+                                          </td>
+                                        </tr>
+                                      );
+                                    }
+
+                                    // Player View
+                                    const whiteObj = getPlayerObject(match.whitePlayerId);
+                                    const blackObj = getPlayerObject(match.blackPlayerId);
+                                    return (
+                                      <tr key={match.id} className="hover:bg-indigo-50/10 dark:hover:bg-indigo-950/5 transition-colors border-b border-slate-50 dark:border-slate-800/40 last:border-0">
+                                        <td className="px-4 py-3">
+                                          <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 font-mono text-xs font-bold text-slate-500 dark:text-slate-400 border border-slate-200/40 dark:border-slate-700/40">
+                                            {match.board}
+                                          </span>
+                                        </td>
+                                        <td className="px-4 py-3">
+                                          <div className="flex flex-col">
+                                            <span className="font-semibold text-slate-800 dark:text-slate-100 text-sm">
+                                              {whiteName}
+                                            </span>
+                                            <span className="text-[10px] font-mono font-medium text-slate-400 dark:text-slate-500">
+                                              Rating: {whiteRating} {whiteObj?.localId ? `• ID: ${whiteObj.localId}` : ''}
+                                            </span>
+                                          </div>
+                                        </td>
+                                        <td className="px-4 py-3 text-center">
+                                          <span className={cn(
+                                            "inline-flex items-center justify-center px-2.5 py-1 rounded-lg text-sm font-black font-mono shadow-sm border",
+                                            wResDisplay === "1" ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900/30" :
+                                            wResDisplay === "0" ? "bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 border-rose-100 dark:border-rose-900/30" :
+                                            wResDisplay === "½" ? "bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 border-slate-100 dark:border-slate-700/50" :
+                                            "bg-slate-50/50 text-slate-300 border-slate-100"
+                                          )}>
+                                            {wResDisplay || "—"}
+                                          </span>
+                                        </td>
+                                        <td className="px-4 py-3">
+                                          <div className="flex flex-col">
+                                            <span className="font-semibold text-slate-800 dark:text-slate-100 text-sm">
+                                              {blackName}
+                                            </span>
+                                            <span className="text-[10px] font-mono font-medium text-slate-400 dark:text-slate-500">
+                                              Rating: {blackRating} {blackObj?.localId ? `• ID: ${blackObj.localId}` : ''}
+                                            </span>
+                                          </div>
+                                        </td>
+                                        <td className="px-4 py-3 text-center">
+                                          <span className={cn(
+                                            "inline-flex items-center justify-center px-2.5 py-1 rounded-lg text-sm font-black font-mono shadow-sm border",
+                                            bResDisplay === "1" ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900/30" :
+                                            bResDisplay === "0" ? "bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 border-rose-100 dark:border-rose-900/30" :
+                                            bResDisplay === "½" ? "bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 border-slate-100 dark:border-slate-700/50" :
+                                            "bg-slate-50/50 text-slate-300 border-slate-100"
+                                          )}>
+                                            {bResDisplay || "—"}
+                                          </span>
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
                           </div>
                         </div>
                     );
@@ -1466,104 +1607,207 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
                         No pairings for this section in Round {currentRound}.
                       </div>
                     ) : (
-                      <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                              Board
-                            </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                              White
-                            </th>
-                            <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500">
-                              vs
-                            </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                              Black
-                            </th>
-                            <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500">
-                              Result
-                            </th>
-                            <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500">
-                              Status
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-200 bg-white">
-                          {swissMatches.map((match) => (
-                            <tr key={match.id}>
-                              <td className="whitespace-nowrap px-6 py-4">
-                                <div className="text-sm font-medium text-gray-900">{match.board}</div>
-                              </td>
-                              <td className="whitespace-nowrap px-6 py-4">
-                                <PlayerBox
-                                  playerId={match.whitePlayerId}
-                                  playerName={getPlayerName(match.whitePlayerId)}
-                                  rating={getPlayerRating(match.whitePlayerId)}
-                                  points={getPlayerPoints(match.whitePlayerId, match.round)}
-                                  matchId={match.id}
-                                  color="white"
-                                  round={match.round}
-                                />
-                              </td>
-                              <td className="whitespace-nowrap px-6 py-4 text-center">
-                                <span className="text-gray-400">vs</span>
-                              </td>
-                              <td className="whitespace-nowrap px-6 py-4">
-                                <PlayerBox
-                                  playerId={match.blackPlayerId}
-                                  playerName={match.blackPlayerId ? getPlayerName(match.blackPlayerId) : "See T.D."}
-                                  rating={match.blackPlayerId ? getPlayerRating(match.blackPlayerId) : 0}
-                                  points={match.blackPlayerId ? getPlayerPoints(match.blackPlayerId, match.round) : 0}
-                                  matchId={match.id}
-                                  color="black"
-                                  round={match.round}
-                                />
-                              </td>
-                              <td className="whitespace-nowrap px-6 py-4 text-center">
-                                {isTournamentDirector ? (
-                                  <Select
-                                    value={match.result || "Pending"}
-                                    onValueChange={(value) => handleResultChange(match.id, value)}
-                                  >
-                                    <SelectTrigger className="w-24">
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="Pending">Pending</SelectItem>
-                                      {(match.blackPlayerId ? HEAD_TO_HEAD_RESULT_OPTIONS : BYE_RESULT_OPTIONS).map(
-                                        (option) => (
-                                          <SelectItem key={option.value} value={option.value}>
-                                            {option.label}
-                                          </SelectItem>
-                                        ),
-                                      )}
-                                    </SelectContent>
-                                  </Select>
-                                ) : (
-                                  <span className="text-sm font-medium">{match.result || "Pending"}</span>
-                                )}
-                              </td>
-                              <td className="whitespace-nowrap px-6 py-4 text-center">{getStatusBadge(match.status)}</td>
+                      <div className="overflow-hidden border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm bg-white dark:bg-slate-950">
+                        <table className="min-w-full text-slate-700 dark:text-slate-300">
+                          <thead className="bg-slate-50/80 dark:bg-slate-900/60 border-b border-slate-100 dark:border-slate-800">
+                            <tr>
+                              <th className="px-4 py-3.5 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-16">Bd</th>
+                              {isTournamentDirector ? (
+                                <>
+                                  <th className="px-2 py-3.5 text-center text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-16">Res</th>
+                                  <th className="px-4 py-3.5 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">White</th>
+                                  <th className="px-2 py-3.5 text-center text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-16">Res</th>
+                                  <th className="px-4 py-3.5 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Black</th>
+                                  <th className="px-4 py-3.5 text-right text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-24">Edit</th>
+                                </>
+                              ) : (
+                                <>
+                                  <th className="px-4 py-3.5 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">White</th>
+                                  <th className="px-4 py-3.5 text-center text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-24">Res</th>
+                                  <th className="px-4 py-3.5 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Black</th>
+                                  <th className="px-4 py-3.5 text-center text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-24">Res</th>
+                                </>
+                              )}
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800/40">
+                            {swissMatches.map((match) => {
+                              const whiteName = getPlayerName(match.whitePlayerId);
+                              const whiteRating = getPlayerRating(match.whitePlayerId);
+                              const blackName = match.blackPlayerId ? getPlayerName(match.blackPlayerId) : "Bye";
+                              const blackRating = match.blackPlayerId ? getPlayerRating(match.blackPlayerId) : 0;
+                              
+                              const isWhiteWin = match.result === "1-0" || match.result === "1F-0F";
+                              const isBlackWin = match.result === "0-1" || match.result === "0F-1F";
+                              const isDraw = match.result === "1/2-1/2";
+                              
+                              const wResDisplay = isWhiteWin ? "1" : isDraw ? "½" : isBlackWin ? "0" : "";
+                              const bResDisplay = isBlackWin ? "1" : isDraw ? "½" : isWhiteWin ? "0" : "";
+
+                              if (isTournamentDirector) {
+                                const whiteObj = getPlayerObject(match.whitePlayerId);
+                                const blackObj = getPlayerObject(match.blackPlayerId);
+                                return (
+                                  <tr key={match.id} className="group hover:bg-indigo-50/20 dark:hover:bg-indigo-950/10 transition-colors">
+                                    <td className="px-4 py-4 whitespace-nowrap">
+                                      <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 font-mono text-sm font-black text-slate-600 dark:text-slate-400 border border-slate-200/40 dark:border-slate-700/40 group-hover:bg-indigo-100/40 group-hover:border-indigo-200/30 transition-colors">
+                                        {match.board}
+                                      </span>
+                                    </td>
+                                    <td className="px-2 py-4 whitespace-nowrap text-center">
+                                      <input
+                                        type="text"
+                                        className="w-12 h-10 text-center border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all uppercase font-black text-sm text-slate-800 dark:text-slate-100 shadow-sm"
+                                        value={wResDisplay}
+                                        onChange={(e) => {
+                                          const val = e.target.value.toUpperCase();
+                                          if (val === '1') handleResultChange(match.id, "1-0");
+                                          else if (val === '0') handleResultChange(match.id, "0-1");
+                                          else if (val === '5' || val === '1/2' || val === '½') handleResultChange(match.id, "1/2-1/2");
+                                          else if (val === '1F') handleResultChange(match.id, "1F-0F");
+                                          else if (val === '0F') handleResultChange(match.id, "0F-1F");
+                                          else if (val === '') handleResultChange(match.id, "Pending");
+                                        }}
+                                      />
+                                    </td>
+                                    <td 
+                                      className="px-4 py-4 whitespace-nowrap cursor-pointer select-none"
+                                      onDoubleClick={() => handleResultChange(match.id, "1-0")}
+                                    >
+                                      <div className="flex flex-col">
+                                        <span className={cn(
+                                          "font-semibold text-sm transition-colors",
+                                          isWhiteWin ? "text-emerald-600 dark:text-emerald-400" : "text-slate-800 dark:text-slate-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400"
+                                        )}>
+                                          {whiteName}
+                                        </span>
+                                        <span className="text-[10px] font-mono font-medium text-slate-400 dark:text-slate-500">
+                                          Rating: {whiteRating} {whiteObj?.localId ? `• ID: ${whiteObj.localId}` : ''}
+                                        </span>
+                                      </div>
+                                    </td>
+                                    <td className="px-2 py-3 text-center">
+                                      <input
+                                        type="text"
+                                        className="w-10 h-8 text-center border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all uppercase font-black text-xs text-slate-800 dark:text-slate-100 shadow-sm"
+                                        value={bResDisplay}
+                                        onChange={(e) => {
+                                          const val = e.target.value.toUpperCase();
+                                          if (val === '1') handleResultChange(match.id, "0-1");
+                                          else if (val === '0') handleResultChange(match.id, "1-0");
+                                          else if (val === '5' || val === '1/2' || val === '½') handleResultChange(match.id, "1/2-1/2");
+                                          else if (val === '1F') handleResultChange(match.id, "0F-1F");
+                                          else if (val === '0F') handleResultChange(match.id, "1F-0F");
+                                          else if (val === '') handleResultChange(match.id, "Pending");
+                                        }}
+                                      />
+                                    </td>
+                                    <td 
+                                      className="px-4 py-3 cursor-pointer select-none"
+                                      onDoubleClick={() => handleResultChange(match.id, "0-1")}
+                                    >
+                                      <div className="flex flex-col">
+                                        <span className="font-semibold text-slate-800 dark:text-slate-100 text-sm hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
+                                          {blackName}
+                                        </span>
+                                        <span className="text-[10px] font-mono font-medium text-slate-400 dark:text-slate-500">
+                                          Rating: {blackRating} {blackObj?.localId ? `• ID: ${blackObj.localId}` : ''}
+                                        </span>
+                                      </div>
+                                    </td>
+                                    <td className="px-4 py-3 text-right">
+                                      <Button variant="ghost" size="sm" onClick={() => setSelectedMatchForManagement(match)} className="rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300">Edit</Button>
+                                    </td>
+                                  </tr>
+                                );
+                              }
+
+                              // Player View
+                              const whiteObj = getPlayerObject(match.whitePlayerId);
+                              const blackObj = getPlayerObject(match.blackPlayerId);
+                              return (
+                                <tr key={match.id} className="group hover:bg-indigo-50/20 dark:hover:bg-indigo-950/10 transition-colors">
+                                  <td className="px-4 py-4 whitespace-nowrap">
+                                    <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 font-mono text-sm font-black text-slate-600 dark:text-slate-400 border border-slate-200/40 dark:border-slate-700/40 group-hover:bg-indigo-100/40 group-hover:border-indigo-200/30 transition-colors">
+                                      {match.board}
+                                    </span>
+                                  </td>
+                                  <td className="px-4 py-4 whitespace-nowrap">
+                                    <div className="flex flex-col">
+                                      <span className={cn(
+                                        "font-semibold text-sm transition-colors",
+                                        isWhiteWin ? "text-emerald-600 dark:text-emerald-400" : "text-slate-800 dark:text-slate-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400"
+                                      )}>
+                                        {whiteName}
+                                      </span>
+                                      <span className="text-[10px] font-mono font-medium text-slate-400 dark:text-slate-500">
+                                        Rating: {whiteRating} {whiteObj?.localId ? `• ID: ${whiteObj.localId}` : ''}
+                                      </span>
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-4 whitespace-nowrap text-center">
+                                    <span className={cn(
+                                      "inline-flex items-center justify-center px-3 py-1.5 rounded-lg text-sm font-black font-mono shadow-sm border",
+                                      wResDisplay === "1" ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900/30" :
+                                      wResDisplay === "0" ? "bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 border-rose-100 dark:border-rose-900/30" :
+                                      wResDisplay === "½" ? "bg-slate-50 dark:bg-slate-800/50 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700/50" :
+                                      "bg-slate-50/50 dark:bg-slate-900/50 text-slate-400 dark:text-slate-500 border-slate-100 dark:border-slate-800"
+                                    )}>
+                                      {wResDisplay || "—"}
+                                    </span>
+                                  </td>
+                                  <td className="px-4 py-4 whitespace-nowrap">
+                                    <div className="flex flex-col">
+                                      <span className={cn(
+                                        "font-semibold text-sm transition-colors",
+                                        isBlackWin ? "text-emerald-600 dark:text-emerald-400" : "text-slate-800 dark:text-slate-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400"
+                                      )}>
+                                        {blackName}
+                                      </span>
+                                      <span className="text-[10px] font-mono font-medium text-slate-400 dark:text-slate-500">
+                                        Rating: {blackRating} {blackObj?.localId ? `• ID: ${blackObj.localId}` : ''}
+                                      </span>
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-4 whitespace-nowrap text-center">
+                                    <span className={cn(
+                                      "inline-flex items-center justify-center px-3 py-1.5 rounded-lg text-sm font-black font-mono shadow-sm border",
+                                      bResDisplay === "1" ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900/30" :
+                                      bResDisplay === "0" ? "bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 border-rose-100 dark:border-rose-900/30" :
+                                      bResDisplay === "½" ? "bg-slate-50 dark:bg-slate-800/50 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700/50" :
+                                      "bg-slate-50/50 dark:bg-slate-900/50 text-slate-400 dark:text-slate-500 border-slate-100 dark:border-slate-800"
+                                    )}>
+                                      {bResDisplay || "—"}
+                                    </span>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
                     )}
                   </div>
 
                 {/* Byes Section */}
                 {filteredByes.length > 0 && (
-                  <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
-                    <h4 className="text-sm font-medium text-slate-800 mb-2">Byes This Round</h4>
-                    <div className="space-y-1">
+                  <div className="bg-slate-50/60 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                      Byes This Round
+                    </h4>
+                    <div className="divide-y divide-slate-100 dark:divide-slate-800/40">
                       {filteredByes.map((byePairing: any) => (
-                        <div key={byePairing.id} className="flex items-center justify-between text-sm">
-                          <span className="text-slate-700">
-                            {getPlayerName(byePairing.playerId)} [{getPlayerPoints(byePairing.playerId, currentRound)}] ({getPlayerRating(byePairing.playerId)})
-                          </span>
+                        <div key={byePairing.id} className="flex items-center justify-between py-2.5 first:pt-0 last:pb-0 text-sm">
+                          <div className="flex flex-col">
+                            <span className="font-semibold text-slate-800 dark:text-slate-200">
+                              {getPlayerName(byePairing.playerId)}
+                            </span>
+                            <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500">
+                              Rating: {getPlayerRating(byePairing.playerId)} • Current Score: {getPlayerPoints(byePairing.playerId, currentRound)}
+                            </span>
+                          </div>
                           <div className="flex items-center gap-2">
-                            <Badge variant="outline" className="text-slate-700 border-slate-300">
+                            <Badge variant="outline" className="text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-medium">
                               {byePairing.byeType === 'half_point' ? '½ Point Bye' :
                                 byePairing.byeType === 'zero_point' ? '0 Point Bye' : '1 Point Bye'}
                             </Badge>

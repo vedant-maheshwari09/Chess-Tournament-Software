@@ -1664,7 +1664,7 @@ function StepTwo({ format, mode, builderMode, config, onConfigChange, onBack: _o
     },
     onSuccess: (result) => {
       if (result?.config) {
-        setConfig(cloneConfig(result.config));
+        onConfigChange(cloneConfig(result.config));
       }
       toast({ title: "Webhook sync complete" });
       queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}`] });
@@ -1736,7 +1736,7 @@ function StepTwo({ format, mode, builderMode, config, onConfigChange, onBack: _o
     downloadJson(`tournament-${tournamentId}-webhook-sync.json`, {
       tournamentId,
       tournamentName: tournament?.name,
-      form: WebhookSyncConfig,
+      form: "WebhookSync",
       data: config.webhookSync,
     });
   };
@@ -2474,26 +2474,40 @@ function StepTwo({ format, mode, builderMode, config, onConfigChange, onBack: _o
                       />
                     </div>
                     {config.prizesEnabled && (
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Button variant="outline" onClick={handlePrizePrint} disabled={prizes.length === 0}>
-                          Print
-                        </Button>
-                        <Button variant="outline" onClick={handlePrizeDownload} disabled={prizes.length === 0}>
-                          Download
-                        </Button>
-                        <Button variant="outline" onClick={() => prizeImportInputRef.current?.click()}>
-                          Import Google Sheet
-                        </Button>
-                        <input
-                          ref={prizeImportInputRef}
-                          type="file"
-                          accept=".csv,text/csv"
-                          className="hidden"
-                          onChange={handlePrizeImport}
-                        />
-                        <Button onClick={addPrize}>
-                          Add prize
-                        </Button>
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between border-t border-slate-100 pt-4">
+                          <div>
+                            <h4 className="text-sm font-semibold text-slate-800">Show Payout Amounts in Standings</h4>
+                            <p className="text-xs text-slate-500">
+                              Display actual prize amounts (e.g. $100) on the standings board to players and spectators.
+                            </p>
+                          </div>
+                          <Switch
+                            checked={config.showPrizeAmounts !== false}
+                            onCheckedChange={(checked) => onConfigChange({ ...config, showPrizeAmounts: checked })}
+                          />
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Button variant="outline" onClick={handlePrizePrint} disabled={prizes.length === 0}>
+                            Print
+                          </Button>
+                          <Button variant="outline" onClick={handlePrizeDownload} disabled={prizes.length === 0}>
+                            Download
+                          </Button>
+                          <Button variant="outline" onClick={() => prizeImportInputRef.current?.click()}>
+                            Import Google Sheet
+                          </Button>
+                          <input
+                            ref={prizeImportInputRef}
+                            type="file"
+                            accept=".csv,text/csv"
+                            className="hidden"
+                            onChange={handlePrizeImport}
+                          />
+                          <Button onClick={addPrize}>
+                            Add prize
+                          </Button>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -2897,11 +2911,10 @@ function StepTwo({ format, mode, builderMode, config, onConfigChange, onBack: _o
                   <WebhookSyncSettingsCard
                     value={config.webhookSync}
                     onChange={(update) => {
-                      setConfig((prev) => ({
-                        ...prev,
-                        webhookSync: { ...prev.webhookSync, ...update },
-                      }));
-                      setIsDirty(true);
+                      onConfigChange({
+                        ...config,
+                        webhookSync: { ...config.webhookSync, ...update },
+                      });
                     }}
                     onTest={() => testMutation.mutate()}
                     onSync={() => syncMutation.mutate()}

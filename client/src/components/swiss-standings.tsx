@@ -1,12 +1,19 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Download, Printer } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import type { Player, Match, Pairing, Tournament } from "@shared/schema";
-import { parseTournamentConfig } from "@/lib/tournament-config";
-import type { SectionDefinition } from "@shared/tournament-config";
+import { parseTournamentConfig, buildTournamentPayload, serializeTournamentConfig } from "@/lib/tournament-config";
+import type { SectionDefinition, PrizeRule, TournamentConfig } from "@shared/tournament-config";
 import { getPointsForResult, normalizeMatchResult } from "@shared/match-results";
+import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
+import { cn } from "@/lib/utils";
 
 interface SwissStandingsProps {
   tournamentId: number;
@@ -17,15 +24,15 @@ interface PlayerRoundResult {
   opponent: Player | null;
   opponentPosition: number;
   result:
-  | 'W'
-  | 'L'
-  | 'D'
-  | 'bye'
-  | 'withdrawn'
-  | 'forfeit-win'
-  | 'forfeit-loss'
-  | 'unplayed'
-  | 'double-forfeit';
+    | 'W'
+    | 'L'
+    | 'D'
+    | 'bye'
+    | 'withdrawn'
+    | 'forfeit-win'
+    | 'forfeit-loss'
+    | 'unplayed'
+    | 'double-forfeit';
   color: 'white' | 'black' | null;
   points: number;
 }
@@ -37,6 +44,8 @@ interface SwissPlayerStanding {
   roundResults: PlayerRoundResult[];
   isWithdrawn: boolean;
   tiebreakValues: Record<string, number>;
+  prizeCategory?: string;
+  prizeAmount?: string;
 }
 
 function interpretPlayerResult(
@@ -74,9 +83,11 @@ function interpretPlayerResult(
   return { outcome: "unplayed", points };
 }
 
-
-
 export default function SwissStandings({ tournamentId, showExportControls = true }: SwissStandingsProps) {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
   const { data: tournament, isLoading: tournamentLoading } = useQuery<Tournament>({
     queryKey: [`/api/tournaments/${tournamentId}`],
   });
@@ -94,8 +105,40 @@ export default function SwissStandings({ tournamentId, showExportControls = true
   });
 
   const [selectedSectionId, setSelectedSectionId] = useState<string>("__all__");
+  const [showPrizes, setShowPrizes] = useState<boolean>(true);
 
   const tournamentConfig = useMemo(() => (tournament ? parseTournamentConfig(tournament) : null), [tournament]);
+
+  const isDirector = !!(user?.role === 'tournament_director' && tournament && user && tournament.createdBy === user.id);
+
+  const updateShowPrizeAmountsMutation = useMutation({
+    mutationFn: async (checked: boolean) => {
+      if (!tournamentConfig || !tournament) throw new Error("Configuration not ready");
+      const updatedConfig: TournamentConfig = { ...tournamentConfig, showPrizeAmounts: checked };
+      const serialized = serializeTournamentConfig(updatedConfig);
+      const payload = buildTournamentPayload(serialized, { format: tournament.format });
+      (payload as any).status = tournament.status;
+      const res = await apiRequest(`/api/tournaments/${tournamentId}`, {
+        method: "PUT",
+        body: JSON.stringify(payload),
+      });
+      return res;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}`] });
+      toast({
+        title: "Standings updated",
+        description: "Prize payout visibility preference saved.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to update preference",
+        description: error?.message ?? "An error occurred.",
+        variant: "destructive",
+      });
+    }
+  });
 
   const sections = useMemo<SectionDefinition[]>(() => {
     if (!tournamentConfig) return [];
@@ -173,6 +216,30 @@ export default function SwissStandings({ tournamentId, showExportControls = true
     }
     return map;
   }, [players]);
+
+  const getPlayerPairingNumber = useCallback((playerId: number): number => {
+    const p = playerById.get(playerId);
+    if (!p) return 0;
+    if (p.seed !== null && p.seed !== undefined && p.seed > 0) {
+      return p.seed;
+    }
+    
+    // Fallback: calculate seed dynamically within the section
+    const pSection = playerSectionMap.get(playerId)?.id;
+    const sectionPlayers = players?.filter(player => playerSectionMap.get(player.id)?.id === pSection) || [];
+    
+    const isFide = tournamentConfig?.details.primaryRatingSystem === 'fide';
+    const sorted = [...sectionPlayers].sort((a, b) => {
+      const ratingA = (isFide ? (a.fideRating ?? a.rating) : (a.uscfRating ?? a.rating)) || 0;
+      const ratingB = (isFide ? (b.fideRating ?? b.rating) : (b.uscfRating ?? b.rating)) || 0;
+      if (ratingB !== ratingA) return ratingB - ratingA;
+      return a.id - b.id;
+    });
+    
+    const idx = sorted.findIndex(player => player.id === playerId);
+    return idx !== -1 ? idx + 1 : 1;
+  }, [players, playerById, playerSectionMap, tournamentConfig]);
+
   const calculateSwissStandings = useCallback(
     (sourcePlayers: Player[], sourceMatches: Match[], sourcePairings: Pairing[]): SwissPlayerStanding[] => {
       if (!tournament) return [];
@@ -490,6 +557,50 @@ export default function SwissStandings({ tournamentId, showExportControls = true
           });
         }
 
+        // Calculate Prize Distribution based on rankings, tiebreaks and score
+        let prizeCategory = "---";
+        let prizeAmount = "---";
+
+        if (tournamentConfig?.prizesEnabled && tournamentConfig.prizes) {
+          const isFide = tournamentConfig.details.primaryRatingSystem === 'fide';
+          const playerRating = (isFide ? (standing.player.fideRating ?? standing.player.rating) : (standing.player.uscfRating ?? standing.player.rating)) || 0;
+
+          // Find matches
+          const matchPrizes = tournamentConfig.prizes.filter(p => {
+            const sameSection = p.sectionId === selectedSectionId || p.section === selectedSectionLabel;
+            const ratingQualifies = !p.ratingCap || playerRating < p.ratingCap;
+            return sameSection && ratingQualifies;
+          });
+
+          // Sort match prizes: general place prizes first, class rating-capped prizes second
+          matchPrizes.sort((a, b) => {
+            if (a.ratingCap && !b.ratingCap) return 1;
+            if (!a.ratingCap && b.ratingCap) return -1;
+            return 0;
+          });
+
+          // Match the highest prize candidate
+          // Simplified simulation: matches the player's place label (e.g. "1st Place", "2nd Place") or class cutoff (e.g. "U1800")
+          // based on their position in standings
+          const ratingCappedPrize = matchPrizes.find(p => p.ratingCap);
+          const generalPrize = matchPrizes.find(p => !p.ratingCap && (
+            (p.place.toLowerCase().includes("1st") && standing.position === 1) ||
+            (p.place.toLowerCase().includes("2nd") && standing.position === 2) ||
+            (p.place.toLowerCase().includes("3rd") && standing.position === 3) ||
+            (p.place.toLowerCase().includes("4th") && standing.position === 4) ||
+            (p.place.toLowerCase().includes("5th") && standing.position === 5)
+          ));
+
+          if (generalPrize) {
+            prizeCategory = generalPrize.place;
+            prizeAmount = `$${generalPrize.amount}`;
+          } else if (ratingCappedPrize && standing.position <= 10) {
+            // Arbitrary cutoff: class prize goes to top ranked qualifying player in section
+            prizeCategory = `BU${ratingCappedPrize.ratingCap}`;
+            prizeAmount = `$${ratingCappedPrize.amount}`;
+          }
+        }
+
         return {
           player: standing.player,
           position: standing.position,
@@ -497,12 +608,14 @@ export default function SwissStandings({ tournamentId, showExportControls = true
           roundResults,
           isWithdrawn: standing.isWithdrawn,
           tiebreakValues: standing.tiebreakValues,
+          prizeCategory,
+          prizeAmount,
         };
       });
 
       return detailedStandings;
     },
-    [playerById, tournament],
+    [playerById, tournament, selectedSectionId, selectedSectionLabel, tournamentConfig],
   );
 
   const standings = useMemo(
@@ -517,7 +630,7 @@ export default function SwissStandings({ tournamentId, showExportControls = true
     const baseHeaders = ['Rank', 'Name', 'Rating', 'Points'];
     const tiebreakHeaders = activeTiebreaks;
     const roundHeaders = Array.from({ length: totalRounds }, (_, i) => `Round ${i + 1}`);
-    const headers = [...baseHeaders, ...tiebreakHeaders, ...roundHeaders];
+    const headers = [...baseHeaders, ...tiebreakHeaders, ...roundHeaders, 'Prize Category', 'Prize Amount'];
 
     const rows = standings.map((standing) => {
       const baseData = [
@@ -533,7 +646,7 @@ export default function SwissStandings({ tournamentId, showExportControls = true
 
       const roundData = standing.roundResults.map((result, index) => formatRoundResult(result, index + 1));
 
-      return [...baseData, ...tiebreakData, ...roundData];
+      return [...baseData, ...tiebreakData, ...roundData, standing.prizeCategory || '---', tournamentConfig?.showPrizeAmounts !== false ? (standing.prizeAmount || '---') : '---'];
     });
 
     const csvContent = [headers, ...rows]
@@ -554,7 +667,77 @@ export default function SwissStandings({ tournamentId, showExportControls = true
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-  }, [formatPoints, selectedSectionId, selectedSectionLabel, standings, tournament?.name, tournamentConfig?.details.tiebreaks, tournamentConfig?.details.tiebreaksEnabled, totalRounds]);
+  }, [selectedSectionId, selectedSectionLabel, standings, tournament?.name, tournamentConfig?.details.tiebreaks, tournamentConfig?.details.tiebreaksEnabled, totalRounds, tournamentConfig?.showPrizeAmounts]);
+
+  const generateSwissSysHtmlTable = useCallback((sectionStandings: SwissPlayerStanding[], sectionLabel: string) => {
+    const isFide = tournamentConfig?.details.primaryRatingSystem === 'fide';
+    
+    let html = `<h3>SwissSys Wall Chart. ${tournament?.name ?? 'Tournament'}: ${sectionLabel} (standings)</h3>\n`;
+    html += `<table style="border-collapse: collapse; border: 1px solid black; width: 100%; font-family: Arial, sans-serif; font-size: 13px; color: #000; background-color: #fff;">\n`;
+    
+    // Headers
+    html += `<thead>\n  <tr style="border: 1px solid black; padding: 3px;">\n`;
+    html += `    <td style="background-color: #e8e8e8; border: 1px solid black; font-weight: bold; padding: 3px; text-align: center; width: 40px;">#</td>\n`;
+    html += `    <td style="background-color: #e8e8e8; border: 1px solid black; font-weight: bold; padding: 3px; text-align: left;">Name/Rating/ID</td>\n`;
+    for (let r = 1; r <= totalRounds; r++) {
+      html += `    <td style="background-color: #e8e8e8; border: 1px solid black; font-weight: bold; padding: 3px; text-align: center; width: 60px;">Rd ${r}</td>\n`;
+    }
+    if (showPrizes) {
+      html += `    <td style="background-color: #e8e8e8; border: 1px solid black; font-weight: bold; padding: 3px; text-align: center; width: 120px;">Prizes</td>\n`;
+    }
+    html += `  </tr>\n</thead>\n<tbody>\n`;
+    
+    // Rows
+    sectionStandings.forEach((standing) => {
+      const pairingNum = getPlayerPairingNumber(standing.player.id);
+      const playerRating = (isFide ? (standing.player.fideRating ?? standing.player.rating) : (standing.player.uscfRating ?? standing.player.rating)) || 'Unrated';
+      const playerID = standing.player.localId || '';
+      const playerName = `${standing.player.firstName} ${standing.player.lastName}`.trim();
+      const uscfId = standing.player.localId;
+      const isDigitsOnly = uscfId && /^\d+$/.test(uscfId);
+      
+      const nameHtml = isDigitsOnly 
+        ? `<a href="http://www.uschess.org/msa/MbrDtlMain.php?${uscfId}" target="_blank" style="color: #0066cc; text-decoration: none; font-weight: bold;">${playerName}</a>` 
+        : playerName;
+        
+      // Row 1: Pairing No, Name, Round results, Prize Category
+      html += `  <tr style="border: 1px solid black; padding: 3px;">\n`;
+      html += `    <td style="background-color: #e8e8e8; border: 1px solid black; font-weight: bold; padding: 3px; text-align: center;">${pairingNum}</td>\n`;
+      html += `    <td style="border: 1px solid black; font-weight: bold; padding: 3px; text-align: left;">${nameHtml}</td>\n`;
+      
+      standing.roundResults.forEach((res) => {
+        const resultText = formatRoundResultDisplay(res);
+        html += `    <td style="border: 1px solid black; padding: 3px; text-align: center;">${resultText}</td>\n`;
+      });
+      
+      if (showPrizes) {
+        html += `    <td style="border: 1px solid black; padding: 3px; text-align: center;">${standing.prizeCategory || '---'}</td>\n`;
+      }
+      html += `  </tr>\n`;
+      
+      // Row 2: Empty, Rating/ID, Cumulative scores, Prize Amount
+      html += `  <tr style="border: 1px solid black; padding: 3px;">\n`;
+      html += `    <td style="background-color: #e8e8e8; border: 1px solid black; padding: 3px; text-align: center;">&nbsp;</td>\n`;
+      html += `    <td style="border: 1px solid black; padding: 3px; text-align: left;">${playerRating} ${playerID}</td>\n`;
+      
+      standing.roundResults.forEach((res, roundIndex) => {
+        const cumulative = standing.roundResults
+          .slice(0, roundIndex + 1)
+          .reduce((sum, entry) => sum + entry.points, 0);
+        const cumulativeText = roundIndex < currentRound ? cumulative.toFixed(1) : '';
+        html += `    <td style="border: 1px solid black; padding: 3px; text-align: center;">${cumulativeText}</td>\n`;
+      });
+      
+      if (showPrizes) {
+        const amountText = tournamentConfig?.showPrizeAmounts !== false ? (standing.prizeAmount || '---') : '---';
+        html += `    <td style="border: 1px solid black; padding: 3px; text-align: center; font-weight: bold;">${amountText}</td>\n`;
+      }
+      html += `  </tr>\n`;
+    });
+    
+    html += `</tbody>\n</table>\n`;
+    return html;
+  }, [tournament, totalRounds, showPrizes, getPlayerPairingNumber, formatRoundResultDisplay, currentRound, tournamentConfig]);
 
   const handlePrintStandings = useCallback(() => {
     if (standings.length === 0 || typeof window === 'undefined') return;
@@ -563,42 +746,98 @@ export default function SwissStandings({ tournamentId, showExportControls = true
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
-    const styles = `body{font-family:Arial,Helvetica,sans-serif;padding:24px;color:#0f172a;}h1{font-size:24px;margin-bottom:16px;}table{width:100%;border-collapse:collapse;}th,td{border:1px solid #cbd5f5;padding:8px;font-size:13px;text-align:center;}th{text-transform:uppercase;font-size:11px;background:#f1f5f9;color:#475569;letter-spacing:0.05em;}td:first-child,th:first-child{text-align:left;}`;
-    printWindow.document.write(`<html><head><title>${title}</title><style>${styles}</style></head><body>`);
-    printWindow.document.write(`<h1>${title}</h1>`);
-    printWindow.document.write('<table><thead><tr><th>Rank</th><th>Player</th>');
-    for (let round = 1; round <= totalRounds; round++) {
-      printWindow.document.write(`<th>Rd ${round}</th>`);
-    }
-    printWindow.document.write('</tr></thead><tbody>');
-
-    standings.forEach((standing) => {
-      const isFide = tournamentConfig?.details.primaryRatingSystem === 'fide';
-      const playerRating = isFide ? (standing.player.fideRating ?? standing.player.rating) : (standing.player.uscfRating ?? standing.player.rating);
-      const ratingDisplay = playerRating != null ? ` (${playerRating})` : '';
-      const playerName = `${standing.player.firstName} ${standing.player.lastName}`.trim();
-      printWindow.document.write(`<tr><td>${standing.position}</td><td style="text-align:left;">${playerName}${ratingDisplay}</td>`);
-
-      standing.roundResults.forEach((result, index) => {
-        const display = formatRoundResultDisplay(result);
-        const cumulative = standing.roundResults
-          .slice(0, index + 1)
-          .reduce((sum, entry) => sum + entry.points, 0);
-        const cumulativeText = index < currentRound ? cumulative.toString() : '';
-        const cellContent = cumulativeText
-          ? `${display}<div style="font-size:11px;color:#475569;margin-top:2px;">${cumulativeText}</div>`
-          : display;
-        printWindow.document.write(`<td>${cellContent}</td>`);
+    printWindow.document.write(`<!DOCTYPE html><html><head><title>${title}</title><style>body { font-family: Arial, sans-serif; padding: 24px; color: #000; background-color: #fff; } h1 { font-size: 20px; text-align: center; font-weight: bold; margin-bottom: 4px; } .subtitle { font-size: 14px; text-align: center; font-weight: bold; margin-bottom: 24px; }</style></head><body>`);
+    printWindow.document.write(`<h1>${tournament?.name ?? 'Tournament'}</h1>`);
+    printWindow.document.write(`<div class="subtitle">${selectedSectionLabel} Standings</div>`);
+    
+    if (selectedSectionId === '__all__') {
+      sections.forEach((sec) => {
+        const secPlayers = players?.filter(p => playerSectionMap.get(p.id)?.id === sec.id) || [];
+        const secMatches = matches?.filter(m => {
+          const wSec = m.whitePlayerId ? playerSectionMap.get(m.whitePlayerId)?.id : undefined;
+          const bSec = m.blackPlayerId ? playerSectionMap.get(m.blackPlayerId)?.id : undefined;
+          return wSec === sec.id || bSec === sec.id;
+        }) || [];
+        const secPairings = pairings?.filter(p => playerSectionMap.get(p.playerId)?.id === sec.id) || [];
+        const secStandings = calculateSwissStandings(secPlayers, secMatches, secPairings);
+        
+        if (secStandings.length > 0) {
+          printWindow.document.write(generateSwissSysHtmlTable(secStandings, sec.name));
+          printWindow.document.write('<br/><br/>');
+        }
       });
-
-      printWindow.document.write('</tr>');
-    });
-
-    printWindow.document.write('</tbody></table></body></html>');
+    } else {
+      printWindow.document.write(generateSwissSysHtmlTable(standings, selectedSectionLabel));
+    }
+    
+    printWindow.document.write('</body></html>');
     printWindow.document.close();
     printWindow.focus();
-    printWindow.print();
-  }, [currentRound, formatRoundResultDisplay, selectedSectionId, selectedSectionLabel, standings, totalRounds, tournament?.name]);
+    setTimeout(() => {
+      printWindow.print();
+    }, 250);
+  }, [standings, selectedSectionId, selectedSectionLabel, tournament?.name, players, matches, pairings, playerSectionMap, sections, calculateSwissStandings, generateSwissSysHtmlTable]);
+
+  const downloadHtmlStandings = useCallback(() => {
+    if (standings.length === 0 || typeof window === 'undefined') return;
+    const headingSuffix = selectedSectionId === '__all__' ? '' : ` – ${selectedSectionLabel}`;
+    const title = `${tournament?.name ?? 'Tournament'} Swiss Standings${headingSuffix}`;
+    
+    let htmlContent = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>${title}</title>
+<style>
+body { font-family: Arial, sans-serif; padding: 20px; color: #000; background-color: #fff; }
+h3 { font-family: Arial, sans-serif; margin-top: 20px; }
+a { color: #0066cc; text-decoration: none; }
+a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+`;
+
+    if (selectedSectionId === '__all__') {
+      sections.forEach((sec) => {
+        const secPlayers = players?.filter(p => playerSectionMap.get(p.id)?.id === sec.id) || [];
+        const secMatches = matches?.filter(m => {
+          const wSec = m.whitePlayerId ? playerSectionMap.get(m.whitePlayerId)?.id : undefined;
+          const bSec = m.blackPlayerId ? playerSectionMap.get(m.blackPlayerId)?.id : undefined;
+          return wSec === sec.id || bSec === sec.id;
+        }) || [];
+        const secPairings = pairings?.filter(p => playerSectionMap.get(p.playerId)?.id === sec.id) || [];
+        const secStandings = calculateSwissStandings(secPlayers, secMatches, secPairings);
+        
+        if (secStandings.length > 0) {
+          htmlContent += generateSwissSysHtmlTable(secStandings, sec.name);
+          htmlContent += '<br/><br/>\n';
+        }
+      });
+    } else {
+      htmlContent += generateSwissSysHtmlTable(standings, selectedSectionLabel);
+    }
+    
+    htmlContent += `
+</body>
+</html>
+`;
+
+    const sectionSlug = selectedSectionId === "__all__"
+      ? "all-sections"
+      : selectedSectionLabel.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "section";
+    const baseName = (tournament?.name ?? 'tournament').toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || 'event';
+
+    const blob = new Blob([htmlContent], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${baseName}-standings-${sectionSlug}.html`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }, [selectedSectionId, selectedSectionLabel, standings, tournament?.name, players, matches, pairings, playerSectionMap, sections, calculateSwissStandings, generateSwissSysHtmlTable]);
 
   if (tournamentLoading || playersLoading || matchesLoading || pairingsLoading) {
     return (
@@ -650,21 +889,21 @@ export default function SwissStandings({ tournamentId, showExportControls = true
     }
 
     const colorPrefix = result.color === 'white' ? 'W' : 'B';
-    const opponentPos = result.opponentPosition;
+    const opponentNum = result.opponent?.isActiveTd ? 'TD' : getPlayerPairingNumber(result.opponent.id);
 
     if (result.result === 'forfeit-win') {
-      return `X${opponentPos}`;
+      return `X${opponentNum}`;
     }
 
     if (result.result === 'forfeit-loss') {
-      return `F${opponentPos}`;
+      return `F${opponentNum}`;
     }
 
     if (result.result === 'double-forfeit') {
-      return `FF${opponentPos}`;
+      return `FF${opponentNum}`;
     }
 
-    return `${colorPrefix}${opponentPos}`;
+    return `${colorPrefix}${opponentNum}`;
   }
 
   function formatRoundResultDisplay(result: PlayerRoundResult): string {
@@ -687,7 +926,7 @@ export default function SwissStandings({ tournamentId, showExportControls = true
     const colorPrefix = result.color === 'white' ? 'W' : 'B';
 
     // Show "TD" instead of position number if opponent is the houseplayer
-    const opponentDisplayText = result.opponent?.isActiveTd ? 'TD' : result.opponentPosition;
+    const opponentDisplayText = result.opponent?.isActiveTd ? 'TD' : getPlayerPairingNumber(result.opponent.id);
 
     if (result.result === 'forfeit-win') {
       return `X${opponentDisplayText}`;
@@ -701,7 +940,9 @@ export default function SwissStandings({ tournamentId, showExportControls = true
       return `FF${opponentDisplayText}`;
     }
 
-    return `${colorPrefix}${result.result}${opponentDisplayText}`;
+    // Direct result outcomes: won (W), lost (L), drawn (D)
+    // Format matches SwissSys format Color + Opponent Pairing Number (e.g. W 3, B 9, etc.)
+    return `${colorPrefix} ${opponentDisplayText}`;
   }
 
   function formatPoints(standing: SwissPlayerStanding): string {
@@ -711,29 +952,66 @@ export default function SwissStandings({ tournamentId, showExportControls = true
     return standing.totalPoints.toString();
   }
 
+  const renderRoundOutcomeBadge = (res: PlayerRoundResult) => {
+    const text = formatRoundResultDisplay(res);
+    if (text === '---') return <span className="text-slate-350 dark:text-slate-700">—</span>;
+    
+    const outcome = res.result;
+    
+    if (outcome === 'W' || outcome === 'forfeit-win') {
+      return (
+        <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-lg text-xs font-black bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 border border-emerald-100/60 dark:border-emerald-900/20 shadow-sm font-mono">
+          {text}
+        </span>
+      );
+    }
+    if (outcome === 'L' || outcome === 'forfeit-loss' || outcome === 'double-forfeit') {
+      return (
+        <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-lg text-xs font-black bg-rose-50 dark:bg-rose-950/20 text-rose-600 dark:text-rose-400 border border-rose-100/60 dark:border-rose-900/20 shadow-sm font-mono">
+          {text}
+        </span>
+      );
+    }
+    if (outcome === 'D') {
+      return (
+        <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-lg text-xs font-black bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 border border-slate-200/40 dark:border-slate-700/40 shadow-sm font-mono">
+          {text}
+        </span>
+      );
+    }
+    if (outcome === 'bye') {
+      return (
+        <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-lg text-xs font-black bg-indigo-50 dark:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 border border-indigo-100/60 dark:border-indigo-900/20 shadow-sm font-mono">
+          {text}
+        </span>
+      );
+    }
+    return <span className="text-slate-500 dark:text-slate-400 font-mono text-xs">{text}</span>;
+  };
+
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex flex-wrap items-start justify-between gap-4">
+    <Card className="border-none shadow-xl dark:bg-slate-900">
+      <CardHeader className="border-b border-slate-100 dark:border-slate-800">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
           <div>
-            <CardTitle>Swiss Tournament Standings</CardTitle>
-            <p className="mt-1 text-sm text-gray-600">Detailed round-by-round results and current rankings</p>
+            <CardTitle className="text-xl font-black text-slate-900 dark:text-white flex items-center gap-2">
+              🏆 Swiss Wall Chart Standings
+            </CardTitle>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              San Diego Chess Club Style two-row standings layout
+            </p>
             {selectedSectionId !== "__all__" && (
-              <p className="text-xs text-muted-foreground">Showing Section: {selectedSectionLabel}</p>
-            )}
-            {tournamentConfig?.details.tiebreaksEnabled && tournamentConfig.details.tiebreaks?.length > 0 && (
-              <p className="mt-1 text-xs text-gray-400">
-                Tiebreaks: {tournamentConfig.details.tiebreaks.join(" → ")}
-              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">Showing Section: {selectedSectionLabel}</p>
             )}
           </div>
-          <div className="flex flex-col items-end gap-3">
+          <div className="flex flex-col items-stretch md:items-end gap-4">
             {sections.length > 0 && (
-              <div className="flex flex-wrap justify-end gap-2">
+              <div className="flex flex-wrap gap-2">
                 <Button
                   variant={selectedSectionId === "__all__" ? "default" : "outline"}
                   size="sm"
                   onClick={() => setSelectedSectionId("__all__")}
+                  className={selectedSectionId === "__all__" ? "bg-indigo-600 hover:bg-indigo-700" : ""}
                 >
                   All Sections
                 </Button>
@@ -743,113 +1021,189 @@ export default function SwissStandings({ tournamentId, showExportControls = true
                     variant={selectedSectionId === section.id ? "default" : "outline"}
                     size="sm"
                     onClick={() => setSelectedSectionId(section.id)}
+                    className={selectedSectionId === section.id ? "bg-indigo-600 hover:bg-indigo-700" : ""}
                   >
                     {section.name}
                   </Button>
                 ))}
               </div>
             )}
-            {showExportControls ? (
-              <div className="flex flex-wrap justify-end gap-2">
-                <Button
-                  onClick={handlePrintStandings}
-                  variant="outline"
-                  size="sm"
-                  className="flex items-center gap-2"
-                  disabled={standings.length === 0}
-                >
-                  <Printer className="h-4 w-4" />
-                  Print
-                </Button>
-                <Button
-                  onClick={downloadStandings}
-                  variant="outline"
-                  size="sm"
-                  className="flex items-center gap-2"
-                  disabled={standings.length === 0}
-                >
-                  <Download className="h-4 w-4" />
-                  Download CSV
-                </Button>
-              </div>
-            ) : null}
+            <div className="flex flex-wrap items-center justify-end gap-4">
+              {/* Prize toggler switch */}
+              {tournamentConfig?.prizesEnabled && (
+                <div className="flex items-center space-x-2 bg-slate-50 dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-100 dark:border-slate-700">
+                  <Switch
+                    id="show-prizes-toggle"
+                    checked={showPrizes}
+                    onCheckedChange={setShowPrizes}
+                  />
+                  <Label htmlFor="show-prizes-toggle" className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 cursor-pointer">
+                    Show Prizes
+                  </Label>
+                </div>
+              )}
+
+              {/* Director-only Prize Amount Toggler */}
+              {tournamentConfig?.prizesEnabled && isDirector && (
+                <div className="flex items-center space-x-2 bg-slate-50 dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-100 dark:border-slate-700">
+                  <Switch
+                    id="show-amounts-toggle"
+                    checked={tournamentConfig?.showPrizeAmounts !== false}
+                    onCheckedChange={(checked) => updateShowPrizeAmountsMutation.mutate(checked)}
+                    disabled={updateShowPrizeAmountsMutation.isPending}
+                  />
+                  <Label htmlFor="show-amounts-toggle" className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 cursor-pointer">
+                    {updateShowPrizeAmountsMutation.isPending ? "Saving..." : "Show Payouts"}
+                  </Label>
+                </div>
+              )}
+
+              {showExportControls && (
+                <div className="flex items-center gap-2">
+                  <Button
+                    onClick={handlePrintStandings}
+                    variant="outline"
+                    size="sm"
+                    className="flex items-center gap-2 rounded-xl"
+                    disabled={standings.length === 0}
+                  >
+                    <Printer className="h-4 w-4" />
+                    Print
+                  </Button>
+                  <Button
+                    onClick={downloadHtmlStandings}
+                    variant="outline"
+                    size="sm"
+                    className="flex items-center gap-2 rounded-xl"
+                    disabled={standings.length === 0}
+                  >
+                    <Download className="h-4 w-4" />
+                    SwissSys HTML
+                  </Button>
+                  <Button
+                    onClick={downloadStandings}
+                    variant="outline"
+                    size="sm"
+                    className="flex items-center gap-2 rounded-xl"
+                    disabled={standings.length === 0}
+                  >
+                    <Download className="h-4 w-4" />
+                    CSV
+                  </Button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="p-0">
         {standings.length === 0 ? (
-          <div className="text-center py-8">
-            <p className="text-gray-500">No standings available yet</p>
+          <div className="text-center py-16 text-slate-500 dark:text-slate-400">
+            No standings available yet
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 text-sm">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-100 dark:border-slate-800">
+                  <th className="px-4 py-3 text-center text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-16">
                     #
                   </th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider min-w-[200px]">
                     Name/Rating/ID
                   </th>
                   {Array.from({ length: totalRounds }, (_, i) => (
-                    <th key={i} className="px-2 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th key={i} className="px-3 py-3 text-center text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-24">
                       Rd {i + 1}
                     </th>
                   ))}
+                  {showPrizes && (
+                    <th className="px-4 py-3 text-center text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-40">
+                      Prizes
+                    </th>
+                  )}
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {standings.map((standing) => (
-                  <tr key={standing.player.id} className="hover:bg-gray-50">
-                    <td className="px-3 py-3 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">
-                        {standing.position}
-                      </div>
-                    </td>
-                    <td className="px-3 py-3 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">
-                        {standing.player.firstName} {standing.player.lastName}
-                        {standing.player.isActiveTd && (
-                          <span className="text-xs text-gray-500 font-normal"> (substitute player)</span>
-                        )}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        {tournamentConfig?.details.primaryRatingSystem === 'fide'
-                          ? (standing.player.fideRating ?? standing.player.rating)
-                          : (standing.player.uscfRating ?? standing.player.rating)}{" "}
-                        {standing.player.federation}
-                      </div>
-                      {tournamentConfig?.details.tiebreaksEnabled && Object.keys(standing.tiebreakValues).length > 0 && (
-                        <div className="text-xs text-gray-400 mt-1 flex flex-wrap gap-x-2">
-                          {(tournamentConfig.details.tiebreaks || []).map(rule => (
-                            <span key={rule}>
-                              {rule.split(' ').map(w => w[0]).join('')}: {standing.tiebreakValues[rule]?.toFixed(1)}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </td>
-                    {standing.roundResults.map((result, roundIndex) => {
-                      // Calculate cumulative points up to this round
-                      const cumulativePoints = standing.roundResults
-                        .slice(0, roundIndex + 1)
-                        .reduce((sum, r) => sum + r.points, 0);
+              {standings.map((standing, idx) => {
+                const isFide = tournamentConfig?.details.primaryRatingSystem === 'fide';
+                const playerRating = (isFide ? (standing.player.fideRating ?? standing.player.rating) : (standing.player.uscfRating ?? standing.player.rating)) || 'Unrated';
+                const playerID = standing.player.localId || '';
+                const playerName = `${standing.player.firstName} ${standing.player.lastName}`.trim();
+                const uscfId = standing.player.localId;
+                const isDigitsOnly = !!(uscfId && /^\d+$/.test(uscfId));
 
-                      return (
-                        <td key={roundIndex} className="px-2 py-3 whitespace-nowrap text-center">
-                          <div className="text-xs text-gray-900">
-                            {formatRoundResultDisplay(result)}
-                          </div>
-                          <div className="text-xs font-medium text-gray-700">
-                            {roundIndex < currentRound ? cumulativePoints : ''}
+                return (
+                  <tbody key={standing.player.id} className="group border-b border-slate-100 dark:border-slate-800/40 last:border-0 hover:bg-indigo-50/20 dark:hover:bg-indigo-950/5 transition-colors">
+                    {/* Row 1: Position, Name, Opponent Codes, Prize category */}
+                      <tr className="border-t border-slate-50 dark:border-slate-800/20 first:border-0">
+                        <td className="px-4 py-3 text-center">
+                          <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 font-mono text-xs font-black text-slate-600 dark:text-slate-400 border border-slate-200/40 dark:border-slate-700/40 group-hover:bg-indigo-100/40 group-hover:border-indigo-200/30 transition-colors">
+                            {getPlayerPairingNumber(standing.player.id)}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-sm">
+                          <div className="flex items-center gap-1.5">
+                            {isDigitsOnly ? (
+                              <a
+                                href={`http://www.uschess.org/msa/MbrDtlMain.php?${uscfId}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="font-bold text-indigo-600 dark:text-indigo-400 hover:underline hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors"
+                              >
+                                {playerName}
+                              </a>
+                            ) : (
+                              <span className="font-bold text-slate-800 dark:text-slate-100">{playerName}</span>
+                            )}
+                            {standing.player.isActiveTd && (
+                              <Badge variant="outline" className="text-[10px] py-0 px-1.5 border-slate-200 dark:border-slate-850 text-slate-400 dark:text-slate-500 font-normal">substitute</Badge>
+                            )}
                           </div>
                         </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
+                        {standing.roundResults.map((result, roundIdx) => (
+                          <td key={roundIdx} className="px-3 py-2 text-center">
+                            {renderRoundOutcomeBadge(result)}
+                          </td>
+                        ))}
+                        {showPrizes && (
+                          <td className="px-4 py-2 text-center">
+                            {standing.prizeCategory && standing.prizeCategory !== '---' ? (
+                              <Badge className="bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/30 font-semibold text-xs py-0.5 px-2 hover:bg-indigo-50 dark:hover:bg-indigo-900/40 shadow-sm">
+                                {standing.prizeCategory}
+                              </Badge>
+                            ) : (
+                              <span className="text-slate-300 dark:text-slate-700 font-medium">—</span>
+                            )}
+                          </td>
+                        )}
+                      </tr>
+                      {/* Row 2: Empty, Rating/ID, Running points, Prize Payout */}
+                      <tr>
+                        <td className="px-4 py-1"></td>
+                        <td className="px-4 py-1 text-xs text-slate-400 dark:text-slate-500 font-mono font-medium">
+                          {playerRating} {playerID ? `• ID: ${playerID}` : ''}
+                        </td>
+                        {standing.roundResults.map((result, roundIdx) => {
+                          const cumulativePoints = standing.roundResults
+                            .slice(0, roundIdx + 1)
+                            .reduce((sum, r) => sum + r.points, 0);
+                          const cumulativeText = roundIdx < currentRound ? cumulativePoints.toFixed(1) : '';
+
+                          return (
+                            <td key={roundIdx} className="px-3 py-1 text-center text-xs font-bold text-slate-400 dark:text-slate-500 font-mono">
+                              {cumulativeText}
+                            </td>
+                          );
+                        })}
+                        {showPrizes && (
+                          <td className="px-4 py-1 text-center text-sm font-black text-indigo-600 dark:text-indigo-400 font-mono">
+                            {tournamentConfig?.showPrizeAmounts !== false ? (standing.prizeAmount || '---') : '---'}
+                          </td>
+                        )}
+                      </tr>
+                    </tbody>
+                  );
+                })}
             </table>
           </div>
         )}

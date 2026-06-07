@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import type { ComponentType } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useLocation, useRoute } from "wouter";
-import { Trophy, Users, Eye, ArrowLeft, Medal, Info, Calculator, PauseCircle, Star, Loader2 } from "lucide-react";
+import { useLocation, useRoute, Link } from "wouter";
+import { Trophy, Users, Eye, ArrowLeft, Medal, Info, Calculator, PauseCircle, Star, Loader2, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -464,6 +464,11 @@ export default function PlayerDashboard() {
             </div>
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center md:justify-end gap-3 w-full md:w-auto">
               <div className="flex items-center justify-center gap-2 sm:gap-4 pb-1 sm:pb-0">
+                <Link href="/messages">
+                  <Button variant="ghost" size="icon" className="rounded-full">
+                    <MessageCircle className="h-5 w-5" />
+                  </Button>
+                </Link>
                 <NotificationBell />
                 <SettingsMenu />
               </div>

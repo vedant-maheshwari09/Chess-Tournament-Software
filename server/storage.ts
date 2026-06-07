@@ -25,6 +25,8 @@ import {
   type InsertVerificationCode,
   type PendingUser,
   type InsertPendingUser,
+  type PushSubscription,
+  type InsertPushSubscription,
 } from "@shared/schema";
 import { getSupabaseClient } from "../supabaseClient";
 
@@ -337,6 +339,11 @@ export interface IStorage {
   getUnreadNotificationCount(userId: number): Promise<number>;
   markNotificationRead(id: number, userId: number): Promise<Notification | undefined>;
   markAllNotificationsRead(userId: number): Promise<void>;
+
+  // Push Subscriptions
+  createPushSubscription(subscription: InsertPushSubscription): Promise<PushSubscription>;
+  getPushSubscriptionsByUser(userId: number): Promise<PushSubscription[]>;
+  deletePushSubscription(endpoint: string): Promise<boolean>;
 
   // Arena-specific
   setPlayerArenaStatus(playerId: number, status: string): Promise<Player | undefined>;
@@ -776,15 +783,22 @@ class SupabaseStorage implements IStorage {
   }
 
   async markAllNotificationsRead(userId: number): Promise<void> {
-    const { error } = await client()
-      .from("notifications")
-      .update({ read: true })
-      .eq("user_id", userId)
-      .eq("read", false);
+    const supabase = getSupabaseClient();
+    await supabase.from("notifications").update({ isRead: true }).eq("user_id", userId);
+  }
 
-    if (error) {
-      console.error("Failed to mark all notifications read:", error);
-    }
+  async createPushSubscription(subscription: InsertPushSubscription): Promise<PushSubscription> {
+    return insertOne<PushSubscription>("push_subscriptions", subscription as AnyRecord);
+  }
+
+  async getPushSubscriptionsByUser(userId: number): Promise<PushSubscription[]> {
+    return fetchMany<PushSubscription>("push_subscriptions", { userId });
+  }
+
+  async deletePushSubscription(endpoint: string): Promise<boolean> {
+    const supabase = getSupabaseClient();
+    const result = await supabase.from("push_subscriptions").delete().eq("endpoint", endpoint);
+    return result.error === null;
   }
 
   // ── Arena ──────────────────────────────────────────────────────────────

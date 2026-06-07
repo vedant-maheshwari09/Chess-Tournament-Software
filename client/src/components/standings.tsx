@@ -7,6 +7,7 @@ import { Trophy, Medal, Award, Printer, Download } from "lucide-react";
 import type { Player, Match, Pairing, Tournament } from "@shared/schema";
 import { parseTournamentConfig } from "@/lib/tournament-config";
 import type { SectionDefinition } from "@shared/tournament-config";
+import { cn } from "@/lib/utils";
 
 interface StandingsProps {
   tournamentId: number;
@@ -364,73 +365,95 @@ export default function Standings({ tournamentId, showExportControls = true }: S
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Rank
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Player
-                  </th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Points
-                  </th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Games
-                  </th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    W-D-L
-                  </th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Rating
-                  </th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {standings.map((standing) => (
-                  <tr key={standing.player.id} className={standing.position <= 3 ? 'bg-slate-50' : ''}>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        {getPositionIcon(standing.position)}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">
-                        {standing.player.firstName} {standing.player.lastName}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        Seed: {standing.player.seed}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-center">
-                      <div className="text-sm font-bold text-gray-900">{standing.points}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-center">
-                      <div className="text-sm text-gray-900">{standing.gamesPlayed}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-center">
-                      <div className="text-sm text-gray-900">
-                        {standing.wins}-{standing.draws}-{standing.losses}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-center">
-                      <div className="text-sm text-gray-900">
-                        {tournamentConfig?.details.primaryRatingSystem === 'fide' 
-                          ? (standing.player.fideRating ?? standing.player.rating) 
-                          : (standing.player.uscfRating ?? standing.player.rating)}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-center">
-                      {getPositionBadge(standing.position)}
-                    </td>
+            <div className="overflow-hidden border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm bg-white dark:bg-slate-950">
+              <table className="min-w-full divide-y divide-slate-100 dark:divide-slate-800/40">
+                <thead className="bg-slate-50/80 dark:bg-slate-900/60">
+                  <tr>
+                    <th className="px-6 py-3.5 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-16">
+                      Rank
+                    </th>
+                    <th className="px-6 py-3.5 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                      Player
+                    </th>
+                    <th className="px-6 py-3.5 text-center text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                      Points
+                    </th>
+                    <th className="px-6 py-3.5 text-center text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                      Games
+                    </th>
+                    <th className="px-6 py-3.5 text-center text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                      W-D-L
+                    </th>
+                    <th className="px-6 py-3.5 text-center text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                      Rating
+                    </th>
+                    <th className="px-6 py-3.5 text-center text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                      Status
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="bg-white dark:bg-slate-950 divide-y divide-slate-100 dark:divide-slate-800/40">
+                  {standings.map((standing) => (
+                    <tr key={standing.player.id} className="group hover:bg-indigo-50/20 dark:hover:bg-indigo-950/10 transition-colors">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          {standing.position <= 3 ? (
+                            <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-br from-amber-100 to-amber-50 dark:from-amber-900/40 dark:to-amber-800/20 shadow-sm border border-amber-200/50 dark:border-amber-700/30">
+                              {getPositionIcon(standing.position)}
+                            </div>
+                          ) : (
+                            <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 font-mono text-sm font-black text-slate-600 dark:text-slate-400 border border-slate-200/40 dark:border-slate-700/40 group-hover:bg-indigo-100/40 group-hover:border-indigo-200/30 transition-colors">
+                              {standing.position}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex flex-col">
+                          <span className="font-semibold text-slate-800 dark:text-slate-100 text-sm group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                            {standing.player.firstName} {standing.player.lastName}
+                          </span>
+                          <span className="text-[10px] font-mono font-medium text-slate-400 dark:text-slate-500">
+                            {standing.player.localId ? `ID: ${standing.player.localId}` : 'No ID'}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-center">
+                        <span className="inline-flex items-center justify-center px-2.5 py-1 rounded-lg text-sm font-black font-mono shadow-sm border bg-indigo-50 dark:bg-indigo-950/30 text-indigo-700 dark:text-indigo-400 border-indigo-100 dark:border-indigo-900/30">
+                          {standing.points}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-center font-medium text-slate-600 dark:text-slate-400">
+                        {standing.gamesPlayed}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
+                        <Badge variant="outline" className="bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700">
+                          {standing.wins}-{standing.draws}-{standing.losses}
+                        </Badge>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-center font-medium text-slate-600 dark:text-slate-400">
+                        {tournamentConfig?.details.primaryRatingSystem === 'fide' 
+                          ? (standing.player.fideRating ?? standing.player.rating ?? 'Unrated')
+                          : (standing.player.uscfRating ?? standing.player.rating ?? 'Unrated')}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-center">
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            "font-medium",
+                            standing.player.status === "withdrawn"
+                              ? "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/30 dark:text-rose-400 dark:border-rose-900/30"
+                              : "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900/30",
+                          )}
+                        >
+                          {standing.player.status === "withdrawn" ? "Withdrawn" : "Active"}
+                        </Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </CardContent>

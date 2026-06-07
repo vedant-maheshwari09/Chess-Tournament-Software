@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Plus, Trophy, Users } from "lucide-react";
+import { Plus, Trophy, Users, MessageCircle } from "lucide-react";
 import { Link, useLocation, useRoute } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -227,6 +227,11 @@ export default function TournamentDirectorDashboard() {
             </div>
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center md:justify-end gap-3 w-full md:w-auto">
               <div className="flex items-center justify-center gap-2 sm:gap-4 pb-1 sm:pb-0">
+                <Link href="/messages">
+                  <Button variant="ghost" size="icon" className="rounded-full">
+                    <MessageCircle className="h-5 w-5" />
+                  </Button>
+                </Link>
                 <NotificationBell />
                 <SettingsMenu />
               </div>

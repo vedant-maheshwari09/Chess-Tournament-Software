@@ -3,9 +3,7 @@ import type { TournamentConfig } from "@shared/tournament-config";
 import { parseTournamentConfig } from "@shared/tournament-config";
 import * as fs from "fs";
 import * as path from "path";
-import * as os from "os";
-import { execSync } from "child_process";
-
+import AdmZip from "adm-zip";
 // dBase III DBF binary writer
 class DbfWriter {
   private fields: { name: string; type: 'C' | 'D' | 'N'; length: number }[] = [];
@@ -372,44 +370,14 @@ export function generateUscfDbfZip(options: GenerateUscfDbfOptions): Buffer {
   const tsBuffer = ts.build();
   const tdBuffer = td.build();
 
-  // Create zip file using PowerShell on Windows
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'uscf-dbf-'));
-  
-  const thPath = path.join(tempDir, 'THEXPORT.DBF');
-  const tsPath = path.join(tempDir, 'TSEXPORT.DBF');
-  const tdPath = path.join(tempDir, 'TDEXPORT.DBF');
-
-  fs.writeFileSync(thPath, thBuffer);
-  fs.writeFileSync(tsPath, tsBuffer);
-  fs.writeFileSync(tdPath, tdBuffer);
-
-  const zipPath = path.join(tempDir, 'uscf-export.zip');
-
   try {
-    // Compress files using PowerShell
-    const cmd = `powershell.exe -Command "Compress-Archive -Path '${tempDir}\\*EXPORT.DBF' -DestinationPath '${zipPath}' -Force"`;
-    execSync(cmd, { stdio: 'ignore' });
-    
-    const zipBuffer = fs.readFileSync(zipPath);
-
-    // Cleanup files
-    fs.unlinkSync(thPath);
-    fs.unlinkSync(tsPath);
-    fs.unlinkSync(tdPath);
-    fs.unlinkSync(zipPath);
-    fs.rmdirSync(tempDir);
-
-    return zipBuffer;
+    const zip = new AdmZip();
+    zip.addFile("THEXPORT.DBF", thBuffer);
+    zip.addFile("TSEXPORT.DBF", tsBuffer);
+    zip.addFile("TDEXPORT.DBF", tdBuffer);
+    return zip.toBuffer();
   } catch (error) {
-    console.error("Failed to generate USCF zip archive via PowerShell:", error);
-    // Cleanup on error
-    try {
-      fs.unlinkSync(thPath);
-      fs.unlinkSync(tsPath);
-      fs.unlinkSync(tdPath);
-      if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath);
-      fs.rmdirSync(tempDir);
-    } catch {}
-    throw new Error("PowerShell ZIP compression failed.");
+    console.error("Failed to generate USCF zip archive via adm-zip:", error);
+    throw new Error("ZIP compression failed.");
   }
 }

@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -34,9 +35,39 @@ interface TournamentHistoryProps {
 export default function TournamentHistoryComponent({ tournamentId }: TournamentHistoryProps) {
   const [selectedEntry, setSelectedEntry] = useState<TournamentHistory | null>(null);
 
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
   const { data: history = [], isLoading } = useQuery({
     queryKey: ['/api/tournaments', tournamentId, 'history'],
     queryFn: () => fetch(`/api/tournaments/${tournamentId}/history`).then(res => res.json()),
+  });
+
+  const revertMutation = useMutation({
+    mutationFn: async (historyId: number) => {
+      const res = await fetch(`/api/tournaments/${tournamentId}/history/${historyId}/revert`, {
+        method: 'POST',
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || 'Failed to revert action');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/tournaments', tournamentId] });
+      toast({
+        title: "Action Reverted",
+        description: "The tournament state has been restored.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Revert Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
   });
 
   const getActionBadgeColor = (action: string) => {
@@ -79,9 +110,7 @@ export default function TournamentHistoryComponent({ tournamentId }: TournamentH
   };
 
   const handleRevert = async (entry: TournamentHistory) => {
-    // This would implement the revert functionality
-    console.log('Reverting entry:', entry);
-    // TODO: Implement revert API call
+    revertMutation.mutate(entry.id);
   };
 
   if (isLoading) {
@@ -227,9 +256,9 @@ export default function TournamentHistoryComponent({ tournamentId }: TournamentH
                         {entry.canRevert && (
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
-                              <Button variant="outline" size="sm">
+                              <Button variant="outline" size="sm" disabled={revertMutation.isPending}>
                                 <Undo2 className="h-4 w-4 mr-1" />
-                                Revert
+                                {revertMutation.isPending ? "Reverting..." : "Revert"}
                               </Button>
                             </AlertDialogTrigger>
                             <AlertDialogContent>

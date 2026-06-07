@@ -463,3 +463,55 @@ export const uscfVerificationAttempts = pgTable("uscf_verification_attempts", {
   createdAt: timestamp("created_at").defaultNow(),
   completedAt: timestamp("completed_at"),
 });
+
+// Push subscriptions for Web Push API
+export const pushSubscriptions = pgTable("push_subscriptions", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  endpoint: text("endpoint").notNull(),
+  p256dh: text("p256dh").notNull(),
+  auth: text("auth").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type PushSubscription = typeof pushSubscriptions.$inferSelect;
+export type InsertPushSubscription = typeof pushSubscriptions.$inferInsert;
+
+// Messaging tables
+export const chatThreads = pgTable("chat_threads", {
+  id: serial("id").primaryKey(),
+  tournamentId: integer("tournament_id").references(() => tournaments.id, { onDelete: "cascade" }), // nullable for global PMs
+  name: text("name"), // nullable for DMs
+  isGroup: boolean("is_group").default(false).notNull(),
+  createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const chatParticipants = pgTable("chat_participants", {
+  id: serial("id").primaryKey(),
+  threadId: integer("thread_id").references(() => chatThreads.id, { onDelete: "cascade" }).notNull(),
+  userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  lastReadAt: timestamp("last_read_at").defaultNow().notNull(),
+  joinedAt: timestamp("joined_at").defaultNow().notNull(),
+});
+
+export const chatMessages = pgTable("chat_messages", {
+  id: serial("id").primaryKey(),
+  threadId: integer("thread_id").references(() => chatThreads.id, { onDelete: "cascade" }).notNull(),
+  senderId: integer("sender_id").references(() => users.id, { onDelete: "set null" }),
+  content: text("content").notNull(),
+  isDeleted: boolean("is_deleted").default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertChatThreadSchema = createInsertSchema(chatThreads).omit({ id: true, createdAt: true });
+export const insertChatParticipantSchema = createInsertSchema(chatParticipants).omit({ id: true, joinedAt: true, lastReadAt: true });
+export const insertChatMessageSchema = createInsertSchema(chatMessages).omit({ id: true, createdAt: true });
+
+export type ChatThread = typeof chatThreads.$inferSelect;
+export type InsertChatThread = z.infer<typeof insertChatThreadSchema>;
+export type ChatParticipant = typeof chatParticipants.$inferSelect;
+export type InsertChatParticipant = z.infer<typeof insertChatParticipantSchema>;
+export type ChatMessage = typeof chatMessages.$inferSelect;
+export type InsertChatMessage = z.infer<typeof insertChatMessageSchema>;
+

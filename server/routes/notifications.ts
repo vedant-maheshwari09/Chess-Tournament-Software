@@ -59,4 +59,46 @@ app.post("/api/notifications/read-all", requireAuth, async (req, res) => {
     }
   });
 
+// Web Push Subscriptions
+app.get("/api/notifications/vapid-public-key", (req, res) => {
+    res.json({ publicKey: process.env.VAPID_PUBLIC_KEY || "BG2yHrGF3i0wdfshkoO0WmIj0vGiHs6WO67QyCzzR06quXpeHoZBxJrrJleLWce7LTcUlvzJm7KASQ1qDwPKFy0" });
+  });
+
+app.post("/api/notifications/subscribe", requireAuth, async (req, res) => {
+    try {
+      const user = req.user;
+      if (!user) return res.status(401).json({ error: "Unauthorized" });
+
+      const subscription = req.body;
+      if (!subscription || !subscription.endpoint || !subscription.keys) {
+        return res.status(400).json({ error: "Invalid subscription object" });
+      }
+
+      await storage.createPushSubscription({
+        userId: user.id,
+        endpoint: subscription.endpoint,
+        p256dh: subscription.keys.p256dh,
+        auth: subscription.keys.auth,
+      });
+
+      res.status(201).json({ success: true });
+    } catch (error) {
+      console.error("Error saving push subscription:", error);
+      res.status(500).json({ error: "Failed to save push subscription" });
+    }
+  });
+
+app.post("/api/notifications/unsubscribe", requireAuth, async (req, res) => {
+    try {
+      const { endpoint } = req.body;
+      if (!endpoint) return res.status(400).json({ error: "Endpoint required" });
+
+      await storage.deletePushSubscription(endpoint);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting push subscription:", error);
+      res.status(500).json({ error: "Failed to delete push subscription" });
+    }
+  });
+
 }

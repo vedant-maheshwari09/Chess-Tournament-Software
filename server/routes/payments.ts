@@ -35,14 +35,11 @@ app.get("/api/tournaments/:id/payments/config", requireAuth, async (req, res) =>
       const stripeConfigured = Boolean(
         payments.provider === "stripe" && payments.onlineEnabled && stripe && STRIPE_PUBLISHABLE_KEY,
       );
-      const paypalConfigured = Boolean(
-        payments.provider === "paypal" && payments.onlineEnabled && payments.paypalMerchantId && payments.paypalEmail,
-      );
 
       res.json({
         payments,
         publishableKey: payments.provider === "stripe" ? STRIPE_PUBLISHABLE_KEY || null : null,
-        onlineConfigured: stripeConfigured || paypalConfigured,
+        onlineConfigured: stripeConfigured,
       });
     } catch (error) {
       console.error("Fetch payment config error:", error);
@@ -112,15 +109,6 @@ app.put(
         }
         if (Object.prototype.hasOwnProperty.call(payload, "payoutStatementDescriptor")) {
           applyStringUpdate("payoutStatementDescriptor", payload.payoutStatementDescriptor);
-        }
-        if (Object.prototype.hasOwnProperty.call(payload, "paypalMerchantId")) {
-          applyStringUpdate("paypalMerchantId", payload.paypalMerchantId);
-        }
-        if (Object.prototype.hasOwnProperty.call(payload, "paypalClientId")) {
-          applyStringUpdate("paypalClientId", payload.paypalClientId);
-        }
-        if (Object.prototype.hasOwnProperty.call(payload, "paypalEmail")) {
-          applyStringUpdate("paypalEmail", payload.paypalEmail);
         }
 
         if (payload.connectionScope) {

@@ -7,6 +7,7 @@ import { applyNotificationsRoutes } from "./routes/notifications";
 import { applyPairingsRoutes } from "./routes/pairings";
 import { applyArenaRoutes } from "./routes/arena";
 import { applyVerificationRoutes } from "./routes/verification";
+import { applyMessagesRoutes } from "./routes/messages";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Apply modular routers
@@ -17,6 +18,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   applyPairingsRoutes(app);
   applyArenaRoutes(app);
   applyVerificationRoutes(app);
+  applyMessagesRoutes(app);
 
   const httpServer = createServer(app);
   return httpServer;

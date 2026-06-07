@@ -2,15 +2,25 @@ import { insertMatchSchema } from '@shared/schema';
 import type { Express } from "express";
 import { z } from "zod";
 import Stripe from "stripe";
+import crypto from "crypto";
+
+export function generateMatchToken(matchId: number): string {
+  const secret = process.env.SESSION_SECRET || "chess-tournament-secret-key-12345";
+  return crypto
+    .createHmac("sha256", secret)
+    .update(`match-${matchId}`)
+    .digest("hex")
+    .substring(0, 16);
+}
 import {
   lookupUSCF, lookupFide, mapLocalResult, extractQueryParam, normalizeSearchParams, parseLimitParam, getGeminiConfig, normalizeCurrency, computePaymentTotals, normalizeAccountPaymentSettings, formatCurrencyAmount, describeRatingWindow, generatePairings, groupPlayersByScore, pairUpperVsLowerHalf, determineSwissColors, generateSwissPairings, generateBoardNumberSequence, RatingSource, STRIPE_SECRET_KEY, STRIPE_PUBLISHABLE_KEY, STRIPE_WEBHOOK_SECRET, stripe, PAYMENT_STATUSES, PaymentStatus, RatingLookupResult, paymentProviderEnum, paymentScopeEnum, offlineMethodEnum, updateTournamentPaymentsSchema, accountPaymentSettingsSchema, geminiRefineSchema, updateNotificationPreferencesSchema, tournamentNotificationSchema, createPaymentIntentSchema, playerRegistrationSchema, BoardNumberingSettings,
-  advanceKnockoutWinner
+  advanceKnockoutWinner, spawnNextMatchupGame
 } from "./common";
 
 import { storage } from '../storage';
 import { requireAuth, requireRole, requireTournamentAccess } from '../auth';
 import { notificationService } from '../notifications';
-import { parseTournamentConfig } from "@shared/tournament-config";
+import { parseTournamentConfig, calculateMatchupScore, getMatchFormat, isMatchDecided } from "@shared/tournament-config";
 import { generateFideTrf16Report } from '../lib/fideTrf';
 import { lookupFideProfiles, searchFideDirectory } from '../lib/fideDirectory';
 import { Player, Pairing, Match, PlayerRegistration } from "@shared/schema";
@@ -71,6 +81,52 @@ app.post("/api/tournaments/:tournamentId/matches", requireAuth, requireRole('tou
       res.status(201).json(newMatch);
     } catch (error) {
       res.status(400).json({ message: "Invalid match data" });
+    }
+  });
+
+  // Public mobile submission endpoints
+  app.get("/api/matches/:id/details", async (req, res) => {
+    try {
+      const matchId = parseInt(req.params.id);
+      const match = await storage.getMatch(matchId);
+      if (!match) return res.status(404).json({ message: "Match not found" });
+
+      const whitePlayer = match.whitePlayerId ? await storage.getPlayer(match.whitePlayerId) : null;
+      const blackPlayer = match.blackPlayerId ? await storage.getPlayer(match.blackPlayerId) : null;
+
+      res.json({
+        id: match.id,
+        board: match.board,
+        whiteName: whitePlayer ? `${whitePlayer.firstName} ${whitePlayer.lastName}` : "T.B.D.",
+        blackName: blackPlayer ? `${blackPlayer.firstName} ${blackPlayer.lastName}` : (match.blackPlayerId ? "T.B.D." : "Bye"),
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch match details" });
+    }
+  });
+
+  app.post("/api/matches/:id/submit-public", async (req, res) => {
+    try {
+      const matchId = parseInt(req.params.id);
+      const { result } = req.body;
+      if (!result) return res.status(400).json({ message: "Result required" });
+
+      const match = await storage.getMatch(matchId);
+      if (!match) return res.status(404).json({ message: "Match not found" });
+
+      // Only allow public submit if match is pending
+      if (match.status === "completed" || match.result) {
+        return res.status(400).json({ message: "Match already completed. Please see TD." });
+      }
+
+      await storage.updateMatch(matchId, {
+        result,
+        status: "completed"
+      });
+
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to submit result" });
     }
   });
 
@@ -270,6 +326,186 @@ app.get("/api/tournaments/:tournamentId/bye-requests", async (req, res) => {
     } catch (error) {
       console.error("Error resetting match:", error);
       res.status(500).json({ message: "Failed to reset match" });
+    }
+  });
+
+  // Fetch match tokens map (TD only)
+  app.get("/api/tournaments/:tournamentId/matches/tokens", requireAuth, requireRole('tournament_director'), requireTournamentAccess, async (req, res) => {
+    try {
+      const tournamentId = parseInt(req.params.tournamentId);
+      const matches = await storage.getMatchesByTournament(tournamentId);
+      
+      const tokens: Record<number, string> = {};
+      matches.forEach(m => {
+        tokens[m.id] = generateMatchToken(m.id);
+      });
+
+      res.json(tokens);
+    } catch (error) {
+      console.error("Failed to generate match tokens:", error);
+      res.status(500).json({ message: "Failed to generate match tokens" });
+    }
+  });
+
+  // Public match details fetch endpoint for QR code submissions (unauthenticated)
+  app.get("/api/public/matches/:matchId", async (req, res) => {
+    try {
+      const matchId = parseInt(req.params.matchId);
+      const token = req.query.token as string;
+
+      if (!token) {
+        return res.status(400).json({ message: "Security token is required" });
+      }
+
+      const expectedToken = generateMatchToken(matchId);
+      if (token !== expectedToken) {
+        return res.status(403).json({ message: "Invalid security token" });
+      }
+
+      const match = await storage.getMatch(matchId);
+      if (!match) {
+        return res.status(404).json({ message: "Match not found" });
+      }
+
+      const tournament = await storage.getTournament(match.tournamentId);
+      if (!tournament) {
+        return res.status(404).json({ message: "Tournament not found" });
+      }
+
+      const whitePlayer = match.whitePlayerId ? await storage.getPlayer(match.whitePlayerId) : null;
+      const blackPlayer = match.blackPlayerId ? await storage.getPlayer(match.blackPlayerId) : null;
+
+      res.json({
+        match,
+        tournamentName: tournament.name,
+        whitePlayerName: whitePlayer ? `${whitePlayer.firstName} ${whitePlayer.lastName}` : "Bye",
+        blackPlayerName: blackPlayer ? `${blackPlayer.firstName} ${blackPlayer.lastName}` : "Bye",
+      });
+    } catch (error) {
+      console.error("Public match fetch error:", error);
+      res.status(500).json({ message: "Failed to fetch match details" });
+    }
+  });
+
+  // Public match result submission endpoint (unauthenticated)
+  app.post("/api/public/matches/:matchId/result", async (req, res) => {
+    try {
+      const matchId = parseInt(req.params.matchId);
+      const { token, result } = req.body;
+
+      if (!token) {
+        return res.status(400).json({ message: "Security token is required" });
+      }
+
+      const expectedToken = generateMatchToken(matchId);
+      if (token !== expectedToken) {
+        return res.status(403).json({ message: "Invalid security token" });
+      }
+
+      const currentMatch = await storage.getMatch(matchId);
+      if (!currentMatch) {
+        return res.status(404).json({ message: "Match not found" });
+      }
+
+      const tournament = await storage.getTournament(currentMatch.tournamentId);
+      if (!tournament) {
+        return res.status(404).json({ message: "Tournament not found" });
+      }
+
+      const rawResult = result;
+      const normalizedResult = (rawResult === "Pending" || rawResult === null || rawResult === undefined) ? null : rawResult;
+      const normalizedStatus = normalizedResult ? "completed" : "pending";
+
+      const updatedMatch = await storage.updateMatch(matchId, {
+        result: normalizedResult,
+        status: normalizedStatus,
+      });
+
+      if (!updatedMatch) {
+        return res.status(404).json({ message: "Failed to update match" });
+      }
+
+      if (currentMatch.result !== updatedMatch.result) {
+        const whitePlayerName = currentMatch.whitePlayerId
+          ? await storage.getPlayer(currentMatch.whitePlayerId)
+          : null;
+        const blackPlayerName = currentMatch.blackPlayerId
+          ? await storage.getPlayer(currentMatch.blackPlayerId)
+          : null;
+
+        const description = blackPlayerName
+          ? `Result submitted via mobile scan for Round ${currentMatch.round}, Board ${currentMatch.board}: ${whitePlayerName?.firstName} ${whitePlayerName?.lastName} vs ${blackPlayerName.firstName} ${blackPlayerName.lastName} from "${currentMatch.result || 'Pending'}" to "${updatedMatch.result}"`
+          : `Bye result submitted via mobile scan for Round ${currentMatch.round}: ${whitePlayerName?.firstName} ${whitePlayerName?.lastName} from "${currentMatch.result || 'Pending'}" to "${updatedMatch.result}"`;
+
+        await storage.createHistoryEntry({
+          tournamentId: currentMatch.tournamentId,
+          action: 'result_change',
+          description,
+          changedBy: tournament.createdBy,
+          previousState: JSON.stringify(currentMatch),
+          newState: JSON.stringify(updatedMatch),
+          round: currentMatch.round,
+          matchId: currentMatch.id,
+          canRevert: true
+        });
+
+        // Knockout Advancement Logic
+        try {
+          if (tournament.format === 'knockout') {
+            const allMatches = await storage.getMatchesByTournament(tournament.id);
+            const matchupGames = allMatches.filter(m => 
+              m.round === currentMatch.round && 
+              m.board === currentMatch.board &&
+              (m.bracketType || 'winners') === (currentMatch.bracketType || 'winners') &&
+              (m.sectionId || null) === (currentMatch.sectionId || null)
+            );
+            
+            const score = calculateMatchupScore(matchupGames);
+            const config = parseTournamentConfig(tournament);
+            const format = getMatchFormat(config, currentMatch.round, (currentMatch.bracketType as string) || undefined);
+            const decision = isMatchDecided(score, format, updatedMatch);
+            
+            if (decision.winnerId) {
+              await advanceKnockoutWinner(tournament.id, updatedMatch, decision.winnerId);
+            } else {
+              await spawnNextMatchupGame(tournament.id, updatedMatch, matchupGames);
+            }
+          }
+        } catch (advErr: any) {
+          console.error("[ERROR] Public result knockout advancement error:", advErr.message);
+        }
+
+        // Send notifications
+        try {
+          const resultText = updatedMatch.result === '1-0' ? 'White won' : updatedMatch.result === '0-1' ? 'Black won' : updatedMatch.result === '1/2-1/2' ? 'Draw' : updatedMatch.result;
+          
+          if (whitePlayerName?.userId) {
+            await storage.createNotification({
+              userId: whitePlayerName.userId,
+              title: "Match Result Updated",
+              message: `The result for your Round ${currentMatch.round} match against ${blackPlayerName ? `${blackPlayerName.firstName} ${blackPlayerName.lastName}` : 'Bye'} has been recorded: ${resultText}.`,
+              type: "result_update",
+              meta: { matchId: currentMatch.id, tournamentId: currentMatch.tournamentId }
+            });
+          }
+          if (blackPlayerName?.userId) {
+            await storage.createNotification({
+              userId: blackPlayerName.userId,
+              title: "Match Result Updated",
+              message: `The result for your Round ${currentMatch.round} match against ${whitePlayerName ? `${whitePlayerName.firstName} ${whitePlayerName.lastName}` : 'Bye'} has been recorded: ${resultText}.`,
+              type: "result_update",
+              meta: { matchId: currentMatch.id, tournamentId: currentMatch.tournamentId }
+            });
+          }
+        } catch (notifyErr) {
+          console.error("Public result notify error:", notifyErr);
+        }
+      }
+
+      res.json({ success: true, match: updatedMatch });
+    } catch (error) {
+      console.error("Public match result submission error:", error);
+      res.status(500).json({ message: "Failed to submit result" });
     }
   });
 }

@@ -209,6 +209,7 @@ export interface TournamentConfig {
   mode: TournamentMode;
   format: Tournament["format"];
   prizesEnabled: boolean;
+  showPrizeAmounts: boolean;
   basic: {
     name: string;
     city: string;
@@ -249,6 +250,7 @@ export interface TournamentConfig {
   fide: FideRegistrationData;
   uscf: UscfReportData;
   webhookSync: WebhookSyncConfig;
+  chessResults?: any;
   contacts: ContactEntry[];
   tournamentPageContent: string;
   publicPage?: {
@@ -346,6 +348,7 @@ export function createDefaultConfig(format: Tournament["format"], mode: Tourname
     mode,
     format,
     prizesEnabled: true,
+    showPrizeAmounts: true,
     basic: {
       name: "",
       city: "",
@@ -391,9 +394,6 @@ export function createDefaultConfig(format: Tournament["format"], mode: Tourname
       stripeAccountId: "",
       stripePublishableKey: "",
       payoutStatementDescriptor: "",
-      paypalMerchantId: "",
-      paypalClientId: "",
-      paypalEmail: "",
       connectionScope: "tournament",
       acceptedOfflineMethods: ["cash", "check"],
       offlineInstructions: "Pay at the venue before round 1.",
@@ -615,11 +615,15 @@ export function parseTournamentConfig(tournament: Tournament | undefined | null)
     const prizesEnabled = typeof (parsed as any)?.prizesEnabled === "boolean"
       ? (parsed as any).prizesEnabled
       : true;
+    const showPrizeAmounts = typeof (parsed as any)?.showPrizeAmounts === "boolean"
+      ? (parsed as any).showPrizeAmounts
+      : true;
 
     return {
       ...defaults,
       ...parsed,
       prizesEnabled,
+      showPrizeAmounts,
       basic: {
         ...defaults.basic,
         ...parsed.basic,

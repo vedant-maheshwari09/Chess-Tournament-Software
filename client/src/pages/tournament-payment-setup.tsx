@@ -30,9 +30,6 @@ interface FormState {
   stripeAccountId: string;
   stripePublishableKey: string;
   payoutStatementDescriptor: string;
-  paypalMerchantId: string;
-  paypalClientId: string;
-  paypalEmail: string;
 }
 
 const providerDescriptions: Record<PaymentProvider, { title: string; subtitle: string }> = {
@@ -42,7 +39,7 @@ const providerDescriptions: Record<PaymentProvider, { title: string; subtitle: s
   },
   paypal: {
     title: "PayPal",
-    subtitle: "Let players pay using PayPal accounts and supported methods.",
+    subtitle: "Accept PayPal, credit and debit cards via PayPal Checkout.",
   },
 };
 
@@ -88,9 +85,6 @@ export default function TournamentPaymentSetupPage({ tournamentId }: TournamentP
     stripeAccountId: "",
     stripePublishableKey: "",
     payoutStatementDescriptor: "",
-    paypalMerchantId: "",
-    paypalClientId: "",
-    paypalEmail: "",
   });
 
   useEffect(() => {
@@ -111,9 +105,6 @@ export default function TournamentPaymentSetupPage({ tournamentId }: TournamentP
       stripePublishableKey: payments.stripePublishableKey ?? defaults.stripePublishableKey ?? "",
       payoutStatementDescriptor:
         payments.payoutStatementDescriptor ?? defaults.payoutStatementDescriptor ?? "",
-      paypalMerchantId: payments.paypalMerchantId ?? defaults.paypalMerchantId ?? "",
-      paypalClientId: payments.paypalClientId ?? defaults.paypalClientId ?? "",
-      paypalEmail: payments.paypalEmail ?? defaults.paypalEmail ?? "",
     });
     setHydrated(true);
   }, [hydrated, parsedConfig, accountSettings]);
@@ -209,9 +200,6 @@ export default function TournamentPaymentSetupPage({ tournamentId }: TournamentP
     stripeAccountId: form.stripeAccountId.trim(),
     stripePublishableKey: form.stripePublishableKey.trim(),
     payoutStatementDescriptor: form.payoutStatementDescriptor.trim(),
-    paypalMerchantId: form.paypalMerchantId.trim(),
-    paypalClientId: form.paypalClientId.trim(),
-    paypalEmail: form.paypalEmail.trim(),
     connectionScope,
   });
 
@@ -220,9 +208,6 @@ export default function TournamentPaymentSetupPage({ tournamentId }: TournamentP
     stripeAccountId: form.stripeAccountId.trim(),
     stripePublishableKey: form.stripePublishableKey.trim(),
     payoutStatementDescriptor: form.payoutStatementDescriptor.trim(),
-    paypalMerchantId: form.paypalMerchantId.trim(),
-    paypalClientId: form.paypalClientId.trim(),
-    paypalEmail: form.paypalEmail.trim(),
   });
 
   const handleSaveTournament = async () => {
@@ -342,34 +327,7 @@ export default function TournamentPaymentSetupPage({ tournamentId }: TournamentP
                       placeholder="Tournament name on bank statements"
                     />
                   </ProviderSection>
-                ) : (
-                  <ProviderSection title="PayPal connection">
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <TextField
-                        id="paypalMerchantId"
-                        label="Merchant ID"
-                        value={form.paypalMerchantId}
-                        onChange={(value) => setForm((prev) => ({ ...prev, paypalMerchantId: value }))}
-                        placeholder="Example: ABCDEFG12345"
-                      />
-                      <TextField
-                        id="paypalClientId"
-                        label="Client ID"
-                        value={form.paypalClientId}
-                        onChange={(value) => setForm((prev) => ({ ...prev, paypalClientId: value }))}
-                        placeholder="Live REST client ID"
-                      />
-                    </div>
-                    <TextField
-                      id="paypalEmail"
-                      label="PayPal email"
-                      value={form.paypalEmail}
-                      onChange={(value) => setForm((prev) => ({ ...prev, paypalEmail: value }))}
-                      placeholder="payments@example.com"
-                      type="email"
-                    />
-                  </ProviderSection>
-                )}
+                ) : null}
               </div>
 
               <div className="grid gap-3 sm:grid-cols-3">
@@ -417,8 +375,6 @@ export default function TournamentPaymentSetupPage({ tournamentId }: TournamentP
                 </SummaryRow>
                 <SummaryRow label="Stripe account ID">{accountDefaults.stripeAccountId || "—"}</SummaryRow>
                 <SummaryRow label="Stripe key">{accountDefaults.stripePublishableKey || "—"}</SummaryRow>
-                <SummaryRow label="PayPal merchant ID">{accountDefaults.paypalMerchantId || "—"}</SummaryRow>
-                <SummaryRow label="PayPal email">{accountDefaults.paypalEmail || "—"}</SummaryRow>
                 <SummaryRow label="Last updated">
                   {accountDefaults.updatedAt ? new Date(accountDefaults.updatedAt).toLocaleString() : "—"}
                 </SummaryRow>

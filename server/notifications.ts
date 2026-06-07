@@ -6,6 +6,19 @@ import { initializeApp, cert, getApps } from "firebase-admin/app";
 import { getMessaging } from "firebase-admin/messaging";
 import fs from "fs";
 import path from "path";
+import webpush from "web-push";
+import { storage } from "./storage";
+
+// Using dynamic environment keys or fallback valid generated keys for portability
+const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || "BG2yHrGF3i0wdfshkoO0WmIj0vGiHs6WO67QyCzzR06quXpeHoZBxJrrJleLWce7LTcUlvzJm7KASQ1qDwPKFy0";
+const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || "UAiR126H07-Cz2xy4UC8nr0QxF4iKM_cHm6kVv99CGs";
+const VAPID_SUBJECT = process.env.VAPID_SUBJECT || "mailto:admin@example.com";
+
+webpush.setVapidDetails(
+  VAPID_SUBJECT,
+  VAPID_PUBLIC_KEY,
+  VAPID_PRIVATE_KEY
+);
 
 class NotificationService {
   private transporter: nodemailer.Transporter | null = null;
@@ -74,7 +87,7 @@ class NotificationService {
   }
 
   isPushEnabled(): boolean {
-    return this.firebaseReady;
+    return true; // We now use standard web-push which is always enabled
   }
 
   isEnabled(): boolean {
@@ -140,29 +153,58 @@ class NotificationService {
 
   async sendPushNotification(token: string, title: string, body: string): Promise<void> {
     if (!this.firebaseReady) {
-      log("Firebase is not initialized. Skipping push notification.", "notifications");
+      log("Firebase is not initialized. Skipping legacy Firebase push.", "notifications");
       return;
     }
 
     try {
-      log(`Attempting to send push notification to token: ${token.substring(0, 10)}...`, "notifications");
       const response = await getMessaging().send({
         token,
-        notification: {
-          title,
-          body,
-        },
+        notification: { title, body },
         webpush: {
-          notification: {
-            title,
-            body,
-            icon: "/assets/icons/icon-192x192.png",
+          notification: { title, body, icon: "/assets/icons/icon-192x192.png" }
+        }
+      });
+      log(`Firebase Push sent. Message ID: ${response}`, "notifications");
+    } catch (error) {
+      log(`Failed to send Firebase push: ${error}`, "notifications");
+    }
+  }
+
+  async sendWebPushNotificationToUser(userId: number, title: string, body: string, url?: string): Promise<void> {
+    try {
+      const subscriptions = await storage.getPushSubscriptionsByUser(userId);
+      if (!subscriptions || subscriptions.length === 0) return;
+
+      const payload = JSON.stringify({
+        title,
+        body,
+        icon: "/assets/icons/icon-192x192.png",
+        url: url || "/"
+      });
+
+      const sendPromises = subscriptions.map(async (sub) => {
+        try {
+          await webpush.sendNotification({
+            endpoint: sub.endpoint,
+            keys: {
+              p256dh: sub.p256dh,
+              auth: sub.auth
+            }
+          }, payload);
+        } catch (error: any) {
+          if (error.statusCode === 404 || error.statusCode === 410) {
+            log(`Subscription expired/invalid for user ${userId}, deleting...`, "notifications");
+            await storage.deletePushSubscription(sub.endpoint);
+          } else {
+            log(`Error sending web push: ${error}`, "notifications");
           }
         }
       });
-      log(`Push notification sent successfully. Message ID: ${response}`, "notifications");
+
+      await Promise.all(sendPromises);
     } catch (error) {
-      log(`Failed to send push notification: ${error}`, "notifications");
+      log(`Failed to send web push notifications: ${error}`, "notifications");
     }
   }
 }

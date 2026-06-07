@@ -6,7 +6,52 @@ import { makeNameKey, normalizeWhitespace, resolveFederationCode, tokenizeName }
 import type { FideDirectoryEntry } from "@shared/fide-types";
 export type { FideDirectoryEntry };
 
-const FIDE_DIRECTORY_PATH = path.resolve(process.cwd(), "players_list-fide-oct-2025.txt");
+import AdmZip from "adm-zip";
+
+const FIDE_DIRECTORY_PATH = path.resolve(process.cwd(), "players_list_fide.txt");
+let isDownloading = false;
+
+async function ensureFideDirectoryExists(): Promise<boolean> {
+  if (fs.existsSync(FIDE_DIRECTORY_PATH)) return true;
+  if (isDownloading) return false;
+
+  isDownloading = true;
+  try {
+    const date = new Date();
+    // Try current month, then previous month if 404
+    const monthNames = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+    
+    for (let offset = 0; offset <= 1; offset++) {
+      const d = new Date(date.getFullYear(), date.getMonth() - offset, 1);
+      const m = monthNames[d.getMonth()];
+      const y = String(d.getFullYear()).slice(-2);
+      
+      const url = `http://ratings.fide.com/download/standard_${m}${y}frl_txt.zip`;
+      console.log(`[FIDE] Attempting to download rating list from ${url}`);
+      
+      const response = await fetch(url);
+      if (response.ok) {
+        const arrayBuffer = await response.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        const zip = new AdmZip(buffer);
+        const zipEntries = zip.getEntries();
+        
+        const txtEntry = zipEntries.find(e => e.entryName.endsWith(".txt"));
+        if (txtEntry) {
+          fs.writeFileSync(FIDE_DIRECTORY_PATH, txtEntry.getData());
+          console.log(`[FIDE] Successfully downloaded and extracted ${txtEntry.entryName}`);
+          return true;
+        }
+      }
+    }
+    console.warn("[FIDE] Failed to download standard rating list from FIDE.");
+  } catch (error) {
+    console.error("[FIDE] Error downloading directory:", error);
+  } finally {
+    isDownloading = false;
+  }
+  return false;
+}
 
 function parseFideLine(line: string): FideDirectoryEntry | null {
   if (!line || line.length < 20) return null;
@@ -98,7 +143,7 @@ function removePlayerFromTargets(playerId: number, index: KeyIndex) {
 export async function lookupFideProfiles(players: Player[]): Promise<Map<number, FideDirectoryEntry>> {
   const results = new Map<number, FideDirectoryEntry>();
   if (!players.length) return results;
-  if (!fs.existsSync(FIDE_DIRECTORY_PATH)) {
+  if (!(await ensureFideDirectoryExists())) {
     return results;
   }
 
@@ -164,7 +209,7 @@ export async function searchFideDirectory(
 ): Promise<FideDirectoryEntry[]> {
   const results: FideDirectoryEntry[] = [];
   if (!nameQuery || nameQuery.length < 2) return results;
-  if (!fs.existsSync(FIDE_DIRECTORY_PATH)) {
+  if (!(await ensureFideDirectoryExists())) {
     return results;
   }
 

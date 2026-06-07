@@ -560,7 +560,7 @@ app.post(
 
         const tournamentId = parseInt(req.params.id);
         const emailRecipients = new Set<string>();
-        const pushTokens = new Set<string>();
+        const userIdsToPush = new Set<number>();
 
         if (payload.playerIds && payload.playerIds.length > 0) {
           // ── Targeted messaging: send to specific player IDs ──
@@ -584,11 +584,7 @@ app.post(
             }
 
             if (sendPush && player.userId) {
-              const users = await storage.listUsersByIds([player.userId]);
-              const user = users[0] as any;
-              if (user?.fcmToken) {
-                pushTokens.add(user.fcmToken);
-              }
+              userIdsToPush.add(player.userId);
             }
           }
         } else {
@@ -611,8 +607,8 @@ app.post(
               }
             }
 
-            if (sendPush && user?.fcmToken) {
-              pushTokens.add(user.fcmToken);
+            if (sendPush && user?.id) {
+              userIdsToPush.add(user.id);
             }
           }
         }
@@ -629,12 +625,12 @@ app.post(
           emailCount = emailRecipients.size;
         }
 
-        if (sendPush && pushTokens.size > 0) {
-          const tokens = Array.from(pushTokens);
-          for (const token of tokens) {
-            await notificationService.sendPushNotification(token, payload.subject, payload.message);
+        if (sendPush && userIdsToPush.size > 0) {
+          const ids = Array.from(userIdsToPush);
+          for (const uid of ids) {
+            await notificationService.sendWebPushNotificationToUser(uid, payload.subject, payload.message);
           }
-          pushCount = pushTokens.size;
+          pushCount = userIdsToPush.size;
         }
 
         res.json({
@@ -1323,6 +1319,68 @@ app.post("/api/tournaments/:id/generate-knockout", requireAuth, requireRole('tou
     }
 });
 
+// Revert history
+app.post("/api/tournaments/:id/history/:historyId/revert", requireAuth, requireRole('tournament_director'), requireTournamentAccess, async (req, res) => {
+    try {
+      const tournamentId = parseInt(req.params.id);
+      const historyId = parseInt(req.params.historyId);
+
+      const history = await storage.getHistoryEntry(historyId);
+      if (!history || history.tournamentId !== tournamentId) {
+        return res.status(404).json({ message: "History entry not found" });
+      }
+
+      if (!history.canRevert) {
+        return res.status(400).json({ message: "This change cannot be reverted" });
+      }
+
+      // Action specific revert logic
+      if (history.action === 'pairing_generation') {
+        const newState = JSON.parse(history.newState || '{}');
+        const pairings = newState.pairings || [];
+        const matches = newState.matches || [];
+        
+        // Undo: Delete all pairings and matches created
+        for (const p of pairings) {
+          await storage.deletePairing(p.id);
+        }
+        for (const m of matches) {
+          await storage.deleteMatch(m.id);
+        }
+      } else if (history.action === 'repair_round') {
+        const previousState = JSON.parse(history.previousState || '{}');
+        const pairingsToRestore = previousState.pairings || [];
+        const matchesToRestore = previousState.matches || [];
+
+        // Undo: Re-insert the deleted pairings and matches
+        for (const p of pairingsToRestore) {
+          await storage.createPairing(p);
+        }
+        for (const m of matchesToRestore) {
+          await storage.createMatch(m);
+        }
+      } else if (history.action === 'manual_swap') {
+        const previousState = JSON.parse(history.previousState || '{}');
+        if (previousState.match1) await storage.updateMatch(previousState.match1.id, previousState.match1);
+        if (previousState.match2) await storage.updateMatch(previousState.match2.id, previousState.match2);
+      } else if (history.action === 'result_change') {
+        const previousMatch = JSON.parse(history.previousState || '{}');
+        if (previousMatch.id) {
+          await storage.updateMatch(previousMatch.id, previousMatch);
+        }
+      }
+
+      // Delete the history entry so it can't be reverted again
+      const { getSupabaseClient } = await import('../supabaseClient');
+      await getSupabaseClient().from('tournament_history').delete().eq('id', history.id);
+
+      res.json({ message: "Reverted successfully" });
+    } catch (error: any) {
+      console.error("Revert error:", error);
+      res.status(500).json({ message: "Failed to revert: " + error.message });
+    }
+});
+
 // Generate next round
 app.post("/api/tournaments/:id/next-round", requireAuth, requireRole('tournament_director'), requireTournamentAccess, async (req, res) => {
     try {
@@ -1777,8 +1835,8 @@ app.post("/api/tournaments/:id/register-batch", requireAuth, async (req, res) =>
           if ((user.notifyEmail ?? true) && user.email) {
             await notificationService.sendEmail({ to: user.email, subject, text: message });
           }
-          if ((user as any).fcmToken) {
-            await notificationService.sendPushNotification((user as any).fcmToken, subject, message);
+          if ((user as any).id) {
+            await notificationService.sendWebPushNotificationToUser((user as any).id, subject, message);
           }
         }
       } catch (confirmErr) {
@@ -2000,8 +2058,8 @@ app.post("/api/tournaments/:id/register", requireAuth, async (req, res) => {
           if ((user.notifyEmail ?? true) && user.email) {
             await notificationService.sendEmail({ to: user.email, subject, text: message });
           }
-          if ((user as any).fcmToken) {
-            await notificationService.sendPushNotification((user as any).fcmToken, subject, message);
+          if ((user as any).id) {
+            await notificationService.sendWebPushNotificationToUser((user as any).id, subject, message);
           }
         }
       } catch (notifErr) {
@@ -2280,8 +2338,8 @@ app.patch("/api/tournaments/:id/registrations/:registrationId", requireAuth, req
                     text: message 
                   });
                 }
-                if ((userForNotification as any).fcmToken) {
-                  await notificationService.sendPushNotification((userForNotification as any).fcmToken, subject, message);
+                if ((userForNotification as any).id) {
+                  await notificationService.sendWebPushNotificationToUser((userForNotification as any).id, subject, message);
                 }
               }
             }
@@ -2894,8 +2952,8 @@ app.post("/api/tournaments/:tournamentId/generate-pairings", requireAuth, requir
               await notificationService.sendEmail({ to: user.email, subject: title, text: message }).catch((err: any) => console.error(`Failed to send email to ${user.email}:`, err));
             }
             // Push
-            if ((user as any).fcmToken) {
-              await notificationService.sendPushNotification((user as any).fcmToken, title, message).catch((err: any) => console.error(`Failed to send push to ${user.username}:`, err));
+            if ((user as any).id) {
+              await notificationService.sendWebPushNotificationToUser(user.id, title, message).catch((err: any) => console.error(`Failed to send push to ${user.username}:`, err));
             }
           };
 
@@ -3046,10 +3104,10 @@ app.post("/api/tournaments/:tournamentId/generate-pairings", requireAuth, requir
           action: 'repair_round',
           description: `Round ${currentRound} pairings repaired/regenerated, subsequent rounds wiped`,
           changedBy: user.id,
-          previousState: JSON.stringify({ pairingsCount: pairingsToDelete.length, matchesCount: matchesToDelete.length }),
+          previousState: JSON.stringify({ pairings: pairingsToDelete, matches: matchesToDelete }),
           newState: JSON.stringify({ regeneratedRound: currentRound, currentRoundSetTo: currentRound }),
           round: currentRound,
-          canRevert: false
+          canRevert: true
         });
       }
 
@@ -3267,6 +3325,23 @@ app.post("/api/tournaments/:tournamentId/generate-pairings", requireAuth, requir
         await storage.updateTournament(tournamentId, {
           status: "active",
           currentRound: currentRound
+        });
+      }
+
+      // Capture full state of the newly generated round for reversion purposes
+      if (tournament.format !== 'roundrobin') {
+        const generatedPairings = await storage.getPairingsByRound(tournamentId, currentRound);
+        const generatedMatches = await storage.getMatchesByRound(tournamentId, currentRound);
+        
+        await storage.createHistoryEntry({
+          tournamentId,
+          action: 'pairing_generation',
+          description: `Generated pairings for Round ${currentRound}`,
+          changedBy: user.id,
+          previousState: null,
+          newState: JSON.stringify({ pairings: generatedPairings, matches: generatedMatches }),
+          round: currentRound,
+          canRevert: true
         });
       }
 

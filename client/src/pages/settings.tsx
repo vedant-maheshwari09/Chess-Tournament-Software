@@ -29,7 +29,7 @@ import { LogOut, Trash2, ArrowLeft, SlidersHorizontal, User2, Mail, Smartphone, 
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { requestFirebaseToken } from "@/lib/firebase";
+import { subscribeToPushNotifications } from "@/lib/push";
 import { UscfVerificationCard } from "@/components/uscf-verification-card";
 import { FideVerificationCard } from "@/components/fide-verification-card";
 
@@ -176,61 +176,43 @@ export default function SettingsPage() {
     },
   });
 
-  const registerPushTokenMutation = useMutation({
-    mutationFn: async (fcmToken: string) => {
-      return apiRequest("/api/users/fcm-token", {
-        method: "POST",
-        body: JSON.stringify({ fcmToken }),
-      });
-    },
-    onSuccess: () => {
-      toast({ 
-        title: "Push notifications enabled",
-        description: "You will now receive real-time alerts on this device."
-      });
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Failed to enable push",
-        description: error?.message ?? "Please try again later.",
-        variant: "destructive",
-      });
-    },
-  });
+  const [isPushEnabled, setIsPushEnabled] = useState(false);
+  const [isPushEnabling, setIsPushEnabling] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && "Notification" in window) {
+      setIsPushEnabled(Notification.permission === "granted");
+    }
+  }, []);
 
   const handleEnablePush = async () => {
-    if (registerPushTokenMutation.isPending) return;
+    if (isPushEnabling) return;
+    setIsPushEnabling(true);
 
     try {
-      const token = await requestFirebaseToken();
-      if (token) {
-        registerPushTokenMutation.mutate(token);
+      const success = await subscribeToPushNotifications();
+      if (success) {
+        setIsPushEnabled(true);
+        toast({ 
+          title: "Push notifications enabled",
+          description: "You will now receive real-time alerts on this device."
+        });
       } else {
         toast({
           title: "Setup incomplete",
-          description: "Your browser reported that notifications are not supported or setup failed. Please check if you are in an Incognito window.",
+          description: "Push notifications were blocked or failed to initialize.",
           variant: "destructive",
         });
       }
     } catch (err: any) {
-      console.error("Error requesting push token:", err);
-      
-      let errorMessage = "An unexpected error occurred while setting up push notifications.";
-      
-      if (err?.message?.includes('messaging/permission-blocked')) {
-        errorMessage = "Notifications are blocked. Please click the lock icon in your address bar and set Notifications to 'Allow'.";
-      } else if (err?.message?.includes('messaging/invalid-vapid-key')) {
-        errorMessage = "A configuration error occurred (Invalid VAPID Key). Please contact the administrator.";
-      } else if (err?.message) {
-        errorMessage = err.message;
-      }
-
+      console.error("Error setting up push:", err);
       toast({
         title: "Push Setup Failed",
-        description: errorMessage,
+        description: err.message || "An unexpected error occurred while setting up push notifications.",
         variant: "destructive",
       });
+    } finally {
+      setIsPushEnabling(false);
     }
   };
 
@@ -419,9 +401,9 @@ export default function SettingsPage() {
                     size="sm" 
                     className="h-8 text-xs"
                     onClick={handleEnablePush}
-                    disabled={registerPushTokenMutation.isPending || !!user?.fcmToken}
+                    disabled={isPushEnabling || isPushEnabled}
                   >
-                    {registerPushTokenMutation.isPending ? "Connecting..." : user?.fcmToken ? "Enabled" : "Enable"}
+                    {isPushEnabling ? "Connecting..." : isPushEnabled ? "Enabled" : "Enable"}
                   </Button>
                 </div>
               </div>

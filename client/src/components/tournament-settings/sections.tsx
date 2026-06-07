@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  type ChessResultsConfig,
+  type WebhookSyncConfig,
   type FideRegistrationData,
   type UscfReportData,
 } from "@/lib/tournament-config";

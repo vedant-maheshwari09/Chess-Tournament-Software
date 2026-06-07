@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Users, Trophy, Calendar, Play, Plus, Undo, FileText, Settings as SettingsIcon, CalendarClock, Calculator, LayoutDashboard, RefreshCw } from "lucide-react";
+import { Users, Trophy, Calendar, Play, Plus, Undo, FileText, Settings as SettingsIcon, CalendarClock, Calculator, LayoutDashboard, RefreshCw, Keyboard } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -670,7 +670,17 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
                         )}
                       </div>
                       <div className="flex items-center gap-2">
-
+                        {tournament.format !== 'arena' && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 px-3 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50/50 rounded-lg font-medium flex items-center gap-1.5"
+                            onClick={() => setLocation(`/tournaments/${tournamentId}/results-entry`)}
+                          >
+                            <Keyboard className="h-4 w-4" />
+                            Fast Results
+                          </Button>
+                        )}
                         <Sheet>
                           <SheetTrigger asChild>
                             <Button variant="ghost" size="sm" className="h-8 px-3 text-slate-500 hover:text-black">
