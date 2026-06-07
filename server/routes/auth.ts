@@ -319,14 +319,15 @@ app.post("/api/auth/login", async (req, res) => {
   app.patch('/api/auth/profile/td-credentials', requireAuth, async (req, res) => {
     try {
       const { uscfAffiliateId, fideArbiterId, fideArbiterTitle } = req.body;
-      const [updatedUser] = await db.update(users)
-        .set({
-          uscfAffiliateId: uscfAffiliateId || null,
-          fideArbiterId: fideArbiterId || null,
-          fideArbiterTitle: fideArbiterTitle || null,
-        })
-        .where(eq(users.id, req.user!.id))
-        .returning();
+      const updatedUser = await storage.updateUser(req.user!.id, {
+        uscfAffiliateId: uscfAffiliateId || null,
+        fideArbiterId: fideArbiterId || null,
+        fideArbiterTitle: fideArbiterTitle || null,
+      });
+
+      if (!updatedUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
 
       const userWithoutPassword = { ...updatedUser };
       delete (userWithoutPassword as any).passwordHash;
@@ -340,10 +341,13 @@ app.post("/api/auth/login", async (req, res) => {
   // Mark Onboarding Complete
   app.post('/api/auth/onboard', requireAuth, async (req, res) => {
     try {
-      const [updatedUser] = await db.update(users)
-        .set({ hasOnboarded: true })
-        .where(eq(users.id, req.user!.id))
-        .returning();
+      const updatedUser = await storage.updateUser(req.user!.id, {
+        hasOnboarded: true,
+      });
+
+      if (!updatedUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
 
       const userWithoutPassword = { ...updatedUser };
       delete (userWithoutPassword as any).passwordHash;
