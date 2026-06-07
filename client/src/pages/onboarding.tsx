@@ -53,7 +53,7 @@ export default function OnboardingPage() {
         method: "PATCH",
         body: JSON.stringify(data),
       });
-      return res.json();
+      return res;
     },
     onSuccess: () => {
       toast({ title: "Credentials saved." });
@@ -67,7 +67,7 @@ export default function OnboardingPage() {
   const completeOnboarding = useMutation({
     mutationFn: async () => {
       const res = await apiRequest("/api/auth/onboard", { method: "POST" });
-      return res.json();
+      return res;
     },
     onSuccess: (data) => {
       queryClient.setQueryData(["/api/auth/me"], data.user);
@@ -102,7 +102,16 @@ export default function OnboardingPage() {
             <UscfVerificationCard />
             <FideVerificationCard />
             
-            <div className="flex justify-end pt-4">
+            <div className="flex justify-end gap-3 pt-4">
+              <Button 
+                type="button" 
+                variant="outline"
+                size="lg"
+                onClick={() => completeOnboarding.mutate()}
+                disabled={completeOnboarding.isPending}
+              >
+                Skip
+              </Button>
               <Button 
                 size="lg" 
                 onClick={() => completeOnboarding.mutate()}
