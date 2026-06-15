@@ -726,18 +726,19 @@ export default function SwissStandings({ tournamentId, showExportControls = true
   const generateSwissSysHtmlTable = useCallback((sectionStandings: SwissPlayerStanding[], sectionLabel: string) => {
     const isFide = tournamentConfig?.details.primaryRatingSystem === 'fide';
     
-    let html = `<h3>SwissSys Wall Chart. ${tournament?.name ?? 'Tournament'}: ${sectionLabel} (standings)</h3>\n`;
+    let html = `<h3 style="font-family: Arial, sans-serif; font-size: 15px; font-weight: bold; margin: 0 0 10px 0; text-align: left;">SwissSys Wall Chart. ${tournament?.name ?? 'Tournament'}: ${sectionLabel}</h3>\n`;
     html += `<table style="border-collapse: collapse; border: 1px solid black; width: 100%; font-family: Arial, sans-serif; font-size: 13px; color: #000; background-color: #fff;">\n`;
     
     // Headers
-    html += `<thead>\n  <tr style="border: 1px solid black; padding: 3px;">\n`;
-    html += `    <td style="background-color: #e8e8e8; border: 1px solid black; font-weight: bold; padding: 3px; text-align: center; width: 40px;">#</td>\n`;
-    html += `    <td style="background-color: #e8e8e8; border: 1px solid black; font-weight: bold; padding: 3px; text-align: left;">Name/Rating/ID</td>\n`;
+    html += `<thead>\n  <tr style="border: 1px solid black; padding: 6px 8px;">\n`;
+    html += `    <td style="background-color: #e8e8e8; border: 1px solid black; font-weight: bold; padding: 6px 8px; text-align: center; width: 35px;">#</td>\n`;
+    html += `    <td style="background-color: #e8e8e8; border: 1px solid black; font-weight: bold; padding: 6px 8px; text-align: left; width: 250px;">Name/Rating/ID</td>\n`;
     for (let r = 1; r <= totalRounds; r++) {
-      html += `    <td style="background-color: #e8e8e8; border: 1px solid black; font-weight: bold; padding: 3px; text-align: center; width: 60px;">Rd ${r}</td>\n`;
+      html += `    <td style="background-color: #e8e8e8; border: 1px solid black; font-weight: bold; padding: 6px 8px; text-align: center; width: 55px;">Rd ${r}</td>\n`;
     }
+    html += `    <td style="background-color: #e8e8e8; border: 1px solid black; font-weight: bold; padding: 6px 8px; text-align: center; width: 50px;">Total</td>\n`;
     if (showPrizes) {
-      html += `    <td style="background-color: #e8e8e8; border: 1px solid black; font-weight: bold; padding: 3px; text-align: center; width: 120px;">Prizes</td>\n`;
+      html += `    <td style="background-color: #e8e8e8; border: 1px solid black; font-weight: bold; padding: 6px 8px; text-align: center; width: 110px;">Prizes</td>\n`;
     }
     html += `  </tr>\n</thead>\n<tbody>\n`;
     
@@ -754,37 +755,42 @@ export default function SwissStandings({ tournamentId, showExportControls = true
         ? `<a href="http://www.uschess.org/msa/MbrDtlMain.php?${uscfId}" target="_blank" style="color: #0066cc; text-decoration: none; font-weight: bold;">${playerName}</a>` 
         : playerName;
         
-      // Row 1: Pairing No, Name, Round results, Prize Category
-      html += `  <tr style="border: 1px solid black; padding: 3px;">\n`;
-      html += `    <td style="background-color: #e8e8e8; border: 1px solid black; font-weight: bold; padding: 3px; text-align: center;">${pairingNum}</td>\n`;
-      html += `    <td style="border: 1px solid black; font-weight: bold; padding: 3px; text-align: left;">${nameHtml}</td>\n`;
+      // Row 1: Pairing No, Name, Round results, Total Points, Prize Category
+      html += `  <tr style="border: 1px solid black; padding: 6px 8px;">\n`;
+      html += `    <td style="background-color: #e8e8e8; border: 1px solid black; font-weight: bold; padding: 6px 8px; text-align: center;">${pairingNum}</td>\n`;
+      html += `    <td style="border: 1px solid black; font-weight: bold; padding: 6px 8px; text-align: left;">${nameHtml}</td>\n`;
       
       standing.roundResults.forEach((res) => {
         const resultText = formatRoundResultDisplay(res);
-        html += `    <td style="border: 1px solid black; padding: 3px; text-align: center;">${resultText}</td>\n`;
+        html += `    <td style="border: 1px solid black; padding: 6px 8px; text-align: center;">${resultText}</td>\n`;
       });
       
+      const totalPointsStr = standing.totalPoints.toFixed(1);
+      html += `    <td style="border: 1px solid black; font-weight: bold; padding: 6px 8px; text-align: center;">${totalPointsStr}</td>\n`;
+      
       if (showPrizes) {
-        html += `    <td style="border: 1px solid black; padding: 3px; text-align: center;">${standing.prizeCategory || '---'}</td>\n`;
+        html += `    <td style="border: 1px solid black; padding: 6px 8px; text-align: center;">${standing.prizeCategory || '---'}</td>\n`;
       }
       html += `  </tr>\n`;
       
-      // Row 2: Empty, Rating/ID, Cumulative scores, Prize Amount
-      html += `  <tr style="border: 1px solid black; padding: 3px;">\n`;
-      html += `    <td style="background-color: #e8e8e8; border: 1px solid black; padding: 3px; text-align: center;">&nbsp;</td>\n`;
-      html += `    <td style="border: 1px solid black; padding: 3px; text-align: left;">${playerRating} ${playerID}</td>\n`;
+      // Row 2: Empty, Rating/ID, Cumulative scores, Empty (Total), Prize Amount
+      html += `  <tr style="border: 1px solid black; padding: 6px 8px;">\n`;
+      html += `    <td style="background-color: #e8e8e8; border: 1px solid black; padding: 6px 8px; text-align: center;">&nbsp;</td>\n`;
+      html += `    <td style="border: 1px solid black; padding: 6px 8px; text-align: left;">${playerRating}${playerID ? ` &nbsp;&nbsp; ID: ${playerID}` : ''}</td>\n`;
       
       standing.roundResults.forEach((res, roundIndex) => {
         const cumulative = standing.roundResults
           .slice(0, roundIndex + 1)
           .reduce((sum, entry) => sum + entry.points, 0);
         const cumulativeText = roundIndex < currentRound ? cumulative.toFixed(1) : '';
-        html += `    <td style="border: 1px solid black; padding: 3px; text-align: center;">${cumulativeText}</td>\n`;
+        html += `    <td style="border: 1px solid black; padding: 6px 8px; text-align: center;">${cumulativeText}</td>\n`;
       });
+      
+      html += `    <td style="border: 1px solid black; padding: 6px 8px; text-align: center;">&nbsp;</td>\n`;
       
       if (showPrizes) {
         const amountText = tournamentConfig?.showPrizeAmounts !== false ? (standing.prizeAmount || '---') : '---';
-        html += `    <td style="border: 1px solid black; padding: 3px; text-align: center; font-weight: bold;">${amountText}</td>\n`;
+        html += `    <td style="border: 1px solid black; padding: 6px 8px; text-align: center; font-weight: bold;">${amountText}</td>\n`;
       }
       html += `  </tr>\n`;
     });

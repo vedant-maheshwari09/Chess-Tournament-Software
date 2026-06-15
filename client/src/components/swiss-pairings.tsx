@@ -689,8 +689,8 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
         body { font-family: Arial, sans-serif; padding: 10px; color: #000; font-size: 13px; background-color: #fff; }
         .round-header { font-size: 13px; margin: 5px 0 10px 0; font-weight: normal; font-family: Arial, sans-serif; text-align: left; }
         table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 13px; }
-        th { padding: 4px 6px; border: 1px solid #000; background-color: #fff; font-weight: normal; }
-        td { padding: 4px 6px; border: 1px solid #000; vertical-align: middle; }
+        th { padding: 6px 8px; border: 1px solid #000; background-color: #fff; font-weight: normal; }
+        td { padding: 6px 8px; border: 1px solid #000; vertical-align: middle; }
       </style></head><body>`,
     );
 
