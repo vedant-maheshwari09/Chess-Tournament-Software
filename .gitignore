@@ -30,3 +30,6 @@ HOSTING_PLAN.md
 MIGRATION_INSTRUCTIONS.md
 pnpm-lock.yaml
 uploads/
+
+# Unused backup settings pages
+*.bak

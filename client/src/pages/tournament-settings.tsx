@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { Tournament, Player } from "@shared/schema";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import type { Tournament } from "@shared/schema";
 import {
   type WebhookSyncConfig,
   type FideRegistrationData,
@@ -22,37 +20,16 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   WebhookSyncSettingsCard,
   FideRegistrationSection,
   UscfReportSection,
-  ArenaSettingsCard,
 } from "@/components/tournament-settings/sections";
 import { GeneralSettingsCard } from "@/components/tournament-settings/GeneralSettingsCard";
 import { BoardNumberingCard } from "@/components/tournament-settings/BoardNumberingCard";
-import { TournamentActionsContent } from "./tournament-actions";
-import { 
-  ChevronLeft, 
-  Loader2, 
-  Settings, 
-  Hash, 
-  BarChart3, 
-  Globe, 
-  Flag, 
-  RotateCw, 
-  Timer,
-  Info,
-  Calendar,
-  CreditCard,
-  Trophy,
-  UserPlus,
-  Check,
-  AlertTriangle
-} from "lucide-react";
+import { Loader2, ChevronLeft, Check } from "lucide-react";
 
-
-type SettingsSection = "basic" | "details" | "schedule" | "payments" | "prizes" | "player-signup" | "rate-tournament" | "general" | "board-numbering" | "fide" | "uscf" | "webhook-sync" | "arena" | "advanced";
+type SettingsSection = "registers" | "fide" | "uscf" | "webhook-sync";
 
 interface TournamentSettingsPageProps {
   tournamentId: number;
@@ -75,23 +52,6 @@ function downloadJson(filename: string, data: unknown) {
   URL.revokeObjectURL(url);
 }
 
-function extractFilenameFromDisposition(disposition: string | null): string | null {
-  if (!disposition) return null;
-  const utf8Match = /filename\*=UTF-8''([^;]+)/i.exec(disposition);
-  if (utf8Match && utf8Match[1]) {
-    try {
-      return decodeURIComponent(utf8Match[1]);
-    } catch (error) {
-      console.warn("Failed to decode UTF-8 filename", error);
-    }
-  }
-  const quotedMatch = /filename="?([^";]+)"?/i.exec(disposition);
-  if (quotedMatch && quotedMatch[1]) {
-    return quotedMatch[1];
-  }
-  return null;
-}
-
 export default function TournamentSettingsPage({ tournamentId, section }: TournamentSettingsPageProps) {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
@@ -105,31 +65,6 @@ export default function TournamentSettingsPage({ tournamentId, section }: Tourna
   const [config, setConfig] = useState<TournamentConfig | null>(null);
   const [baseline, setBaseline] = useState<TournamentConfig | null>(null);
   const [isDirty, setIsDirty] = useState(false);
-  const [chessResultsEnabled, setChessResultsEnabled] = useState(false);
-
-  const allowedSections = [
-    "general",
-    "basic",
-    "details",
-    "schedule",
-    "payments",
-    "prizes",
-    "player-signup",
-    "rate-tournament",
-    "fide",
-    "uscf",
-    "webhook-sync",
-    "board-numbering",
-    "arena",
-    "advanced",
-  ] satisfies SettingsSection[];
-
-  const currentSection: SettingsSection = useMemo(() => {
-    const normalized = (section ?? "basic") as SettingsSection;
-    return allowedSections.includes(normalized)
-      ? normalized
-      : "basic";
-  }, [section]);
 
   useEffect(() => {
     if (!tournament) return;
@@ -137,7 +72,6 @@ export default function TournamentSettingsPage({ tournamentId, section }: Tourna
     const cloned = cloneConfig(parsed);
     setConfig(cloned);
     setBaseline(cloneConfig(parsed));
-    setChessResultsEnabled(!!tournament.chessResultsUrl);
     setIsDirty(false);
   }, [tournament]);
 
@@ -151,36 +85,32 @@ export default function TournamentSettingsPage({ tournamentId, section }: Tourna
     setIsDirty(true);
   };
 
-
-
-  const updateBoardNumbering = (update: Partial<BoardNumberingSettings>) => {
-    if (!config) return;
-    setConfig((prev) => {
-      if (!prev) return prev;
-      const next = {
-        ...prev,
-        boardNumbering: {
-          ...prev.boardNumbering,
-          ...update,
-        },
-      };
-      return next;
-    });
-    markDirty();
-  };
-
   const updateRegisters = (update: Partial<RegistersConfig>) => {
     if (!config) return;
     setConfig((prev) => {
       if (!prev) return prev;
-      const next = {
+      return {
         ...prev,
         registers: {
           ...prev.registers,
           ...update,
         },
       };
-      return next;
+    });
+    markDirty();
+  };
+
+  const updateBoardNumbering = (update: Partial<BoardNumberingSettings>) => {
+    if (!config) return;
+    setConfig((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        boardNumbering: {
+          ...prev.boardNumbering,
+          ...update,
+        },
+      };
     });
     markDirty();
   };
@@ -230,21 +160,6 @@ export default function TournamentSettingsPage({ tournamentId, section }: Tourna
     markDirty();
   };
 
-  const updateArena = (update: any) => {
-    if (!config) return;
-    setConfig((prev) => {
-      if (!prev || !prev.arena) return prev;
-      return {
-        ...prev,
-        arena: {
-          ...prev.arena,
-          ...update,
-        },
-      };
-    });
-    markDirty();
-  };
-
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!config || !tournament) throw new Error("Configuration not ready");
@@ -263,6 +178,7 @@ export default function TournamentSettingsPage({ tournamentId, section }: Tourna
       setBaseline(cloneConfig(parsed));
       setIsDirty(false);
       queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}`] });
+      toast({ title: "Tournament settings saved successfully" });
     },
     onError: (error: any) => {
       toast({
@@ -273,17 +189,6 @@ export default function TournamentSettingsPage({ tournamentId, section }: Tourna
     },
   });
 
-  // Autosave logic
-  useEffect(() => {
-    if (!isDirty || !config || saveMutation.isPending) return;
-
-    const timer = setTimeout(() => {
-      saveMutation.mutate();
-    }, 1500);
-
-    return () => clearTimeout(timer);
-  }, [config, isDirty]);
-
   const testMutation = useMutation({
     mutationFn: async () => {
       if (!config) throw new Error("Configuration not ready");
@@ -293,11 +198,11 @@ export default function TournamentSettingsPage({ tournamentId, section }: Tourna
       });
     },
     onSuccess: () => {
-      toast({ title: "Webhook connection successful" });
+      toast({ title: "Connection test successful" });
     },
     onError: (error: any) => {
       toast({
-        title: "Connection failed",
+        title: "Connection test failed",
         description: error?.message ?? "Verify credentials and try again.",
         variant: "destructive",
       });
@@ -317,119 +222,18 @@ export default function TournamentSettingsPage({ tournamentId, section }: Tourna
       if (result?.config) {
         setConfig(cloneConfig(result.config));
       }
-      toast({ title: "Webhook sync complete" });
+      toast({ title: "Webhook synchronization complete" });
       queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}`] });
       setIsDirty(true);
     },
     onError: (error: any) => {
       toast({
-        title: "Sync failed",
+        title: "Synchronization failed",
         description: error?.message ?? "Check credentials and network access.",
         variant: "destructive",
       });
     },
   });
-
-
-
-  useEffect(() => {
-    if (!config) return;
-    if (!allowedSections.includes(currentSection)) {
-      setLocation(`/tournaments/${tournamentId}/settings/${allowedSections[0] ?? "registers"}`);
-    }
-  }, [allowedSections, config, currentSection, setLocation, tournamentId]);
-
-  const unsavedChanges = isDirty || JSON.stringify(config) !== JSON.stringify(baseline);
-
-  const handleDownloadFideRegistration = useCallback(() => {
-    if (!config) return;
-    downloadJson(`tournament-${tournamentId}-fide-registration.json`, {
-      tournamentId,
-      tournamentName: tournament?.name,
-      form: "FIDERegistration",
-      data: config.fide,
-    });
-  }, [config, tournament?.name, tournamentId]);
-
-  const handleDownloadFideFa1 = useCallback(() => {
-    if (!config) return;
-    downloadJson(`tournament-${tournamentId}-fa1.json`, {
-      tournamentId,
-      tournamentName: tournament?.name,
-      form: "FA1",
-      data: config.fide,
-    });
-  }, [config, tournament?.name, tournamentId]);
-
-  const handleDownloadFideIa1 = useCallback(() => {
-    if (!config) return;
-    downloadJson(`tournament-${tournamentId}-ia1.json`, {
-      tournamentId,
-      tournamentName: tournament?.name,
-      form: "IA1",
-      data: config.fide,
-    });
-  }, [config, tournament?.name, tournamentId]);
-
-  const handleDownloadFideTrf = useCallback(async () => {
-    try {
-      const response = await apiRequest(`/api/tournaments/${tournamentId}/exports/fide-trf`);
-      if (!(response instanceof Response)) {
-        throw new Error("Unexpected response payload");
-      }
-
-      const blob = await response.blob();
-      const suggestedName = extractFilenameFromDisposition(response.headers.get("content-disposition"));
-      const filename = suggestedName ?? `tournament-${tournamentId}-fide-trf16.trf`;
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = filename;
-      anchor.click();
-      URL.revokeObjectURL(url);
-
-      const warnings = response.headers.get("x-export-warnings");
-      if (warnings) {
-        toast({ title: "TRF exported with warnings", description: warnings, variant: "destructive" });
-      } else {
-        toast({ title: "FIDE TRF16 downloaded" });
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Unable to download TRF export.";
-      toast({ title: "TRF export failed", description: message, variant: "destructive" });
-    }
-  }, [toast, tournamentId]);
-
-  const handleDownloadUscf = useCallback(() => {
-    if (!config) return;
-    downloadJson(`tournament-${tournamentId}-uscf-report.json`, {
-      tournamentId,
-      tournamentName: tournament?.name,
-      form: "USCF",
-      data: config.uscf,
-    });
-  }, [config, tournament?.name, tournamentId]);
-
-  const handleDownloadUscfZip = useCallback(async () => {
-    try {
-      const response = await apiRequest(`/api/tournaments/${tournamentId}/exports/uscf-dbf`);
-      if (!(response instanceof Response)) {
-        throw new Error("Unexpected response payload");
-      }
-
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = `tournament-${tournamentId}-uscf-export.zip`;
-      anchor.click();
-      URL.revokeObjectURL(url);
-      toast({ title: "USCF DBF ZIP downloaded" });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Unable to download USCF DBF export.";
-      toast({ title: "USCF export failed", description: message, variant: "destructive" });
-    }
-  }, [toast, tournamentId]);
 
   const handleDownloadWebhookSync = useCallback(() => {
     if (!config) return;
@@ -440,6 +244,33 @@ export default function TournamentSettingsPage({ tournamentId, section }: Tourna
       data: config.webhookSync,
     });
   }, [config, tournament?.name, tournamentId]);
+
+  const allowedSections = useMemo(() => {
+    const source = config ?? baseline;
+    if (!source) return ["registers", "webhook-sync"] satisfies SettingsSection[];
+
+    const sections: SettingsSection[] = ["registers"];
+    if (source.registers.fideRated) {
+      sections.push("fide");
+    }
+    if (source.registers.uscfRated) {
+      sections.push("uscf");
+    }
+    sections.push("webhook-sync");
+    return sections;
+  }, [baseline, config]);
+
+  const currentSection: SettingsSection = useMemo(() => {
+    const normalized = (section ?? "registers") as SettingsSection;
+    return allowedSections.includes(normalized) ? normalized : "registers";
+  }, [section, allowedSections]);
+
+  useEffect(() => {
+    if (!config) return;
+    if (!allowedSections.includes(currentSection)) {
+      setLocation(`/tournaments/${tournamentId}/settings/${allowedSections[0] ?? "registers"}`);
+    }
+  }, [allowedSections, config, currentSection, setLocation, tournamentId]);
 
   if (authLoading || tournamentLoading || !config || !baseline) {
     return (
@@ -452,39 +283,19 @@ export default function TournamentSettingsPage({ tournamentId, section }: Tourna
     );
   }
 
-  const sectionLabels: Record<SettingsSection, string> = {
-    basic: "Basic Info",
-    general: "General",
-    details: "Details",
-    schedule: "Schedule",
-    payments: "Payments",
-    prizes: "Prizes",
-    "player-signup": "Player Signup",
-    "rate-tournament": "Rating Hub",
-    fide: "FIDE Settings",
-    uscf: "USCF Settings",
+  const NAV_LABELS: Record<SettingsSection, string> = {
+    registers: "Registers",
+    fide: "Data for FIDE",
+    uscf: "Data for USCF",
     "webhook-sync": "Custom API Sync",
-    "board-numbering": "Boards",
-    arena: "Arena Scoring",
-    advanced: "Advanced",
   };
 
-  const sectionIcons: Record<SettingsSection, any> = {
-    basic: Info,
-    general: Settings,
-    details: Settings, // or another one
-    schedule: Calendar,
-    payments: CreditCard,
-    prizes: Trophy,
-    "player-signup": UserPlus,
-    "rate-tournament": BarChart3,
-    fide: Globe,
-    uscf: Flag,
-    "webhook-sync": RotateCw,
-    "board-numbering": Hash,
-    arena: Timer,
-    advanced: AlertTriangle,
+  const goToSection = (id: SettingsSection) => {
+    if (!allowedSections.includes(id)) return;
+    setLocation(`/tournaments/${tournamentId}/settings/${id}`);
   };
+
+  const unsavedChanges = isDirty || JSON.stringify(config) !== JSON.stringify(baseline);
 
   return (
     <div className="min-h-screen bg-transparent">
@@ -506,24 +317,11 @@ export default function TournamentSettingsPage({ tournamentId, section }: Tourna
             <div>
               <h1 className="text-2xl font-semibold">Tournament settings</h1>
               <p className="text-sm text-muted-foreground">
-                Manage federation forms and Chess-Results synchronization for {tournament?.name}.
+                Manage federation forms and custom API synchronization for {tournament?.name}.
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-4">
-            {saveMutation.isPending ? (
-              <div className="flex items-center gap-2 text-sm text-slate-400 font-medium">
-                <Loader2 className="h-4 w-4 animate-spin text-indigo-500" />
-                <span>Autosaving...</span>
-              </div>
-            ) : isDirty ? (
-              <div className="text-sm text-amber-600 font-medium animate-pulse">Unsaved changes...</div>
-            ) : (
-              <div className="flex items-center gap-1.5 text-sm text-emerald-600 font-medium">
-                <Check className="h-4 w-4" />
-                <span>All changes saved</span>
-              </div>
-            )}
+          <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="sm"
@@ -533,313 +331,86 @@ export default function TournamentSettingsPage({ tournamentId, section }: Tourna
                 setConfig(cloneConfig(baseline));
                 setIsDirty(false);
               }}
-              disabled={!isDirty || saveMutation.isPending}
+              disabled={!unsavedChanges || saveMutation.isPending}
             >
-              Reset to baseline
+              Reset
+            </Button>
+            <Button
+              size="sm"
+              className="h-9"
+              onClick={() => saveMutation.mutate()}
+              disabled={!unsavedChanges || saveMutation.isPending}
+            >
+              {saveMutation.isPending ? "Saving..." : "Save changes"}
             </Button>
           </div>
         </div>
 
+        {/* Horizontal Navigation Tabs */}
+        <div className="flex flex-wrap gap-2 mb-6">
+          {["registers", "fide", "uscf", "webhook-sync"].map((sectionId) => {
+            const id = sectionId as SettingsSection;
+            if (!allowedSections.includes(id)) return null;
+            return (
+              <Button
+                key={id}
+                variant={currentSection === id ? "default" : "outline"}
+                onClick={() => goToSection(id)}
+                className="rounded-xl shadow-sm px-4 py-2 font-medium"
+              >
+                {NAV_LABELS[id]}
+              </Button>
+            );
+          })}
+        </div>
+
         <Separator />
 
-        <div className="flex flex-col gap-8 md:flex-row">
-          {/* Sidebar Navigation */}
-          <aside className="w-full shrink-0 md:w-64">
-            <nav className="flex flex-wrap gap-1 md:flex-col">
-              {(Object.entries(sectionLabels) as [SettingsSection, string][]).map(([key, label]) => {
-                const isActive = currentSection === key;
-                const Icon = sectionIcons[key];
-
-                // Only show arena settings if it's relevant
-                if (key === 'arena' && tournament?.format !== 'arena') return null;
-
-                return (
-                  <button
-                    key={key}
-                    onClick={() => setLocation(`/tournaments/${tournamentId}/settings/${key}`)}
-                    className={cn(
-                      "flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                      isActive
-                        ? "bg-indigo-100 text-indigo-900"
-                        : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-                    )}
-                  >
-                    {Icon && <Icon className={cn("h-4 w-4", isActive ? "text-indigo-900" : "text-slate-400")} />}
-                    <span>{label}</span>
-                  </button>
-                );
-              })}
-            </nav>
-          </aside>
-
-          {/* Settings Content */}
-          <div className="flex-1 space-y-6 pb-12">
-          {currentSection === "general" && (
+        <div className="space-y-6 pb-12">
+          {currentSection === "registers" && (
             <div className="space-y-6">
-              <GeneralSettingsCard 
-                value={config.registers} 
-                onChange={updateRegisters} 
-                format={tournament?.format} 
+              <GeneralSettingsCard
+                value={config.registers}
+                onChange={updateRegisters}
+                format={tournament?.format}
+              />
+              <BoardNumberingCard
+                value={config.boardNumbering}
+                onChange={updateBoardNumbering}
               />
             </div>
           )}
 
-          {currentSection === "board-numbering" && (
-            <div className="space-y-6">
-              <BoardNumberingCard value={config.boardNumbering} onChange={updateBoardNumbering} />
-            </div>
-          )}
-
-          {currentSection === "rate-tournament" && (
-            <div className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Rate Tournament</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <Button>USCF Report</Button>
-                  <Button>FIDE Report</Button>
-                </CardContent>
-              </Card>
-            </div>
-          )}
-
-          {currentSection === "fide" && (
+          {currentSection === "fide" && allowedSections.includes("fide") && (
             <FideRegistrationSection
               value={config.fide}
               onChange={updateFide}
             />
           )}
 
-          {currentSection === "uscf" && (
-            <UscfReportSection value={config.uscf} onChange={updateUscf} />
+          {currentSection === "uscf" && allowedSections.includes("uscf") && (
+            <UscfReportSection
+              value={config.uscf}
+              onChange={updateUscf}
+            />
           )}
 
-          {currentSection === "webhook-sync" && (
-            <>
-              <WebhookSyncSettingsCard
-                value={config.webhookSync}
-                onChange={updateWebhookSync}
-                onTest={() => testMutation.mutate()}
-                onSync={() => syncMutation.mutate()}
-                testing={testMutation.isPending}
-                syncing={syncMutation.isPending}
-                disabled={config.webhookSync.syncMode === "disabled"}
-                onDownload={handleDownloadWebhookSync}
-                enabled={true}
-                onEnabledChange={() => {}}
-              />
-            </>
-          )}
-
-          {currentSection === "player-signup" && (
-            <PlayerImportCard tournamentId={tournamentId} targetTournamentName={tournament?.name} />
-          )}
-
-          {currentSection === "arena" && config.arena && (
-            <ArenaSettingsCard value={config.arena} onChange={updateArena} />
-          )}
-
-          {currentSection === "advanced" && tournament && (
-            <TournamentActionsContent 
-              tournamentId={tournamentId} 
-              tournament={tournament} 
-              parsedConfig={config} 
+          {currentSection === "webhook-sync" && allowedSections.includes("webhook-sync") && (
+            <WebhookSyncSettingsCard
+              value={config.webhookSync}
+              onChange={updateWebhookSync}
+              onTest={() => testMutation.mutate()}
+              onSync={() => syncMutation.mutate()}
+              testing={testMutation.isPending}
+              syncing={syncMutation.isPending}
+              disabled={config.webhookSync.syncMode === "disabled"}
+              onDownload={handleDownloadWebhookSync}
+              enabled={true}
+              onEnabledChange={() => {}}
             />
           )}
         </div>
       </div>
     </div>
-  </div>
-  );
-}
-
-function PlayerImportCard({ tournamentId, targetTournamentName }: { tournamentId: number; targetTournamentName?: string }) {
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const [selectedSourceId, setSelectedSourceId] = useState<string>("");
-  const [selectedPlayerIds, setSelectedPlayerIds] = useState<Set<number>>(new Set());
-
-  // Fetch all my tournaments
-  const { data: tournaments = [], isLoading: loadingTournaments } = useQuery<Tournament[]>({
-    queryKey: ["/api/my-tournaments"],
-  });
-
-  // Filter out current tournament
-  const sourceTournaments = tournaments.filter(t => t.id !== tournamentId);
-
-  // Fetch players for selected source tournament
-  const { data: sourcePlayers = [], isLoading: loadingPlayers } = useQuery<Player[]>({
-    queryKey: [`/api/tournaments/${selectedSourceId}/players`],
-    enabled: !!selectedSourceId,
-  });
-
-  // Update selected players when source tournament changes
-  useEffect(() => {
-    setSelectedPlayerIds(new Set());
-  }, [selectedSourceId]);
-
-  const togglePlayer = (id: number) => {
-    setSelectedPlayerIds(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
-  };
-
-  const toggleAll = () => {
-    if (selectedPlayerIds.size === sourcePlayers.length) {
-      setSelectedPlayerIds(new Set());
-    } else {
-      setSelectedPlayerIds(new Set(sourcePlayers.map(p => p.id)));
-    }
-  };
-
-  const importMutation = useMutation({
-    mutationFn: async () => {
-      return apiRequest(`/api/tournaments/${tournamentId}/import-players`, {
-        method: "POST",
-        body: JSON.stringify({
-          sourceTournamentId: parseInt(selectedSourceId),
-          playerIds: Array.from(selectedPlayerIds),
-        }),
-      });
-    },
-    onSuccess: async (res) => {
-      const responseData = await res.json();
-      toast({
-        title: "Players Imported",
-        description: responseData.message || `Successfully imported ${selectedPlayerIds.size} players.`,
-      });
-      queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/players`] });
-      setSelectedPlayerIds(new Set());
-      setSelectedSourceId("");
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Import failed",
-        description: error?.message ?? "An error occurred during import.",
-        variant: "destructive",
-      });
-    },
-  });
-
-  return (
-    <Card className="shadow-sm">
-      <CardHeader>
-        <CardTitle className="text-2xl font-bold text-indigo-900 flex items-center gap-2">
-          <UserPlus className="h-6 w-6 text-indigo-600" />
-          <span>Import Players from Template</span>
-        </CardTitle>
-        <p className="text-sm text-slate-500">
-          Clone player rosters from your previous tournaments to quickly sign up the same set of players.
-        </p>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="space-y-2">
-          <label className="text-sm font-semibold text-slate-700">Select Past Tournament</label>
-          {loadingTournaments ? (
-            <div className="flex items-center gap-2 text-slate-500 text-sm py-2">
-              <Loader2 className="h-4 w-4 animate-spin text-indigo-500" />
-              <span>Loading tournaments...</span>
-            </div>
-          ) : sourceTournaments.length === 0 ? (
-            <p className="text-sm text-slate-500 italic py-2">No other tournaments available to clone from.</p>
-          ) : (
-            <Select value={selectedSourceId} onValueChange={setSelectedSourceId}>
-              <SelectTrigger className="w-full md:w-80">
-                <SelectValue placeholder="Choose a tournament..." />
-              </SelectTrigger>
-              <SelectContent>
-                {sourceTournaments.map(t => (
-                  <SelectItem key={t.id} value={String(t.id)}>
-                    {t.name} ({t.status})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-        </div>
-
-        {selectedSourceId && (
-          <div className="space-y-4 pt-4 border-t">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-slate-800">
-                Available Players ({sourcePlayers.length})
-              </h3>
-              {sourcePlayers.length > 0 && (
-                <Button variant="outline" size="sm" onClick={toggleAll}>
-                  {selectedPlayerIds.size === sourcePlayers.length ? "Deselect All" : "Select All"}
-                </Button>
-              )}
-            </div>
-
-            {loadingPlayers ? (
-              <div className="flex items-center justify-center py-8 text-slate-500 text-sm">
-                <Loader2 className="h-6 w-6 animate-spin text-indigo-500 mr-2" />
-                <span>Loading players roster...</span>
-              </div>
-            ) : sourcePlayers.length === 0 ? (
-              <p className="text-sm text-slate-500 italic py-4 text-center">No players found in this tournament.</p>
-            ) : (
-              <div className="border rounded-lg overflow-hidden max-h-[300px] overflow-y-auto">
-                <table className="w-full text-left text-sm text-slate-600 border-collapse">
-                  <thead className="bg-slate-50 text-slate-700 uppercase text-xs font-semibold border-b sticky top-0">
-                    <tr>
-                      <th className="p-3 w-12 text-center">Select</th>
-                      <th className="p-3">Name</th>
-                      <th className="p-3">Rating</th>
-                      <th className="p-3">Section</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {sourcePlayers.map(p => {
-                      const isSelected = selectedPlayerIds.has(p.id);
-                      return (
-                        <tr
-                          key={p.id}
-                          className={cn(
-                            "hover:bg-slate-50 cursor-pointer transition-colors",
-                            isSelected && "bg-indigo-50/50"
-                          )}
-                          onClick={() => togglePlayer(p.id)}
-                        >
-                          <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
-                            <Checkbox
-                              checked={isSelected}
-                              onCheckedChange={() => togglePlayer(p.id)}
-                            />
-                          </td>
-                          <td className="p-3 font-medium text-slate-900">
-                            {p.firstName} {p.lastName}
-                          </td>
-                          <td className="p-3">{p.rating ?? "1000"}</td>
-                          <td className="p-3 text-slate-500">{p.sectionName || "Open"}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            <div className="flex justify-end pt-4 border-t">
-              <Button
-                onClick={() => importMutation.mutate()}
-                disabled={selectedPlayerIds.size === 0 || importMutation.isPending}
-                className="bg-indigo-600 text-white hover:bg-indigo-700 flex items-center gap-2"
-              >
-                {importMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-                <span>Import Selected ({selectedPlayerIds.size})</span>
-              </Button>
-            </div>
-          </div>
-        )}
-      </CardContent>
-    </Card>
   );
 }

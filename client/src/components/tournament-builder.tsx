@@ -56,7 +56,6 @@ import {
 import { Upload, Check, ChevronRight, Settings, X, ChevronUp, ChevronDown, Plus, CreditCard, ExternalLink, Trophy, Users, Calculator, Link, QrCode, Printer, Copy, Clock, Zap, Paperclip, Loader2, Trash2, Eye, EyeOff, FileDown, FileUp } from "lucide-react";
 import qrcode from "qrcode";
 import TournamentPagePanel from "@/components/tournament-page-panel";
-import { RegistrationFormCustomizer } from "@/components/registration-form-customizer";
 import { KnockoutFormatEditor } from "@/components/knockout-format-editor";
 import { DatePicker } from "@/components/ui/date-picker";
 import { TimePicker } from "@/components/ui/time-picker";
@@ -2896,12 +2895,6 @@ function StepTwo({ format, mode, builderMode, config, onConfigChange, onBack: _o
                       />
                 </div>
                 </div>
-
-                {/* Registration Form Customizer */}
-                <RegistrationFormCustomizer
-                  config={config}
-                  onConfigChange={onConfigChange}
-                />
 
                 {/* Page Customization */}
                 <div className="rounded-2xl border bg-white p-6 space-y-8 shadow-sm border-slate-200/60">

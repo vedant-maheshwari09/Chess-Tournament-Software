@@ -487,7 +487,7 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions }: 
               </div>
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-5 space-y-4 max-h-[680px] overflow-y-auto shadow-inner">
+            <div className="overflow-hidden rounded-xl border border-gray-200 bg-white p-6 space-y-6 max-h-[680px] overflow-y-auto shadow-md">
               
               {/* Drafts Summary Header for Multi-Player Sign Up */}
               {multiPlayerAllowed && previewStep < 3 && (

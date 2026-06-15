@@ -11,6 +11,8 @@ interface GeneralSettingsCardProps {
     enablePairingPredictor: boolean;
     isDoubleElimination: boolean;
     allowExtraGames?: boolean;
+    fideRated?: boolean;
+    uscfRated?: boolean;
   };
   format?: string;
   onChange: (update: Partial<GeneralSettingsCardProps['value']>) => void;
@@ -29,6 +31,22 @@ export function GeneralSettingsCard({ value, onChange, format }: GeneralSettings
             id="publishOnCalendar"
             checked={value.showOnCalendar}
             onCheckedChange={(checked) => onChange({ showOnCalendar: checked })}
+          />
+        </div>
+        <div className="flex items-center justify-between">
+          <Label htmlFor="uscfRated">USCF Rated Tournament</Label>
+          <Switch
+            id="uscfRated"
+            checked={value.uscfRated ?? false}
+            onCheckedChange={(checked) => onChange({ uscfRated: checked })}
+          />
+        </div>
+        <div className="flex items-center justify-between">
+          <Label htmlFor="fideRated">FIDE Rated Tournament</Label>
+          <Switch
+            id="fideRated"
+            checked={value.fideRated ?? false}
+            onCheckedChange={(checked) => onChange({ fideRated: checked })}
           />
         </div>
         <div className="flex items-center justify-between">
