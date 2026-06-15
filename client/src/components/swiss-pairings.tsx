@@ -1,11 +1,12 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Play, RefreshCw, RotateCcw, Printer, Download, ChevronDown, ChevronUp } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Play, RefreshCw, RotateCcw, Printer, Download, ChevronDown, ChevronUp, ScanLine, Upload, Camera, CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -42,6 +43,14 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
   const [expandedSeries, setExpandedSeries] = useState<Set<number>>(new Set());
   const [collapsedRounds, setCollapsedRounds] = useState<Set<number>>(new Set());
   const [finishConfirmation, setFinishConfirmation] = useState("");
+  // Scanner state
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [scanImage, setScanImage] = useState<string | null>(null);
+  const [scanImageFile, setScanImageFile] = useState<File | null>(null);
+  const [isScanning, setIsScanning] = useState(false);
+  const [scanResults, setScanResults] = useState<{ board: number; result: string; matchId: number | null }[]>([]);
+  const [appliedCount, setAppliedCount] = useState(0);
+  const scanFileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -949,33 +958,9 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
 
     const renderCell = (role: 'white' | 'black') => {
       if (isPending) {
+        // No inline buttons – double-click player name to award win, or use scanner
         return (
-          <div className="flex gap-0.5 justify-center items-center">
-            <button
-              type="button"
-              className="h-5 w-5 text-[10px] flex items-center justify-center rounded border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-350 transition-colors font-bold"
-              onClick={() => handleResultChange(match.id, role === 'white' ? "1-0" : "0-1")}
-              title={role === 'white' ? "White Wins" : "Black Wins"}
-            >
-              1
-            </button>
-            <button
-              type="button"
-              className="h-5 w-5 text-[10px] flex items-center justify-center rounded border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-350 transition-colors font-bold"
-              onClick={() => handleResultChange(match.id, "1/2-1/2")}
-              title="Draw"
-            >
-              ½
-            </button>
-            <button
-              type="button"
-              className="h-5 w-5 text-[10px] flex items-center justify-center rounded border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-350 transition-colors font-bold"
-              onClick={() => handleResultChange(match.id, role === 'white' ? "0-1" : "1-0")}
-              title={role === 'white' ? "Black Wins" : "White Wins"}
-            >
-              0
-            </button>
-          </div>
+          <span className="text-slate-300 dark:text-slate-600 font-bold text-base select-none">—</span>
         );
       }
 
@@ -1271,6 +1256,24 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
                 </Button>
               </>
             ) : null}
+            {/* OCR Scanner – TD only */}
+            {isTournamentDirector && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setScanImage(null);
+                  setScanImageFile(null);
+                  setScanResults([]);
+                  setAppliedCount(0);
+                  setScannerOpen(true);
+                }}
+                className="border-violet-500 text-violet-600 hover:bg-violet-50 dark:border-violet-700 dark:text-violet-400 dark:hover:bg-violet-950/30"
+              >
+                <ScanLine className="mr-2 h-4 w-4" />
+                Scan Sheet
+              </Button>
+            )}
             {isOwner && (
               <>
                 {tournament?.format === "roundrobin" && (
@@ -1935,6 +1938,240 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
           queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/players`] });
         }}
       />
+
+      {/* ── OCR Scanner Dialog ───────────────────────────────────────────── */}
+      <Dialog open={scannerOpen} onOpenChange={(open) => { if (!isScanning) setScannerOpen(open); }}>
+        <DialogContent className="max-w-2xl w-full">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-lg font-bold">
+              <ScanLine className="h-5 w-5 text-violet-500" />
+              Scan Pairings Sheet
+            </DialogTitle>
+            <DialogDescription>
+              Upload a photo of the printed pairings sheet with handwritten results. The scanner will detect board numbers and results automatically.
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Hidden file input */}
+          <input
+            ref={scanFileInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              setScanImageFile(file);
+              setScanResults([]);
+              setAppliedCount(0);
+              const reader = new FileReader();
+              reader.onload = (ev) => setScanImage(ev.target?.result as string);
+              reader.readAsDataURL(file);
+            }}
+          />
+
+          <div className="space-y-4">
+            {/* Upload area */}
+            {!scanImage ? (
+              <div
+                className="border-2 border-dashed border-violet-300 dark:border-violet-700 rounded-xl p-10 flex flex-col items-center justify-center gap-4 cursor-pointer hover:bg-violet-50/40 dark:hover:bg-violet-950/20 transition-colors"
+                onClick={() => scanFileInputRef.current?.click()}
+              >
+                <div className="w-14 h-14 rounded-full bg-violet-100 dark:bg-violet-900/40 flex items-center justify-center">
+                  <Upload className="h-7 w-7 text-violet-500" />
+                </div>
+                <div className="text-center">
+                  <p className="font-semibold text-slate-700 dark:text-slate-200">Click to upload or use camera</p>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">PNG, JPG, HEIC supported</p>
+                </div>
+                <div className="flex gap-3">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-violet-400 text-violet-600"
+                    onClick={(e) => { e.stopPropagation(); scanFileInputRef.current?.click(); }}
+                  >
+                    <Upload className="mr-2 h-4 w-4" /> Upload File
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-violet-400 text-violet-600"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (scanFileInputRef.current) {
+                        scanFileInputRef.current.setAttribute('capture', 'environment');
+                        scanFileInputRef.current.click();
+                      }
+                    }}
+                  >
+                    <Camera className="mr-2 h-4 w-4" /> Take Photo
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {/* Preview */}
+                <div className="relative rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 max-h-52">
+                  <img src={scanImage} alt="Pairings sheet" className="w-full object-contain max-h-52" />
+                  <button
+                    className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 text-white rounded-full p-1 transition-colors"
+                    onClick={() => { setScanImage(null); setScanImageFile(null); setScanResults([]); setAppliedCount(0); }}
+                  >
+                    <XCircle className="h-4 w-4" />
+                  </button>
+                </div>
+
+                {/* Scan button */}
+                {scanResults.length === 0 && !isScanning && (
+                  <Button
+                    className="w-full bg-violet-600 hover:bg-violet-700 text-white"
+                    onClick={async () => {
+                      if (!scanImageFile) return;
+                      setIsScanning(true);
+                      setScanResults([]);
+                      try {
+                        // Dynamic import to avoid heavy bundle
+                        const { createWorker } = await import('tesseract.js');
+                        const worker = await createWorker('eng');
+                        const { data: { text } } = await worker.recognize(scanImageFile);
+                        await worker.terminate();
+
+                        // Get current-round matches indexed by board number
+                        const currentRoundMatches = (allMatches || []).filter(m => m.round === currentRound && !m.isExtraGame);
+                        const boardToMatch: Record<number, Match> = {};
+                        for (const m of currentRoundMatches) {
+                          if (m.board) boardToMatch[m.board] = m;
+                        }
+
+                        // Parse OCR text line by line
+                        const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+                        const detected: { board: number; result: string; matchId: number | null }[] = [];
+
+                        for (const line of lines) {
+                          // Match patterns: "1  1-0", "3 0-1", "5 1/2-1/2", "2 1", "4 0", "6 1/2", "7 ½", "8 draw"
+                          const m = line.match(/\b(\d+)\b[\s\S]{0,10}?\b(1-0|0-1|1\/2-1\/2|1\/2|½|draw|1\b|0\b)/i);
+                          if (!m) continue;
+                          const board = parseInt(m[1], 10);
+                          const rawResult = m[2].trim();
+                          if (board < 1 || board > 200) continue;
+
+                          let normalized: string;
+                          const rl = rawResult.toLowerCase();
+                          if (rl === '1-0') normalized = '1-0';
+                          else if (rl === '0-1') normalized = '0-1';
+                          else if (rl === '1/2-1/2' || rl === '1/2' || rl === '½' || rl === 'draw') normalized = '1/2-1/2';
+                          else if (rl === '1') normalized = '1-0';
+                          else if (rl === '0') normalized = '0-1';
+                          else continue;
+
+                          const match = boardToMatch[board];
+                          detected.push({ board, result: normalized, matchId: match?.id ?? null });
+                        }
+
+                        setScanResults(detected);
+                        if (detected.length === 0) {
+                          toast({ title: 'No results detected', description: 'Try a clearer photo. Ensure the board numbers and results are legible.', variant: 'destructive' });
+                        }
+                      } catch (err: any) {
+                        toast({ title: 'OCR failed', description: err?.message ?? 'Unknown error', variant: 'destructive' });
+                      } finally {
+                        setIsScanning(false);
+                      }
+                    }}
+                  >
+                    {isScanning ? (
+                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Scanning…</>
+                    ) : (
+                      <><ScanLine className="mr-2 h-4 w-4" /> Scan for Results</>
+                    )}
+                  </Button>
+                )}
+
+                {/* Results preview table */}
+                {scanResults.length > 0 && (
+                  <div className="space-y-3">
+                    <div className="text-sm font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                      {scanResults.length} result{scanResults.length !== 1 ? 's' : ''} detected
+                    </div>
+                    <div className="border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden max-h-52 overflow-y-auto">
+                      <table className="w-full text-sm">
+                        <thead className="bg-slate-50 dark:bg-slate-800">
+                          <tr>
+                            <th className="px-3 py-2 text-left font-semibold text-slate-600 dark:text-slate-300 w-16">Board</th>
+                            <th className="px-3 py-2 text-center font-semibold text-slate-600 dark:text-slate-300">Result</th>
+                            <th className="px-3 py-2 text-center font-semibold text-slate-600 dark:text-slate-300 w-20">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {scanResults.map((r) => (
+                            <tr key={r.board} className="border-t border-slate-100 dark:border-slate-800">
+                              <td className="px-3 py-1.5 font-mono font-bold text-slate-700 dark:text-slate-300">{r.board}</td>
+                              <td className="px-3 py-1.5 text-center">
+                                <span className={cn(
+                                  "inline-flex items-center justify-center px-2 py-0.5 rounded-md text-xs font-black font-mono",
+                                  r.result === '1-0' ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400' :
+                                  r.result === '0-1' ? 'bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-400' :
+                                  'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                                )}>
+                                  {r.result === '1/2-1/2' ? '½–½' : r.result}
+                                </span>
+                              </td>
+                              <td className="px-3 py-1.5 text-center">
+                                {r.matchId ? (
+                                  <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">✓ Found</span>
+                                ) : (
+                                  <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">? No match</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    {appliedCount > 0 && (
+                      <div className="text-sm text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-2">
+                        <CheckCircle2 className="h-4 w-4" /> {appliedCount} result{appliedCount !== 1 ? 's' : ''} applied successfully
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="gap-2 flex-wrap">
+            <Button variant="outline" onClick={() => setScannerOpen(false)} disabled={isScanning}>
+              Close
+            </Button>
+            {scanResults.length > 0 && appliedCount === 0 && (
+              <Button
+                className="bg-violet-600 hover:bg-violet-700 text-white"
+                onClick={() => {
+                  let count = 0;
+                  for (const r of scanResults) {
+                    if (r.matchId) {
+                      handleResultChange(r.matchId, r.result);
+                      count++;
+                    }
+                  }
+                  setAppliedCount(count);
+                  toast({
+                    title: `Applied ${count} result${count !== 1 ? 's' : ''}`,
+                    description: count > 0 ? 'Results have been recorded.' : 'No valid board numbers were matched.',
+                  });
+                }}
+              >
+                <CheckCircle2 className="mr-2 h-4 w-4" />
+                Apply {scanResults.filter(r => r.matchId).length} Results
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* ── End OCR Scanner Dialog ─────────────────────────────────────────── */}
     </Card>
   );
 }

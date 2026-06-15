@@ -804,23 +804,17 @@ export default function SwissStandings({ tournamentId, showExportControls = true
   const generateSwissSysHtmlTable = useCallback((sectionStandings: SwissPlayerStanding[], sectionLabel: string) => {
     const isFide = tournamentConfig?.details.primaryRatingSystem === 'fide';
     
-    let html = `<h3 style="font-family: Arial, sans-serif; font-size: 15px; font-weight: bold; margin: 0 0 10px 0; text-align: left;">Wall Chart Standings. ${tournament?.name ?? 'Tournament'}: ${sectionLabel}</h3>\n`;
-    html += `<table style="border-collapse: collapse; border: 1px solid black; width: 100%; font-family: Arial, sans-serif; font-size: 13px; color: #000; background-color: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact;">\n`;
+    let html = `<h3 style="font-family: Arial, sans-serif; font-size: 15px; font-weight: bold; margin: 0 0 10px 0; text-align: left;">SwissSys Wall Chart. ${tournament?.name ?? 'Tournament'}: ${sectionLabel}</h3>\n`;
+    html += `<table style="border-collapse: collapse; border: 1px solid black; width: 100%; font-family: Arial, sans-serif; font-size: 13px; color: #000; background-color: #fff;">\n`;
     
     // Headers
     html += `<thead>\n  <tr style="border: 1px solid black; padding: 6px 8px;">\n`;
-    html += `    <td style="background-color: #e8e8e8; border: 1px solid black; font-weight: bold; padding: 6px 8px; text-align: center; width: 35px;">#</td>\n`;
-    html += `    <td style="background-color: #e8e8e8; border: 1px solid black; font-weight: bold; padding: 6px 8px; text-align: left; width: 200px;">Name</td>\n`;
-    html += `    <td style="background-color: #e8e8e8; border: 1px solid black; font-weight: bold; padding: 6px 8px; text-align: left; width: 60px;">Rating</td>\n`;
+    html += `    <td style="background-color: #e8e8e8; border: 1px solid black; font-weight: bold; padding: 6px 8px; text-align: center; width: 45px;">Bd</td>\n`;
+    html += `    <td style="background-color: #e8e8e8; border: 1px solid black; font-weight: bold; padding: 6px 8px; text-align: left; width: 200px;">Name/Rating/ID</td>\n`;
     for (let r = 1; r <= totalRounds; r++) {
       html += `    <td style="background-color: #e8e8e8; border: 1px solid black; font-weight: bold; padding: 6px 8px; text-align: center; width: 55px;">Rd ${r}</td>\n`;
     }
     html += `    <td style="background-color: #e8e8e8; border: 1px solid black; font-weight: bold; padding: 6px 8px; text-align: center; width: 50px;">Total</td>\n`;
-    activeTiebreakRules.forEach((rule) => {
-      html += `    <td style="background-color: #e8e8e8; border: 1px solid black; font-weight: bold; padding: 6px 8px; text-align: center; width: 60px;">${rule}</td>\n`;
-    });
-    html += `    <td style="background-color: #e8e8e8; border: 1px solid black; font-weight: bold; padding: 6px 8px; text-align: center; width: 60px;">Est. Post</td>\n`;
-    html += `    <td style="background-color: #e8e8e8; border: 1px solid black; font-weight: bold; padding: 6px 8px; text-align: center; width: 60px;">Perf.</td>\n`;
     if (tournamentConfig?.prizesEnabled && showPrizes) {
       html += `    <td style="background-color: #e8e8e8; border: 1px solid black; font-weight: bold; padding: 6px 8px; text-align: left; width: 110px;">Prizes</td>\n`;
     }
@@ -829,14 +823,23 @@ export default function SwissStandings({ tournamentId, showExportControls = true
     // Rows
     sectionStandings.forEach((standing) => {
       const playerRating = (isFide ? (standing.player.fideRating ?? standing.player.rating) : (standing.player.uscfRating ?? standing.player.rating)) || 'Unrated';
+      const playerID = standing.player.localId || '';
       const lastName = standing.player.lastName || '';
       const firstName = standing.player.firstName || '';
-      const nameStr = lastName && firstName ? `${lastName}, ${firstName}` : `${firstName} ${lastName}`.trim();
+      const playerName = lastName && firstName ? `${lastName}, ${firstName}` : `${firstName} ${lastName}`.trim();
       
+      const pairingNum = getPlayerPairingNumber(standing.player.id);
+      const uscfId = standing.player.localId;
+      const isDigitsOnly = uscfId && /^\d+$/.test(uscfId);
+      
+      const nameHtml = isDigitsOnly 
+        ? `<a href="http://www.uschess.org/msa/MbrDtlMain.php?${uscfId}" target="_blank" style="color: #0066cc; text-decoration: none; font-weight: bold;">${playerName}</a>` 
+        : playerName;
+        
+      // Row 1: Pairing No, Name, Round results, Total Points, Prize Category
       html += `  <tr style="border: 1px solid black; padding: 6px 8px;">\n`;
-      html += `    <td style="border: 1px solid black; padding: 6px 8px; text-align: center;">${standing.position}</td>\n`;
-      html += `    <td style="border: 1px solid black; font-weight: bold; padding: 6px 8px; text-align: left;">${nameStr}</td>\n`;
-      html += `    <td style="border: 1px solid black; padding: 6px 8px; text-align: left;">${playerRating}</td>\n`;
+      html += `    <td style="background-color: #e8e8e8; border: 1px solid black; font-weight: bold; padding: 6px 8px; text-align: center;">${pairingNum}</td>\n`;
+      html += `    <td style="border: 1px solid black; font-weight: bold; padding: 6px 8px; text-align: left;">${nameHtml}</td>\n`;
       
       standing.roundResults.forEach((res) => {
         const resultText = formatRoundResultDisplay(res);
@@ -846,26 +849,36 @@ export default function SwissStandings({ tournamentId, showExportControls = true
       const totalPointsStr = standing.totalPoints.toFixed(1).replace(/\.0$/, "");
       html += `    <td style="border: 1px solid black; font-weight: bold; padding: 6px 8px; text-align: center;">${totalPointsStr}</td>\n`;
       
-      activeTiebreakRules.forEach((rule) => {
-        const val = standing.tiebreakValues[rule] || 0;
-        html += `    <td style="border: 1px solid black; padding: 6px 8px; text-align: center;">${val.toFixed(2)}</td>\n`;
+      if (tournamentConfig?.prizesEnabled && showPrizes) {
+        html += `    <td style="border: 1px solid black; padding: 6px 8px; text-align: left;">${standing.prizeCategory || '---'}</td>\n`;
+      }
+      html += `  </tr>\n`;
+      
+      // Row 2: Empty, Rating/ID, Cumulative scores, Empty (Total), Prize Amount
+      html += `  <tr style="border: 1px solid black; padding: 6px 8px;">\n`;
+      html += `    <td style="background-color: #e8e8e8; border: 1px solid black; padding: 6px 8px; text-align: center;">&nbsp;</td>\n`;
+      html += `    <td style="border: 1px solid black; padding: 6px 8px; text-align: left;">${playerRating}${playerID ? ` &nbsp;&nbsp; ID: ${playerID}` : ''}</td>\n`;
+      
+      standing.roundResults.forEach((res, roundIndex) => {
+        const cumulative = standing.roundResults
+          .slice(0, roundIndex + 1)
+          .reduce((sum, entry) => sum + entry.points, 0);
+        const cumulativeText = roundIndex < currentRound ? cumulative.toFixed(1) : '';
+        html += `    <td style="border: 1px solid black; padding: 6px 8px; text-align: center;">${cumulativeText}</td>\n`;
       });
-
-      html += `    <td style="border: 1px solid black; padding: 6px 8px; text-align: center;">${standing.postRating ?? playerRating}</td>\n`;
-      html += `    <td style="border: 1px solid black; padding: 6px 8px; text-align: center;">${standing.performanceRating ?? playerRating}</td>\n`;
+      
+      html += `    <td style="border: 1px solid black; padding: 6px 8px; text-align: center;">&nbsp;</td>\n`;
       
       if (tournamentConfig?.prizesEnabled && showPrizes) {
-        const cat = standing.prizeCategory || '---';
-        const amt = tournamentConfig?.showPrizeAmounts !== false ? (standing.prizeAmount || '---') : '---';
-        const prizeText = cat !== '---' ? `${cat} (${amt})` : '---';
-        html += `    <td style="border: 1px solid black; padding: 6px 8px; text-align: left;">${prizeText}</td>\n`;
+        const amountText = tournamentConfig?.showPrizeAmounts !== false ? (standing.prizeAmount || '---') : '---';
+        html += `    <td style="border: 1px solid black; padding: 6px 8px; text-align: left; font-weight: bold;">${amountText}</td>\n`;
       }
       html += `  </tr>\n`;
     });
     
     html += `</tbody>\n</table>\n`;
     return html;
-  }, [tournament, totalRounds, showPrizes, formatRoundResultDisplay, activeTiebreakRules, tournamentConfig]);
+  }, [tournament, totalRounds, showPrizes, getPlayerPairingNumber, formatRoundResultDisplay, currentRound, tournamentConfig]);
 
   const handlePrintStandings = useCallback(() => {
     if (standings.length === 0 || typeof window === 'undefined') return;
