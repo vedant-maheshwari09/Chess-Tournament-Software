@@ -2464,7 +2464,7 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/40">
                               {extraMatches.map((match) => {
-                               const whiteName = getPlayerName(match.whitePlayerId);
+                                const whiteName = getPlayerName(match.whitePlayerId);
                               const whiteRating = getPlayerRating(match.whitePlayerId);
                               const blackName = match.blackPlayerId ? getPlayerName(match.blackPlayerId) : "Bye";
                               const blackRating = match.blackPlayerId ? getPlayerRating(match.blackPlayerId) : 0;
