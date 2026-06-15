@@ -1313,178 +1313,213 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
                           </h3>
                         </div>
                         <div className="overflow-x-auto">
-                          <div className="overflow-hidden border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm bg-white dark:bg-slate-950">
-                            <table className="min-w-full text-slate-700 dark:text-slate-300">
-                              <thead className="bg-slate-50/80 dark:bg-slate-900/60 border-b border-slate-100 dark:border-slate-800">
+                          <div className="overflow-hidden border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm bg-white dark:bg-slate-950">
+                            <table className="min-w-full text-slate-700 dark:text-slate-300 border-collapse border border-slate-200 dark:border-slate-800">
+                              <thead className="bg-slate-50 dark:bg-slate-800/85 border-b border-slate-200 dark:border-slate-800">
                                 <tr>
-                                  <th className="px-4 py-3.5 text-left text-xs font-medium text-slate-500 dark:text-slate-400 w-16">Bd</th>
-                                  {isTournamentDirector ? (
-                                      <>
-                                        <th className="px-2 py-3.5 text-center text-xs font-medium text-slate-500 dark:text-slate-400 w-16">Res</th>
-                                        <th className="px-4 py-3.5 text-left text-xs font-medium text-slate-500 dark:text-slate-400">White</th>
-                                        <th className="px-2 py-3.5 text-center text-xs font-medium text-slate-500 dark:text-slate-400 w-16">Res</th>
-                                        <th className="px-4 py-3.5 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Black</th>
-                                        <th className="px-4 py-3.5 text-right text-xs font-medium text-slate-500 dark:text-slate-400 w-24">Edit</th>
-                                      </>
-                                    ) : (
-                                      <>
-                                        <th className="px-4 py-3.5 text-left text-xs font-medium text-slate-500 dark:text-slate-400">White</th>
-                                        <th className="px-4 py-3.5 text-center text-xs font-medium text-slate-500 dark:text-slate-400 w-24">Res</th>
-                                        <th className="px-4 py-3.5 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Black</th>
-                                        <th className="px-4 py-3.5 text-center text-xs font-medium text-slate-500 dark:text-slate-400 w-24">Res</th>
-                                      </>
-                                    )}
-                                  </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/40">
-                                  {roundMatches.map((match) => {
-                                    const whiteName = getPlayerName(match.whitePlayerId);
-                                    const whiteRating = getPlayerRating(match.whitePlayerId);
-                                    const blackName = match.blackPlayerId ? getPlayerName(match.blackPlayerId) : "Bye";
-                                    const blackRating = match.blackPlayerId ? getPlayerRating(match.blackPlayerId) : 0;
-                                    
-                                    const isWhiteWin = match.result === "1-0" || match.result === "1F-0F";
-                                    const isBlackWin = match.result === "0-1" || match.result === "0F-1F";
-                                    const isDraw = match.result === "1/2-1/2";
-                                    
-                                    const wResDisplay = isWhiteWin ? "1" : isDraw ? "½" : isBlackWin ? "0" : "";
-                                    const bResDisplay = isBlackWin ? "1" : isDraw ? "½" : isWhiteWin ? "0" : "";
+                                  <th className="px-3 py-2 text-center text-xs font-bold text-slate-600 dark:text-slate-350 w-14 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">Bd</th>
+                                  <th className="px-4 py-2 text-left text-xs font-bold text-slate-600 dark:text-slate-350 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">White Player</th>
+                                  <th className="px-3 py-2 text-center text-xs font-bold text-slate-600 dark:text-slate-350 w-44 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">Result</th>
+                                  <th className="px-4 py-2 text-left text-xs font-bold text-slate-600 dark:text-slate-350 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">Black Player</th>
+                                  {isTournamentDirector && (
+                                    <th className="px-4 py-2 text-right text-xs font-bold text-slate-600 dark:text-slate-350 w-24 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">Edit</th>
+                                  )}
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/40">
+                                {roundMatches.map((match) => {
+                                  const whiteName = getPlayerName(match.whitePlayerId);
+                                  const whiteRating = getPlayerRating(match.whitePlayerId);
+                                  const blackName = match.blackPlayerId ? getPlayerName(match.blackPlayerId) : "Bye";
+                                  const blackRating = match.blackPlayerId ? getPlayerRating(match.blackPlayerId) : 0;
+                                  
+                                  const isWhiteWin = match.result === "1-0" || match.result === "1F-0F";
+                                  const isBlackWin = match.result === "0-1" || match.result === "0F-1F";
+                                  const isDraw = match.result === "1/2-1/2";
+                                  
+                                  const whiteObj = getPlayerObject(match.whitePlayerId);
+                                  const blackObj = getPlayerObject(match.blackPlayerId);
 
-                                    if (isTournamentDirector) {
-                                      const whiteObj = getPlayerObject(match.whitePlayerId);
-                                      const blackObj = getPlayerObject(match.blackPlayerId);
-                                      return (
-                                        <tr key={match.id} className="hover:bg-indigo-50/20 dark:hover:bg-indigo-950/10 transition-colors border-b border-slate-50 dark:border-slate-800/40 last:border-0">
-                                          <td className="px-4 py-3">
-                                            <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 font-mono text-xs font-bold text-slate-500 dark:text-slate-400 border border-slate-200/40 dark:border-slate-700/40">
-                                              {match.board}
-                                            </span>
-                                          </td>
-                                          <td className="px-2 py-3 text-center">
-                                            <input
-                                              type="text"
-                                              className="w-10 h-8 text-center border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all uppercase font-black text-xs text-slate-800 dark:text-slate-100 shadow-sm"
-                                              value={wResDisplay}
-                                              onChange={(e) => {
-                                                const val = e.target.value.toUpperCase();
-                                                if (val === '1') handleResultChange(match.id, "1-0");
-                                                else if (val === '0') handleResultChange(match.id, "0-1");
-                                                else if (val === '5' || val === '1/2' || val === '½') handleResultChange(match.id, "1/2-1/2");
-                                                else if (val === '1F') handleResultChange(match.id, "1F-0F");
-                                                else if (val === '0F') handleResultChange(match.id, "0F-1F");
-                                                else if (val === '') handleResultChange(match.id, "Pending");
-                                              }}
-                                            />
-                                          </td>
-                                          <td 
-                                            className="px-4 py-3 cursor-pointer select-none"
-                                            onDoubleClick={() => handleResultChange(match.id, "1-0")}
-                                          >
-                                            <div className="flex flex-col">
-                                              <span className="font-semibold text-slate-800 dark:text-slate-100 text-sm hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
-                                                {whiteName}
-                                              </span>
-                                              <span className="text-[10px] font-mono font-medium text-slate-400 dark:text-slate-500">
-                                                Rating: {whiteRating} {whiteObj?.localId ? `• ID: ${whiteObj.localId}` : ''}
-                                              </span>
-                                            </div>
-                                          </td>
-                                          <td className="px-2 py-3 text-center">
-                                            <input
-                                              type="text"
-                                              className="w-10 h-8 text-center border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all uppercase font-black text-xs text-slate-800 dark:text-slate-100 shadow-sm"
-                                              value={bResDisplay}
-                                              onChange={(e) => {
-                                                const val = e.target.value.toUpperCase();
-                                                if (val === '1') handleResultChange(match.id, "0-1");
-                                                else if (val === '0') handleResultChange(match.id, "1-0");
-                                                else if (val === '5' || val === '1/2' || val === '½') handleResultChange(match.id, "1/2-1/2");
-                                                else if (val === '1F') handleResultChange(match.id, "0F-1F");
-                                                else if (val === '0F') handleResultChange(match.id, "1F-0F");
-                                                else if (val === '') handleResultChange(match.id, "Pending");
-                                              }}
-                                            />
-                                          </td>
-                                          <td 
-                                            className="px-4 py-3 cursor-pointer select-none"
-                                            onDoubleClick={() => handleResultChange(match.id, "0-1")}
-                                          >
-                                            <div className="flex flex-col">
-                                              <span className="font-semibold text-slate-800 dark:text-slate-100 text-sm hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
-                                                {blackName}
-                                              </span>
-                                              <span className="text-[10px] font-mono font-medium text-slate-400 dark:text-slate-500">
-                                                Rating: {blackRating} {blackObj?.localId ? `• ID: ${blackObj.localId}` : ''}
-                                              </span>
-                                            </div>
-                                          </td>
-                                          <td className="px-4 py-3 text-right">
-                                            <Button variant="ghost" size="sm" onClick={() => setSelectedMatchForManagement(match)} className="rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300">Edit</Button>
-                                          </td>
-                                        </tr>
-                                      );
-                                    }
+                                  const whitePoints = getPlayerPoints(match.whitePlayerId, round);
+                                  const whitePointsStr = formatPointsWithFractions(whitePoints);
+                                  const blackPoints = match.blackPlayerId ? getPlayerPoints(match.blackPlayerId, round) : 0;
+                                  const blackPointsStr = formatPointsWithFractions(blackPoints);
 
-                                    // Player View
-                                    const whiteObj = getPlayerObject(match.whitePlayerId);
-                                    const blackObj = getPlayerObject(match.blackPlayerId);
+                                  if (isTournamentDirector) {
                                     return (
-                                      <tr key={match.id} className="hover:bg-indigo-50/10 dark:hover:bg-indigo-950/5 transition-colors border-b border-slate-50 dark:border-slate-800/40 last:border-0">
-                                        <td className="px-4 py-3">
-                                          <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 font-mono text-xs font-bold text-slate-500 dark:text-slate-400 border border-slate-200/40 dark:border-slate-700/40">
-                                            {match.board}
-                                          </span>
+                                      <tr key={match.id} className="group hover:bg-indigo-50/20 dark:hover:bg-indigo-950/10 transition-colors border-b border-slate-100 dark:border-slate-800/40 last:border-0">
+                                        <td className="px-3 py-3 text-center border border-slate-200 dark:border-slate-800/60 font-mono text-sm font-bold text-slate-600 dark:text-slate-400 bg-slate-50/50 dark:bg-slate-800/20">
+                                          {match.board}
                                         </td>
-                                        <td className="px-4 py-3">
+                                        <td 
+                                          className={cn(
+                                            "px-4 py-2 border border-slate-200 dark:border-slate-800/60 select-none",
+                                            isOwner && match.whitePlayerId ? "cursor-pointer hover:bg-blue-50/30 dark:hover:bg-blue-950/10" : ""
+                                          )}
+                                          onClick={() => {
+                                            if (match.whitePlayerId && isOwner) {
+                                              handlePlayerClick(match.whitePlayerId, match.id, 'white', whiteName);
+                                            }
+                                          }}
+                                          onDoubleClick={() => handleResultChange(match.id, "1-0")}
+                                          title={isOwner ? "Click to select for swap • Double-click to award win" : ""}
+                                        >
                                           <div className="flex flex-col">
-                                            <span className="font-semibold text-slate-800 dark:text-slate-100 text-sm">
+                                            <span className={cn(
+                                              "font-semibold text-sm transition-colors",
+                                              isWhiteWin ? "text-emerald-600 dark:text-emerald-400" : "text-slate-800 dark:text-slate-100"
+                                            )}>
                                               {whiteName}
                                             </span>
-                                            <span className="text-[10px] font-mono font-medium text-slate-400 dark:text-slate-500">
-                                              Rating: {whiteRating} {whiteObj?.localId ? `• ID: ${whiteObj.localId}` : ''}
+                                            <span className="text-[11px] font-mono text-slate-400 dark:text-slate-550">
+                                              Rating: {whiteRating} • Score: {whitePointsStr} {whiteObj?.localId ? `• ID: ${whiteObj.localId}` : ''}
                                             </span>
                                           </div>
                                         </td>
-                                        <td className="px-4 py-3 text-center">
-                                          <span className={cn(
-                                            "inline-flex items-center justify-center px-2.5 py-1 rounded-lg text-sm font-black font-mono shadow-sm border",
-                                            wResDisplay === "1" ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900/30" :
-                                            wResDisplay === "0" ? "bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 border-rose-100 dark:border-rose-900/30" :
-                                            wResDisplay === "½" ? "bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 border-slate-100 dark:border-slate-700/50" :
-                                            "bg-slate-50/50 text-slate-300 border-slate-100"
-                                          )}>
-                                            {wResDisplay || "—"}
-                                          </span>
+                                        <td className="px-2 py-2 border border-slate-200 dark:border-slate-800/60 text-center bg-slate-50/10 dark:bg-slate-900/5">
+                                          <div className="inline-flex items-center gap-1">
+                                            <Button
+                                              size="sm"
+                                              variant="outline"
+                                              className={cn(
+                                                "px-2 h-7 font-black text-xs rounded border transition-all shadow-sm",
+                                                match.result === "1-0" || match.result === "1F-0F"
+                                                  ? "bg-emerald-600 hover:bg-emerald-700 text-white border-transparent"
+                                                  : "bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-850 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-750"
+                                              )}
+                                              onClick={() => handleResultChange(match.id, match.result === "1-0" ? "Pending" : "1-0")}
+                                              title="White wins (1-0)"
+                                            >
+                                              1-0
+                                            </Button>
+                                            <Button
+                                              size="sm"
+                                              variant="outline"
+                                              className={cn(
+                                                "px-2 h-7 font-black text-xs rounded border transition-all shadow-sm",
+                                                match.result === "1/2-1/2"
+                                                  ? "bg-slate-600 hover:bg-slate-700 text-white border-transparent"
+                                                  : "bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-850 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-750"
+                                              )}
+                                              onClick={() => handleResultChange(match.id, match.result === "1/2-1/2" ? "Pending" : "1/2-1/2")}
+                                              title="Draw (1/2-1/2)"
+                                            >
+                                              ½-½
+                                            </Button>
+                                            <Button
+                                              size="sm"
+                                              variant="outline"
+                                              className={cn(
+                                                "px-2 h-7 font-black text-xs rounded border transition-all shadow-sm",
+                                                match.result === "0-1" || match.result === "0F-1F"
+                                                  ? "bg-emerald-600 hover:bg-emerald-700 text-white border-transparent"
+                                                  : "bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-850 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-750"
+                                              )}
+                                              onClick={() => handleResultChange(match.id, match.result === "0-1" ? "Pending" : "0-1")}
+                                              title="Black wins (0-1)"
+                                            >
+                                              0-1
+                                            </Button>
+                                            {match.result && match.result !== "Pending" && (
+                                              <Button
+                                                size="icon"
+                                                variant="ghost"
+                                                className="h-7 w-7 text-slate-400 hover:text-rose-500 rounded hover:bg-slate-100 dark:hover:bg-slate-800"
+                                                onClick={() => handleResultChange(match.id, "Pending")}
+                                                title="Reset result to Pending"
+                                              >
+                                                <span className="text-sm font-black">×</span>
+                                              </Button>
+                                            )}
+                                          </div>
                                         </td>
-                                        <td className="px-4 py-3">
+                                        <td 
+                                          className={cn(
+                                            "px-4 py-2 border border-slate-200 dark:border-slate-800/60 select-none",
+                                            isOwner && match.blackPlayerId ? "cursor-pointer hover:bg-blue-50/30 dark:hover:bg-blue-950/10" : ""
+                                          )}
+                                          onClick={() => {
+                                            if (match.blackPlayerId && isOwner) {
+                                              handlePlayerClick(match.blackPlayerId, match.id, 'black', blackName);
+                                            }
+                                          }}
+                                          onDoubleClick={() => handleResultChange(match.id, "0-1")}
+                                          title={isOwner ? "Click to select for swap • Double-click to award win" : ""}
+                                        >
                                           <div className="flex flex-col">
-                                            <span className="font-semibold text-slate-800 dark:text-slate-100 text-sm">
+                                            <span className={cn(
+                                              "font-semibold text-sm transition-colors",
+                                              isBlackWin ? "text-emerald-600 dark:text-emerald-400" : "text-slate-800 dark:text-slate-100"
+                                            )}>
                                               {blackName}
                                             </span>
-                                            <span className="text-[10px] font-mono font-medium text-slate-400 dark:text-slate-500">
-                                              Rating: {blackRating} {blackObj?.localId ? `• ID: ${blackObj.localId}` : ''}
+                                            <span className="text-[11px] font-mono text-slate-400 dark:text-slate-550">
+                                              Rating: {blackRating} • Score: {blackPointsStr} {blackObj?.localId ? `• ID: ${blackObj.localId}` : ''}
                                             </span>
                                           </div>
                                         </td>
-                                        <td className="px-4 py-3 text-center">
-                                          <span className={cn(
-                                            "inline-flex items-center justify-center px-2.5 py-1 rounded-lg text-sm font-black font-mono shadow-sm border",
-                                            bResDisplay === "1" ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900/30" :
-                                            bResDisplay === "0" ? "bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 border-rose-100 dark:border-rose-900/30" :
-                                            bResDisplay === "½" ? "bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 border-slate-100 dark:border-slate-700/50" :
-                                            "bg-slate-50/50 text-slate-300 border-slate-100"
-                                          )}>
-                                            {bResDisplay || "—"}
-                                          </span>
+                                        <td className="px-4 py-2 text-right border border-slate-200 dark:border-slate-800/60">
+                                          <Button variant="ghost" size="sm" onClick={() => setSelectedMatchForManagement(match)} className="rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300">Edit</Button>
                                         </td>
                                       </tr>
                                     );
-                                  })}
-                                </tbody>
-                              </table>
-                            </div>
+                                  }
+
+                                  // Player View
+                                  return (
+                                    <tr key={match.id} className="group hover:bg-indigo-50/20 dark:hover:bg-indigo-950/10 transition-colors border-b border-slate-100 dark:border-slate-800/40 last:border-0">
+                                      <td className="px-3 py-3 text-center border border-slate-200 dark:border-slate-800/60 font-mono text-sm font-bold text-slate-600 dark:text-slate-400 bg-slate-50/50 dark:bg-slate-800/20">
+                                        {match.board}
+                                      </td>
+                                      <td className="px-4 py-2 border border-slate-200 dark:border-slate-800/60">
+                                        <div className="flex flex-col">
+                                          <span className={cn(
+                                            "font-semibold text-sm transition-colors",
+                                            isWhiteWin ? "text-emerald-600 dark:text-emerald-400" : "text-slate-800 dark:text-slate-100"
+                                          )}>
+                                            {whiteName}
+                                          </span>
+                                          <span className="text-[11px] font-mono text-slate-400 dark:text-slate-550">
+                                            Rating: {whiteRating} • Score: {whitePointsStr} {whiteObj?.localId ? `• ID: ${whiteObj.localId}` : ''}
+                                          </span>
+                                        </div>
+                                      </td>
+                                      <td className="px-3 py-2 border border-slate-200 dark:border-slate-800/60 text-center bg-slate-50/20 dark:bg-slate-900/5">
+                                        <div className="flex items-center justify-center gap-2 font-mono font-black text-sm select-none">
+                                          <span className={cn(
+                                            isWhiteWin ? "text-emerald-600 dark:text-emerald-400" : isDraw ? "text-slate-500 dark:text-slate-400" : "text-slate-400 dark:text-slate-650"
+                                          )}>
+                                            {isWhiteWin ? "1" : isDraw ? "½" : isBlackWin ? "0" : "—"}
+                                          </span>
+                                          <span className="text-slate-350 dark:text-slate-700">—</span>
+                                          <span className={cn(
+                                            isBlackWin ? "text-emerald-600 dark:text-emerald-400" : isDraw ? "text-slate-500 dark:text-slate-400" : "text-slate-400 dark:text-slate-650"
+                                          )}>
+                                            {isBlackWin ? "1" : isDraw ? "½" : isWhiteWin ? "0" : "—"}
+                                          </span>
+                                        </div>
+                                      </td>
+                                      <td className="px-4 py-2 border border-slate-200 dark:border-slate-800/60">
+                                        <div className="flex flex-col">
+                                          <span className={cn(
+                                            "font-semibold text-sm transition-colors",
+                                            isBlackWin ? "text-emerald-650 dark:text-emerald-400" : "text-slate-800 dark:text-slate-100"
+                                          )}>
+                                            {blackName}
+                                          </span>
+                                          <span className="text-[11px] font-mono text-slate-400 dark:text-slate-550">
+                                            Rating: {blackRating} • Score: {blackPointsStr} {blackObj?.localId ? `• ID: ${blackObj.localId}` : ''}
+                                          </span>
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
                           </div>
                         </div>
+                      </div>
                     );
                   })}
                 </div>
@@ -1669,31 +1704,21 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
                   </h3>
                 </div>
                 <div className="overflow-x-auto">
-                    {swissMatches.length === 0 ? (
-                      <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-                        No pairings for this section in Round {currentRound}.
-                      </div>
-                    ) : (
-                      <div className="overflow-hidden border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm bg-white dark:bg-slate-950">
-                        <table className="min-w-full text-slate-700 dark:text-slate-300">
-                          <thead className="bg-slate-50/80 dark:bg-slate-900/60 border-b border-slate-100 dark:border-slate-800">
+                  {swissMatches.length === 0 && filteredByes.length === 0 ? (
+                    <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+                      No pairings or byes for this section in Round {currentRound}.
+                    </div>
+                  ) : (
+                    <div className="overflow-hidden border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm bg-white dark:bg-slate-950">
+                        <table className="min-w-full text-slate-700 dark:text-slate-300 border-collapse border border-slate-200 dark:border-slate-800">
+                          <thead className="bg-slate-50 dark:bg-slate-800/85 border-b border-slate-200 dark:border-slate-800">
                             <tr>
-                              <th className="px-4 py-3.5 text-left text-xs font-medium text-slate-500 dark:text-slate-400 w-16">Bd</th>
-                              {isTournamentDirector ? (
-                                <>
-                                  <th className="px-2 py-3.5 text-center text-xs font-medium text-slate-500 dark:text-slate-400 w-16">Res</th>
-                                  <th className="px-4 py-3.5 text-left text-xs font-medium text-slate-500 dark:text-slate-400">White</th>
-                                  <th className="px-2 py-3.5 text-center text-xs font-medium text-slate-500 dark:text-slate-400 w-16">Res</th>
-                                  <th className="px-4 py-3.5 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Black</th>
-                                  <th className="px-4 py-3.5 text-right text-xs font-medium text-slate-500 dark:text-slate-400 w-24">Edit</th>
-                                </>
-                              ) : (
-                                <>
-                                  <th className="px-4 py-3.5 text-left text-xs font-medium text-slate-500 dark:text-slate-400">White</th>
-                                  <th className="px-4 py-3.5 text-center text-xs font-medium text-slate-500 dark:text-slate-400 w-24">Res</th>
-                                  <th className="px-4 py-3.5 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Black</th>
-                                  <th className="px-4 py-3.5 text-center text-xs font-medium text-slate-500 dark:text-slate-400 w-24">Res</th>
-                                </>
+                              <th className="px-3 py-2 text-center text-xs font-bold text-slate-600 dark:text-slate-350 w-14 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">Bd</th>
+                              <th className="px-4 py-2 text-left text-xs font-bold text-slate-600 dark:text-slate-350 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">White Player</th>
+                              <th className="px-3 py-2 text-center text-xs font-bold text-slate-600 dark:text-slate-350 w-44 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">Result</th>
+                              <th className="px-4 py-2 text-left text-xs font-bold text-slate-600 dark:text-slate-355 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">Black Player</th>
+                              {isTournamentDirector && (
+                                <th className="px-4 py-2 text-right text-xs font-bold text-slate-600 dark:text-slate-350 w-24 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">Edit</th>
                               )}
                             </tr>
                           </thead>
@@ -1708,81 +1733,128 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
                               const isBlackWin = match.result === "0-1" || match.result === "0F-1F";
                               const isDraw = match.result === "1/2-1/2";
                               
-                              const wResDisplay = isWhiteWin ? "1" : isDraw ? "½" : isBlackWin ? "0" : "";
-                              const bResDisplay = isBlackWin ? "1" : isDraw ? "½" : isWhiteWin ? "0" : "";
+                              const whiteObj = getPlayerObject(match.whitePlayerId);
+                              const blackObj = getPlayerObject(match.blackPlayerId);
+
+                              const whitePoints = getPlayerPoints(match.whitePlayerId, currentRound);
+                              const whitePointsStr = formatPointsWithFractions(whitePoints);
+                              const blackPoints = match.blackPlayerId ? getPlayerPoints(match.blackPlayerId, currentRound) : 0;
+                              const blackPointsStr = formatPointsWithFractions(blackPoints);
 
                               if (isTournamentDirector) {
-                                const whiteObj = getPlayerObject(match.whitePlayerId);
-                                const blackObj = getPlayerObject(match.blackPlayerId);
                                 return (
-                                  <tr key={match.id} className="group hover:bg-indigo-50/20 dark:hover:bg-indigo-950/10 transition-colors">
-                                    <td className="px-4 py-4 whitespace-nowrap">
-                                      <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 font-mono text-sm font-black text-slate-600 dark:text-slate-400 border border-slate-200/40 dark:border-slate-700/40 group-hover:bg-indigo-100/40 group-hover:border-indigo-200/30 transition-colors">
-                                        {match.board}
-                                      </span>
-                                    </td>
-                                    <td className="px-2 py-4 whitespace-nowrap text-center">
-                                      <input
-                                        type="text"
-                                        className="w-12 h-10 text-center border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all uppercase font-black text-sm text-slate-800 dark:text-slate-100 shadow-sm"
-                                        value={wResDisplay}
-                                        onChange={(e) => {
-                                          const val = e.target.value.toUpperCase();
-                                          if (val === '1') handleResultChange(match.id, "1-0");
-                                          else if (val === '0') handleResultChange(match.id, "0-1");
-                                          else if (val === '5' || val === '1/2' || val === '½') handleResultChange(match.id, "1/2-1/2");
-                                          else if (val === '1F') handleResultChange(match.id, "1F-0F");
-                                          else if (val === '0F') handleResultChange(match.id, "0F-1F");
-                                          else if (val === '') handleResultChange(match.id, "Pending");
-                                        }}
-                                      />
+                                  <tr key={match.id} className="group hover:bg-indigo-50/20 dark:hover:bg-indigo-950/10 transition-colors border-b border-slate-100 dark:border-slate-800/40 last:border-0">
+                                    <td className="px-3 py-3 text-center border border-slate-200 dark:border-slate-800/60 font-mono text-sm font-bold text-slate-600 dark:text-slate-400 bg-slate-50/50 dark:bg-slate-800/20">
+                                      {match.board}
                                     </td>
                                     <td 
-                                      className="px-4 py-4 whitespace-nowrap cursor-pointer select-none"
+                                      className={cn(
+                                        "px-4 py-2 border border-slate-200 dark:border-slate-800/60 select-none",
+                                        isOwner && match.whitePlayerId ? "cursor-pointer hover:bg-blue-50/30 dark:hover:bg-blue-950/10" : ""
+                                      )}
+                                      onClick={() => {
+                                        if (match.whitePlayerId && isOwner) {
+                                          handlePlayerClick(match.whitePlayerId, match.id, 'white', whiteName);
+                                        }
+                                      }}
                                       onDoubleClick={() => handleResultChange(match.id, "1-0")}
+                                      title={isOwner ? "Click to select for swap • Double-click to award win" : ""}
                                     >
                                       <div className="flex flex-col">
                                         <span className={cn(
                                           "font-semibold text-sm transition-colors",
-                                          isWhiteWin ? "text-emerald-600 dark:text-emerald-400" : "text-slate-800 dark:text-slate-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400"
+                                          isWhiteWin ? "text-emerald-600 dark:text-emerald-400" : "text-slate-800 dark:text-slate-100"
                                         )}>
                                           {whiteName}
                                         </span>
-                                        <span className="text-[10px] font-mono font-medium text-slate-400 dark:text-slate-500">
-                                          Rating: {whiteRating} {whiteObj?.localId ? `• ID: ${whiteObj.localId}` : ''}
+                                        <span className="text-[11px] font-mono text-slate-400 dark:text-slate-550">
+                                          Rating: {whiteRating} • Score: {whitePointsStr} {whiteObj?.localId ? `• ID: ${whiteObj.localId}` : ''}
                                         </span>
                                       </div>
                                     </td>
-                                    <td className="px-2 py-3 text-center">
-                                      <input
-                                        type="text"
-                                        className="w-10 h-8 text-center border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all uppercase font-black text-xs text-slate-800 dark:text-slate-100 shadow-sm"
-                                        value={bResDisplay}
-                                        onChange={(e) => {
-                                          const val = e.target.value.toUpperCase();
-                                          if (val === '1') handleResultChange(match.id, "0-1");
-                                          else if (val === '0') handleResultChange(match.id, "1-0");
-                                          else if (val === '5' || val === '1/2' || val === '½') handleResultChange(match.id, "1/2-1/2");
-                                          else if (val === '1F') handleResultChange(match.id, "0F-1F");
-                                          else if (val === '0F') handleResultChange(match.id, "1F-0F");
-                                          else if (val === '') handleResultChange(match.id, "Pending");
-                                        }}
-                                      />
+                                    <td className="px-2 py-2 border border-slate-200 dark:border-slate-800/60 text-center bg-slate-50/10 dark:bg-slate-900/5">
+                                      <div className="inline-flex items-center gap-1">
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          className={cn(
+                                            "px-2 h-7 font-black text-xs rounded border transition-all shadow-sm",
+                                            match.result === "1-0" || match.result === "1F-0F"
+                                              ? "bg-emerald-600 hover:bg-emerald-700 text-white border-transparent"
+                                              : "bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-850 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-750"
+                                          )}
+                                          onClick={() => handleResultChange(match.id, match.result === "1-0" ? "Pending" : "1-0")}
+                                          title="White wins (1-0)"
+                                        >
+                                          1-0
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          className={cn(
+                                            "px-2 h-7 font-black text-xs rounded border transition-all shadow-sm",
+                                            match.result === "1/2-1/2"
+                                              ? "bg-slate-600 hover:bg-slate-700 text-white border-transparent"
+                                              : "bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-850 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-750"
+                                          )}
+                                          onClick={() => handleResultChange(match.id, match.result === "1/2-1/2" ? "Pending" : "1/2-1/2")}
+                                          title="Draw (1/2-1/2)"
+                                        >
+                                          ½-½
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          className={cn(
+                                            "px-2 h-7 font-black text-xs rounded border transition-all shadow-sm",
+                                            match.result === "0-1" || match.result === "0F-1F"
+                                              ? "bg-emerald-600 hover:bg-emerald-700 text-white border-transparent"
+                                              : "bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-850 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-750"
+                                          )}
+                                          onClick={() => handleResultChange(match.id, match.result === "0-1" ? "Pending" : "0-1")}
+                                          title="Black wins (0-1)"
+                                        >
+                                          0-1
+                                        </Button>
+                                        {match.result && match.result !== "Pending" && (
+                                          <Button
+                                            size="icon"
+                                            variant="ghost"
+                                            className="h-7 w-7 text-slate-400 hover:text-rose-500 rounded hover:bg-slate-100 dark:hover:bg-slate-800"
+                                            onClick={() => handleResultChange(match.id, "Pending")}
+                                            title="Reset result to Pending"
+                                          >
+                                            <span className="text-sm font-black">×</span>
+                                          </Button>
+                                        )}
+                                      </div>
                                     </td>
                                     <td 
-                                      className="px-4 py-3 cursor-pointer select-none"
+                                      className={cn(
+                                        "px-4 py-2 border border-slate-200 dark:border-slate-800/60 select-none",
+                                        isOwner && match.blackPlayerId ? "cursor-pointer hover:bg-blue-50/30 dark:hover:bg-blue-950/10" : ""
+                                      )}
+                                      onClick={() => {
+                                        if (match.blackPlayerId && isOwner) {
+                                          handlePlayerClick(match.blackPlayerId, match.id, 'black', blackName);
+                                        }
+                                      }}
                                       onDoubleClick={() => handleResultChange(match.id, "0-1")}
+                                      title={isOwner ? "Click to select for swap • Double-click to award win" : ""}
                                     >
                                       <div className="flex flex-col">
-                                        <span className="font-semibold text-slate-800 dark:text-slate-100 text-sm hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
+                                        <span className={cn(
+                                          "font-semibold text-sm transition-colors",
+                                          isBlackWin ? "text-emerald-600 dark:text-emerald-400" : "text-slate-800 dark:text-slate-100"
+                                        )}>
                                           {blackName}
                                         </span>
-                                        <span className="text-[10px] font-mono font-medium text-slate-400 dark:text-slate-500">
-                                          Rating: {blackRating} {blackObj?.localId ? `• ID: ${blackObj.localId}` : ''}
+                                        <span className="text-[11px] font-mono text-slate-400 dark:text-slate-550">
+                                          Rating: {blackRating} • Score: {blackPointsStr} {blackObj?.localId ? `• ID: ${blackObj.localId}` : ''}
                                         </span>
                                       </div>
                                     </td>
-                                    <td className="px-4 py-3 text-right">
+                                    <td className="px-4 py-2 text-right border border-slate-200 dark:border-slate-800/60">
                                       <Button variant="ghost" size="sm" onClick={() => setSelectedMatchForManagement(match)} className="rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300">Edit</Button>
                                     </td>
                                   </tr>
@@ -1790,62 +1862,125 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
                               }
 
                               // Player View
-                              const whiteObj = getPlayerObject(match.whitePlayerId);
-                              const blackObj = getPlayerObject(match.blackPlayerId);
                               return (
-                                <tr key={match.id} className="group hover:bg-indigo-50/20 dark:hover:bg-indigo-950/10 transition-colors">
-                                  <td className="px-4 py-4 whitespace-nowrap">
-                                    <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 font-mono text-sm font-black text-slate-600 dark:text-slate-400 border border-slate-200/40 dark:border-slate-700/40 group-hover:bg-indigo-100/40 group-hover:border-indigo-200/30 transition-colors">
-                                      {match.board}
-                                    </span>
+                                <tr key={match.id} className="group hover:bg-indigo-50/20 dark:hover:bg-indigo-950/10 transition-colors border-b border-slate-100 dark:border-slate-800/40 last:border-0">
+                                  <td className="px-3 py-3 text-center border border-slate-200 dark:border-slate-800/60 font-mono text-sm font-bold text-slate-650 dark:text-slate-400 bg-slate-50/50 dark:bg-slate-800/20">
+                                    {match.board}
                                   </td>
-                                  <td className="px-4 py-4 whitespace-nowrap">
+                                  <td className="px-4 py-2 border border-slate-200 dark:border-slate-800/60">
                                     <div className="flex flex-col">
                                       <span className={cn(
                                         "font-semibold text-sm transition-colors",
-                                        isWhiteWin ? "text-emerald-600 dark:text-emerald-400" : "text-slate-800 dark:text-slate-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400"
+                                        isWhiteWin ? "text-emerald-600 dark:text-emerald-400" : "text-slate-800 dark:text-slate-100"
                                       )}>
                                         {whiteName}
                                       </span>
-                                      <span className="text-[10px] font-mono font-medium text-slate-400 dark:text-slate-500">
-                                        Rating: {whiteRating} {whiteObj?.localId ? `• ID: ${whiteObj.localId}` : ''}
+                                      <span className="text-[11px] font-mono text-slate-400 dark:text-slate-550">
+                                        Rating: {whiteRating} • Score: {whitePointsStr} {whiteObj?.localId ? `• ID: ${whiteObj.localId}` : ''}
                                       </span>
                                     </div>
                                   </td>
-                                  <td className="px-4 py-4 whitespace-nowrap text-center">
-                                    <span className={cn(
-                                      "inline-flex items-center justify-center px-3 py-1.5 rounded-lg text-sm font-black font-mono shadow-sm border",
-                                      wResDisplay === "1" ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900/30" :
-                                      wResDisplay === "0" ? "bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 border-rose-100 dark:border-rose-900/30" :
-                                      wResDisplay === "½" ? "bg-slate-50 dark:bg-slate-800/50 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700/50" :
-                                      "bg-slate-50/50 dark:bg-slate-900/50 text-slate-400 dark:text-slate-500 border-slate-100 dark:border-slate-800"
-                                    )}>
-                                      {wResDisplay || "—"}
-                                    </span>
+                                  <td className="px-3 py-2 border border-slate-200 dark:border-slate-800/60 text-center bg-slate-50/20 dark:bg-slate-900/5">
+                                    <div className="flex items-center justify-center gap-2 font-mono font-black text-sm select-none">
+                                      <span className={cn(
+                                        isWhiteWin ? "text-emerald-600 dark:text-emerald-400" : isDraw ? "text-slate-500 dark:text-slate-400" : "text-slate-400 dark:text-slate-655"
+                                      )}>
+                                        {isWhiteWin ? "1" : isDraw ? "½" : isBlackWin ? "0" : "—"}
+                                      </span>
+                                      <span className="text-slate-350 dark:text-slate-700">—</span>
+                                      <span className={cn(
+                                        isBlackWin ? "text-emerald-600 dark:text-emerald-400" : isDraw ? "text-slate-500 dark:text-slate-400" : "text-slate-400 dark:text-slate-655"
+                                      )}>
+                                        {isBlackWin ? "1" : isDraw ? "½" : isWhiteWin ? "0" : "—"}
+                                      </span>
+                                    </div>
                                   </td>
-                                  <td className="px-4 py-4 whitespace-nowrap">
+                                  <td className="px-4 py-2 border border-slate-200 dark:border-slate-800/60">
                                     <div className="flex flex-col">
                                       <span className={cn(
                                         "font-semibold text-sm transition-colors",
-                                        isBlackWin ? "text-emerald-600 dark:text-emerald-400" : "text-slate-800 dark:text-slate-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400"
+                                        isBlackWin ? "text-emerald-650 dark:text-emerald-400" : "text-slate-800 dark:text-slate-100"
                                       )}>
                                         {blackName}
                                       </span>
-                                      <span className="text-[10px] font-mono font-medium text-slate-400 dark:text-slate-500">
-                                        Rating: {blackRating} {blackObj?.localId ? `• ID: ${blackObj.localId}` : ''}
+                                      <span className="text-[11px] font-mono text-slate-400 dark:text-slate-550">
+                                        Rating: {blackRating} • Score: {blackPointsStr} {blackObj?.localId ? `• ID: ${blackObj.localId}` : ''}
                                       </span>
                                     </div>
                                   </td>
-                                  <td className="px-4 py-4 whitespace-nowrap text-center">
-                                    <span className={cn(
-                                      "inline-flex items-center justify-center px-3 py-1.5 rounded-lg text-sm font-black font-mono shadow-sm border",
-                                      bResDisplay === "1" ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900/30" :
-                                      bResDisplay === "0" ? "bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 border-rose-100 dark:border-rose-900/30" :
-                                      bResDisplay === "½" ? "bg-slate-50 dark:bg-slate-800/50 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700/50" :
-                                      "bg-slate-50/50 dark:bg-slate-900/50 text-slate-400 dark:text-slate-500 border-slate-100 dark:border-slate-800"
-                                    )}>
-                                      {bResDisplay || "—"}
+                                </tr>
+                              );
+                            })}
+
+                            {/* Unified Byes in pairings table */}
+                            {filteredByes.map((bye) => {
+                              const playerName = getPlayerName(bye.playerId);
+                              const playerRating = getPlayerRating(bye.playerId);
+                              const playerObj = getPlayerObject(bye.playerId);
+                              
+                              const playerPoints = getPlayerPoints(bye.playerId, currentRound);
+                              const playerPointsStr = formatPointsWithFractions(playerPoints);
+
+                              const byePointsDisplay = bye.byeType === 'half_point' || bye.points === 1 ? '½' :
+                                                       bye.byeType === 'zero_point' || bye.points === 0 ? '0' : '1';
+                              
+                              if (isTournamentDirector) {
+                                return (
+                                  <tr key={`bye-${bye.id}`} className="group hover:bg-indigo-50/20 dark:hover:bg-indigo-950/10 transition-colors border-b border-slate-100 dark:border-slate-800/40 last:border-0">
+                                    <td className="px-3 py-3 text-center border border-slate-200 dark:border-slate-800/60 font-mono text-sm font-bold text-slate-400 dark:text-slate-600 bg-slate-50/50 dark:bg-slate-800/20">
+                                      —
+                                    </td>
+                                    <td className="px-4 py-2 border border-slate-200 dark:border-slate-800/60">
+                                      <div className="flex flex-col">
+                                        <span className="font-semibold text-sm text-slate-800 dark:text-slate-100">
+                                          {playerName}
+                                        </span>
+                                        <span className="text-[11px] font-mono text-slate-400 dark:text-slate-550">
+                                          Rating: {playerRating} • Score: {playerPointsStr} {playerObj?.localId ? `• ID: ${playerObj.localId}` : ''}
+                                        </span>
+                                      </div>
+                                    </td>
+                                    <td className="px-2 py-2 border border-slate-200 dark:border-slate-800/60 text-center bg-slate-50/10 dark:bg-slate-900/5">
+                                      <span className="inline-flex items-center justify-center px-3 py-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/30 text-indigo-650 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/30 font-black text-sm font-mono shadow-sm">
+                                        {byePointsDisplay}
+                                      </span>
+                                    </td>
+                                    <td className="px-4 py-2 border border-slate-200 dark:border-slate-800/60 italic text-slate-450 dark:text-slate-500 font-semibold text-sm">
+                                      {bye.isRequested ? 'Requested Bye' : 'Unpaired'}
+                                    </td>
+                                    <td className="px-4 py-2 text-right border border-slate-200 dark:border-slate-800/60">
+                                      <span className="text-[10px] uppercase tracking-wider font-extrabold text-slate-455 dark:text-slate-500 bg-slate-100 dark:bg-slate-850 border border-slate-200/50 dark:border-slate-800 px-2 py-1 rounded-md">
+                                        {bye.byeType === 'half_point' ? '½ Pt Bye' :
+                                         bye.byeType === 'zero_point' ? '0 Pt Bye' : '1 Pt Bye'}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                );
+                              }
+
+                              // Player View
+                              return (
+                                <tr key={`bye-${bye.id}`} className="group hover:bg-indigo-50/20 dark:hover:bg-indigo-950/10 transition-colors border-b border-slate-100 dark:border-slate-800/40 last:border-0">
+                                  <td className="px-3 py-3 text-center border border-slate-200 dark:border-slate-800/60 font-mono text-sm font-bold text-slate-400 dark:text-slate-650 bg-slate-50/50 dark:bg-slate-800/20">
+                                    —
+                                  </td>
+                                  <td className="px-4 py-2 border border-slate-200 dark:border-slate-800/60">
+                                    <div className="flex flex-col">
+                                      <span className="font-semibold text-sm text-slate-800 dark:text-slate-100">
+                                        {playerName}
+                                      </span>
+                                      <span className="text-[11px] font-mono text-slate-400 dark:text-slate-550">
+                                        Rating: {playerRating} • Score: {playerPointsStr} {playerObj?.localId ? `• ID: ${playerObj.localId}` : ''}
+                                      </span>
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-2 border border-slate-200 dark:border-slate-800/60 text-center bg-slate-50/20 dark:bg-slate-900/5">
+                                    <span className="inline-flex items-center justify-center px-3 py-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/30 text-indigo-650 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/30 font-black text-sm font-mono shadow-sm">
+                                      {byePointsDisplay}
                                     </span>
+                                  </td>
+                                  <td className="px-4 py-2 border border-slate-200 dark:border-slate-800/60 italic text-slate-450 dark:text-slate-500 font-semibold text-sm">
+                                    {bye.isRequested ? 'Requested Bye' : 'Unpaired'}
                                   </td>
                                 </tr>
                               );
@@ -1855,40 +1990,6 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
                       </div>
                     )}
                   </div>
-
-                {/* Byes Section */}
-                {filteredByes.length > 0 && (
-                  <div className="bg-slate-50/60 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
-                    <h4 className="text-xs font-semibold text-slate-400 dark:text-slate-500">
-                      Byes This Round
-                    </h4>
-                    <div className="divide-y divide-slate-100 dark:divide-slate-800/40">
-                      {filteredByes.map((byePairing: any) => (
-                        <div key={byePairing.id} className="flex items-center justify-between py-2.5 first:pt-0 last:pb-0 text-sm">
-                          <div className="flex flex-col">
-                            <span className="font-semibold text-slate-800 dark:text-slate-200">
-                              {getPlayerName(byePairing.playerId)}
-                            </span>
-                            <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500">
-                              Rating: {getPlayerRating(byePairing.playerId)} • Current Score: {getPlayerPoints(byePairing.playerId, currentRound)}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Badge variant="outline" className="text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-medium">
-                              {byePairing.byeType === 'half_point' ? '½ Point Bye' :
-                                byePairing.byeType === 'zero_point' ? '0 Point Bye' : '1 Point Bye'}
-                            </Badge>
-                            {byePairing.isRequested && (
-                              <Badge variant="secondary" className="text-xs">
-                                Requested
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
 
                 {/* Extra Games Section */}
                 {tournament?.format === 'swiss' && tournamentConfig?.registers?.allowExtraGames && (isOwner || extraMatches.length > 0) && (
@@ -1903,26 +2004,17 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
                     </div>
 
                     {extraMatches.length > 0 ? (
-                      <div className="overflow-hidden border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm bg-white dark:bg-slate-950">
-                        <table className="min-w-full text-slate-700 dark:text-slate-300">
-                          <thead className="bg-slate-50/80 dark:bg-slate-900/60 border-b border-slate-100 dark:border-slate-800">
+                      <div className="overflow-x-auto">
+                        <div className="overflow-hidden border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm bg-white dark:bg-slate-950">
+                        <table className="min-w-full text-slate-700 dark:text-slate-300 border-collapse border border-slate-200 dark:border-slate-800">
+                          <thead className="bg-slate-50 dark:bg-slate-800/85 border-b border-slate-200 dark:border-slate-800">
                             <tr>
-                              <th className="px-4 py-3.5 text-left text-xs font-medium text-slate-500 dark:text-slate-400 w-16">Bd</th>
-                              {isTournamentDirector ? (
-                                <>
-                                  <th className="px-2 py-3.5 text-center text-xs font-medium text-slate-500 dark:text-slate-400 w-16">Res</th>
-                                  <th className="px-4 py-3.5 text-left text-xs font-medium text-slate-500 dark:text-slate-400">White</th>
-                                  <th className="px-2 py-3.5 text-center text-xs font-medium text-slate-500 dark:text-slate-400 w-16">Res</th>
-                                  <th className="px-4 py-3.5 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Black</th>
-                                  <th className="px-4 py-3.5 text-right text-xs font-medium text-slate-500 dark:text-slate-400 w-24">Edit</th>
-                                </>
-                              ) : (
-                                <>
-                                  <th className="px-4 py-3.5 text-left text-xs font-medium text-slate-500 dark:text-slate-400">White</th>
-                                  <th className="px-4 py-3.5 text-center text-xs font-medium text-slate-500 dark:text-slate-400 w-24">Res</th>
-                                  <th className="px-4 py-3.5 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Black</th>
-                                  <th className="px-4 py-3.5 text-center text-xs font-medium text-slate-500 dark:text-slate-400 w-24">Res</th>
-                                </>
+                              <th className="px-3 py-2 text-center text-xs font-bold text-slate-600 dark:text-slate-350 w-14 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">Bd</th>
+                              <th className="px-4 py-2 text-left text-xs font-bold text-slate-600 dark:text-slate-350 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">White Player</th>
+                              <th className="px-3 py-2 text-center text-xs font-bold text-slate-600 dark:text-slate-350 w-44 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">Result</th>
+                              <th className="px-4 py-2 text-left text-xs font-bold text-slate-600 dark:text-slate-350 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">Black Player</th>
+                              {isTournamentDirector && (
+                                <th className="px-4 py-2 text-right text-xs font-bold text-slate-600 dark:text-slate-350 w-24 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">Edit</th>
                               )}
                             </tr>
                           </thead>
@@ -1937,81 +2029,128 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
                               const isBlackWin = match.result === "0-1" || match.result === "0F-1F";
                               const isDraw = match.result === "1/2-1/2";
                               
-                              const wResDisplay = isWhiteWin ? "1" : isDraw ? "½" : isBlackWin ? "0" : "";
-                              const bResDisplay = isBlackWin ? "1" : isDraw ? "½" : isWhiteWin ? "0" : "";
+                              const whiteObj = getPlayerObject(match.whitePlayerId);
+                              const blackObj = getPlayerObject(match.blackPlayerId);
+
+                              const whitePoints = getPlayerPoints(match.whitePlayerId, currentRound);
+                              const whitePointsStr = formatPointsWithFractions(whitePoints);
+                              const blackPoints = match.blackPlayerId ? getPlayerPoints(match.blackPlayerId, currentRound) : 0;
+                              const blackPointsStr = formatPointsWithFractions(blackPoints);
 
                               if (isTournamentDirector) {
-                                const whiteObj = getPlayerObject(match.whitePlayerId);
-                                const blackObj = getPlayerObject(match.blackPlayerId);
                                 return (
-                                  <tr key={match.id} className="group hover:bg-indigo-50/20 dark:hover:bg-indigo-950/10 transition-colors">
-                                    <td className="px-4 py-4 whitespace-nowrap">
-                                      <span className="inline-flex items-center justify-center px-2 py-1 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 font-mono text-[11px] font-black text-slate-600 dark:text-slate-400 border border-slate-200/40 dark:border-slate-700/40 group-hover:bg-indigo-100/40 group-hover:border-indigo-200/30 transition-colors">
-                                        Extra
-                                      </span>
-                                    </td>
-                                    <td className="px-2 py-4 whitespace-nowrap text-center">
-                                      <input
-                                        type="text"
-                                        className="w-12 h-10 text-center border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all uppercase font-black text-sm text-slate-800 dark:text-slate-100 shadow-sm"
-                                        value={wResDisplay}
-                                        onChange={(e) => {
-                                          const val = e.target.value.toUpperCase();
-                                          if (val === '1') handleResultChange(match.id, "1-0");
-                                          else if (val === '0') handleResultChange(match.id, "0-1");
-                                          else if (val === '5' || val === '1/2' || val === '½') handleResultChange(match.id, "1/2-1/2");
-                                          else if (val === '1F') handleResultChange(match.id, "1F-0F");
-                                          else if (val === '0F') handleResultChange(match.id, "0F-1F");
-                                          else if (val === '') handleResultChange(match.id, "Pending");
-                                        }}
-                                      />
+                                  <tr key={match.id} className="group hover:bg-indigo-50/20 dark:hover:bg-indigo-950/10 transition-colors border-b border-slate-100 dark:border-slate-800/40 last:border-0">
+                                    <td className="px-3 py-3 text-center border border-slate-200 dark:border-slate-800/60 font-mono text-[10px] font-extrabold text-slate-500 dark:text-slate-400 bg-slate-50/50 dark:bg-slate-800/20">
+                                      Extra
                                     </td>
                                     <td 
-                                      className="px-4 py-4 whitespace-nowrap cursor-pointer select-none"
+                                      className={cn(
+                                        "px-4 py-2 border border-slate-200 dark:border-slate-800/60 select-none",
+                                        isOwner && match.whitePlayerId ? "cursor-pointer hover:bg-blue-50/30 dark:hover:bg-blue-950/10" : ""
+                                      )}
+                                      onClick={() => {
+                                        if (match.whitePlayerId && isOwner) {
+                                          handlePlayerClick(match.whitePlayerId, match.id, 'white', whiteName);
+                                        }
+                                      }}
                                       onDoubleClick={() => handleResultChange(match.id, "1-0")}
+                                      title={isOwner ? "Click to select for swap • Double-click to award win" : ""}
                                     >
                                       <div className="flex flex-col">
                                         <span className={cn(
                                           "font-semibold text-sm transition-colors",
-                                          isWhiteWin ? "text-emerald-600 dark:text-emerald-400" : "text-slate-800 dark:text-slate-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400"
+                                          isWhiteWin ? "text-emerald-600 dark:text-emerald-400" : "text-slate-800 dark:text-slate-100"
                                         )}>
                                           {whiteName}
                                         </span>
-                                        <span className="text-[10px] font-mono font-medium text-slate-400 dark:text-slate-500">
-                                          Rating: {whiteRating} {whiteObj?.localId ? `• ID: ${whiteObj.localId}` : ''}
+                                        <span className="text-[11px] font-mono text-slate-400 dark:text-slate-550">
+                                          Rating: {whiteRating} • Score: {whitePointsStr} {whiteObj?.localId ? `• ID: ${whiteObj.localId}` : ''}
                                         </span>
                                       </div>
                                     </td>
-                                    <td className="px-2 py-3 text-center">
-                                      <input
-                                        type="text"
-                                        className="w-10 h-8 text-center border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all uppercase font-black text-xs text-slate-800 dark:text-slate-100 shadow-sm"
-                                        value={bResDisplay}
-                                        onChange={(e) => {
-                                          const val = e.target.value.toUpperCase();
-                                          if (val === '1') handleResultChange(match.id, "0-1");
-                                          else if (val === '0') handleResultChange(match.id, "1-0");
-                                          else if (val === '5' || val === '1/2' || val === '½') handleResultChange(match.id, "1/2-1/2");
-                                          else if (val === '1F') handleResultChange(match.id, "0F-1F");
-                                          else if (val === '0F') handleResultChange(match.id, "1F-0F");
-                                          else if (val === '') handleResultChange(match.id, "Pending");
-                                        }}
-                                      />
+                                    <td className="px-2 py-2 border border-slate-200 dark:border-slate-800/60 text-center bg-slate-50/10 dark:bg-slate-900/5">
+                                      <div className="inline-flex items-center gap-1">
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          className={cn(
+                                            "px-2 h-7 font-black text-xs rounded border transition-all shadow-sm",
+                                            match.result === "1-0" || match.result === "1F-0F"
+                                              ? "bg-emerald-600 hover:bg-emerald-700 text-white border-transparent"
+                                              : "bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-850 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-750"
+                                          )}
+                                          onClick={() => handleResultChange(match.id, match.result === "1-0" ? "Pending" : "1-0")}
+                                          title="White wins (1-0)"
+                                        >
+                                          1-0
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          className={cn(
+                                            "px-2 h-7 font-black text-xs rounded border transition-all shadow-sm",
+                                            match.result === "1/2-1/2"
+                                              ? "bg-slate-600 hover:bg-slate-700 text-white border-transparent"
+                                              : "bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-850 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-750"
+                                          )}
+                                          onClick={() => handleResultChange(match.id, match.result === "1/2-1/2" ? "Pending" : "1/2-1/2")}
+                                          title="Draw (1/2-1/2)"
+                                        >
+                                          ½-½
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          className={cn(
+                                            "px-2 h-7 font-black text-xs rounded border transition-all shadow-sm",
+                                            match.result === "0-1" || match.result === "0F-1F"
+                                              ? "bg-emerald-600 hover:bg-emerald-700 text-white border-transparent"
+                                              : "bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-850 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-750"
+                                          )}
+                                          onClick={() => handleResultChange(match.id, match.result === "0-1" ? "Pending" : "0-1")}
+                                          title="Black wins (0-1)"
+                                        >
+                                          0-1
+                                        </Button>
+                                        {match.result && match.result !== "Pending" && (
+                                          <Button
+                                            size="icon"
+                                            variant="ghost"
+                                            className="h-7 w-7 text-slate-400 hover:text-rose-500 rounded hover:bg-slate-100 dark:hover:bg-slate-800"
+                                            onClick={() => handleResultChange(match.id, "Pending")}
+                                            title="Reset result to Pending"
+                                          >
+                                            <span className="text-sm font-black">×</span>
+                                          </Button>
+                                        )}
+                                      </div>
                                     </td>
                                     <td 
-                                      className="px-4 py-3 cursor-pointer select-none"
+                                      className={cn(
+                                        "px-4 py-2 border border-slate-200 dark:border-slate-800/60 select-none",
+                                        isOwner && match.blackPlayerId ? "cursor-pointer hover:bg-blue-50/30 dark:hover:bg-blue-950/10" : ""
+                                      )}
+                                      onClick={() => {
+                                        if (match.blackPlayerId && isOwner) {
+                                          handlePlayerClick(match.blackPlayerId, match.id, 'black', blackName);
+                                        }
+                                      }}
                                       onDoubleClick={() => handleResultChange(match.id, "0-1")}
+                                      title={isOwner ? "Click to select for swap • Double-click to award win" : ""}
                                     >
                                       <div className="flex flex-col">
-                                        <span className="font-semibold text-slate-800 dark:text-slate-100 text-sm hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
+                                        <span className={cn(
+                                          "font-semibold text-sm transition-colors",
+                                          isBlackWin ? "text-emerald-600 dark:text-emerald-400" : "text-slate-800 dark:text-slate-100"
+                                        )}>
                                           {blackName}
                                         </span>
-                                        <span className="text-[10px] font-mono font-medium text-slate-400 dark:text-slate-500">
-                                          Rating: {blackRating} {blackObj?.localId ? `• ID: ${blackObj.localId}` : ''}
+                                        <span className="text-[11px] font-mono text-slate-400 dark:text-slate-550">
+                                          Rating: {blackRating} • Score: {blackPointsStr} {blackObj?.localId ? `• ID: ${blackObj.localId}` : ''}
                                         </span>
                                       </div>
                                     </td>
-                                    <td className="px-4 py-3 text-right">
+                                    <td className="px-4 py-2 text-right border border-slate-200 dark:border-slate-800/60">
                                       <Button variant="ghost" size="sm" onClick={() => setSelectedMatchForManagement(match)} className="rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300">Edit</Button>
                                     </td>
                                   </tr>
@@ -2019,62 +2158,51 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
                               }
 
                               // Player View
-                              const whiteObj = getPlayerObject(match.whitePlayerId);
-                              const blackObj = getPlayerObject(match.blackPlayerId);
                               return (
-                                <tr key={match.id} className="group hover:bg-indigo-50/20 dark:hover:bg-indigo-950/10 transition-colors">
-                                  <td className="px-4 py-4 whitespace-nowrap">
-                                    <span className="inline-flex items-center justify-center px-2 py-1 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 font-mono text-[11px] font-black text-slate-600 dark:text-slate-400 border border-slate-200/40 dark:border-slate-700/40 group-hover:bg-indigo-100/40 group-hover:border-indigo-200/30 transition-colors">
-                                      Extra
-                                    </span>
+                                <tr key={match.id} className="group hover:bg-indigo-50/20 dark:hover:bg-indigo-950/10 transition-colors border-b border-slate-100 dark:border-slate-800/40 last:border-0">
+                                  <td className="px-3 py-3 text-center border border-slate-200 dark:border-slate-800/60 font-mono text-[10px] font-extrabold text-slate-650 dark:text-slate-400 bg-slate-50/50 dark:bg-slate-800/20">
+                                    Extra
                                   </td>
-                                  <td className="px-4 py-4 whitespace-nowrap">
+                                  <td className="px-4 py-2 border border-slate-200 dark:border-slate-800/60">
                                     <div className="flex flex-col">
                                       <span className={cn(
                                         "font-semibold text-sm transition-colors",
-                                        isWhiteWin ? "text-emerald-600 dark:text-emerald-400" : "text-slate-800 dark:text-slate-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400"
+                                        isWhiteWin ? "text-emerald-600 dark:text-emerald-400" : "text-slate-800 dark:text-slate-100"
                                       )}>
                                         {whiteName}
                                       </span>
-                                      <span className="text-[10px] font-mono font-medium text-slate-400 dark:text-slate-500">
-                                        Rating: {whiteRating} {whiteObj?.localId ? `• ID: ${whiteObj.localId}` : ''}
+                                      <span className="text-[11px] font-mono text-slate-400 dark:text-slate-550">
+                                        Rating: {whiteRating} • Score: {whitePointsStr} {whiteObj?.localId ? `• ID: ${whiteObj.localId}` : ''}
                                       </span>
                                     </div>
                                   </td>
-                                  <td className="px-4 py-4 whitespace-nowrap text-center">
-                                    <span className={cn(
-                                      "inline-flex items-center justify-center px-3 py-1.5 rounded-lg text-sm font-black font-mono shadow-sm border",
-                                      wResDisplay === "1" ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900/30" :
-                                      wResDisplay === "0" ? "bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 border-rose-100 dark:border-rose-900/30" :
-                                      wResDisplay === "½" ? "bg-slate-50 dark:bg-slate-800/50 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700/50" :
-                                      "bg-slate-50/50 dark:bg-slate-900/50 text-slate-400 dark:text-slate-500 border-slate-100 dark:border-slate-800"
-                                    )}>
-                                      {wResDisplay || "—"}
-                                    </span>
+                                  <td className="px-3 py-2 border border-slate-200 dark:border-slate-800/60 text-center bg-slate-50/20 dark:bg-slate-900/5">
+                                    <div className="flex items-center justify-center gap-2 font-mono font-black text-sm select-none">
+                                      <span className={cn(
+                                        isWhiteWin ? "text-emerald-600 dark:text-emerald-400" : isDraw ? "text-slate-500 dark:text-slate-400" : "text-slate-400 dark:text-slate-650"
+                                      )}>
+                                        {isWhiteWin ? "1" : isDraw ? "½" : isBlackWin ? "0" : "—"}
+                                      </span>
+                                      <span className="text-slate-350 dark:text-slate-700">—</span>
+                                      <span className={cn(
+                                        isBlackWin ? "text-emerald-600 dark:text-emerald-400" : isDraw ? "text-slate-500 dark:text-slate-400" : "text-slate-400 dark:text-slate-650"
+                                      )}>
+                                        {isBlackWin ? "1" : isDraw ? "½" : isWhiteWin ? "0" : "—"}
+                                      </span>
+                                    </div>
                                   </td>
-                                  <td className="px-4 py-4 whitespace-nowrap">
+                                  <td className="px-4 py-2 border border-slate-200 dark:border-slate-800/60">
                                     <div className="flex flex-col">
                                       <span className={cn(
                                         "font-semibold text-sm transition-colors",
-                                        isBlackWin ? "text-emerald-600 dark:text-emerald-400" : "text-slate-800 dark:text-slate-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400"
+                                        isBlackWin ? "text-emerald-650 dark:text-emerald-400" : "text-slate-800 dark:text-slate-100"
                                       )}>
                                         {blackName}
                                       </span>
-                                      <span className="text-[10px] font-mono font-medium text-slate-400 dark:text-slate-500">
-                                        Rating: {blackRating} {blackObj?.localId ? `• ID: ${blackObj.localId}` : ''}
+                                      <span className="text-[11px] font-mono text-slate-400 dark:text-slate-555">
+                                        Rating: {blackRating} • Score: {blackPointsStr} {blackObj?.localId ? `• ID: ${blackObj.localId}` : ''}
                                       </span>
                                     </div>
-                                  </td>
-                                  <td className="px-4 py-4 whitespace-nowrap text-center">
-                                    <span className={cn(
-                                      "inline-flex items-center justify-center px-3 py-1.5 rounded-lg text-sm font-black font-mono shadow-sm border",
-                                      bResDisplay === "1" ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900/30" :
-                                      bResDisplay === "0" ? "bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 border-rose-100 dark:border-rose-900/30" :
-                                      bResDisplay === "½" ? "bg-slate-50 dark:bg-slate-800/50 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700/50" :
-                                      "bg-slate-50/50 dark:bg-slate-900/50 text-slate-400 dark:text-slate-500 border-slate-100 dark:border-slate-800"
-                                    )}>
-                                      {bResDisplay || "—"}
-                                    </span>
                                   </td>
                                 </tr>
                               );
@@ -2082,11 +2210,12 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
                           </tbody>
                         </table>
                       </div>
-                    ) : (
-                      <p className="text-sm text-slate-500 dark:text-slate-400 italic">
-                        No extra games added for this round.
-                      </p>
-                    )}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-slate-500 dark:text-slate-400 italic">
+                      No extra games added for this round.
+                    </p>
+                  )}
 
                     {/* TD Controls for Adding Extra Games */}
                     {isOwner && (
