@@ -54,6 +54,12 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
   const { toast } = useToast();
   const { user } = useAuth();
 
+  // Edit mode states
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [pendingResults, setPendingResults] = useState<Record<number, string>>({});
+  const [drawClickState, setDrawClickState] = useState<{ matchId: number; side: 'white' | 'black' } | null>(null);
+  const [isSavingResults, setIsSavingResults] = useState(false);
+
   const toggleExpand = (matchId: number) => {
     setExpandedSeries(prev => {
       const next = new Set(prev);
@@ -824,15 +830,19 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
     console.log(`Attempting to change match ${matchId} result to: ${result}`);
 
     // Check if this is a past round (not the latest round)
-    const maxRound = allMatches ? Math.max(...allMatches.map(m => m.round)) : currentRound;
-    const isPastRound = currentRound < maxRound;
+    const match = allMatches?.find(m => m.id === matchId);
+    const maxRound = allMatches && allMatches.length > 0 ? Math.max(...allMatches.map(m => m.round)) : currentRound;
+    const isPastRound = match ? match.round < maxRound : false;
 
     if (isPastRound) {
       // Show confirmation dialog for past round edits
       setPendingResultChange({ matchId, result, isPastRound: true });
     } else {
-      // Direct update for current/latest round
-      updateMatchMutation.mutate({ matchId, result });
+      // Local update for current/latest round
+      setPendingResults(prev => ({
+        ...prev,
+        [matchId]: result
+      }));
     }
   };
 
@@ -883,12 +893,86 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
     }
   };
 
+  const handleEditModePlayerClick = (matchId: number, side: 'white' | 'black') => {
+    if (!isOwner) return;
+
+    if (drawClickState === null) {
+      setDrawClickState({ matchId, side });
+    } else if (drawClickState.matchId === matchId) {
+      if (drawClickState.side === side) {
+        setDrawClickState(null); // Clicked same player - deselect
+      } else {
+        // Clicked other side of same match - enter draw!
+        handleResultChange(matchId, "1/2-1/2");
+        setDrawClickState(null);
+      }
+    } else {
+      // Clicked player on different match - set as new draw selection
+      setDrawClickState({ matchId, side });
+    }
+  };
+
+  const handleSaveResults = async () => {
+    setIsSavingResults(true);
+    try {
+      const entries = Object.entries(pendingResults);
+      if (entries.length > 0) {
+        await Promise.all(
+          entries.map(([matchIdStr, result]) =>
+            apiRequest(`/api/matches/${parseInt(matchIdStr, 10)}`, {
+              method: "PUT",
+              body: JSON.stringify({
+                result,
+                status: result === "Pending" ? "pending" : "completed",
+              }),
+            })
+          )
+        );
+      }
+
+      // Invalidate queries to refresh standings and pairings
+      queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/matches`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/pairings`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/players`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/standings/${tournamentId}`] });
+
+      toast({
+        title: "Results Saved",
+        description: `Successfully saved ${entries.length} result(s). Standings have been updated.`,
+      });
+
+      setPendingResults({});
+      setIsEditMode(false);
+      setDrawClickState(null);
+    } catch (err: any) {
+      console.error(err);
+      toast({
+        title: "Error Saving Results",
+        description: err?.message || "Failed to save results. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSavingResults(false);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setPendingResults({});
+    setIsEditMode(false);
+    setDrawClickState(null);
+    toast({
+      title: "Edits Cancelled",
+      description: "Pending result changes have been discarded."
+    });
+  };
+
   const confirmResultChange = () => {
     if (pendingResultChange) {
-      updateMatchMutation.mutate({
-        matchId: pendingResultChange.matchId,
-        result: pendingResultChange.result
-      });
+      setPendingResults(prev => ({
+        ...prev,
+        [pendingResultChange.matchId]: pendingResultChange.result
+      }));
       setPendingResultChange(null);
     }
   };
@@ -951,16 +1035,22 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
 
   // CaissaChess TD click-to-set result helper
   const renderTdResultCells = (match: Match) => {
-    const isWhiteWin = match.result === "1-0" || match.result === "1F-0F";
-    const isBlackWin = match.result === "0-1" || match.result === "0F-1F";
-    const isDraw = match.result === "1/2-1/2";
-    const isPending = !match.result || match.result === "Pending";
+    const currentRes = pendingResults[match.id] !== undefined ? pendingResults[match.id] : match.result;
+    const isWhiteWin = currentRes === "1-0" || currentRes === "1F-0F";
+    const isBlackWin = currentRes === "0-1" || currentRes === "0F-1F";
+    const isDraw = currentRes === "1/2-1/2";
+    const isPending = !currentRes || currentRes === "Pending";
+    const hasUnsavedChange = pendingResults[match.id] !== undefined;
 
     const renderCell = (role: 'white' | 'black') => {
       if (isPending) {
-        // No inline buttons – double-click player name to award win, or use scanner
         return (
-          <span className="text-slate-300 dark:text-slate-600 font-bold text-base select-none">—</span>
+          <span className={cn(
+            "font-bold text-base select-none px-1.5 py-0.5 rounded",
+            hasUnsavedChange ? "bg-amber-100/60 dark:bg-amber-950/30 text-amber-600 border border-amber-300/50" : "text-slate-300 dark:text-slate-600"
+          )}>
+            —
+          </span>
         );
       }
 
@@ -969,10 +1059,10 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
 
       if (role === 'white') {
         if (isWhiteWin) {
-          displayValue = match.result === "1F-0F" ? "1F" : "1";
+          displayValue = currentRes === "1F-0F" ? "1F" : "1";
           textClass = "text-emerald-600 dark:text-emerald-400 font-extrabold";
         } else if (isBlackWin) {
-          displayValue = match.result === "0F-1F" ? "0F" : "0";
+          displayValue = currentRes === "0F-1F" ? "0F" : "0";
           textClass = "text-slate-400 dark:text-slate-550 font-medium";
         } else if (isDraw) {
           displayValue = "½";
@@ -980,10 +1070,10 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
         }
       } else {
         if (isBlackWin) {
-          displayValue = match.result === "0F-1F" ? "1F" : "1";
+          displayValue = currentRes === "0F-1F" ? "1F" : "1";
           textClass = "text-emerald-600 dark:text-emerald-400 font-extrabold";
         } else if (isWhiteWin) {
-          displayValue = match.result === "1F-0F" ? "0F" : "0";
+          displayValue = currentRes === "1F-0F" ? "0F" : "0";
           textClass = "text-slate-400 dark:text-slate-550 font-medium";
         } else if (isDraw) {
           displayValue = "½";
@@ -991,16 +1081,32 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
         }
       }
 
-      return (
-        <button
-          type="button"
-          onClick={() => handleResultChange(match.id, "Pending")}
-          className={cn("text-sm font-black cursor-pointer select-none px-1.5 py-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-850 transition-colors", textClass)}
-          title="Click to reset result"
-        >
-          {displayValue}
-        </button>
-      );
+      if (isEditMode && isOwner) {
+        return (
+          <button
+            type="button"
+            onClick={() => handleResultChange(match.id, "Pending")}
+            className={cn(
+              "text-sm font-black cursor-pointer select-none px-1.5 py-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-850 transition-colors",
+              textClass,
+              hasUnsavedChange ? "bg-amber-100/60 dark:bg-amber-950/30 border border-amber-300/50" : ""
+            )}
+            title="Click to reset result"
+          >
+            {displayValue}
+          </button>
+        );
+      } else {
+        return (
+          <span className={cn(
+            "text-sm font-black select-none px-1.5 py-0.5 rounded",
+            textClass,
+            hasUnsavedChange ? "bg-amber-100/60 dark:bg-amber-950/30 border border-amber-300/50" : ""
+          )}>
+            {displayValue}
+          </span>
+        );
+      }
     };
 
     return {
@@ -1014,18 +1120,72 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
     const whiteName = getPlayerName(match.whitePlayerId);
     const blackName = match.blackPlayerId ? getPlayerName(match.blackPlayerId) : "Bye";
     
-    const isWhiteWin = match.result === "1-0" || match.result === "1F-0F";
-    const isBlackWin = match.result === "0-1" || match.result === "0F-1F";
-    const isDraw = match.result === "1/2-1/2";
+    const currentRes = pendingResults[match.id] !== undefined ? pendingResults[match.id] : match.result;
+    const isWhiteWin = currentRes === "1-0" || currentRes === "1F-0F";
+    const isBlackWin = currentRes === "0-1" || currentRes === "0F-1F";
+    const isDraw = currentRes === "1/2-1/2";
+    const hasUnsavedChange = pendingResults[match.id] !== undefined;
 
     const isWhiteSelected = selectedPlayers.some(p => p.playerId === match.whitePlayerId && p.matchId === match.id && p.color === 'white');
     const isBlackSelected = selectedPlayers.some(p => p.playerId === match.blackPlayerId && p.matchId === match.id && p.color === 'black');
+
+    const isWhiteDrawSelected = drawClickState?.matchId === match.id && drawClickState?.side === 'white';
+    const isBlackDrawSelected = drawClickState?.matchId === match.id && drawClickState?.side === 'black';
+
+    const handleWhiteCellDoubleClick = () => {
+      if (isEditMode && isOwner && match.whitePlayerId) {
+        if (currentRes === "1-0") {
+          handleResultChange(match.id, "Pending");
+        } else {
+          handleResultChange(match.id, "1-0");
+        }
+        setDrawClickState(null);
+      }
+    };
+
+    const handleBlackCellDoubleClick = () => {
+      if (isEditMode && isOwner && match.blackPlayerId) {
+        if (currentRes === "0-1") {
+          handleResultChange(match.id, "Pending");
+        } else {
+          handleResultChange(match.id, "0-1");
+        }
+        setDrawClickState(null);
+      }
+    };
+
+    const handleWhiteCellClick = () => {
+      if (isEditMode) {
+        if (match.whitePlayerId && isOwner) {
+          handleEditModePlayerClick(match.id, 'white');
+        }
+      } else {
+        if (match.whitePlayerId && isOwner) {
+          handlePlayerClick(match.whitePlayerId, match.id, 'white', whiteName);
+        }
+      }
+    };
+
+    const handleBlackCellClick = () => {
+      if (isEditMode) {
+        if (match.blackPlayerId && isOwner) {
+          handleEditModePlayerClick(match.id, 'black');
+        }
+      } else {
+        if (match.blackPlayerId && isOwner) {
+          handlePlayerClick(match.blackPlayerId, match.id, 'black', blackName);
+        }
+      }
+    };
 
     // TD View
     if (isTournamentDirector) {
       const { whiteResultCell, blackResultCell } = renderTdResultCells(match);
       return (
-        <tr key={match.id} className="group hover:bg-indigo-50/25 dark:hover:bg-indigo-950/15 transition-colors border-b border-slate-200 dark:border-slate-800 last:border-0">
+        <tr key={match.id} className={cn(
+          "group hover:bg-indigo-50/25 dark:hover:bg-indigo-950/15 transition-colors border-b last:border-0",
+          hasUnsavedChange ? "bg-amber-50/40 dark:bg-amber-950/10 border-amber-250 dark:border-amber-900" : "border-slate-200 dark:border-slate-800"
+        )}>
           <td className="px-3 py-3 text-center border border-slate-200 dark:border-slate-800 font-mono text-sm font-bold text-slate-500 dark:text-slate-400 bg-slate-50/50 dark:bg-slate-900/20 w-14">
             {isExtra ? "Extra" : match.board}
           </td>
@@ -1036,15 +1196,12 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
             className={cn(
               "px-4 py-2 border border-slate-200 dark:border-slate-800 select-none text-left transition-all",
               isOwner && match.whitePlayerId ? "cursor-pointer hover:bg-blue-50/30 dark:hover:bg-blue-950/10" : "",
-              isWhiteSelected ? "bg-blue-50 dark:bg-blue-950/30 border-blue-300" : ""
+              isWhiteSelected ? "bg-blue-50 dark:bg-blue-950/30 border-blue-300" : "",
+              isWhiteDrawSelected ? "bg-violet-50 dark:bg-violet-950/30 border-violet-400 border-dashed" : ""
             )}
-            onClick={() => {
-              if (match.whitePlayerId && isOwner) {
-                handlePlayerClick(match.whitePlayerId, match.id, 'white', whiteName);
-              }
-            }}
-            onDoubleClick={() => handleResultChange(match.id, "1-0")}
-            title={isOwner ? "Click to select for swap • Double-click to award win" : ""}
+            onClick={handleWhiteCellClick}
+            onDoubleClick={handleWhiteCellDoubleClick}
+            title={isOwner ? (isEditMode ? "Click once to select for draw • Double-click to award win/toggle" : "Click to select for swap") : ""}
           >
             {formatPlayerNameWithDetails(match.whitePlayerId, match.round, false)}
           </td>
@@ -1052,23 +1209,17 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
             className={cn(
               "px-4 py-2 border border-slate-200 dark:border-slate-800 select-none text-right transition-all",
               isOwner && match.blackPlayerId ? "cursor-pointer hover:bg-blue-50/30 dark:hover:bg-blue-950/10" : "",
-              isBlackSelected ? "bg-blue-50 dark:bg-blue-950/30 border-blue-300" : ""
+              isBlackSelected ? "bg-blue-50 dark:bg-blue-950/30 border-blue-300" : "",
+              isBlackDrawSelected ? "bg-violet-50 dark:bg-violet-950/30 border-violet-400 border-dashed" : ""
             )}
-            onClick={() => {
-              if (match.blackPlayerId && isOwner) {
-                handlePlayerClick(match.blackPlayerId, match.id, 'black', blackName);
-              }
-            }}
-            onDoubleClick={() => handleResultChange(match.id, "0-1")}
-            title={isOwner ? "Click to select for swap • Double-click to award win" : ""}
+            onClick={handleBlackCellClick}
+            onDoubleClick={handleBlackCellDoubleClick}
+            title={isOwner ? (isEditMode ? "Click once to select for draw • Double-click to award win/toggle" : "Click to select for swap") : ""}
           >
             {formatPlayerNameWithDetails(match.blackPlayerId, match.round, true)}
           </td>
           <td className="px-2 py-2 border border-slate-200 dark:border-slate-800 text-center bg-slate-50/10 dark:bg-slate-900/5 w-16">
             {blackResultCell}
-          </td>
-          <td className="px-4 py-2 text-right border border-slate-200 dark:border-slate-800 w-20">
-            <Button variant="ghost" size="sm" onClick={() => setSelectedMatchForManagement(match)} className="rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-350">Edit</Button>
           </td>
         </tr>
       );
@@ -1125,16 +1276,12 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
           <td className="px-4 py-2 border border-slate-200 dark:border-slate-800 text-left">
             {formatPlayerNameWithDetails(bye.playerId, bye.round, false)}
           </td>
-          <td className="px-4 py-2 border border-slate-200 dark:border-slate-800 text-right italic text-slate-400 dark:text-slate-500 font-semibold text-sm">
+          <td className="px-4 py-2 border border-slate-200 dark:border-slate-800 text-right italic text-slate-400 dark:text-slate-550 font-semibold text-sm">
+            <span className="mr-2 text-xs font-mono bg-slate-100 dark:bg-slate-800 text-slate-650 dark:text-slate-400 px-1.5 py-0.5 rounded not-italic">{byeTypeLabel}</span>
             {byeLabel}
           </td>
           <td className="px-2 py-2 border border-slate-200 dark:border-slate-800 text-center bg-slate-50/10 dark:bg-slate-900/5 w-16">
-            <span className="text-slate-300 dark:text-slate-700">—</span>
-          </td>
-          <td className="px-4 py-2 text-right border border-slate-200 dark:border-slate-800 w-20">
-            <span className="text-[10px] uppercase tracking-wider font-extrabold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-850 border border-slate-200/50 dark:border-slate-800/80 px-2 py-1 rounded">
-              {byeTypeLabel}
-            </span>
+            <span className="text-slate-350 dark:text-slate-700">—</span>
           </td>
         </tr>
       );
@@ -1234,7 +1381,52 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
           </div>
 
           <div className="flex flex-wrap justify-end gap-2">
-            {showExportControls ? (
+            {isOwner && (
+              <>
+                {!isEditMode ? (
+                  <Button
+                    onClick={() => {
+                      setIsEditMode(true);
+                      setPendingResults({});
+                      setDrawClickState(null);
+                    }}
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold"
+                    size="sm"
+                  >
+                    Edit Results
+                  </Button>
+                ) : (
+                  <>
+                    <Button
+                      onClick={handleSaveResults}
+                      disabled={isSavingResults}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                      size="sm"
+                    >
+                      {isSavingResults ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        "Save"
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={handleCancelEdit}
+                      disabled={isSavingResults}
+                      className="border-slate-200 text-slate-700 hover:bg-slate-50 font-bold"
+                      size="sm"
+                    >
+                      Cancel
+                    </Button>
+                  </>
+                )}
+              </>
+            )}
+
+            {showExportControls && !isEditMode ? (
               <>
                 <Button
                   variant="outline"
@@ -1256,8 +1448,8 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
                 </Button>
               </>
             ) : null}
-            {/* OCR Scanner – TD only */}
-            {isTournamentDirector && (
+            {/* OCR Scanner – TD only (visible only in Edit Mode) */}
+            {isEditMode && isTournamentDirector && (
               <Button
                 variant="outline"
                 size="sm"
@@ -1268,7 +1460,7 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
                   setAppliedCount(0);
                   setScannerOpen(true);
                 }}
-                className="border-violet-500 text-violet-600 hover:bg-violet-50 dark:border-violet-700 dark:text-violet-400 dark:hover:bg-violet-950/30"
+                className="border-violet-500 text-violet-600 hover:bg-violet-50 dark:border-violet-700 dark:text-violet-400 dark:hover:bg-violet-950/30 font-bold"
               >
                 <ScanLine className="mr-2 h-4 w-4" />
                 Scan Sheet
@@ -1558,9 +1750,6 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
                                   <th className="px-4 py-2 text-left text-xs font-bold text-slate-600 dark:text-slate-350 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">White Player</th>
                                   <th className="px-4 py-2 text-right text-xs font-bold text-slate-600 dark:text-slate-350 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">Black Player</th>
                                   <th className="px-3 py-2 text-center text-xs font-bold text-slate-600 dark:text-slate-350 w-16 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">Result</th>
-                                  {isTournamentDirector && (
-                                    <th className="px-4 py-2 text-right text-xs font-bold text-slate-600 dark:text-slate-350 w-20 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">Edit</th>
-                                  )}
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/40">
@@ -1768,9 +1957,6 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
                             <th className="px-4 py-2 text-left text-xs font-bold text-slate-600 dark:text-slate-350 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">White Player</th>
                             <th className="px-4 py-2 text-right text-xs font-bold text-slate-600 dark:text-slate-350 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">Black Player</th>
                             <th className="px-3 py-2 text-center text-xs font-bold text-slate-600 dark:text-slate-350 w-16 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">Result</th>
-                            {isTournamentDirector && (
-                              <th className="px-4 py-2 text-right text-xs font-bold text-slate-600 dark:text-slate-350 w-20 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">Edit</th>
-                            )}
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800/40">
@@ -1805,9 +1991,6 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
                                 <th className="px-4 py-2 text-left text-xs font-bold text-slate-600 dark:text-slate-350 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">White Player</th>
                                 <th className="px-4 py-2 text-right text-xs font-bold text-slate-600 dark:text-slate-350 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">Black Player</th>
                                 <th className="px-3 py-2 text-center text-xs font-bold text-slate-600 dark:text-slate-350 w-16 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">Result</th>
-                                {isTournamentDirector && (
-                                  <th className="px-4 py-2 text-right text-xs font-bold text-slate-600 dark:text-slate-350 w-20 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">Edit</th>
-                                )}
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/40">
@@ -2045,29 +2228,68 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
                           if (m.board) boardToMatch[m.board] = m;
                         }
 
-                        // Parse OCR text line by line
+                        // Parse OCR text line by line using robust tokenizer parser
                         const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
                         const detected: { board: number; result: string; matchId: number | null }[] = [];
 
+                        const normalizeToken = (t: string) => {
+                          const clean = t.trim();
+                          if (clean === '1' || clean === '1.0') return '1';
+                          if (clean === '0' || clean === '0.0') return '0';
+                          if (clean === '1/2' || clean === '½' || clean === '0.5' || clean === '0,5') return '1/2';
+                          return null;
+                        };
+
                         for (const line of lines) {
-                          // Match patterns: "1  1-0", "3 0-1", "5 1/2-1/2", "2 1", "4 0", "6 1/2", "7 ½", "8 draw"
-                          const m = line.match(/\b(\d+)\b[\s\S]{0,10}?\b(1-0|0-1|1\/2-1\/2|1\/2|½|draw|1\b|0\b)/i);
-                          if (!m) continue;
-                          const board = parseInt(m[1], 10);
-                          const rawResult = m[2].trim();
+                          const cleanLine = line.trim().replace(/\s+/g, ' ');
+                          
+                          // Find the first number (board number)
+                          const boardMatch = cleanLine.match(/^(\d+)\b/);
+                          if (!boardMatch) continue;
+                          
+                          const board = parseInt(boardMatch[1], 10);
                           if (board < 1 || board > 200) continue;
-
-                          let normalized: string;
-                          const rl = rawResult.toLowerCase();
-                          if (rl === '1-0') normalized = '1-0';
-                          else if (rl === '0-1') normalized = '0-1';
-                          else if (rl === '1/2-1/2' || rl === '1/2' || rl === '½' || rl === 'draw') normalized = '1/2-1/2';
-                          else if (rl === '1') normalized = '1-0';
-                          else if (rl === '0') normalized = '0-1';
-                          else continue;
-
-                          const match = boardToMatch[board];
-                          detected.push({ board, result: normalized, matchId: match?.id ?? null });
+                          
+                          const content = cleanLine.substring(boardMatch[0].length).trim();
+                          let resultValue: string | null = null;
+                          
+                          // 1. Check for explicit 1-0, 0-1, 1/2-1/2, ½-½, etc.
+                          if (content.match(/\b1[-–]0\b/) || content.match(/\b1F[-–]0F\b/)) {
+                            resultValue = '1-0';
+                          } else if (content.match(/\b0[-–]1\b/) || content.match(/\b0F[-–]1F\b/)) {
+                            resultValue = '0-1';
+                          } else if (content.match(/\b(1\/2[-–]1\/2|½[-–]½|1\/2\s*1\/2|½\s*½)\b/) || content.toLowerCase().includes('draw')) {
+                            resultValue = '1/2-1/2';
+                          } else {
+                            // 2. Tokenize and extract result tokens
+                            const tokens = content.split(' ');
+                            const resultTokens = tokens.map(normalizeToken).filter(Boolean);
+                            
+                            if (resultTokens.length >= 2) {
+                              const r1 = resultTokens[0];
+                              const r2 = resultTokens[1];
+                              if (r1 === '1' && r2 === '0') resultValue = '1-0';
+                              else if (r1 === '0' && r2 === '1') resultValue = '0-1';
+                              else if (r1 === '1/2' && r2 === '1/2') resultValue = '1/2-1/2';
+                            } else if (tokens.length > 0) {
+                              // 3. Fallback: single result digit
+                              const firstNorm = normalizeToken(tokens[0]);
+                              if (firstNorm === '1') resultValue = '1-0';
+                              else if (firstNorm === '0') resultValue = '0-1';
+                              else if (firstNorm === '1/2') resultValue = '1/2-1/2';
+                              else {
+                                const lastNorm = normalizeToken(tokens[tokens.length - 1]);
+                                if (lastNorm === '1') resultValue = '0-1'; // Board X Player A 0 Player B 1
+                                if (lastNorm === '0') resultValue = '1-0'; // Board X Player A 1 Player B 0
+                                if (lastNorm === '1/2') resultValue = '1/2-1/2';
+                              }
+                            }
+                          }
+                          
+                          if (resultValue) {
+                            const match = boardToMatch[board];
+                            detected.push({ board, result: resultValue, matchId: match?.id ?? null });
+                          }
                         }
 
                         setScanResults(detected);
@@ -2151,16 +2373,21 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
                 className="bg-violet-600 hover:bg-violet-700 text-white"
                 onClick={() => {
                   let count = 0;
+                  const updates: Record<number, string> = {};
                   for (const r of scanResults) {
                     if (r.matchId) {
-                      handleResultChange(r.matchId, r.result);
+                      updates[r.matchId] = r.result;
                       count++;
                     }
                   }
+                  setPendingResults(prev => ({
+                    ...prev,
+                    ...updates
+                  }));
                   setAppliedCount(count);
                   toast({
                     title: `Applied ${count} result${count !== 1 ? 's' : ''}`,
-                    description: count > 0 ? 'Results have been recorded.' : 'No valid board numbers were matched.',
+                    description: count > 0 ? 'Results have been recorded in the edit table. Please review and click Save.' : 'No valid board numbers were matched.',
                   });
                 }}
               >
