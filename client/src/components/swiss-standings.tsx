@@ -35,6 +35,7 @@ interface PlayerRoundResult {
     | 'double-forfeit';
   color: 'white' | 'black' | null;
   points: number;
+  isRequested?: boolean;
 }
 
 interface SwissPlayerStanding {
@@ -108,6 +109,10 @@ export default function SwissStandings({ tournamentId, showExportControls = true
   const [showPrizes, setShowPrizes] = useState<boolean>(true);
 
   const tournamentConfig = useMemo(() => (tournament ? parseTournamentConfig(tournament) : null), [tournament]);
+
+  const hasExtraGames = useMemo(() => {
+    return matches?.some(m => m.isExtraGame) ?? false;
+  }, [matches]);
 
   const isDirector = !!(user?.role === 'tournament_director' && tournament && user && tournament.createdBy === user.id);
 
@@ -541,6 +546,7 @@ export default function SwissStandings({ tournamentId, showExportControls = true
               result: "bye",
               color: null,
               points: byePoints,
+              isRequested: byeThisRound.isRequested ?? false,
             });
             continue;
           }
@@ -571,14 +577,12 @@ export default function SwissStandings({ tournamentId, showExportControls = true
 
           if (!matchThisRound && !pairingThisRound) {
             // No match or pairing found - player joined late (unplayed round)
-            const pointsBeforeRound = roundResults.reduce((sum, result) => sum + result.points, 0);
-
             roundResults.push({
               opponent: null,
               opponentPosition: 0,
               result: "unplayed",
               color: null,
-              points: pointsBeforeRound,
+              points: 0,
             });
             continue;
           }
@@ -727,7 +731,7 @@ export default function SwissStandings({ tournamentId, showExportControls = true
     const isFide = tournamentConfig?.details.primaryRatingSystem === 'fide';
     
     let html = `<h3 style="font-family: Arial, sans-serif; font-size: 15px; font-weight: bold; margin: 0 0 10px 0; text-align: left;">SwissSys Wall Chart. ${tournament?.name ?? 'Tournament'}: ${sectionLabel}</h3>\n`;
-    html += `<table style="border-collapse: collapse; border: 1px solid black; width: 100%; font-family: Arial, sans-serif; font-size: 13px; color: #000; background-color: #fff;">\n`;
+    html += `<table style="border-collapse: collapse; border: 1px solid black; width: 100%; font-family: Arial, sans-serif; font-size: 13px; color: #000; background-color: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact;">\n`;
     
     // Headers
     html += `<thead>\n  <tr style="border: 1px solid black; padding: 6px 8px;">\n`;
@@ -809,9 +813,9 @@ export default function SwissStandings({ tournamentId, showExportControls = true
     printWindow.document.write(`<html><head><title>${title}</title><style>
       @media print {
         @page { size: auto; margin: 0; }
-        body { margin: 15mm; }
+        body { margin: 15mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       }
-      body { font-family: Arial, sans-serif; color: #000; background-color: #fff; }
+      body { font-family: Arial, sans-serif; color: #000; background-color: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     </style></head><body>`);
 
     if (selectedSectionId === '__all__') {
@@ -854,7 +858,7 @@ export default function SwissStandings({ tournamentId, showExportControls = true
 <meta charset="UTF-8">
 <title>${title}</title>
 <style>
-body { font-family: Arial, sans-serif; padding: 20px; color: #000; background-color: #fff; }
+body { font-family: Arial, sans-serif; padding: 20px; color: #000; background-color: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 h3 { font-family: Arial, sans-serif; margin-top: 20px; }
 a { color: #0066cc; text-decoration: none; }
 a:hover { text-decoration: underline; }
@@ -939,9 +943,13 @@ a:hover { text-decoration: underline; }
 
   function formatRoundResult(result: PlayerRoundResult, round: number): string {
     if (result.result === 'bye' || result.result === 'unplayed') {
-      if (result.points === 1) return 'B';
-      if (result.points === 0.5) return 'H';
-      return 'U';
+      if (result.isRequested) {
+        if (result.points === 1) return 'B';
+        if (result.points === 0.5) return 'H';
+        return 'U';
+      } else {
+        return 'U';
+      }
     }
 
     if (result.result === 'withdrawn') {
@@ -995,9 +1003,13 @@ a:hover { text-decoration: underline; }
 
   function formatRoundResultDisplay(result: PlayerRoundResult): string {
     if (result.result === 'bye' || result.result === 'unplayed') {
-      if (result.points === 1) return 'B';
-      if (result.points === 0.5) return 'H';
-      return 'U';
+      if (result.isRequested) {
+        if (result.points === 1) return 'B';
+        if (result.points === 0.5) return 'H';
+        return 'U';
+      } else {
+        return 'U';
+      }
     }
 
     if (result.result === 'withdrawn') {
@@ -1039,34 +1051,41 @@ a:hover { text-decoration: underline; }
 
   const renderRoundOutcomeBadge = (res: PlayerRoundResult) => {
     const text = formatRoundResultDisplay(res);
-    if (text === '---') return <span className="text-slate-350 dark:text-slate-700">—</span>;
+    if (text === '---') return <span className="text-slate-300 dark:text-slate-700">—</span>;
     
     const outcome = res.result;
     
     if (outcome === 'W' || outcome === 'forfeit-win') {
       return (
-        <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-lg text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 border border-emerald-100/60 dark:border-emerald-900/20 shadow-sm">
+        <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 tracking-wide">
           {text}
         </span>
       );
     }
     if (outcome === 'L' || outcome === 'forfeit-loss' || outcome === 'double-forfeit') {
       return (
-        <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-lg text-xs font-semibold bg-rose-50 dark:bg-rose-950/20 text-rose-600 dark:text-rose-400 border border-rose-100/60 dark:border-rose-900/20 shadow-sm">
+        <span className="text-xs font-medium text-rose-600 dark:text-rose-455">
           {text}
         </span>
       );
     }
     if (outcome === 'D') {
       return (
-        <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-lg text-xs font-semibold bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 border border-slate-200/40 dark:border-slate-700/40 shadow-sm">
+        <span className="text-xs font-semibold text-slate-550 dark:text-slate-400">
           {text}
         </span>
       );
     }
     if (outcome === 'bye') {
       return (
-        <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-lg text-xs font-semibold bg-indigo-50 dark:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 border border-indigo-100/60 dark:border-indigo-900/20 shadow-sm">
+        <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400">
+          {text}
+        </span>
+      );
+    }
+    if (outcome === 'unplayed') {
+      return (
+        <span className="text-xs font-medium text-slate-400 dark:text-slate-500">
           {text}
         </span>
       );
@@ -1074,9 +1093,6 @@ a:hover { text-decoration: underline; }
     return <span className="text-slate-500 dark:text-slate-400 text-xs font-medium">{text}</span>;
   };
 
-  const hasExtraGames = useMemo(() => {
-    return matches?.some(m => m.isExtraGame) ?? false;
-  }, [matches]);
 
   return (
     <Card className="border-none shadow-xl dark:bg-slate-900">
@@ -1202,22 +1218,25 @@ a:hover { text-decoration: underline; }
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
+            <table className="w-full border-collapse border border-slate-200 dark:border-slate-800">
               <thead>
-                <tr className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-100 dark:border-slate-800">
-                  <th className="px-4 py-3 text-center text-xs font-medium text-slate-500 dark:text-slate-400 w-16">
+                <tr className="bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-800">
+                  <th className="px-3 py-2 text-center text-xs font-bold text-slate-600 dark:text-slate-300 w-14 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">
                     #
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 min-w-[200px]">
-                    Name/Rating/ID
+                  <th className="px-4 py-2 text-left text-xs font-bold text-slate-600 dark:text-slate-300 min-w-[200px] border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">
+                    Name / Rating / ID
                   </th>
                   {Array.from({ length: totalRounds }, (_, i) => (
-                    <th key={i} className="px-3 py-3 text-center text-xs font-medium text-slate-500 dark:text-slate-400 w-24">
+                    <th key={i} className="px-3 py-2 text-center text-xs font-bold text-slate-600 dark:text-slate-300 w-20 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">
                       Rd {i + 1}
                     </th>
                   ))}
+                  <th className="px-3 py-2 text-center text-xs font-bold text-slate-600 dark:text-slate-300 w-16 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">
+                    Total
+                  </th>
                   {showPrizes && (
-                    <th className="px-4 py-3 text-center text-xs font-medium text-slate-500 dark:text-slate-400 w-40">
+                    <th className="px-4 py-2 text-center text-xs font-bold text-slate-600 dark:text-slate-300 w-36 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">
                       Prizes
                     </th>
                   )}
@@ -1232,22 +1251,20 @@ a:hover { text-decoration: underline; }
                 const isDigitsOnly = !!(uscfId && /^\d+$/.test(uscfId));
 
                 return (
-                  <tbody key={standing.player.id} className="group border-b border-slate-100 dark:border-slate-800/40 last:border-0 hover:bg-indigo-50/20 dark:hover:bg-indigo-950/5 transition-colors">
-                    {/* Row 1: Position, Name, Opponent Codes, Prize category */}
-                      <tr className="border-t border-slate-50 dark:border-slate-800/20 first:border-0">
-                        <td className="px-4 py-3 text-center">
-                          <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-400 border border-slate-200/40 dark:border-slate-700/40 group-hover:bg-indigo-100/40 group-hover:border-indigo-200/30 transition-colors">
-                            {getPlayerPairingNumber(standing.player.id)}
-                          </span>
+                  <tbody key={standing.player.id} className="group border-b border-slate-200 dark:border-slate-800 even:bg-slate-50/35 dark:even:bg-slate-800/5 hover:bg-indigo-50/20 dark:hover:bg-indigo-950/10 transition-colors">
+                    {/* Row 1: Position, Name, Opponent Codes, Total, Prize category */}
+                      <tr className="border-t border-slate-200 dark:border-slate-800/60 first:border-0">
+                        <td rowSpan={2} className="px-3 py-3 text-center bg-slate-150/50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 w-14 font-mono font-bold text-slate-600 dark:text-slate-400">
+                          {getPlayerPairingNumber(standing.player.id)}
                         </td>
-                        <td className="px-4 py-3 text-sm">
+                        <td className="px-4 py-2 text-sm border border-slate-200 dark:border-slate-800/60">
                           <div className="flex items-center gap-1.5">
                             {isDigitsOnly ? (
                               <a
                                 href={`http://www.uschess.org/msa/MbrDtlMain.php?${uscfId}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="font-bold text-indigo-600 dark:text-indigo-400 hover:underline hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors"
+                                className="font-bold text-indigo-600 dark:text-indigo-400 hover:underline hover:text-indigo-750 dark:hover:text-indigo-300 transition-colors"
                               >
                                 {playerName}
                               </a>
@@ -1255,19 +1272,22 @@ a:hover { text-decoration: underline; }
                               <span className="font-bold text-slate-800 dark:text-slate-100">{playerName}</span>
                             )}
                             {standing.player.isActiveTd && (
-                              <Badge variant="outline" className="text-[10px] py-0 px-1.5 border-slate-200 dark:border-slate-850 text-slate-400 dark:text-slate-500 font-normal">substitute</Badge>
+                              <Badge variant="outline" className="text-[10px] py-0 px-1.5 border-slate-200 dark:border-slate-800 text-slate-400 dark:text-slate-500 font-normal">substitute</Badge>
                             )}
                           </div>
                         </td>
                         {standing.roundResults.map((result, roundIdx) => (
-                          <td key={roundIdx} className="px-3 py-2 text-center">
+                          <td key={roundIdx} className="px-3 py-2 text-center border border-slate-200 dark:border-slate-800/60 bg-white/40 dark:bg-slate-950/20">
                             {renderRoundOutcomeBadge(result)}
                           </td>
                         ))}
+                        <td className="px-3 py-2 text-center font-bold text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-800/60 bg-white/40 dark:bg-slate-950/20">
+                          {formatPoints(standing)}
+                        </td>
                         {showPrizes && (
-                          <td className="px-4 py-2 text-center">
+                          <td className="px-4 py-2 text-center border border-slate-200 dark:border-slate-800/60">
                             {standing.prizeCategory && standing.prizeCategory !== '---' ? (
-                              <Badge className="bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/30 font-semibold text-xs py-0.5 px-2 hover:bg-indigo-50 dark:hover:bg-indigo-900/40 shadow-sm">
+                              <Badge className="bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/30 font-semibold text-[11px] py-0.5 px-2 hover:bg-indigo-50 dark:hover:bg-indigo-900/40 shadow-sm">
                                 {standing.prizeCategory}
                               </Badge>
                             ) : (
@@ -1276,10 +1296,9 @@ a:hover { text-decoration: underline; }
                           </td>
                         )}
                       </tr>
-                      {/* Row 2: Empty, Rating/ID, Running points, Prize Payout */}
-                      <tr>
-                        <td className="px-4 py-1"></td>
-                        <td className="px-4 py-1 text-xs text-slate-400 dark:text-slate-500 font-medium">
+                      {/* Row 2: Rating/ID, Running points, Prize Payout */}
+                      <tr className="border-b border-slate-200 dark:border-slate-800/60 last:border-0">
+                        <td className="px-4 py-1.5 text-xs text-slate-400 dark:text-slate-500 font-medium border border-slate-200 dark:border-slate-800/60 bg-slate-50/10 dark:bg-slate-900/5">
                           {playerRating} {playerID ? `• ID: ${playerID}` : ''}
                         </td>
                         {standing.roundResults.map((result, roundIdx) => {
@@ -1289,13 +1308,14 @@ a:hover { text-decoration: underline; }
                           const cumulativeText = roundIdx < currentRound ? cumulativePoints.toFixed(1) : '';
 
                           return (
-                            <td key={roundIdx} className="px-3 py-1 text-center text-xs font-semibold text-slate-400 dark:text-slate-500">
+                            <td key={roundIdx} className="px-3 py-1 text-center text-xs font-semibold text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-800/60 bg-slate-50/20 dark:bg-slate-900/10">
                               {cumulativeText}
                             </td>
                           );
                         })}
+                        <td className="px-3 py-1 border border-slate-200 dark:border-slate-800/60 bg-slate-50/20 dark:bg-slate-900/10"></td>
                         {showPrizes && (
-                          <td className="px-4 py-1 text-center text-sm font-semibold text-indigo-600 dark:text-indigo-400">
+                          <td className="px-4 py-1 text-center text-sm font-bold text-indigo-600 dark:text-indigo-400 border border-slate-200 dark:border-slate-800/60 bg-slate-50/10 dark:bg-slate-900/5">
                             {tournamentConfig?.showPrizeAmounts !== false ? (standing.prizeAmount || '---') : '---'}
                           </td>
                         )}
