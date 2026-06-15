@@ -326,6 +326,8 @@ export default function TournamentView({ tournamentId }: TournamentViewProps) {
                       tournamentId={tournamentId}
                       activeSection={activeRoundSection}
                       showExportControls={false}
+                      isEditMode={false}
+                      setIsEditMode={() => {}}
                     />
                   </div>
                 )}

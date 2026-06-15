@@ -1,0 +1,48 @@
+<div style="margin-top:5px;text-align:left;" id="gip">*GIP = Game in progress</div>
+<table class="pairings" style="margin-top:5px;font-size:14px !important;">
+    <tr>
+        <th>#</th>
+        <th style="width:100px;">Name</th>
+        <th style="width:50px;vertical-align:top;">Rating</th>
+        {{#each rounds}}
+            <th style="width:50px;vertical-align:top;">Rd {{this}}</th>
+        {{/each}}
+        <th style="width:50px;vertical-align:top;">Total</th>
+        {{#each first.tieBreaks}}
+            <th style="text-align:left;vertical-align:top;width:20px;">
+                <a style="font-weight:600;color:white !important;text-decoration:none !important;" onclick="TieBreakController.loadDescription('{{{@key}}}', '{{{lookup ../tiebreaks @key}}}');">
+                    <i style="color:white;" class="fa fa-info-circle" />
+                    &nbsp;{{@key}}
+                </a>
+        </th>
+        {{/each}}
+        <th style="width:25px;">Est. Post</th>
+        <th style="width:25px;">Perf.</th>
+        {{#if this.hasPrize}}
+        <th style="width:60px;">Prize</th>
+        {{/if}}
+    </tr>
+
+    {{#each standings}}
+
+    <tr class="{{#ifIn uscfId ../withdrew }}withdrew{{/ifIn}}">
+        <td style="width:25px;">{{this.playerNumber}}</td>
+        <td style="text-align:left;width:100px;">{{this.name}}</td>
+        <td style="text-align:left;width:25px;">{{this.rating}}</td>
+        {{#each this.rounds}}
+            <td style="text-align:left;">{{this.result}}</td>
+        {{/each}}
+        <td style="text-align:left;">{{this.score}}</td>
+        {{#each this.tieBreaks}}
+            <td style="text-align:left;width:50px;">{{this}}</td>
+        {{/each}}
+
+        <td style="text-align:left;">{{this.postRating}}</td>
+        <td style="text-align:left;">{{this.performanceRating}}</td>
+
+        {{#if ../hasPrize}}
+        <td style="text-align:left;">{{{lookup ../prizes this.uscfId}}} {{{lookup ../adhoc this.name}}}</td>
+        {{/if}}
+    </tr>
+    {{/each}}
+</table>

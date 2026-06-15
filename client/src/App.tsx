@@ -23,7 +23,6 @@ import TournamentPaymentSetupPage from "@/pages/tournament-payment-setup";
 import TournamentReportsPage from "@/pages/tournament-reports";
 import OnboardingPage from "@/pages/onboarding";
 import MessagesDashboard from "@/pages/messages";
-import ResultsEntry from "@/pages/results-entry";
 import QrResultSubmit from "@/pages/qr-result-submit";
 import MatchSubmitMobile from "@/pages/match-submit-mobile";
 
@@ -97,7 +96,6 @@ function AuthenticatedApp() {
                 </Route>
                 <Route path="/dashboard/:tab" component={TournamentDirectorDashboard} />
                 <Route path="/tournaments/new" component={TournamentCreation} />
-                <Route path="/tournaments/:id/results-entry" component={ResultsEntry} />
                 <Route path="/tournaments/:id/manage/:tab">
                   {(params) => <TournamentManagement tournamentId={parseInt(params.id)} />}
                 </Route>

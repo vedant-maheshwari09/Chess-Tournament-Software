@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Users, Trophy, Calendar, Play, Plus, Undo, FileText, Settings as SettingsIcon, CalendarClock, Calculator, LayoutDashboard, RefreshCw, Keyboard } from "lucide-react";
+import { Users, Trophy, Calendar, Play, Plus, Undo, FileText, Settings as SettingsIcon, CalendarClock, Calculator, LayoutDashboard, RefreshCw, Keyboard, Edit2, CheckSquare, XSquare, ScanLine, Camera } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -60,6 +60,9 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
     previousResult: string | null;
     previousStatus: string;
   } | null>(null);
+
+  const [isEditMode, setIsEditMode] = useState(false);
+  const swissPairingsRef = useRef<any>(null);
 
   useEffect(() => {
     const handleResultUpdate = (e: Event) => {
@@ -698,17 +701,50 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
                         )}
                       </div>
                       <div className="flex items-center gap-2">
-                        {tournament.format !== 'arena' && (
+                        {isOwner && tournament?.status === 'active' && !isEditMode && (
                           <Button
-                            variant="ghost"
+                            variant="outline"
                             size="sm"
-                            className="h-8 px-3 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50/50 rounded-lg font-medium flex items-center gap-1.5"
-                            onClick={() => setLocation(`/tournaments/${tournamentId}/results-entry`)}
+                            className="h-8 px-3 border-indigo-300 text-indigo-700 hover:bg-indigo-50 font-semibold flex items-center gap-1.5 animate-in fade-in duration-200"
+                            onClick={() => setIsEditMode(true)}
                           >
-                            <Keyboard className="h-4 w-4" />
-                            Fast Results
+                            <Edit2 className="h-4 w-4" />
+                            Edit Results
                           </Button>
                         )}
+                        {isOwner && isEditMode && (
+                          <>
+                            {(tournament?.format === 'swiss' || tournament?.format === 'roundrobin') && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 px-3 border-purple-300 text-purple-700 hover:bg-purple-50 font-semibold flex items-center gap-1.5 animate-in fade-in duration-200"
+                                onClick={() => swissPairingsRef.current?.openScan()}
+                              >
+                                <ScanLine className="h-4 w-4" />
+                                Scan Sheet
+                              </Button>
+                            )}
+                            <Button
+                              size="sm"
+                              className="h-8 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold flex items-center gap-1.5 animate-in fade-in duration-200"
+                              onClick={() => swissPairingsRef.current?.save()}
+                            >
+                              <CheckSquare className="h-4 w-4" />
+                              Save
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 px-3 border-slate-300 text-slate-600 hover:bg-slate-50 flex items-center gap-1.5 animate-in fade-in duration-200"
+                              onClick={() => swissPairingsRef.current?.cancel()}
+                            >
+                              <XSquare className="h-4 w-4" />
+                              Cancel
+                            </Button>
+                          </>
+                        )}
+
                         <Sheet>
                           <SheetTrigger asChild>
                             <Button variant="ghost" size="sm" className="h-8 px-3 text-slate-500 hover:text-black">
@@ -752,7 +788,13 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
                   <CardContent className="space-y-4">
                     {tournament.format === 'swiss' || tournament.format === 'roundrobin' || tournament.format === 'knockout' ? (
                       <div className="overflow-x-auto">
-                        <SwissPairings tournamentId={tournamentId} activeSection={activeRoundSection} />
+                        <SwissPairings
+                          ref={swissPairingsRef}
+                          tournamentId={tournamentId}
+                          activeSection={activeRoundSection}
+                          isEditMode={isEditMode}
+                          setIsEditMode={setIsEditMode}
+                        />
                       </div>
                     ) : (
                       <div className="py-8 text-center">

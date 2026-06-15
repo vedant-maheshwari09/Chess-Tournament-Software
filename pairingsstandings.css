@@ -1,0 +1,103 @@
+body{
+    overflow:visible;
+}
+table.pairings, table.teams{
+    border:1px solid black;
+    width:100%;
+}
+table.pairings th, table.pairings td, table.teams th, table.teams td{
+    padding:5px;
+}
+table.pairings tr, table.teams tr{
+    background-color:white;
+}
+table.pairings th, table.teams th{
+    background-color:#CCC;
+}
+table.pairings tr.even{
+    background-color:#e4e4e4;
+}
+table.pairings tr:nth-child(odd) td{
+    background-color:#e4e4e4;
+}
+.table-striped>tbody>tr:nth-of-type(odd){
+    background-color:#e4e4e4;
+}
+table.teams tr:nth-child(even) {
+    background-color:#e4e4e4;
+}
+
+table.pairings th, td{
+    vertical-align:top;
+}
+table.pairings tr:nth-child(even) td {
+    background: #e4e4e4;
+}
+table.pairings tr:nth-child(odd) td {
+    background: #FFF;
+}
+table.pairings {
+    margin-bottom:20px;
+}
+table.pairings th{
+    font-weight:600;
+    vertical-align:top;
+}
+table.pairings td, table.pairings th{
+    border:0;
+    background-color:white;
+}
+table.pairings th{
+    border-bottom:3px solid #2f97c6;
+    border-top:0;
+}
+table.pairings th {
+    background-color: #2f97c6;
+    color: white !important;
+    text-align: left;
+}
+table.pairings td{
+    border-bottom:1px solid #000;
+}
+table.pairings{
+    border:0;
+}
+table.teams{
+    border:1px solid #000;
+}
+table.teams td, table.teams th{
+    border:1px solid #000;
+}
+table.pairings td, table.pairings th{
+    border:1px solid #000;
+}
+
+h3, h4{
+    margin-top:0;
+    text-align:center;
+}
+.result{
+    width:30px;
+}
+.error{
+    border:3px solid red;
+}
+.tab-pane{
+    padding:20px;
+}
+.contentcontainer{
+    border:0;
+}
+
+table.pairings tr:nth-child(even) td{
+    background:#fff;
+}
+table.pairings tr:nth-child(odd) td{
+    background:#e4e4e4;
+}
+table.teams tr:nth-child(even) td{
+    background:#e4e4e4;
+}
+table.teams tr:nth-child(odd) td{
+    background:#fff;
+}

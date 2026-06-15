@@ -1,0 +1,19 @@
+<table class="pairings" style="margin-top:15px;font-size:14px !important;">
+    <tr>
+        <th>#</th>
+        <th class="result">&nbsp;</th>
+        <th>White</th>
+        <th style="text-align:right;">Black</th>
+        <th class="result">&nbsp;</th>
+    </tr>
+    {{#each pairings}}
+        <tr>
+            <td>{{{this.pairingNumber}}}</td>
+            <td style="width:50px;">{{{this.player1Result}}}</td>
+            <td style="text-align:left;">{{{this.player1Str}}}</td>
+            <td style="text-align:right;">{{{this.player2Str}}}</td>
+            <td style="width:50px;">{{{this.player2Result}}}</td>
+        </tr>
+    {{/each}}
+    </tr>
+</table>
