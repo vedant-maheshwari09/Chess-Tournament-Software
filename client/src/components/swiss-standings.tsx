@@ -938,12 +938,10 @@ a:hover { text-decoration: underline; }
   }
 
   function formatRoundResult(result: PlayerRoundResult, round: number): string {
-    if (result.result === 'bye') {
-      return 'bye';
-    }
-
-    if (result.result === 'unplayed') {
-      return `U${result.points}`;
+    if (result.result === 'bye' || result.result === 'unplayed') {
+      if (result.points === 1) return 'B';
+      if (result.points === 0.5) return 'H';
+      return 'U';
     }
 
     if (result.result === 'withdrawn') {
@@ -958,28 +956,48 @@ a:hover { text-decoration: underline; }
     const opponentNum = result.opponent?.isActiveTd ? 'TD' : getPlayerPairingNumber(result.opponent.id);
 
     if (result.result === 'forfeit-win') {
-      return `X${opponentNum}`;
+      return `X ${opponentNum}`;
     }
 
     if (result.result === 'forfeit-loss') {
-      return `F${opponentNum}`;
+      return `F ${opponentNum}`;
     }
 
     if (result.result === 'double-forfeit') {
-      return `FF${opponentNum}`;
+      return `FF ${opponentNum}`;
     }
 
-    return `${colorPrefix}${opponentNum}`;
+    return `${colorPrefix} ${opponentNum}`;
   }
+
+  function formatRoundOpponent(result: PlayerRoundResult): string {
+    if (!result.opponent) {
+      return '---';
+    }
+
+    const colorPrefix = result.color === 'white' ? 'W' : 'B';
+    const opponentNum = result.opponent?.isActiveTd ? 'TD' : getPlayerPairingNumber(result.opponent.id);
+
+    if (result.result === 'forfeit-win') {
+      return `X ${opponentNum}`;
+    }
+
+    if (result.result === 'forfeit-loss') {
+      return `F ${opponentNum}`;
+    }
+
+    if (result.result === 'double-forfeit') {
+      return `FF ${opponentNum}`;
+    }
+
+    return `${colorPrefix} ${opponentNum}`;
+  }
+
   function formatRoundResultDisplay(result: PlayerRoundResult): string {
-    if (result.result === 'bye') {
+    if (result.result === 'bye' || result.result === 'unplayed') {
       if (result.points === 1) return 'B';
       if (result.points === 0.5) return 'H';
       return 'U';
-    }
-
-    if (result.result === 'unplayed') {
-      return `U${result.points}`;
     }
 
     if (result.result === 'withdrawn') {
@@ -996,15 +1014,15 @@ a:hover { text-decoration: underline; }
     const opponentDisplayText = result.opponent?.isActiveTd ? 'TD' : getPlayerPairingNumber(result.opponent.id);
 
     if (result.result === 'forfeit-win') {
-      return `X${opponentDisplayText}`;
+      return `X ${opponentDisplayText}`;
     }
 
     if (result.result === 'forfeit-loss') {
-      return `F${opponentDisplayText}`;
+      return `F ${opponentDisplayText}`;
     }
 
     if (result.result === 'double-forfeit') {
-      return `FF${opponentDisplayText}`;
+      return `FF ${opponentDisplayText}`;
     }
 
     // Direct result outcomes: won (W), lost (L), drawn (D)
