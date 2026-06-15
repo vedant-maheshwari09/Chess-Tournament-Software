@@ -310,10 +310,10 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
 
   const filteredByes = useMemo(() => {
     if (!pairings) return [] as Pairing[];
-    const byes = pairings.filter((pairing) => pairing.isBye);
+    const byes = pairings.filter((pairing) => pairing.isBye && pairing.round === currentRound);
     if (activeSection === "all") return byes;
     return byes.filter((pairing) => playerSectionMap.get(pairing.playerId)?.id === activeSection);
-  }, [pairings, playerSectionMap, activeSection]);
+  }, [pairings, playerSectionMap, activeSection, currentRound]);
 
   const pairingGroups = useMemo(() => {
     if (tournament?.format === 'roundrobin') {
@@ -676,7 +676,7 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
       const titleStr = p.title ? `${p.title} ` : "";
       const rating = getPlayerRating(playerId);
       const points = getPlayerPoints(playerId, beforeRound);
-      const pointsStr = formatPointsWithFractions(points);
+      const pointsStr = points.toFixed(1);
       return `${titleStr}${p.firstName} ${p.lastName} (${rating} ${pointsStr})`;
     };
 
@@ -685,11 +685,11 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
         @media print {
           @page { size: auto; margin: 15mm; }
         }
-        body { font-family: Arial, sans-serif; padding: 10px; color: #000; font-size: 14px; background-color: #fff; }
-        .round-header { font-size: 16px; margin: 10px 0 15px; font-weight: bold; font-family: Arial, sans-serif; text-align: left; }
-        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 14px; }
-        th { text-align: left; padding: 6px 10px; border: 1px solid #000; background-color: #fff; font-weight: bold; }
-        td { padding: 6px 10px; border: 1px solid #000; vertical-align: middle; }
+        body { font-family: Arial, sans-serif; padding: 10px; color: #000; font-size: 13.5px; background-color: #fff; }
+        .round-header { font-size: 13.5px; margin: 5px 0 10px 0; font-weight: normal; font-family: Arial, sans-serif; text-align: left; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 13.5px; }
+        th { text-align: left; padding: 4px 6px; border: 1px solid #b0b0b0; background-color: #fff; font-weight: normal; }
+        td { padding: 4px 6px; border: 1px solid #b0b0b0; vertical-align: middle; text-align: left; }
         .page-footer { display: flex; justify-content: space-between; font-size: 12px; font-family: Arial, sans-serif; margin-top: 30px; border-top: 1px solid transparent; padding-top: 10px; }
       </style></head><body>`,
     );
@@ -698,11 +698,11 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
       if (!matches.length) continue;
       
       printWindow.document.write(
-        `<div class="round-header">${tournament?.name || "Tournament"}: ${selectedSectionLabel} -- Round ${round}. &nbsp;&nbsp;TIME: ${tournament?.timeControl || "G/90;d10"}</div>`
+        `<div class="round-header">${tournament?.name || "Tournament"}: ${selectedSectionLabel} -- Round ${round}.&nbsp;&nbsp;&nbsp;TIME: ${tournament?.timeControl || "G/90;d10"}</div>`
       );
 
       printWindow.document.write(
-        `<table><thead><tr><th style="width: 50px; text-align: center;">Bd</th><th style="width: 60px; text-align: center;">Res</th><th>White</th><th style="width: 60px; text-align: center;">Res</th><th>Black</th></tr></thead><tbody>`,
+        `<table><thead><tr><th style="width: 50px;">Bd</th><th style="width: 60px;">Res</th><th>White</th><th style="width: 60px;">Res</th><th>Black</th></tr></thead><tbody>`,
       );
 
       for (const match of matches) {
@@ -717,27 +717,28 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
 
         printWindow.document.write(
           `<tr>
-            <td style="text-align: center; font-weight: bold;">${match.board ?? ""}</td>
-            <td style="text-align: center; font-weight: bold;">${wRes}</td>
+            <td>${match.board ?? ""}</td>
+            <td>${wRes}</td>
             <td>${whiteLabel}</td>
-            <td style="text-align: center; font-weight: bold;">${bRes}</td>
+            <td>${bRes}</td>
             <td>${blackLabel}</td>
           </tr>`,
         );
       }
 
-      // Append byes directly into the same table
-      if (tournament?.format === 'swiss' && filteredByes.length > 0) {
-        filteredByes.forEach((bye) => {
+      // Append byes directly into the same table (only for the active round)
+      const roundByes = filteredByes.filter((b: any) => b.round === round);
+      if (tournament?.format === 'swiss' && roundByes.length > 0) {
+        roundByes.forEach((bye) => {
           const whiteLabel = getFormattedPlayerLabel(bye.playerId, round);
           const points = bye.points === 1 ? "½" : bye.points === 2 ? "1" : "0";
           printWindow.document.write(
             `<tr>
-              <td style="text-align: center; font-weight: bold;"></td>
-              <td style="text-align: center; font-weight: bold;">${points}</td>
+              <td></td>
+              <td>${points}</td>
               <td>${whiteLabel}</td>
-              <td style="text-align: center; font-weight: bold;"></td>
-              <td style="font-weight: bold; color: #555;">BYE</td>
+              <td></td>
+              <td>BYE</td>
             </tr>`
           );
         });

@@ -800,10 +800,8 @@ export default function SwissStandings({ tournamentId, showExportControls = true
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
-    printWindow.document.write(`<!DOCTYPE html><html><head><title>${title}</title><style>body { font-family: Arial, sans-serif; padding: 24px; color: #000; background-color: #fff; } h1 { font-size: 20px; text-align: center; font-weight: bold; margin-bottom: 4px; } .subtitle { font-size: 14px; text-align: center; font-weight: bold; margin-bottom: 24px; }</style></head><body>`);
-    printWindow.document.write(`<h1>${tournament?.name ?? 'Tournament'}</h1>`);
-    printWindow.document.write(`<div class="subtitle">${selectedSectionLabel} Standings</div>`);
-    
+    printWindow.document.write(`<html><head><title>${title}</title></head><body>`);
+
     if (selectedSectionId === '__all__') {
       sections.forEach((sec) => {
         const secPlayers = players?.filter(p => playerSectionMap.get(p.id)?.id === sec.id) || [];
@@ -961,10 +959,11 @@ a:hover { text-decoration: underline; }
 
     return `${colorPrefix}${opponentNum}`;
   }
-
   function formatRoundResultDisplay(result: PlayerRoundResult): string {
     if (result.result === 'bye') {
-      return 'bye';
+      if (result.points === 1) return 'B';
+      if (result.points === 0.5) return 'H';
+      return 'U';
     }
 
     if (result.result === 'unplayed') {
