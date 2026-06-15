@@ -683,14 +683,14 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
     printWindow.document.write(
       `<html><head><title>${title}</title><style>
         @media print {
-          @page { size: auto; margin: 15mm; }
+          @page { size: auto; margin: 0; }
+          body { margin: 15mm; }
         }
-        body { font-family: Arial, sans-serif; padding: 10px; color: #000; font-size: 13.5px; background-color: #fff; }
-        .round-header { font-size: 13.5px; margin: 5px 0 10px 0; font-weight: normal; font-family: Arial, sans-serif; text-align: left; }
-        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 13.5px; }
-        th { text-align: left; padding: 4px 6px; border: 1px solid #b0b0b0; background-color: #fff; font-weight: normal; }
-        td { padding: 4px 6px; border: 1px solid #b0b0b0; vertical-align: middle; text-align: left; }
-        .page-footer { display: flex; justify-content: space-between; font-size: 12px; font-family: Arial, sans-serif; margin-top: 30px; border-top: 1px solid transparent; padding-top: 10px; }
+        body { font-family: Arial, sans-serif; padding: 10px; color: #000; font-size: 13px; background-color: #fff; }
+        .round-header { font-size: 13px; margin: 5px 0 10px 0; font-weight: normal; font-family: Arial, sans-serif; text-align: left; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 13px; }
+        th { padding: 4px 6px; border: 1px solid #000; background-color: #fff; font-weight: normal; }
+        td { padding: 4px 6px; border: 1px solid #000; vertical-align: middle; }
       </style></head><body>`,
     );
 
@@ -698,11 +698,11 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
       if (!matches.length) continue;
       
       printWindow.document.write(
-        `<div class="round-header">${tournament?.name || "Tournament"}: ${selectedSectionLabel} -- Round ${round}.&nbsp;&nbsp;&nbsp;TIME: ${tournament?.timeControl || "G/90;d10"}</div>`
+        `<div class="round-header">${tournament?.name || "Tournament"}: ${selectedSectionLabel} -- Round ${round}.</div>`
       );
 
       printWindow.document.write(
-        `<table><thead><tr><th style="width: 50px;">Bd</th><th style="width: 60px;">Res</th><th>White</th><th style="width: 60px;">Res</th><th>Black</th></tr></thead><tbody>`,
+        `<table><thead><tr><th style="width: 45px; text-align: center;">Bd</th><th style="width: 55px; text-align: center;">Res</th><th style="text-align: left;">White</th><th style="width: 55px; text-align: center;">Res</th><th style="text-align: left;">Black</th></tr></thead><tbody>`,
       );
 
       for (const match of matches) {
@@ -717,11 +717,11 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
 
         printWindow.document.write(
           `<tr>
-            <td>${match.board ?? ""}</td>
-            <td>${wRes}</td>
-            <td>${whiteLabel}</td>
-            <td>${bRes}</td>
-            <td>${blackLabel}</td>
+            <td style="text-align: center;">${match.board ?? ""}</td>
+            <td style="text-align: center;">${wRes}</td>
+            <td style="text-align: left;">${whiteLabel}</td>
+            <td style="text-align: center;">${bRes}</td>
+            <td style="text-align: left;">${blackLabel}</td>
           </tr>`,
         );
       }
@@ -734,33 +734,17 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
           const points = bye.points === 1 ? "½" : bye.points === 2 ? "1" : "0";
           printWindow.document.write(
             `<tr>
-              <td></td>
-              <td>${points}</td>
-              <td>${whiteLabel}</td>
-              <td></td>
-              <td>BYE</td>
+              <td style="text-align: center;"></td>
+              <td style="text-align: center;">${points}</td>
+              <td style="text-align: left;">${whiteLabel}</td>
+              <td style="text-align: center;"></td>
+              <td style="text-align: left;">BYE</td>
             </tr>`
           );
         });
       }
 
       printWindow.document.write(`</tbody></table>`);
-      
-      const formattedDate = new Date().toLocaleString('en-US', {
-        month: 'numeric',
-        day: 'numeric',
-        year: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true
-      }).replace(',', '');
-
-      printWindow.document.write(
-        `<div class="page-footer">
-          <span>Page 1</span>
-          <span>${formattedDate}</span>
-        </div>`
-      );
     }
 
     printWindow.document.write(`</body></html>`);

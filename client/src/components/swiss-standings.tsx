@@ -800,7 +800,13 @@ export default function SwissStandings({ tournamentId, showExportControls = true
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
-    printWindow.document.write(`<html><head><title>${title}</title></head><body>`);
+    printWindow.document.write(`<html><head><title>${title}</title><style>
+      @media print {
+        @page { size: auto; margin: 0; }
+        body { margin: 15mm; }
+      }
+      body { font-family: Arial, sans-serif; color: #000; background-color: #fff; }
+    </style></head><body>`);
 
     if (selectedSectionId === '__all__') {
       sections.forEach((sec) => {
