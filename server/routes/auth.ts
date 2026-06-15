@@ -1,8 +1,13 @@
-import { registerSchema, loginSchema, changePasswordSchema, verifyEmailSchema, resendVerificationSchema, forgotPasswordSchema, forgotUsernameSchema, resetPasswordSchema } from '@shared/schema';
+import { registerSchema, loginSchema, changePasswordSchema, verifyEmailSchema, resendVerificationSchema, forgotPasswordSchema, forgotUsernameSchema, resetPasswordSchema, users, follows } from '@shared/schema';
 import { AccountPaymentSettings } from '@shared/tournament-config';
 import { hashPassword, verifyPassword, createSession } from '../auth';
 import { sendEmailVerificationCode, sendPasswordResetCode } from '../emailVerification';
 import type { Express } from "express";
+import { db } from "../db";
+import { eq, and } from "drizzle-orm";
+import multer from "multer";
+import path from "path";
+import fs from "fs/promises";
 import { z } from "zod";
 import Stripe from "stripe";
 import {
@@ -817,6 +822,184 @@ app.post("/api/users/fcm-token", requireAuth, async (req, res) => {
     } catch (error) {
       console.error("Error saving FCM token:", error);
       res.status(500).json({ error: "Failed to save FCM token" });
+    }
+  });
+
+  // Configure multer for avatar uploads
+  const avatarUploadDir = path.join(process.cwd(), "uploads", "avatars");
+  const avatarStorage = multer.diskStorage({
+    destination: async (req, file, cb) => {
+      await fs.mkdir(avatarUploadDir, { recursive: true });
+      cb(null, avatarUploadDir);
+    },
+    filename: (req, file, cb) => {
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      cb(null, 'avatar-' + uniqueSuffix + path.extname(file.originalname));
+    }
+  });
+  const uploadAvatar = multer({
+    storage: avatarStorage,
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB limit
+    fileFilter: (req, file, cb) => {
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+      if (allowedTypes.includes(file.mimetype)) {
+        cb(null, true);
+      } else {
+        cb(new Error('Invalid image type. Only JPG, PNG, and WEBP are allowed.'));
+      }
+    }
+  });
+
+  // Profile update route
+  app.patch("/api/auth/profile", requireAuth, async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      const { firstName, lastName, organizationName, profilePicture } = req.body;
+      const [updated] = await db.update(users)
+        .set({
+          firstName: firstName !== undefined ? firstName : req.user!.firstName,
+          lastName: lastName !== undefined ? lastName : req.user!.lastName,
+          organizationName: organizationName !== undefined ? organizationName : req.user!.organizationName,
+          profilePicture: profilePicture !== undefined ? profilePicture : req.user!.profilePicture,
+          updatedAt: new Date()
+        })
+        .where(eq(users.id, userId))
+        .returning();
+      
+      res.json(updated);
+    } catch (err) {
+      console.error("Profile update error:", err);
+      res.status(500).json({ message: "Failed to update profile" });
+    }
+  });
+
+  // Avatar upload route
+  app.post("/api/auth/profile/upload-picture", requireAuth, uploadAvatar.single('avatar'), async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      const file = req.file;
+      if (!file) {
+        return res.status(400).json({ message: "No image file provided." });
+      }
+      const relativePath = `/uploads/avatars/${file.filename}`;
+      await db.update(users)
+        .set({ profilePicture: relativePath, updatedAt: new Date() })
+        .where(eq(users.id, userId));
+      res.json({ profilePicture: relativePath });
+    } catch (err) {
+      console.error("Avatar upload error:", err);
+      res.status(500).json({ message: "Failed to upload profile picture" });
+    }
+  });
+
+  // Follow a TD
+  app.post("/api/follows/:userId", requireAuth, async (req, res) => {
+    try {
+      const followerId = req.user!.id;
+      const followingId = parseInt(req.params.userId, 10);
+      if (isNaN(followingId)) return res.status(400).json({ message: "Invalid user ID" });
+      if (followerId === followingId) return res.status(400).json({ message: "You cannot follow yourself" });
+
+      const [target] = await db.select().from(users).where(eq(users.id, followingId)).limit(1);
+      if (!target || target.role !== 'tournament_director') {
+        return res.status(400).json({ message: "You can only follow Tournament Directors or organizations" });
+      }
+
+      const [existing] = await db.select()
+        .from(follows)
+        .where(and(eq(follows.followerId, followerId), eq(follows.followingId, followingId)))
+        .limit(1);
+
+      if (existing) {
+        return res.json({ message: "Already following", following: true });
+      }
+
+      await db.insert(follows).values({ followerId, followingId });
+      res.json({ message: "Followed successfully", following: true });
+    } catch (err) {
+      console.error("Follow error:", err);
+      res.status(500).json({ message: "Failed to follow user" });
+    }
+  });
+
+  // Unfollow a TD
+  app.delete("/api/follows/:userId", requireAuth, async (req, res) => {
+    try {
+      const followerId = req.user!.id;
+      const followingId = parseInt(req.params.userId, 10);
+      if (isNaN(followingId)) return res.status(400).json({ message: "Invalid user ID" });
+
+      await db.delete(follows)
+        .where(and(eq(follows.followerId, followerId), eq(follows.followingId, followingId)));
+
+      res.json({ message: "Unfollowed successfully", following: false });
+    } catch (err) {
+      console.error("Unfollow error:", err);
+      res.status(500).json({ message: "Failed to unfollow user" });
+    }
+  });
+
+  // Get follow status
+  app.get("/api/follows/status/:userId", requireAuth, async (req, res) => {
+    try {
+      const followerId = req.user!.id;
+      const followingId = parseInt(req.params.userId, 10);
+      if (isNaN(followingId)) return res.status(400).json({ message: "Invalid user ID" });
+
+      const [existing] = await db.select()
+        .from(follows)
+        .where(and(eq(follows.followerId, followerId), eq(follows.followingId, followingId)))
+        .limit(1);
+
+      res.json({ following: !!existing });
+    } catch (err) {
+      console.error("Follow status error:", err);
+      res.status(500).json({ message: "Failed to get follow status" });
+    }
+  });
+
+  // Get followers
+  app.get("/api/follows/followers", requireAuth, async (req, res) => {
+    try {
+      const tdId = req.user!.id;
+      const list = await db.select({
+        id: users.id,
+        username: users.username,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        email: users.email,
+        profilePicture: users.profilePicture
+      })
+      .from(follows)
+      .innerJoin(users, eq(follows.followerId, users.id))
+      .where(eq(follows.followingId, tdId));
+      res.json(list);
+    } catch (err) {
+      console.error("Get followers error:", err);
+      res.status(500).json({ message: "Failed to fetch followers" });
+    }
+  });
+
+  // Get following
+  app.get("/api/follows/following", requireAuth, async (req, res) => {
+    try {
+      const playerId = req.user!.id;
+      const list = await db.select({
+        id: users.id,
+        username: users.username,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        organizationName: users.organizationName,
+        email: users.email,
+        profilePicture: users.profilePicture
+      })
+      .from(follows)
+      .innerJoin(users, eq(follows.followingId, users.id))
+      .where(eq(follows.followerId, playerId));
+      res.json(list);
+    } catch (err) {
+      console.error("Get following error:", err);
+      res.status(500).json({ message: "Failed to fetch following users" });
     }
   });
 

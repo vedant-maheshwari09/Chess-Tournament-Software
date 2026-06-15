@@ -537,7 +537,9 @@ class SupabaseStorage implements IStorage {
       .select(`
         *,
         users (
-          username
+          username,
+          uscf_id,
+          uscf_verification_status
         )
       `)
       .eq("tournament_id", tournamentId);
@@ -550,6 +552,12 @@ class SupabaseStorage implements IStorage {
       const camelPlayer = toCamelCase<Player>(p);
       if ((p as any).users?.username) {
         (camelPlayer as any).username = (p as any).users.username;
+      }
+      if ((p as any).users?.uscf_id) {
+        (camelPlayer as any).userUscfId = (p as any).users.uscf_id;
+      }
+      if ((p as any).users?.uscf_verification_status) {
+        (camelPlayer as any).userUscfVerificationStatus = (p as any).users.uscf_verification_status;
       }
       return camelPlayer;
     });

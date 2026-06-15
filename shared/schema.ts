@@ -13,6 +13,8 @@ export const users = pgTable("users", {
   role: text("role").notNull().default('player'), // 'player', 'tournament_director'  
   notifyEmail: boolean("notify_email").default(true),
   emailVerified: boolean("email_verified").default(false).notNull(),
+  organizationName: text("organization_name"),
+  profilePicture: text("profile_picture"),
   paymentSettings: jsonb("payment_settings"),
   fcmToken: text("fcm_token"),
   notifyPairings: boolean("notify_pairings").default(true),
@@ -196,6 +198,7 @@ export const matches = pgTable("matches", {
   sectionId: text("section_id"), // for multi-section knockout support
   gameType: text("game_type").default("standard"), // 'standard', 'armageddon'
   winnerId: integer("winner_id"),
+  isExtraGame: boolean("is_extra_game").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -273,6 +276,7 @@ export const playerRegistrations = pgTable("player_registrations", {
   currency: varchar("currency", { length: 10 }).default("USD"),
   paidAt: timestamp("paid_at"),
   status: varchar("status", { length: 20 }).default("pending").notNull(), // pending, approved, declined
+  customAnswers: jsonb("custom_answers").default({}),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
@@ -429,6 +433,18 @@ export type InsertTournamentStar = z.infer<typeof insertTournamentStarSchema>;
 export type Notification = typeof notifications.$inferSelect;
 export type InsertNotification = z.infer<typeof insertNotificationSchema>;
 
+// Follows table
+export const follows = pgTable("follows", {
+  id: serial("id").primaryKey(),
+  followerId: integer("follower_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  followingId: integer("following_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertFollowSchema = createInsertSchema(follows).omit({ id: true, createdAt: true });
+export type Follow = typeof follows.$inferSelect;
+export type InsertFollow = z.infer<typeof insertFollowSchema>;
+
 // USCF Verification Tables
 export const uscfChallengeCodes = pgTable("uscf_challenge_codes", {
   id: serial("id").primaryKey(),
@@ -501,6 +517,7 @@ export const chatMessages = pgTable("chat_messages", {
   senderId: integer("sender_id").references(() => users.id, { onDelete: "set null" }),
   content: text("content").notNull(),
   isDeleted: boolean("is_deleted").default(false),
+  isEdited: boolean("is_edited").default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -57,7 +57,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { parseTournamentConfig } from "@/lib/tournament-config";
 import type { Tournament, Player, Pairing } from "@shared/schema";
 import { cn } from "@/lib/utils";
-import RegistrationManagement from "./registration-management";
 
 type SortKey = "name" | "rating";
 type SortDirection = "asc" | "desc";
@@ -101,6 +100,26 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
 
   const { data: players = [], isLoading } = useQuery<Player[]>({
     queryKey: [`/api/tournaments/${tournamentId}/players`],
+  });
+
+  const verifyUscfMutation = useMutation({
+    mutationFn: async ({ targetUserId, verified }: { targetUserId: number; verified: boolean }) => {
+      return apiRequest("/api/verification/uscf/verify-player-connection", {
+        method: "POST",
+        body: JSON.stringify({ targetUserId, verified })
+      });
+    },
+    onSuccess: () => {
+      toast({ title: "Player USCF verified successfully" });
+      queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/players`] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Verification failed",
+        description: error?.message ?? "Unable to verify player USCF connection.",
+        variant: "destructive",
+      });
+    }
   });
 
   const processedPlayers = useMemo(() => {
@@ -547,8 +566,6 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
               </p>
             </CardContent>
           </Card>
-  
-          <RegistrationManagement tournamentId={tournamentId} />
         </div>
       )}
 
@@ -640,12 +657,43 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
                               </TableCell>
                               <TableCell>
                                 <div className="flex items-center gap-2">
-                                  <div className="flex flex-col">
+                                  <div className="flex flex-col gap-1">
                                     <span className="text-sm font-medium text-slate-900">
                                       {player.lastName}, {player.firstName}
                                     </span>
+                                    {(player as any).userUscfId && (
+                                      <div className="flex items-center gap-1.5 mt-0.5" onClick={(e) => e.stopPropagation()}>
+                                        <span className="text-[11px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                                          USCF: {(player as any).userUscfId}
+                                        </span>
+                                        {(player as any).userUscfVerificationStatus === "verified" ? (
+                                          <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border-emerald-200/50 text-[10px] px-1.5 py-0 rounded-full font-medium">
+                                            Verified
+                                          </Badge>
+                                        ) : (player as any).userUscfVerificationStatus === "pending" ? (
+                                          <div className="flex items-center gap-1">
+                                            <Badge className="bg-amber-50 text-amber-700 hover:bg-amber-50 border-amber-200/50 text-[10px] px-1.5 py-0 rounded-full font-medium animate-pulse">
+                                              Pending
+                                            </Badge>
+                                            {isTD && (
+                                              <button
+                                                onClick={() => verifyUscfMutation.mutate({ targetUserId: (player as any).userId, verified: true })}
+                                                disabled={verifyUscfMutation.isPending}
+                                                className="text-[10px] text-indigo-600 hover:text-indigo-800 font-bold hover:underline ml-1"
+                                              >
+                                                Verify
+                                              </button>
+                                            )}
+                                          </div>
+                                        ) : (
+                                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0 rounded-full font-medium">
+                                            Unverified
+                                          </Badge>
+                                        )}
+                                      </div>
+                                    )}
                                   </div>
-                                  <span className="text-xs text-muted-foreground">
+                                  <span className="text-xs text-muted-foreground self-start mt-0.5">
                                     ({new Date(player.createdAt).getMonth() + 1}/{new Date(player.createdAt).getDate()})
                                   </span>
                                 </div>

@@ -181,14 +181,27 @@ export default function SwissStandings({ tournamentId, showExportControls = true
 
   const filteredPlayers = useMemo(() => {
     if (!players) return [] as Player[];
+    if (selectedSectionId === "extra_games") {
+      const extraGamePlayerIds = new Set(
+        matches
+          ?.filter(m => m.isExtraGame)
+          .flatMap(m => [m.whitePlayerId, m.blackPlayerId])
+          .filter((id): id is number => id !== null && id !== undefined) || []
+      );
+      return players.filter((player) => extraGamePlayerIds.has(player.id));
+    }
     if (selectedSectionId === "__all__") return players;
     return players.filter((player) => playerSectionMap.get(player.id)?.id === selectedSectionId);
-  }, [players, playerSectionMap, selectedSectionId]);
+  }, [players, playerSectionMap, selectedSectionId, matches]);
 
   const filteredMatches = useMemo(() => {
     if (!matches) return [] as Match[];
-    if (selectedSectionId === "__all__") return matches;
-    return matches.filter((match) => {
+    if (selectedSectionId === "extra_games") {
+      return matches.filter(m => m.isExtraGame);
+    }
+    const baseMatches = matches.filter(m => !m.isExtraGame);
+    if (selectedSectionId === "__all__") return baseMatches;
+    return baseMatches.filter((match) => {
       const whiteSection = match.whitePlayerId ? playerSectionMap.get(match.whitePlayerId)?.id : undefined;
       const blackSection = match.blackPlayerId ? playerSectionMap.get(match.blackPlayerId)?.id : undefined;
       if (match.whitePlayerId && match.blackPlayerId) {
@@ -200,12 +213,14 @@ export default function SwissStandings({ tournamentId, showExportControls = true
 
   const filteredPairings = useMemo(() => {
     if (!pairings) return [] as Pairing[];
+    if (selectedSectionId === "extra_games") return [] as Pairing[];
     if (selectedSectionId === "__all__") return pairings;
     return pairings.filter((pairing) => playerSectionMap.get(pairing.playerId)?.id === selectedSectionId);
   }, [pairings, playerSectionMap, selectedSectionId]);
 
   const selectedSectionLabel = useMemo(() => {
     if (selectedSectionId === "__all__") return "All Sections";
+    if (selectedSectionId === "extra_games") return "Extra Games";
     return sections.find((section) => section.id === selectedSectionId)?.name ?? "All Sections";
   }, [sections, selectedSectionId]);
 
@@ -253,10 +268,9 @@ export default function SwissStandings({ tournamentId, showExportControls = true
       // Use the actual highest round number instead of planned rounds to show extended tournaments
       const totalRounds = Math.max(currentRound, tournament.rounds || 5);
 
-      // Centralized Tiebreaker Calculators
-      const getOpponentScores = (playerId: number): number[] => {
+      // Helper function to get opponents faced by a player
+      const getOpponents = (playerId: number): number[] => {
         const opponentIds: number[] = [];
-
         matches.forEach((match) => {
           if (match.whitePlayerId === playerId && match.blackPlayerId) {
             opponentIds.push(match.blackPlayerId);
@@ -264,105 +278,7 @@ export default function SwissStandings({ tournamentId, showExportControls = true
             opponentIds.push(match.whitePlayerId);
           }
         });
-
-        return opponentIds.map((opponentId) => {
-          let totalPoints = 0;
-          matches.forEach((match) => {
-            if (match.whitePlayerId === opponentId || match.blackPlayerId === opponentId) {
-              const normalized = normalizeMatchResult(match.result);
-              if (normalized) {
-                totalPoints += getPointsForResult(match.result, match.whitePlayerId === opponentId ? "white" : "black");
-              }
-            }
-          });
-          return totalPoints;
-        });
-      };
-
-      const tiebreakCalculators: Record<string, (playerId: number) => number> = {
-        "Solkoff": (playerId) => {
-          return getOpponentScores(playerId).reduce((sum, s) => sum + s, 0);
-        },
-        "Buchholz": (playerId) => {
-          return getOpponentScores(playerId).reduce((sum, s) => sum + s, 0);
-        },
-        "Modified Median": (playerId) => {
-          const scores = getOpponentScores(playerId);
-          if (scores.length <= 2) return scores.reduce((sum, s) => sum + s, 0);
-
-          const sorted = [...scores].sort((a, b) => a - b);
-          // Standard implementation: exclude lowest if < 9 rounds, highest and lowest if 9+
-          if (totalRounds < 9) {
-            return sorted.slice(1).reduce((sum, s) => sum + s, 0);
-          } else {
-            return sorted.slice(1, -1).reduce((sum, s) => sum + s, 0);
-          }
-        },
-        "Cumulative": (playerId) => {
-          let cumulative = 0;
-          let runningTotal = 0;
-          const playerMatches = matches
-            .filter((m) => m.whitePlayerId === playerId || m.blackPlayerId === playerId)
-            .sort((a, b) => a.round - b.round);
-
-          playerMatches.forEach((match) => {
-            const normalized = normalizeMatchResult(match.result);
-            if (normalized) {
-              runningTotal += getPointsForResult(match.result, match.whitePlayerId === playerId ? "white" : "black");
-              cumulative += runningTotal;
-            }
-          });
-          return cumulative;
-        },
-        "Sonneborn-Berger": (playerId) => {
-          let sb = 0;
-          matches.forEach((match) => {
-            const isWhite = match.whitePlayerId === playerId;
-            const isBlack = match.blackPlayerId === playerId;
-            if (!isWhite && !isBlack) return;
-
-            const normalized = normalizeMatchResult(match.result);
-            if (!normalized) return;
-
-            const oppId = isWhite ? match.blackPlayerId : match.whitePlayerId;
-            if (!oppId) return;
-
-            // Get opponent's total points
-            const oppPoints = matches.reduce((sum, m) => {
-              if (m.whitePlayerId === oppId || m.blackPlayerId === oppId) {
-                return sum + getPointsForResult(m.result, m.whitePlayerId === oppId ? "white" : "black");
-              }
-              return sum;
-            }, 0);
-
-            const resultPoints = getPointsForResult(match.result, isWhite ? "white" : "black");
-            if (resultPoints === 1) sb += oppPoints;
-            else if (resultPoints === 0.5) sb += oppPoints * 0.5;
-          });
-          return sb;
-        },
-        "Opponent Average Rating": (playerId) => {
-          const opponentIds: number[] = [];
-          matches.forEach((match) => {
-            if (match.whitePlayerId === playerId && match.blackPlayerId) opponentIds.push(match.blackPlayerId);
-            else if (match.blackPlayerId === playerId && match.whitePlayerId) opponentIds.push(match.whitePlayerId);
-          });
-          if (opponentIds.length === 0) return 0;
-          const ratings = opponentIds.map(id => {
-            const p = playerById.get(id);
-            if (!p) return 0;
-            return (tournamentConfig?.details.primaryRatingSystem === 'fide' ? (p.fideRating ?? p.rating) : (p.uscfRating ?? p.rating)) || 0;
-          });
-          return ratings.reduce((sum, r) => sum + r, 0) / ratings.length;
-        },
-        "Number of Wins": (playerId) => {
-          return matches.filter(m => {
-            const isWhite = m.whitePlayerId === playerId;
-            const isBlack = m.blackPlayerId === playerId;
-            if (!isWhite && !isBlack) return false;
-            return getPointsForResult(m.result, isWhite ? "white" : "black") === 1;
-          }).length;
-        }
+        return opponentIds;
       };
 
       // First pass: Calculate basic points and rankings
@@ -403,10 +319,148 @@ export default function SwissStandings({ tournamentId, showExportControls = true
         };
       });
 
+      // Create a map of player ID to their total points
+      const playerPointsMap = new Map<number, number>();
+      basicStandings.forEach((s) => playerPointsMap.set(s.player.id, s.totalPoints));
+
+      // Calculate opponent scores helper
+      const getOpponentScores = (playerId: number): number[] => {
+        return getOpponents(playerId).map((oppId) => playerPointsMap.get(oppId) ?? 0);
+      };
+
+      // Precompute Cumulative Scores for all players to support Cumulative and Opponent's Cumulative
+      const playerCumulativeMap = new Map<number, number>();
+      players.forEach((player) => {
+        let cumulative = 0;
+        let runningTotal = 0;
+        const playerMatches = matches.filter(
+          (m) => m.whitePlayerId === player.id || m.blackPlayerId === player.id
+        );
+        const playerByes = pairings.filter(
+          (pairing) => pairing.playerId === player.id && pairing.isBye && pairing.points !== null
+        );
+
+        for (let r = 1; r <= currentRound; r++) {
+          const match = playerMatches.find((m) => m.round === r);
+          if (match) {
+            const normalized = normalizeMatchResult(match.result);
+            if (normalized) {
+              runningTotal += getPointsForResult(match.result, match.whitePlayerId === player.id ? "white" : "black");
+            }
+          } else {
+            const bye = playerByes.find((b) => b.round === r);
+            if (bye) {
+              const byePoints = bye.points === 1 ? 0.5 : bye.points === 2 ? 1 : 0;
+              runningTotal += byePoints;
+            }
+          }
+          cumulative += runningTotal;
+        }
+        playerCumulativeMap.set(player.id, cumulative);
+      });
+
+      // Define tiebreaker calculators
+      const tiebreakCalculators: Record<string, (playerId: number) => number> = {
+        "Solkoff": (playerId) => {
+          return getOpponentScores(playerId).reduce((sum, s) => sum + s, 0);
+        },
+        "Buchholz": (playerId) => {
+          return getOpponentScores(playerId).reduce((sum, s) => sum + s, 0);
+        },
+        "Modified Median": (playerId) => {
+          const scores = getOpponentScores(playerId);
+          if (scores.length === 0) return 0;
+          const points = playerPointsMap.get(playerId) ?? 0;
+          const halfPoints = totalRounds * 0.5;
+
+          const sorted = [...scores].sort((a, b) => a - b);
+          const numToExclude = totalRounds >= 9 ? 2 : 1;
+
+          if (points > halfPoints) {
+            return sorted.slice(numToExclude).reduce((sum, s) => sum + s, 0);
+          } else if (points < halfPoints) {
+            return sorted.slice(0, -numToExclude).reduce((sum, s) => sum + s, 0);
+          } else {
+            if (sorted.length <= numToExclude * 2) {
+              return sorted.reduce((sum, s) => sum + s, 0);
+            }
+            return sorted.slice(numToExclude, -numToExclude).reduce((sum, s) => sum + s, 0);
+          }
+        },
+        "Median": (playerId) => {
+          return tiebreakCalculators["Modified Median"](playerId);
+        },
+        "Cumulative": (playerId) => {
+          return playerCumulativeMap.get(playerId) ?? 0;
+        },
+        "Sonneborn-Berger": (playerId) => {
+          let sb = 0;
+          matches.forEach((match) => {
+            const isWhite = match.whitePlayerId === playerId;
+            const isBlack = match.blackPlayerId === playerId;
+            if (!isWhite && !isBlack) return;
+
+            const normalized = normalizeMatchResult(match.result);
+            if (!normalized) return;
+
+            const oppId = isWhite ? match.blackPlayerId : match.whitePlayerId;
+            if (!oppId) return;
+
+            const oppPoints = playerPointsMap.get(oppId) ?? 0;
+            const resultPoints = getPointsForResult(match.result, isWhite ? "white" : "black");
+            if (resultPoints === 1) {
+              sb += oppPoints;
+            } else if (resultPoints === 0.5) {
+              sb += oppPoints * 0.5;
+            }
+          });
+          return sb;
+        },
+        "Kashdan": (playerId) => {
+          let kashdan = 0;
+          const playerMatches = matches.filter(
+            (m) => m.whitePlayerId === playerId || m.blackPlayerId === playerId
+          );
+          playerMatches.forEach((match) => {
+            const normalized = normalizeMatchResult(match.result);
+            if (!normalized) return;
+            const pts = getPointsForResult(match.result, match.whitePlayerId === playerId ? "white" : "black");
+            if (pts === 1) kashdan += 4;
+            else if (pts === 0.5) kashdan += 2;
+            else kashdan += 1;
+          });
+          return kashdan;
+        },
+        "Opponent's Cumulative": (playerId) => {
+          return getOpponents(playerId)
+            .map((id) => playerCumulativeMap.get(id) ?? 0)
+            .reduce((sum, s) => sum + s, 0);
+        },
+        "Opponent Average Rating": (playerId) => {
+          const opponentIds = getOpponents(playerId);
+          if (opponentIds.length === 0) return 0;
+          const ratings = opponentIds.map(id => {
+            const p = playerById.get(id);
+            if (!p) return 0;
+            return (tournamentConfig?.details.primaryRatingSystem === 'fide' ? (p.fideRating ?? p.rating) : (p.uscfRating ?? p.rating)) || 0;
+          });
+          return ratings.reduce((sum, r) => sum + r, 0) / ratings.length;
+        },
+        "Number of Wins": (playerId) => {
+          const playerMatches = matches.filter(
+            (m) => m.whitePlayerId === playerId || m.blackPlayerId === playerId
+          );
+          const playedWins = playerMatches.filter(m => getPointsForResult(m.result, m.whitePlayerId === playerId ? "white" : "black") === 1).length;
+          const p = playerById.get(playerId);
+          const extraWins = (p?.fullPointByesReceived ?? 0) + (p?.forfeitWinsReceived ?? 0);
+          return playedWins + extraWins;
+        }
+      };
+
       // Get active tiebreakers
-      const activeTiebreakRules = tournamentConfig?.details.tiebreaksEnabled
-        ? (tournamentConfig.details.tiebreaks || [])
-        : [];
+      const activeTiebreakRules = (selectedSectionId === "extra_games" || !tournamentConfig?.details.tiebreaksEnabled)
+        ? []
+        : (tournamentConfig.details.tiebreaks || []);
 
       const standingsWithTiebreakers = basicStandings.map((standing) => {
         const values: Record<string, number> = {};
@@ -754,6 +808,7 @@ export default function SwissStandings({ tournamentId, showExportControls = true
       sections.forEach((sec) => {
         const secPlayers = players?.filter(p => playerSectionMap.get(p.id)?.id === sec.id) || [];
         const secMatches = matches?.filter(m => {
+          if (m.isExtraGame) return false;
           const wSec = m.whitePlayerId ? playerSectionMap.get(m.whitePlayerId)?.id : undefined;
           const bSec = m.blackPlayerId ? playerSectionMap.get(m.blackPlayerId)?.id : undefined;
           return wSec === sec.id || bSec === sec.id;
@@ -802,6 +857,7 @@ a:hover { text-decoration: underline; }
       sections.forEach((sec) => {
         const secPlayers = players?.filter(p => playerSectionMap.get(p.id)?.id === sec.id) || [];
         const secMatches = matches?.filter(m => {
+          if (m.isExtraGame) return false;
           const wSec = m.whitePlayerId ? playerSectionMap.get(m.whitePlayerId)?.id : undefined;
           const bSec = m.blackPlayerId ? playerSectionMap.get(m.blackPlayerId)?.id : undefined;
           return wSec === sec.id || bSec === sec.id;
@@ -960,34 +1016,38 @@ a:hover { text-decoration: underline; }
     
     if (outcome === 'W' || outcome === 'forfeit-win') {
       return (
-        <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-lg text-xs font-black bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 border border-emerald-100/60 dark:border-emerald-900/20 shadow-sm font-mono">
+        <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-lg text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 border border-emerald-100/60 dark:border-emerald-900/20 shadow-sm">
           {text}
         </span>
       );
     }
     if (outcome === 'L' || outcome === 'forfeit-loss' || outcome === 'double-forfeit') {
       return (
-        <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-lg text-xs font-black bg-rose-50 dark:bg-rose-950/20 text-rose-600 dark:text-rose-400 border border-rose-100/60 dark:border-rose-900/20 shadow-sm font-mono">
+        <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-lg text-xs font-semibold bg-rose-50 dark:bg-rose-950/20 text-rose-600 dark:text-rose-400 border border-rose-100/60 dark:border-rose-900/20 shadow-sm">
           {text}
         </span>
       );
     }
     if (outcome === 'D') {
       return (
-        <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-lg text-xs font-black bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 border border-slate-200/40 dark:border-slate-700/40 shadow-sm font-mono">
+        <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-lg text-xs font-semibold bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 border border-slate-200/40 dark:border-slate-700/40 shadow-sm">
           {text}
         </span>
       );
     }
     if (outcome === 'bye') {
       return (
-        <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-lg text-xs font-black bg-indigo-50 dark:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 border border-indigo-100/60 dark:border-indigo-900/20 shadow-sm font-mono">
+        <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-lg text-xs font-semibold bg-indigo-50 dark:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 border border-indigo-100/60 dark:border-indigo-900/20 shadow-sm">
           {text}
         </span>
       );
     }
-    return <span className="text-slate-500 dark:text-slate-400 font-mono text-xs">{text}</span>;
+    return <span className="text-slate-500 dark:text-slate-400 text-xs font-medium">{text}</span>;
   };
+
+  const hasExtraGames = useMemo(() => {
+    return matches?.some(m => m.isExtraGame) ?? false;
+  }, [matches]);
 
   return (
     <Card className="border-none shadow-xl dark:bg-slate-900">
@@ -1005,7 +1065,7 @@ a:hover { text-decoration: underline; }
             )}
           </div>
           <div className="flex flex-col items-stretch md:items-end gap-4">
-            {sections.length > 0 && (
+            {(sections.length > 0 || hasExtraGames) && (
               <div className="flex flex-wrap gap-2">
                 <Button
                   variant={selectedSectionId === "__all__" ? "default" : "outline"}
@@ -1026,6 +1086,16 @@ a:hover { text-decoration: underline; }
                     {section.name}
                   </Button>
                 ))}
+                {hasExtraGames && (
+                  <Button
+                    variant={selectedSectionId === "extra_games" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setSelectedSectionId("extra_games")}
+                    className={selectedSectionId === "extra_games" ? "bg-indigo-600 hover:bg-indigo-700" : ""}
+                  >
+                    Extra Games
+                  </Button>
+                )}
               </div>
             )}
             <div className="flex flex-wrap items-center justify-end gap-4">
@@ -1037,7 +1107,7 @@ a:hover { text-decoration: underline; }
                     checked={showPrizes}
                     onCheckedChange={setShowPrizes}
                   />
-                  <Label htmlFor="show-prizes-toggle" className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 cursor-pointer">
+                  <Label htmlFor="show-prizes-toggle" className="text-xs font-medium text-slate-500 dark:text-slate-400 cursor-pointer">
                     Show Prizes
                   </Label>
                 </div>
@@ -1052,7 +1122,7 @@ a:hover { text-decoration: underline; }
                     onCheckedChange={(checked) => updateShowPrizeAmountsMutation.mutate(checked)}
                     disabled={updateShowPrizeAmountsMutation.isPending}
                   />
-                  <Label htmlFor="show-amounts-toggle" className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 cursor-pointer">
+                  <Label htmlFor="show-amounts-toggle" className="text-xs font-medium text-slate-500 dark:text-slate-400 cursor-pointer">
                     {updateShowPrizeAmountsMutation.isPending ? "Saving..." : "Show Payouts"}
                   </Label>
                 </div>
@@ -1106,19 +1176,19 @@ a:hover { text-decoration: underline; }
             <table className="w-full border-collapse">
               <thead>
                 <tr className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-100 dark:border-slate-800">
-                  <th className="px-4 py-3 text-center text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-16">
+                  <th className="px-4 py-3 text-center text-xs font-medium text-slate-500 dark:text-slate-400 w-16">
                     #
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider min-w-[200px]">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 min-w-[200px]">
                     Name/Rating/ID
                   </th>
                   {Array.from({ length: totalRounds }, (_, i) => (
-                    <th key={i} className="px-3 py-3 text-center text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-24">
+                    <th key={i} className="px-3 py-3 text-center text-xs font-medium text-slate-500 dark:text-slate-400 w-24">
                       Rd {i + 1}
                     </th>
                   ))}
                   {showPrizes && (
-                    <th className="px-4 py-3 text-center text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-40">
+                    <th className="px-4 py-3 text-center text-xs font-medium text-slate-500 dark:text-slate-400 w-40">
                       Prizes
                     </th>
                   )}
@@ -1137,7 +1207,7 @@ a:hover { text-decoration: underline; }
                     {/* Row 1: Position, Name, Opponent Codes, Prize category */}
                       <tr className="border-t border-slate-50 dark:border-slate-800/20 first:border-0">
                         <td className="px-4 py-3 text-center">
-                          <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 font-mono text-xs font-black text-slate-600 dark:text-slate-400 border border-slate-200/40 dark:border-slate-700/40 group-hover:bg-indigo-100/40 group-hover:border-indigo-200/30 transition-colors">
+                          <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-400 border border-slate-200/40 dark:border-slate-700/40 group-hover:bg-indigo-100/40 group-hover:border-indigo-200/30 transition-colors">
                             {getPlayerPairingNumber(standing.player.id)}
                           </span>
                         </td>
@@ -1180,7 +1250,7 @@ a:hover { text-decoration: underline; }
                       {/* Row 2: Empty, Rating/ID, Running points, Prize Payout */}
                       <tr>
                         <td className="px-4 py-1"></td>
-                        <td className="px-4 py-1 text-xs text-slate-400 dark:text-slate-500 font-mono font-medium">
+                        <td className="px-4 py-1 text-xs text-slate-400 dark:text-slate-500 font-medium">
                           {playerRating} {playerID ? `• ID: ${playerID}` : ''}
                         </td>
                         {standing.roundResults.map((result, roundIdx) => {
@@ -1190,13 +1260,13 @@ a:hover { text-decoration: underline; }
                           const cumulativeText = roundIdx < currentRound ? cumulativePoints.toFixed(1) : '';
 
                           return (
-                            <td key={roundIdx} className="px-3 py-1 text-center text-xs font-bold text-slate-400 dark:text-slate-500 font-mono">
+                            <td key={roundIdx} className="px-3 py-1 text-center text-xs font-semibold text-slate-400 dark:text-slate-500">
                               {cumulativeText}
                             </td>
                           );
                         })}
                         {showPrizes && (
-                          <td className="px-4 py-1 text-center text-sm font-black text-indigo-600 dark:text-indigo-400 font-mono">
+                          <td className="px-4 py-1 text-center text-sm font-semibold text-indigo-600 dark:text-indigo-400">
                             {tournamentConfig?.showPrizeAmounts !== false ? (standing.prizeAmount || '---') : '---'}
                           </td>
                         )}

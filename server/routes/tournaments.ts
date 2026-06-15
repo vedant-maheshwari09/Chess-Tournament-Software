@@ -1,4 +1,6 @@
-import { insertTournamentSchema, insertPlayerSchema } from '@shared/schema';
+import { insertTournamentSchema, insertPlayerSchema, follows, users, matches } from '@shared/schema';
+import { db } from '../db';
+import { eq } from 'drizzle-orm';
 import { updateWebhookScheduler, testWebhookConnection, syncWebhook } from '../services/webhookSync';
 import type { Express, Request, Response } from "express";
 import { z } from "zod";
@@ -685,6 +687,56 @@ app.post("/api/tournaments", requireAuth, requireRole('tournament_director'), as
 
       const newTournament = await storage.createTournament(tournamentWithCreator);
       console.log('Created tournament:', newTournament);
+
+      // Broadcast notifications to followers
+      try {
+        const followerList = await db.select({
+          id: users.id,
+          email: users.email,
+          notifyEmail: users.notifyEmail
+        })
+        .from(follows)
+        .innerJoin(users, eq(follows.followerId, users.id))
+        .where(eq(follows.followingId, user.id));
+
+        const organizationOrName = user.organizationName || `${user.firstName} ${user.lastName}`;
+        for (const follower of followerList) {
+          // Send in-app notification
+          await storage.createNotification({
+            userId: follower.id,
+            title: "New Tournament",
+            message: `${organizationOrName} has created a new tournament: "${newTournament.name}".`,
+            type: "info",
+            meta: { tournamentId: newTournament.id },
+            read: false,
+          }).catch((err: any) => console.error("In-app notification failed:", err));
+
+          // Optionally send email
+          if (follower.notifyEmail && follower.email) {
+            await notificationService.sendEmail({
+              to: follower.email,
+              subject: `New Chess Tournament: ${newTournament.name}`,
+              text: `Hello,
+
+${organizationOrName} has just created a new tournament: "${newTournament.name}".
+
+Details:
+- Format: ${newTournament.format}
+- Time Control: ${newTournament.timeControl || 'TBD'}
+- Location: ${newTournament.location || 'TBD'}
+
+You can view and register for the tournament here:
+http://localhost:5010/tournaments/${newTournament.id}
+
+Best regards,
+Chess Tournament Manager`
+            }).catch((err: any) => console.error("Email notification failed:", err));
+          }
+        }
+      } catch (notifErr) {
+        console.error("Failed to broadcast follower notifications:", notifErr);
+      }
+
       res.status(201).json(newTournament);
     } catch (error) {
       console.error('Tournament creation error:', error);
@@ -1404,8 +1456,8 @@ app.post("/api/tournaments/:id/next-round", requireAuth, requireRole('tournament
       const players = await storage.getPlayersByTournament(tournamentId);
       const matches = await storage.getMatchesByTournament(tournamentId);
 
-      // Check if current round is complete
-      const currentRoundMatches = matches.filter((m: any) => m.round === tournament.currentRound);
+      // Check if current round is complete (excluding extra games)
+      const currentRoundMatches = matches.filter((m: any) => m.round === tournament.currentRound && !m.isExtraGame);
       const incompleteMatches = currentRoundMatches.filter(m => !m.result);
 
       if (incompleteMatches.length > 0) {
@@ -1434,7 +1486,7 @@ app.post("/api/tournaments/:id/next-round", requireAuth, requireRole('tournament
           return acc;
         }, {} as Record<string, Player[]>);
 
-        const matchesBySection = matches.reduce((acc: any, match: any) => {
+        const matchesBySection = matches.filter((m: any) => !m.isExtraGame).reduce((acc: any, match: any) => {
           const player = playerMap.get(match.whitePlayerId!) ?? playerMap.get(match.blackPlayerId!);
           if (player) {
             const sectionKey = player.sectionId || 'default';
@@ -1810,6 +1862,7 @@ app.post("/api/tournaments/:id/register-batch", requireAuth, async (req, res) =>
           amountPaid: amountPaid.toFixed(2),
           currency: currency,
           paidAt: paidAt,
+          customAnswers: payload.customAnswers ?? {},
           status: "pending",
         });
 
@@ -2010,6 +2063,7 @@ app.post("/api/tournaments/:id/register", requireAuth, async (req, res) => {
         amountPaid,
         currency,
         paidAt,
+        customAnswers: payload.customAnswers ?? {},
       };
 
       console.log(`[REG_SERVER] Final registration data for user ${user.id}:`, JSON.stringify(registrationData, null, 2));
@@ -2744,6 +2798,34 @@ app.patch("/api/players/:id/seed", requireAuth, requireRole('tournament_director
     }
   });
 
+app.post("/api/tournaments/:id/extra-matches", requireAuth, requireRole('tournament_director'), requireTournamentAccess, async (req, res) => {
+  try {
+    const tournamentId = parseInt(req.params.id);
+    const { round, whitePlayerId, blackPlayerId } = req.body;
+    
+    if (!round || !whitePlayerId || !blackPlayerId) {
+      return res.status(400).json({ message: "Round, White Player ID, and Black Player ID are required." });
+    }
+
+    const [newMatch] = await db.insert(matches)
+      .values({
+        tournamentId,
+        round,
+        whitePlayerId,
+        blackPlayerId,
+        board: 99, // board number 99 designates extra/ad-hoc boards
+        status: "pending",
+        isExtraGame: true
+      })
+      .returning();
+
+    res.status(201).json(newMatch);
+  } catch (error) {
+    console.error("Error creating extra match:", error);
+    res.status(500).json({ message: "Failed to create extra match." });
+  }
+});
+
 app.put("/api/matches/:id", requireAuth, requireRole('tournament_director'), async (req, res) => {
     try {
       const id = parseInt(req.params.id);
@@ -3118,7 +3200,7 @@ app.post("/api/tournaments/:tournamentId/generate-pairings", requireAuth, requir
         return acc;
       }, {} as Record<string, any[]>);
 
-      const matchesBySection = filteredMatches.reduce((acc: any, match: any) => {
+      const matchesBySection = filteredMatches.filter((m: any) => !m.isExtraGame).reduce((acc: any, match: any) => {
         const player = playerMap.get(match.whitePlayerId!) ?? playerMap.get(match.blackPlayerId!);
         if (player) {
           const sectionKey = player.sectionId || 'default';

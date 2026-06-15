@@ -41,6 +41,7 @@ export interface RegistersConfig {
   pushNotifications: boolean;
   registrationDeadlineDate?: string | null;
   registrationDeadlineTime?: string | null;
+  allowExtraGames?: boolean;
 }
 
 export interface FideRegistrationData {
@@ -204,6 +205,35 @@ export interface PaymentSettings {
   offlineInstructions: string;
 }
 
+export interface RegistrationFormField {
+  id: string;
+  label: string;
+  type: "text" | "number" | "boolean" | "select";
+  options?: string[];
+  required: boolean;
+  visible: boolean;
+  isCustom?: boolean;
+}
+
+export interface RegistrationFormConfig {
+  fields: RegistrationFormField[];
+}
+
+export const DEFAULT_REGISTRATION_FIELDS: RegistrationFormField[] = [
+  { id: "address1", label: "Address Line 1", type: "text", required: false, visible: true },
+  { id: "address2", label: "Address Line 2", type: "text", required: false, visible: true },
+  { id: "city", label: "City", type: "text", required: false, visible: true },
+  { id: "state", label: "State / Province", type: "text", required: false, visible: true },
+  { id: "postalCode", label: "Postal Code", type: "text", required: false, visible: true },
+  { id: "country", label: "Country", type: "text", required: false, visible: true },
+  { id: "uscfId", label: "USCF ID", type: "text", required: false, visible: true },
+  { id: "fideId", label: "FIDE ID", type: "text", required: false, visible: true },
+  { id: "byePreference", label: "Bye Requests", type: "boolean", required: false, visible: true },
+  { id: "arrivalTime", label: "Expected Arrival Time", type: "text", required: false, visible: true },
+  { id: "notes", label: "Notes / Requests", type: "text", required: false, visible: true },
+  { id: "newsletter", label: "Receive Bulletins", type: "boolean", required: false, visible: true },
+];
+
 export interface TournamentConfig {
   version: "v2";
   mode: TournamentMode;
@@ -279,6 +309,7 @@ export interface TournamentConfig {
     arenaPrePairBeforeStart?: boolean;
     scoring: ArenaScoringConfig;
   };
+  registrationFormConfig?: RegistrationFormConfig;
 }
 
 export interface BoardNumberingSettings {
@@ -417,6 +448,7 @@ export function createDefaultConfig(format: Tournament["format"], mode: Tourname
       isDoubleElimination: false,
       thirdPlaceMatch: false,
       pushNotifications: true,
+      allowExtraGames: false,
     },
     fide: {
       prizeFund: "",
@@ -506,6 +538,9 @@ export function createDefaultConfig(format: Tournament["format"], mode: Tourname
       arenaCutoffMinutes: 2,
       arenaCountdownSeconds: 10,
       arenaPrePairBeforeStart: false,
+    },
+    registrationFormConfig: {
+      fields: DEFAULT_REGISTRATION_FIELDS,
     },
   };
 }
@@ -705,6 +740,7 @@ export function parseTournamentConfig(tournament: Tournament | undefined | null)
         arenaPrePairBeforeStart: tournament.arenaPrePairBeforeStart ?? parsed.arena?.arenaPrePairBeforeStart ?? defaults.arena!.arenaPrePairBeforeStart ?? false,
         scoring: (tournament.arenaScoringConfig as any) ?? parsed.arena?.scoring ?? defaults.arena!.scoring,
       },
+      registrationFormConfig: parsed.registrationFormConfig ?? defaults.registrationFormConfig,
     };
   }
 
@@ -743,6 +779,9 @@ export function parseTournamentConfig(tournament: Tournament | undefined | null)
     sections: [],
     entryFees: [],
     prizes: [],
+    registrationFormConfig: {
+      fields: DEFAULT_REGISTRATION_FIELDS,
+    },
   };
 }
 
@@ -806,6 +845,7 @@ export function serializeTournamentConfig(config: TournamentConfig): TournamentC
     payments: sanitizedPayments,
     publicPage: config.publicPage,
     arena: config.arena,
+    registrationFormConfig: config.registrationFormConfig,
   };
 }
 

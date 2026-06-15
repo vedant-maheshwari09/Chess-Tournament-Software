@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Send, Hash, User as UserIcon, Loader2, Trash2 } from "lucide-react";
+import { Send, Hash, Loader2, Trash2, Pencil } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { NewChatDialog } from "@/components/chat/new-chat-dialog";
 
@@ -18,13 +18,13 @@ export default function MessagesDashboard() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [typingUsers, setTypingUsers] = useState<Record<number, string[]>>({});
   const typingTimeoutRef = useRef<Record<string, NodeJS.Timeout>>({});
+  const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
+  const [editMessageText, setEditMessageText] = useState("");
 
   const { data: threads, isLoading: threadsLoading } = useQuery({
     queryKey: ["/api/messages/threads"],
     queryFn: async () => {
-      const res = await fetch("/api/messages/threads");
-      if (!res.ok) throw new Error("Failed to fetch threads");
-      return res.json();
+      return apiRequest("/api/messages/threads");
     }
   });
 
@@ -32,9 +32,7 @@ export default function MessagesDashboard() {
     queryKey: ["/api/messages/threads", activeThreadId, "messages"],
     queryFn: async () => {
       if (!activeThreadId) return [];
-      const res = await fetch(`/api/messages/threads/${activeThreadId}/messages`);
-      if (!res.ok) throw new Error("Failed to fetch messages");
-      return res.json();
+      return apiRequest(`/api/messages/threads/${activeThreadId}/messages`);
     },
     enabled: !!activeThreadId,
   });
@@ -50,7 +48,7 @@ export default function MessagesDashboard() {
     onSuccess: () => {
       setMessageText("");
       queryClient.invalidateQueries({ queryKey: ["/api/messages/threads", activeThreadId, "messages"] });
-      // Clear our own typing indicator locally and remote
+      // Clear typing indicator
       apiRequest("/api/messages/typing", {
         method: "POST",
         body: JSON.stringify({ threadId: activeThreadId, isTyping: false })
@@ -69,6 +67,20 @@ export default function MessagesDashboard() {
     }
   });
 
+  const editMessageMutation = useMutation({
+    mutationFn: async ({ messageId, content }: { messageId: number; content: string }) => {
+      return apiRequest(`/api/messages/${messageId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ content })
+      });
+    },
+    onSuccess: () => {
+      setEditingMessageId(null);
+      setEditMessageText("");
+      queryClient.invalidateQueries({ queryKey: ["/api/messages/threads", activeThreadId, "messages"] });
+    }
+  });
+
   const handleTyping = (e: React.ChangeEvent<HTMLInputElement>) => {
     setMessageText(e.target.value);
     if (!activeThreadId) return;
@@ -80,7 +92,8 @@ export default function MessagesDashboard() {
   };
 
   useEffect(() => {
-    const eventSource = new EventSource("/api/messages/stream");
+    const token = localStorage.getItem("auth_token") || "";
+    const eventSource = new EventSource(`/api/messages/stream?token=${encodeURIComponent(token)}`);
     
     eventSource.onmessage = (event) => {
       try {
@@ -90,13 +103,14 @@ export default function MessagesDashboard() {
           queryClient.invalidateQueries({ queryKey: ["/api/messages/threads"] });
         } else if (data.type === "message_deleted") {
           queryClient.invalidateQueries({ queryKey: ["/api/messages/threads", data.threadId, "messages"] });
+        } else if (data.type === "message_edited") {
+          queryClient.invalidateQueries({ queryKey: ["/api/messages/threads", data.message.threadId, "messages"] });
         } else if (data.type === "typing") {
           const { threadId, username, isTyping } = data;
           setTypingUsers(prev => {
             const current = prev[threadId] || [];
             if (isTyping) {
               if (!current.includes(username)) {
-                // Set timeout to auto-clear typing indicator
                 const timerKey = `${threadId}-${username}`;
                 if (typingTimeoutRef.current[timerKey]) clearTimeout(typingTimeoutRef.current[timerKey]);
                 
@@ -216,7 +230,8 @@ export default function MessagesDashboard() {
                 const isMe = msg.senderId === user?.id;
                 const prevMsg = index > 0 ? messages[index - 1] : null;
                 const showAvatar = !prevMsg || prevMsg.senderId !== msg.senderId || new Date(msg.createdAt).getTime() - new Date(prevMsg.createdAt).getTime() > 5 * 60 * 1000;
-                
+                const isEditing = editingMessageId === msg.id;
+
                 return (
                   <div key={msg.id} className={`flex gap-3 group ${isMe ? "ml-auto flex-row-reverse" : "mr-auto"}`}>
                     <div className="w-8 shrink-0 flex flex-col justify-end">
@@ -233,30 +248,87 @@ export default function MessagesDashboard() {
                       {showAvatar && (
                         <div className="flex items-center gap-2 mb-1">
                           <span className="text-xs font-medium text-foreground/80">{isMe ? "You" : msg.senderName}</span>
-                          <span className="text-[10px] text-muted-foreground">
+                          <span className="text-[10px] text-muted-foreground flex items-center gap-1">
                             {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            {msg.isEdited && <span className="text-[9px] text-muted-foreground/60 italic">(edited)</span>}
                           </span>
                         </div>
                       )}
+                      
                       <div className="flex items-center gap-2 group relative">
-                        {isMe && !msg.isDeleted && (
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity absolute right-[100%] mr-2 text-destructive hover:text-destructive hover:bg-destructive/10"
-                            onClick={() => deleteMessageMutation.mutate(msg.id)}
-                            disabled={deleteMessageMutation.isPending}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
+                        {isMe && !msg.isDeleted && !isEditing && (
+                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity absolute right-[100%] mr-2">
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-6 w-6 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-full"
+                              onClick={() => {
+                                setEditingMessageId(msg.id);
+                                setEditMessageText(msg.content);
+                              }}
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-6 w-6 text-destructive hover:text-destructive hover:bg-destructive/10 rounded-full"
+                              onClick={() => deleteMessageMutation.mutate(msg.id)}
+                              disabled={deleteMessageMutation.isPending}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
                         )}
-                        <div className={`px-4 py-2.5 shadow-sm text-[15px] leading-relaxed
-                          ${msg.isDeleted ? "bg-muted/50 text-muted-foreground italic rounded-2xl border border-dashed border-border" 
-                          : isMe 
-                            ? "bg-primary text-primary-foreground rounded-2xl rounded-tr-sm" 
-                            : "bg-background border border-border/50 text-foreground rounded-2xl rounded-tl-sm"}`}>
-                          {msg.isDeleted ? "This message was deleted." : msg.content}
-                        </div>
+                        
+                        {isEditing ? (
+                          <div className="flex flex-col gap-1.5 min-w-[200px] bg-background border border-border/50 p-2.5 rounded-2xl shadow-sm">
+                            <Input
+                              value={editMessageText}
+                              onChange={(e) => setEditMessageText(e.target.value)}
+                              className="bg-muted/30 border-transparent focus-visible:bg-background focus-visible:ring-1 text-sm py-1.5 h-8"
+                              autoFocus
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" && editMessageText.trim()) {
+                                  editMessageMutation.mutate({ messageId: msg.id, content: editMessageText });
+                                } else if (e.key === "Escape") {
+                                  setEditingMessageId(null);
+                                }
+                              }}
+                            />
+                            <div className="flex gap-1.5 justify-end">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-6 text-[11px] px-2 rounded-md"
+                                onClick={() => setEditingMessageId(null)}
+                              >
+                                Cancel
+                              </Button>
+                              <Button
+                                size="sm"
+                                className="h-6 text-[11px] px-2 rounded-md"
+                                disabled={!editMessageText.trim() || editMessageMutation.isPending}
+                                onClick={() => editMessageMutation.mutate({ messageId: msg.id, content: editMessageText })}
+                              >
+                                {editMessageMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save"}
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div>
+                            <div className={`px-4 py-2.5 shadow-sm text-[15px] leading-relaxed
+                              ${msg.isDeleted ? "bg-muted/50 text-muted-foreground italic rounded-2xl border border-dashed border-border" 
+                              : isMe 
+                                ? "bg-primary text-primary-foreground rounded-2xl rounded-tr-sm" 
+                                : "bg-background border border-border/50 text-foreground rounded-2xl rounded-tl-sm"}`}>
+                              {msg.isDeleted ? "This message was deleted." : msg.content}
+                            </div>
+                            {msg.isEdited && !showAvatar && (
+                              <span className="text-[9px] text-muted-foreground/50 italic mt-0.5 block text-right pr-1">(edited)</span>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>

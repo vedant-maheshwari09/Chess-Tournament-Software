@@ -48,13 +48,80 @@ export default function SettingsPage() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
-  useEffect(() => {
+  // Profile Edit States
+  const [firstName, setFirstName] = useState(user?.firstName ?? "");
+  const [lastName, setLastName] = useState(user?.lastName ?? "");
+  const [organizationName, setOrganizationName] = useState(user?.organizationName ?? "");
+  const [profilePicture, setProfilePicture] = useState(user?.profilePicture ?? "");
 
+  useEffect(() => {
     setNotifyEmail(user?.notifyEmail ?? true);
     setNotifyPairings(user?.notifyPairings ?? true);
     setNotifyRegistration(user?.notifyRegistration ?? true);
     setNotifyTournamentStatus(user?.notifyTournamentStatus ?? true);
+
+    setFirstName(user?.firstName ?? "");
+    setLastName(user?.lastName ?? "");
+    setOrganizationName(user?.organizationName ?? "");
+    setProfilePicture(user?.profilePicture ?? "");
   }, [user]);
+
+  const updateProfileMutation = useMutation({
+    mutationFn: async (body: { firstName?: string; lastName?: string; organizationName?: string; profilePicture?: string }) => {
+      return apiRequest("/api/auth/profile", {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      });
+    },
+    onSuccess: (updatedUser: any) => {
+      queryClient.setQueryData(["/api/auth/me"], updatedUser);
+      toast({ title: "Profile updated successfully" });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Update failed",
+        description: error?.message ?? "Unable to save profile.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append("avatar", file);
+
+    try {
+      const res = await fetch("/api/auth/profile/upload-picture", {
+        method: "POST",
+        body: formData,
+      });
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.message || "Failed to upload image.");
+      }
+      const data = await res.json();
+      setProfilePicture(data.profilePicture);
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+      toast({ title: "Profile picture updated" });
+    } catch (err: any) {
+      toast({
+        title: "Upload failed",
+        description: err.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleSaveProfile = () => {
+    updateProfileMutation.mutate({
+      firstName,
+      lastName,
+      organizationName: user?.role === 'tournament_director' ? organizationName : undefined
+    });
+  };
 
   // Auto-save preferences when they change
   useEffect(() => {
@@ -270,24 +337,68 @@ export default function SettingsPage() {
               <p className="text-sm text-muted-foreground">Your basic account information.</p>
             </div>
           </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span className="font-medium">Username</span>
-              <span>{user?.username}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="font-medium">Name</span>
-              <span>{user ? `${user.firstName} ${user.lastName}` : ""}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="font-medium">Email</span>
-              <span>{user?.email}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="font-medium">Role</span>
-              <span>{user?.role}</span>
+          <CardContent className="space-y-4">
+            <div className="flex flex-col sm:flex-row items-center gap-6 pb-4 border-b border-slate-100 dark:border-slate-800">
+              <div className="relative group cursor-pointer w-24 h-24 rounded-full overflow-hidden border-2 border-indigo-100 dark:border-slate-800 shadow-inner flex items-center justify-center bg-indigo-50/50">
+                {profilePicture ? (
+                  <img src={profilePicture} alt="Avatar" className="w-full h-full object-cover" />
+                ) : (
+                  <User2 className="w-10 h-10 text-indigo-300" />
+                )}
+                <label className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+                  <span className="text-[10px] text-white font-bold tracking-wide">CHANGE</span>
+                  <input type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
+                </label>
+              </div>
+              <div className="space-y-1 text-center sm:text-left">
+                <h3 className="font-bold text-slate-800 dark:text-slate-200">Profile Photo</h3>
+                <p className="text-xs text-muted-foreground">JPEG, PNG or WEBP up to 5MB. Hover/tap to change.</p>
+              </div>
             </div>
 
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="first-name-input">First Name</Label>
+                <Input 
+                  id="first-name-input"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  placeholder="First Name"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="last-name-input">Last Name</Label>
+                <Input 
+                  id="last-name-input"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  placeholder="Last Name"
+                />
+              </div>
+              {user?.role === 'tournament_director' && (
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="org-name-input">Organization Name</Label>
+                  <Input 
+                    id="org-name-input"
+                    value={organizationName}
+                    onChange={(e) => setOrganizationName(e.target.value)}
+                    placeholder="e.g. San Diego Chess Club"
+                  />
+                  <p className="text-xs text-muted-foreground">If set, this will be displayed as your public profile name.</p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <Button 
+                onClick={handleSaveProfile}
+                disabled={updateProfileMutation.isPending}
+                className="bg-indigo-600 hover:bg-indigo-700 font-semibold rounded-xl px-5 shadow-sm"
+              >
+                {updateProfileMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Save Changes
+              </Button>
+            </div>
           </CardContent>
         </Card>
 

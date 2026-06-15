@@ -31,6 +31,7 @@ import {
 } from "@/components/tournament-settings/sections";
 import { GeneralSettingsCard } from "@/components/tournament-settings/GeneralSettingsCard";
 import { BoardNumberingCard } from "@/components/tournament-settings/BoardNumberingCard";
+import { TournamentActionsContent } from "./tournament-actions";
 import { 
   ChevronLeft, 
   Loader2, 
@@ -46,11 +47,12 @@ import {
   CreditCard,
   Trophy,
   UserPlus,
-  Check
+  Check,
+  AlertTriangle
 } from "lucide-react";
 
 
-type SettingsSection = "basic" | "details" | "schedule" | "payments" | "prizes" | "player-signup" | "rate-tournament" | "general" | "board-numbering" | "fide" | "uscf" | "webhook-sync" | "arena";
+type SettingsSection = "basic" | "details" | "schedule" | "payments" | "prizes" | "player-signup" | "rate-tournament" | "general" | "board-numbering" | "fide" | "uscf" | "webhook-sync" | "arena" | "advanced";
 
 interface TournamentSettingsPageProps {
   tournamentId: number;
@@ -119,6 +121,7 @@ export default function TournamentSettingsPage({ tournamentId, section }: Tourna
     "webhook-sync",
     "board-numbering",
     "arena",
+    "advanced",
   ] satisfies SettingsSection[];
 
   const currentSection: SettingsSection = useMemo(() => {
@@ -463,6 +466,7 @@ export default function TournamentSettingsPage({ tournamentId, section }: Tourna
     "webhook-sync": "Custom API Sync",
     "board-numbering": "Boards",
     arena: "Arena Scoring",
+    advanced: "Advanced",
   };
 
   const sectionIcons: Record<SettingsSection, any> = {
@@ -479,6 +483,7 @@ export default function TournamentSettingsPage({ tournamentId, section }: Tourna
     "webhook-sync": RotateCw,
     "board-numbering": Hash,
     arena: Timer,
+    advanced: AlertTriangle,
   };
 
   return (
@@ -633,6 +638,14 @@ export default function TournamentSettingsPage({ tournamentId, section }: Tourna
 
           {currentSection === "arena" && config.arena && (
             <ArenaSettingsCard value={config.arena} onChange={updateArena} />
+          )}
+
+          {currentSection === "advanced" && tournament && (
+            <TournamentActionsContent 
+              tournamentId={tournamentId} 
+              tournament={tournament} 
+              parsedConfig={config} 
+            />
           )}
         </div>
       </div>

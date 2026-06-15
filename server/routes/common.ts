@@ -413,6 +413,7 @@ export const playerRegistrationSchema = z.object({
   paymentMethod: z.string().trim().optional().nullable(),
   paymentReceiptUrl: z.string().url().optional().nullable(),
   paymentNotes: z.string().trim().optional().nullable(),
+  customAnswers: z.record(z.any()).optional().nullable(),
 });
 
 export async function generatePairings(tournament: any, players: any[], matches: any[], existingPairings: any[], round: number, boardNumbers?: number[]) {
@@ -827,9 +828,21 @@ export async function generateSwissPairings(
     }
   }
 
-  const activePlayers = players.filter(player =>
+  const rawActivePlayers = players.filter(player =>
     !withdrawnPlayerIds.has(player.id) && !roundByePlayerIds.has(player.id) && player.status !== 'withdrawn'
   );
+
+  let activePlayers = [...rawActivePlayers];
+  const housePlayer = rawActivePlayers.find(p => p.isActiveTd);
+  if (housePlayer) {
+    const nonHousePlayersCount = rawActivePlayers.filter(p => !p.isActiveTd).length;
+    if (nonHousePlayersCount % 2 === 0) {
+      activePlayers = rawActivePlayers.filter(p => !p.isActiveTd);
+      console.log(`House player ${housePlayer.firstName} ${housePlayer.lastName} (ID: ${housePlayer.id}) is removed because the number of non-house active players (${nonHousePlayersCount}) is even.`);
+    } else {
+      console.log(`House player ${housePlayer.firstName} ${housePlayer.lastName} (ID: ${housePlayer.id}) is retained because the number of non-house active players (${nonHousePlayersCount}) is odd.`);
+    }
+  }
 
   console.log(`Active players for round ${round}: ${activePlayers.length}`);
 

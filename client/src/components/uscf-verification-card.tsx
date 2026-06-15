@@ -5,8 +5,13 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Link as LinkIcon, RefreshCcw, Monitor, Upload, AlertTriangle, CheckCircle2, Trash2 } from "lucide-react";
+import { Loader2, Link as LinkIcon, RefreshCcw, Monitor, Upload, AlertTriangle, CheckCircle2, Trash2, HelpCircle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+
+// Screen recording system disabled by default under this boolean flag
+const enableScreenRecording = false;
 
 export function UscfVerificationCard() {
   const { toast } = useToast();
@@ -17,6 +22,11 @@ export function UscfVerificationCard() {
   const [countdown, setCountdown] = useState(600);
   const [attemptId, setAttemptId] = useState<number | null>(null);
   const [lastFailureReason, setLastFailureReason] = useState<string | null>(null);
+  
+  // Simple flow state variables
+  const [uscfIdInput, setUscfIdInput] = useState("");
+  const [connectingError, setConnectingError] = useState<{ message: string; code?: string } | null>(null);
+  const [reportingSuccess, setReportingSuccess] = useState(false);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -29,8 +39,8 @@ export function UscfVerificationCard() {
     queryKey: ["/api/verification/uscf/me"],
     refetchInterval: (query) => {
       const data = query.state.data as any;
-      // If we are waiting on a pending verification, poll faster
-      return (attemptId || data?.status === 'pending') ? 3000 : false;
+      // If we are waiting on a pending verification (only in recording mode), poll faster
+      return (enableScreenRecording && (attemptId || data?.status === 'pending')) ? 3000 : false;
     }
   });
 
@@ -78,6 +88,8 @@ export function UscfVerificationCard() {
     },
     onSuccess: () => {
       toast({ title: "Disconnected", description: "Your USCF account has been disconnected." });
+      setConnectingError(null);
+      setReportingSuccess(false);
       queryClient.invalidateQueries({ queryKey: ["/api/verification/uscf/me"] });
     },
     onError: (err: any) => {
@@ -85,9 +97,46 @@ export function UscfVerificationCard() {
     }
   });
 
+  // Simple flow connect mutation
+  const connectUscfMutation = useMutation({
+    mutationFn: async (uscfId: string) => {
+      return await apiRequest("/api/verification/uscf/connect", {
+        method: "POST",
+        body: JSON.stringify({ uscfId })
+      });
+    },
+    onSuccess: (data) => {
+      toast({ title: "Connected", description: data.message });
+      setUscfIdInput("");
+      setConnectingError(null);
+      setReportingSuccess(false);
+      queryClient.invalidateQueries({ queryKey: ["/api/verification/uscf/me"] });
+    },
+    onError: (err: any) => {
+      setConnectingError({ message: err.message || "Failed to connect.", code: err.code });
+    }
+  });
+
+  // Simple flow report falsification mutation
+  const reportFalsificationMutation = useMutation({
+    mutationFn: async (uscfId: string) => {
+      return await apiRequest("/api/verification/uscf/report-falsification", {
+        method: "POST",
+        body: JSON.stringify({ uscfId })
+      });
+    },
+    onSuccess: (data) => {
+      toast({ title: "Report Submitted", description: data.message });
+      setReportingSuccess(true);
+    },
+    onError: (err: any) => {
+      toast({ title: "Report Failed", description: err.message || "Failed to submit falsification report.", variant: "destructive" });
+    }
+  });
+
   useEffect(() => {
     let timer: NodeJS.Timeout;
-    if (step === "wizard" || step === "recording") {
+    if (enableScreenRecording && (step === "wizard" || step === "recording")) {
       timer = setInterval(() => {
         setCountdown((c) => {
           if (c <= 1) {
@@ -103,10 +152,10 @@ export function UscfVerificationCard() {
     return () => clearInterval(timer);
   }, [step, toast]);
 
-  // Polling for attempt status
+  // Polling for attempt status (recording mode only)
   const { data: attemptData } = useQuery({
     queryKey: [`/api/verification/uscf/status/${attemptId}`],
-    enabled: !!attemptId,
+    enabled: enableScreenRecording && !!attemptId,
     refetchInterval: (query) => {
       const data = query.state.data as any;
       if (data?.status === "approved" || data?.status === "rejected") return false;
@@ -115,7 +164,7 @@ export function UscfVerificationCard() {
   });
 
   useEffect(() => {
-    if (attemptData) {
+    if (enableScreenRecording && attemptData) {
       const status = (attemptData as any).status;
       if (status === "approved") {
         setAttemptId(null);
@@ -139,7 +188,6 @@ export function UscfVerificationCard() {
       const track = stream.getVideoTracks()[0];
       const settings = track.getSettings();
       
-      // Enforce sharing entire screen so we can read the browser address bar (security check)
       if (settings.displaySurface && settings.displaySurface !== "monitor") {
         track.stop();
         toast({
@@ -196,6 +244,14 @@ export function UscfVerificationCard() {
     }
   };
 
+  const handleConnectSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!uscfIdInput.trim()) return;
+    setConnectingError(null);
+    setReportingSuccess(false);
+    connectUscfMutation.mutate(uscfIdInput.trim());
+  };
+
   if (isLoadingStatus) {
     return <Card><CardContent className="p-6 flex justify-center"><Loader2 className="animate-spin h-6 w-6 text-primary" /></CardContent></Card>;
   }
@@ -203,45 +259,53 @@ export function UscfVerificationCard() {
   const { status, name, uscfId, ratingRegular, ratingQuick, ratingBlitz, state, expiry, fideId } = (statusData as any) || {};
 
   const isVerified = status === 'verified';
+  const isPending = status === 'pending';
   const isProcessing = !!attemptId;
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center gap-3">
-        <LinkIcon className="h-5 w-5 text-primary" />
+    <Card className="border-slate-200/60 shadow-sm rounded-2xl dark:bg-slate-900">
+      <CardHeader className="flex flex-row items-center gap-3 border-b bg-muted/20 px-6 py-4">
+        <LinkIcon className="h-5 w-5 text-indigo-500" />
         <div>
-          <CardTitle>USCF Account</CardTitle>
-          <p className="text-sm text-muted-foreground">Link your official US Chess Federation profile.</p>
+          <CardTitle className="text-base font-semibold">USCF Account</CardTitle>
+          <p className="text-xs text-muted-foreground">Link your official US Chess Federation profile.</p>
         </div>
       </CardHeader>
       
-      <CardContent className="space-y-4">
-        {isVerified && !isProcessing && (
+      <CardContent className="p-6 space-y-4">
+        {/* Connected / Verified state */}
+        {(isVerified || isPending) && !isProcessing && (
           <div className="space-y-4">
             <div className="flex items-center gap-2">
-              <Badge variant="default" className="bg-green-600 hover:bg-green-700">
-                <CheckCircle2 className="h-3 w-3 mr-1" /> Verified USCF Member
-              </Badge>
+              {isVerified ? (
+                <Badge variant="default" className="bg-green-100 text-green-800 hover:bg-green-100 border-none px-3 py-1 font-semibold rounded-full flex items-center gap-1.5">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-green-600" /> Verified USCF Member
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="bg-amber-100 text-amber-800 hover:bg-amber-100 border-none px-3 py-1 font-semibold rounded-full flex items-center gap-1.5">
+                  <HelpCircle className="h-3.5 w-3.5 text-amber-600 animate-pulse" /> Connected (Pending Verification)
+                </Badge>
+              )}
             </div>
-            <div className="grid grid-cols-2 gap-2 text-sm bg-accent/30 p-4 rounded-md">
-              <div><span className="font-medium">Name:</span> {name}</div>
-              <div><span className="font-medium">Member ID:</span> {uscfId}</div>
-              <div><span className="font-medium">Regular Rating:</span> {ratingRegular || 'Unrated'}</div>
-              <div><span className="font-medium">Quick Rating:</span> {ratingQuick || 'Unrated'}</div>
-              <div><span className="font-medium">Blitz Rating:</span> {ratingBlitz || 'Unrated'}</div>
-              <div><span className="font-medium">State:</span> {state}</div>
-              <div><span className="font-medium">Expires:</span> {expiry}</div>
-              <div><span className="font-medium">FIDE ID:</span> {fideId || 'None'}</div>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-100 dark:border-slate-800">
+              <div><span className="font-semibold text-slate-500">Name:</span> <span className="font-bold text-slate-800 dark:text-slate-200">{name}</span></div>
+              <div><span className="font-semibold text-slate-500">Member ID:</span> <span className="font-mono font-bold text-slate-800 dark:text-slate-200">{uscfId}</span></div>
+              <div><span className="font-semibold text-slate-500">Regular Rating:</span> <span className="font-bold text-slate-800 dark:text-slate-200">{ratingRegular || 'Unrated'}</span></div>
+              <div><span className="font-semibold text-slate-500">Quick Rating:</span> <span className="font-bold text-slate-800 dark:text-slate-200">{ratingQuick || 'Unrated'}</span></div>
+              <div><span className="font-semibold text-slate-500">Blitz Rating:</span> <span className="font-bold text-slate-800 dark:text-slate-200">{ratingBlitz || 'Unrated'}</span></div>
+              <div><span className="font-semibold text-slate-500">State:</span> <span className="font-bold text-slate-800 dark:text-slate-200">{state || 'N/A'}</span></div>
+              <div><span className="font-semibold text-slate-500">Expires:</span> <span className="font-bold text-slate-800 dark:text-slate-200">{expiry || 'N/A'}</span></div>
+              <div><span className="font-semibold text-slate-500">FIDE ID:</span> <span className="font-mono font-bold text-slate-800 dark:text-slate-200">{fideId || 'None'}</span></div>
             </div>
+
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={() => generateChallengeMutation.mutate()}>
-                <RefreshCcw className="h-3 w-3 mr-2" /> Re-verify / Update
-              </Button>
               <Button 
                 variant="destructive" 
                 size="sm" 
                 onClick={() => disconnectMutation.mutate()} 
                 disabled={disconnectMutation.isPending}
+                className="rounded-xl shadow-sm text-xs font-semibold"
               >
                 {disconnectMutation.isPending ? <Loader2 className="h-3 w-3 mr-2 animate-spin" /> : <Trash2 className="h-3 w-3 mr-2" />}
                 Disconnect Account
@@ -250,31 +314,95 @@ export function UscfVerificationCard() {
           </div>
         )}
 
-        {!isVerified && step === "initial" && !isProcessing && (
+        {/* Unverified / Connect Form State */}
+        {!isVerified && !isPending && step === "initial" && !isProcessing && (
           <div className="space-y-4">
-            {lastFailureReason && (
-              <Alert variant="destructive">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertTitle>Verification Failed</AlertTitle>
-                <AlertDescription className="mt-1">{lastFailureReason}</AlertDescription>
-              </Alert>
+            {!enableScreenRecording ? (
+              // Simple Flow Form
+              <form onSubmit={handleConnectSubmit} className="space-y-4">
+                {connectingError && (
+                  <Alert variant="destructive" className="rounded-xl">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertTitle>Connection Failed</AlertTitle>
+                    <AlertDescription className="mt-1">
+                      {connectingError.message}
+                      {connectingError.code === "ALREADY_CONNECTED" && !reportingSuccess && (
+                        <div className="mt-3">
+                          <Button 
+                            type="button" 
+                            variant="outline" 
+                            size="sm" 
+                            className="bg-white hover:bg-slate-50 text-red-600 border-red-200 font-semibold"
+                            onClick={() => reportFalsificationMutation.mutate(uscfIdInput.trim() || uscfId || "")}
+                            disabled={reportFalsificationMutation.isPending}
+                          >
+                            {reportFalsificationMutation.isPending && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
+                            Report Identity Falsification
+                          </Button>
+                        </div>
+                      )}
+                      {reportingSuccess && (
+                        <p className="mt-2 text-xs font-semibold text-green-600 dark:text-green-400">
+                          ✓ Identity falsification report submitted. Administrators have been notified.
+                        </p>
+                      )}
+                    </AlertDescription>
+                  </Alert>
+                )}
+                
+                <div className="space-y-2">
+                  <Label htmlFor="uscf-id-input" className="text-sm font-semibold text-slate-700 dark:text-slate-300">Enter your 8-digit USCF Member ID</Label>
+                  <div className="flex gap-2">
+                    <Input 
+                      id="uscf-id-input"
+                      placeholder="e.g. 12345678"
+                      value={uscfIdInput}
+                      onChange={(e) => setUscfIdInput(e.target.value.replace(/[^0-9]/g, ""))}
+                      maxLength={8}
+                      className="rounded-xl border-slate-200 font-mono tracking-wider h-11"
+                    />
+                    <Button 
+                      type="submit" 
+                      disabled={connectUscfMutation.isPending || !uscfIdInput.trim() || uscfIdInput.length < 8}
+                      className="bg-indigo-600 hover:bg-indigo-700 rounded-xl h-11 px-5 shadow-sm font-semibold whitespace-nowrap"
+                    >
+                      {connectUscfMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Link Profile"}
+                    </Button>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground leading-normal">
+                    Your account first name and last name must match your official USCF member record to connect.
+                  </p>
+                </div>
+              </form>
+            ) : (
+              // Legacy Video Flow
+              <div className="space-y-4">
+                {lastFailureReason && (
+                  <Alert variant="destructive">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertTitle>Verification Failed</AlertTitle>
+                    <AlertDescription className="mt-1">{lastFailureReason}</AlertDescription>
+                  </Alert>
+                )}
+                <div className="text-sm text-muted-foreground">
+                  By linking your USCF account, your official rating and name will be used when you register for tournaments.
+                </div>
+                <div className="space-y-2">
+                  <Button onClick={() => generateChallengeMutation.mutate()} disabled={generateChallengeMutation.isPending}>
+                    {generateChallengeMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                    Start Verification
+                  </Button>
+                  <p className="text-xs text-muted-foreground italic">
+                    Note: There is a mandatory 1-minute cooldown period between verification attempts.
+                  </p>
+                </div>
+              </div>
             )}
-            <div className="text-sm text-muted-foreground">
-              By linking your USCF account, your official rating and name will be used when you register for tournaments.
-            </div>
-            <div className="space-y-2">
-              <Button onClick={() => generateChallengeMutation.mutate()} disabled={generateChallengeMutation.isPending}>
-                {generateChallengeMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                Start Verification
-              </Button>
-              <p className="text-xs text-muted-foreground italic">
-                Note: There is a mandatory 1-minute cooldown period between verification attempts.
-              </p>
-            </div>
           </div>
         )}
 
-        {isProcessing && (() => {
+        {/* Polling / Processing state (for screen recording flow) */}
+        {enableScreenRecording && isProcessing && (() => {
           const attempt = attemptData as any;
           return (
             <div className="space-y-5 p-6 bg-accent/20 rounded-md border border-primary/10">
@@ -288,7 +416,6 @@ export function UscfVerificationCard() {
               
               <div className="space-y-3 border-t border-primary/5 pt-4">
                 {(() => {
-                  // All variables used by StepItem must be declared first.
                   const s = attempt || {};
                   const isRejected = s?.status === 'rejected';
 
@@ -323,8 +450,6 @@ export function UscfVerificationCard() {
                     );
                   };
 
-
-                  // Compute step-by-step pass state for cascade logic
                   const step1ok = !!s.codeFound;
                   const step2ok = !!s.startedOffProfile;
                   const step3ok = !!s.navigatedToProfile;
@@ -333,15 +458,12 @@ export function UscfVerificationCard() {
                   const step6ok = !!s.emailExtracted;
                   const step7ok = s?.status === 'approved';
 
-                  // A step fails only if the attempt is rejected AND it is the first step that failed.
-                  // Steps after the first failure remain "pending" (grayed out, not red).
                   const firstFail = isRejected
                     ? (!step1ok ? 1 : !step2ok ? 2 : !step3ok ? 3 : !step4ok ? 4 : !step5ok ? 5 : !step6ok ? 6 : !step7ok ? 7 : 0)
                     : 0;
 
                   return (
                     <>
-                      {/* Step 1: Challenge Code */}
                       <StepItem
                         isComplete={step1ok}
                         isFailed={firstFail === 1}
@@ -349,8 +471,6 @@ export function UscfVerificationCard() {
                         pendingText="Locating challenge code in recording..."
                         failText="Challenge code was NOT found — record this page with the code visible for 3 seconds at the start"
                       />
-
-                      {/* Step 2: Started Off Profile */}
                       <StepItem
                         isComplete={step2ok}
                         isFailed={firstFail === 2}
@@ -358,8 +478,6 @@ export function UscfVerificationCard() {
                         pendingText="Verifying video starts outside the profile page..."
                         failText="Video did not start on a non-profile page — you MUST navigate TO your profile during the recording"
                       />
-
-                      {/* Step 3: Navigated to Profile */}
                       <StepItem
                         isComplete={step3ok}
                         isFailed={firstFail === 3}
@@ -367,8 +485,6 @@ export function UscfVerificationCard() {
                         pendingText="Waiting for navigation to your profile..."
                         failText="No profile navigation detected — you must click your profile link during the recording"
                       />
-
-                      {/* Step 4: USCF URL Verified */}
                       <StepItem
                         isComplete={step4ok}
                         isFailed={firstFail === 4}
@@ -376,8 +492,6 @@ export function UscfVerificationCard() {
                         pendingText="Verifying address bar URL..."
                         failText="'new.uschess.org/user/<id>' not found in address bar — share Entire Screen and go to your profile page"
                       />
-
-                      {/* Step 5: Member ID Extracted */}
                       <StepItem
                         isComplete={step5ok}
                         isFailed={firstFail === 5}
@@ -392,8 +506,6 @@ export function UscfVerificationCard() {
                         pendingText="Extracting your Member ID..."
                         failText="Member ID could not be clearly read from the profile page"
                       />
-
-                      {/* Step 6: Email Extracted */}
                       <StepItem
                         isComplete={step6ok}
                         isFailed={firstFail === 6}
@@ -401,8 +513,6 @@ export function UscfVerificationCard() {
                         pendingText="Extracting your email address..."
                         failText="Email address could not be clearly read from the profile page"
                       />
-
-                      {/* Step 7: Final USCF Profile Fetch */}
                       <StepItem
                         isComplete={step7ok}
                         isFailed={firstFail === 7}
@@ -425,7 +535,7 @@ export function UscfVerificationCard() {
           );
         })()}
 
-        {(step === "wizard" || step === "recording" || step === "uploading") && (
+        {enableScreenRecording && (step === "wizard" || step === "recording" || step === "uploading") && (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
             <Alert className="bg-primary/5 border-primary/20">
               <AlertTitle className="text-lg font-bold flex items-center gap-2">
@@ -450,18 +560,6 @@ export function UscfVerificationCard() {
                   <li><strong>AFTER Navigation:</strong> Ensure your Member ID and email are clearly visible. <strong className="text-amber-600 dark:text-amber-400">Wait at least 3 to 5 seconds</strong> after the page has completely finished loading before you stop recording.</li>
                   <li>Switch back here and click <strong>Stop & Submit</strong>.</li>
                 </ol>
-                
-                <div className="mt-4 pt-3 border-t border-primary/10 text-xs text-muted-foreground leading-relaxed space-y-2">
-                  <p className="font-semibold text-foreground flex items-center gap-1.5">
-                    🔒 Privacy Commitment:
-                  </p>
-                  <p>
-                    We strictly extract only your public name, USCF ID, and email address to verify your profile. Other details visible on your screen (such as phone numbers, billing details, or mailing addresses) are completely ignored and never stored.
-                  </p>
-                  <p>
-                    All video recordings are permanently deleted from our servers immediately after the automated verification process finishes.
-                  </p>
-                </div>
               </div>
 
               <div className="space-y-4">
@@ -471,7 +569,6 @@ export function UscfVerificationCard() {
                       <div className="w-3 h-3 bg-red-600 rounded-full"></div>
                       Recording in progress
                     </div>
-                    <video ref={videoRef} autoPlay muted playsInline className="w-full max-w-[200px] rounded border bg-black shadow-sm hidden" />
                     <Button variant="destructive" onClick={stopAndSubmitRecording} className="w-full">
                       Stop & Submit Recording
                     </Button>

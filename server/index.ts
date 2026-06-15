@@ -57,6 +57,7 @@ app.use(express.urlencoded({ extended: false }));
 
 // Serve static files from the 'attached_assets' directory
 app.use('/attached_assets', express.static(path.join(__dirname, '..', 'attached_assets')));
+app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 
 // Add CORS headers for development
 app.use((req, res, next) => {

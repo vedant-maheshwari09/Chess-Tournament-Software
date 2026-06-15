@@ -32,6 +32,8 @@ import KnockoutBracket from "@/components/knockout-bracket";
 import TournamentBuilder from "@/components/tournament-builder";
 import type { Tournament, Player, PlayerRegistration } from "@shared/schema";
 import PlayerManager from "@/components/player-manager";
+import RegistrationManagement from "@/components/registration-management";
+import RegistrationFormConfigurator from "@/components/registration-form-configurator";
 import TournamentPagePanel from "@/components/tournament-page-panel";
 import { parseTournamentConfig, buildTournamentPayload, type BoardNumberingSettings } from "@/lib/tournament-config";
 import { ArenaLobby, ArenaActiveMatches, ArenaTimer } from "@/components/arena-ui";
@@ -118,7 +120,7 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
 
   // Ensure activeTab is valid for Arena format
   React.useEffect(() => {
-    const validTabs = ["dashboard", "players", "rounds"];
+    const validTabs = ["dashboard", "players", "rounds", "registrations"];
     if (tournament?.format !== 'arena') {
       validTabs.push("standings");
     }
@@ -501,6 +503,13 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
               <span className="capitalize">Players</span>
             </TabsTrigger>
             <TabsTrigger
+              value="registrations"
+              className="flex-none md:flex-1 h-full min-h-[38px] flex items-center justify-center gap-2 px-6 rounded-lg text-center text-sm font-semibold text-slate-500 transition-all data-[state=active]:bg-white data-[state=active]:text-black data-[state=active]:shadow-sm"
+            >
+              <FileText className="h-5 w-5" />
+              <span className="capitalize">Registrations</span>
+            </TabsTrigger>
+            <TabsTrigger
               value="rounds"
               className="flex-none md:flex-1 h-full min-h-[38px] flex items-center justify-center gap-2 px-6 rounded-lg text-center text-sm font-semibold text-slate-500 transition-all data-[state=active]:bg-white data-[state=active]:text-black data-[state=active]:shadow-sm"
             >
@@ -536,6 +545,25 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
 
           <TabsContent value="players" className="mt-6">
             <PlayerManager tournament={tournament} tournamentId={tournamentId} />
+          </TabsContent>
+
+          <TabsContent value="registrations" className="mt-6 space-y-6 animate-in fade-in duration-300">
+            <Tabs defaultValue="list" className="w-full">
+              <TabsList className="flex bg-slate-100 p-1 rounded-lg border border-slate-200 w-fit mb-4">
+                <TabsTrigger value="list" className="text-xs font-semibold px-4 py-1.5 rounded-md data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                  Current Registrations
+                </TabsTrigger>
+                <TabsTrigger value="form" className="text-xs font-semibold px-4 py-1.5 rounded-md data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                  Edit Registration Form
+                </TabsTrigger>
+              </TabsList>
+              <TabsContent value="list" className="space-y-4">
+                <RegistrationManagement tournamentId={tournamentId} tournament={tournament} />
+              </TabsContent>
+              <TabsContent value="form" className="space-y-4">
+                <RegistrationFormConfigurator tournamentId={tournamentId} tournament={tournament} />
+              </TabsContent>
+            </Tabs>
           </TabsContent>
 
 

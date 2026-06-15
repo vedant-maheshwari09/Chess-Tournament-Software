@@ -10,6 +10,7 @@ interface GeneralSettingsCardProps {
     allowEditRegistration: boolean;
     enablePairingPredictor: boolean;
     isDoubleElimination: boolean;
+    allowExtraGames?: boolean;
   };
   format?: string;
   onChange: (update: Partial<GeneralSettingsCardProps['value']>) => void;
@@ -74,6 +75,21 @@ export function GeneralSettingsCard({ value, onChange, format }: GeneralSettings
               id="enablePairingPredictor"
               checked={value.enablePairingPredictor}
               onCheckedChange={(checked) => onChange({ enablePairingPredictor: checked })}
+            />
+          </div>
+        )}
+        {format === "swiss" && (
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label htmlFor="allowExtraGames">Allow Extra Games</Label>
+              <p className="text-sm text-muted-foreground">
+                Enable creating extra rated games that don't affect standings
+              </p>
+            </div>
+            <Switch
+              id="allowExtraGames"
+              checked={value.allowExtraGames ?? false}
+              onCheckedChange={(checked) => onChange({ allowExtraGames: checked })}
             />
           </div>
         )}

@@ -15,6 +15,7 @@ import {
   parseTournamentConfig,
   serializeTournamentConfig,
   buildTournamentPayload,
+  type TournamentConfig,
 } from "@/lib/tournament-config";
 import {
   TOURNAMENT_TEMPLATE_OPTIONS,
@@ -26,14 +27,19 @@ import {
 } from "@/lib/tournament-templates";
 import type { Tournament, Player } from "@shared/schema";
 
-
-
 interface TournamentActionsPageProps {
   tournamentId: number;
 }
 
-export default function TournamentActionsPage({ tournamentId }: TournamentActionsPageProps) {
-  const { user, isLoading: authLoading } = useAuth();
+export function TournamentActionsContent({ 
+  tournamentId, 
+  tournament, 
+  parsedConfig 
+}: { 
+  tournamentId: number; 
+  tournament: Tournament; 
+  parsedConfig: TournamentConfig | null;
+}) {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
@@ -46,46 +52,9 @@ export default function TournamentActionsPage({ tournamentId }: TournamentAction
   const [templateSaving, setTemplateSaving] = useState(false);
   const templateImportInputRef = useRef<HTMLInputElement | null>(null);
 
-  const { data: tournament, isLoading: tournamentLoading } = useQuery<Tournament>({
-    queryKey: [`/api/tournaments/${tournamentId}`],
-  });
-
-  const parsedConfig = useMemo(() => (tournament ? parseTournamentConfig(tournament) : null), [tournament]);
-
-  const canManageTournament = useMemo(() => {
-    if (!user || !tournament) return false;
-    return user.role === "tournament_director" && user.id === tournament.createdBy;
-  }, [user, tournament]);
-
-  useEffect(() => {
-    if (authLoading || tournamentLoading) return;
-    if (!user) {
-      setLocation("/");
-      return;
-    }
-    if (!canManageTournament && tournament) {
-      setLocation(`/tournaments/${tournamentId}`);
-    }
-  }, [authLoading, canManageTournament, tournament, tournamentId, tournamentLoading, user, setLocation]);
-
   useEffect(() => {
     setTemplateSelections(TOURNAMENT_TEMPLATE_OPTIONS.map((option) => option.id));
   }, [tournamentId]);
-
-  if (authLoading || tournamentLoading || !tournament) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-transparent">
-        <div className="flex items-center gap-3 text-slate-500">
-          <span className="inline-flex h-5 w-5 animate-spin rounded-full border-2 border-slate-300 border-t-slate-500" />
-          Loading tournament actions...
-        </div>
-      </div>
-    );
-  }
-
-  if (!canManageTournament) {
-    return null;
-  }
 
   const updateTemplateSelection = (key: TemplateSectionKey, checked: boolean) => {
     setTemplateSelections((prev) => {
@@ -115,7 +84,6 @@ export default function TournamentActionsPage({ tournamentId }: TournamentAction
       return;
     }
 
-    // Fetch player roster if "players" section is selected
     let players: Player[] | undefined;
     if (templateSelections.includes("players")) {
       try {
@@ -153,7 +121,6 @@ export default function TournamentActionsPage({ tournamentId }: TournamentAction
     toast({ title: "Template exported", description: `Download complete.${playerNote}` });
   };
 
-
   const handleTemplateImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -188,7 +155,6 @@ export default function TournamentActionsPage({ tournamentId }: TournamentAction
         body: JSON.stringify(payload),
       });
 
-      // Import players if the snapshot includes them
       let playerImportNote = "";
       if (snapshot.selected.includes("players") && Array.isArray(snapshot.data.players) && snapshot.data.players.length > 0) {
         try {
@@ -221,7 +187,6 @@ export default function TournamentActionsPage({ tournamentId }: TournamentAction
       }
     }
   };
-
 
   const handleDelete = async () => {
     if (!window.confirm("Are you sure you want to delete this tournament? This action cannot be undone.")) {
@@ -259,13 +224,174 @@ export default function TournamentActionsPage({ tournamentId }: TournamentAction
 
     const subject = encodeURIComponent(`Tournament Coordination: ${tournament.name}`);
     const link = typeof window !== "undefined" ? `${window.location.origin}/tournaments/${tournamentId}` : "";
-    const message = shareMessage.trim().length > 0 ? `${shareMessage.trim()}
-
-` : "";
+    const message = shareMessage.trim().length > 0 ? `${shareMessage.trim()}\n\n` : "";
     const body = encodeURIComponent(`${message}Event details: ${link}`);
     const to = encodeURIComponent(recipients.join(","));
     window.location.href = `mailto:${to}?subject=${subject}&body=${body}`;
   };
+
+  return (
+    <div className="space-y-6">
+      {/* Templates Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            Templates
+          </CardTitle>
+          <CardDescription>
+            Export selected configuration areas or apply a saved template to this tournament.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+            <Button type="button" variant="ghost" size="sm" onClick={handleTemplateSelectAll}>
+              Select all
+            </Button>
+            <Button type="button" variant="ghost" size="sm" onClick={handleTemplateClear}>
+              Clear
+            </Button>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            {TOURNAMENT_TEMPLATE_OPTIONS.map((option) => {
+              const checked = templateSelections.includes(option.id);
+              return (
+                <label
+                  key={option.id}
+                  className="flex items-start gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 text-left shadow-sm cursor-pointer hover:border-slate-350 transition-all"
+                >
+                  <Checkbox
+                    checked={checked}
+                    onCheckedChange={(value) => updateTemplateSelection(option.id, value === true)}
+                  />
+                  <div>
+                    <p className="text-sm font-medium text-slate-900">{option.label}</p>
+                    <p className="text-xs text-slate-500">{option.description}</p>
+                  </div>
+                </label>
+              );
+            })}
+          </div>
+          <div className="flex flex-wrap items-center gap-3 pt-2">
+            <Button variant="outline" onClick={() => templateImportInputRef.current?.click()} disabled={templateSaving}>
+              {templateSaving ? "Applying template..." : "Import template"}
+            </Button>
+            <Button onClick={handleTemplateExport} disabled={templateSelections.length === 0}>
+              Export template
+            </Button>
+            <input
+              ref={templateImportInputRef}
+              type="file"
+              accept="application/json"
+              className="hidden"
+              onChange={handleTemplateImport}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Share Event Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Share2 className="h-5 w-5" /> Share event with directors
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700" htmlFor="share-emails">
+              Email addresses
+            </label>
+            <Input
+              id="share-emails"
+              value={shareEmails}
+              onChange={(event) => setShareEmails(event.target.value)}
+              placeholder="director1@example.com, director2@example.com"
+            />
+            <p className="text-xs text-muted-foreground">Separate recipients with commas or spaces.</p>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700" htmlFor="share-message">
+              Personal message (optional)
+            </label>
+            <Textarea
+              id="share-message"
+              rows={4}
+              value={shareMessage}
+              onChange={(event) => setShareMessage(event.target.value)}
+              placeholder="Add context or instructions for fellow directors."
+            />
+          </div>
+
+          <Button onClick={handleShare} className="flex items-center gap-2">
+            <Mail className="h-4 w-4" /> Share via email
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Delete Tournament Card */}
+      <Card className="border-red-200 bg-red-50/80">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-red-700">
+            <Trash2 className="h-5 w-5" /> Delete tournament
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4 text-sm text-red-700">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="mt-0.5 h-4 w-4" />
+            <p>
+              This will remove the tournament, its players, pairings, and history. This action cannot be undone.
+            </p>
+          </div>
+          <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
+            {deleting ? "Deleting..." : "Delete tournament"}
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+export default function TournamentActionsPage({ tournamentId }: TournamentActionsPageProps) {
+  const { user, isLoading: authLoading } = useAuth();
+  const [, setLocation] = useLocation();
+
+  const { data: tournament, isLoading: tournamentLoading } = useQuery<Tournament>({
+    queryKey: [`/api/tournaments/${tournamentId}`],
+  });
+
+  const parsedConfig = useMemo(() => (tournament ? parseTournamentConfig(tournament) : null), [tournament]);
+
+  const canManageTournament = useMemo(() => {
+    if (!user || !tournament) return false;
+    return user.role === "tournament_director" && user.id === tournament.createdBy;
+  }, [user, tournament]);
+
+  useEffect(() => {
+    if (authLoading || tournamentLoading) return;
+    if (!user) {
+      setLocation("/");
+      return;
+    }
+    if (!canManageTournament && tournament) {
+      setLocation(`/tournaments/${tournamentId}`);
+    }
+  }, [authLoading, canManageTournament, tournament, tournamentId, tournamentLoading, user, setLocation]);
+
+  if (authLoading || tournamentLoading || !tournament) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-transparent">
+        <div className="flex items-center gap-3 text-slate-500">
+          <span className="inline-flex h-5 w-5 animate-spin rounded-full border-2 border-slate-300 border-t-slate-500" />
+          Loading tournament actions...
+        </div>
+      </div>
+    );
+  }
+
+  if (!canManageTournament) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-transparent">
@@ -289,146 +415,11 @@ export default function TournamentActionsPage({ tournamentId }: TournamentAction
           <Badge variant="outline">ID #{tournament.id}</Badge>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              Templates
-            </CardTitle>
-            <CardDescription>
-              Export selected configuration areas or apply a saved template to this tournament.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-              <Button type="button" variant="ghost" size="sm" onClick={handleTemplateSelectAll}>
-                Select all
-              </Button>
-              <Button type="button" variant="ghost" size="sm" onClick={handleTemplateClear}>
-                Clear
-              </Button>
-            </div>
-            <div className="grid gap-3 md:grid-cols-2">
-              {TOURNAMENT_TEMPLATE_OPTIONS.map((option) => {
-                const checked = templateSelections.includes(option.id);
-                return (
-                  <label
-                    key={option.id}
-                    className="flex items-start gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 text-left shadow-sm"
-                  >
-                    <Checkbox
-                      checked={checked}
-                      onCheckedChange={(value) => updateTemplateSelection(option.id, value === true)}
-                    />
-                    <div>
-                      <p className="text-sm font-medium text-slate-900">{option.label}</p>
-                      <p className="text-xs text-slate-500">{option.description}</p>
-                    </div>
-                  </label>
-                );
-              })}
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <Button variant="outline" onClick={() => templateImportInputRef.current?.click()} disabled={templateSaving}>
-                {templateSaving ? "Applying template..." : "Import template"}
-              </Button>
-              <Button onClick={handleTemplateExport} disabled={templateSelections.length === 0}>
-                Export template
-              </Button>
-              <input
-                ref={templateImportInputRef}
-                type="file"
-                accept="application/json"
-                className="hidden"
-                onChange={handleTemplateImport}
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Player Roster Import */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5 text-indigo-600" />
-              Player Roster
-            </CardTitle>
-            <CardDescription>
-              Import the same set of players from one of your past tournaments to quickly sign everyone up.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm text-slate-600 leading-relaxed">
-              Go to <strong>Settings → Player Signup</strong> to select a past tournament and choose which players to import into this one. Their name, rating, and section details will carry over.
-            </p>
-            <Button
-              variant="outline"
-              className="border-indigo-200 text-indigo-700 hover:bg-indigo-50"
-              onClick={() => setLocation(`/tournaments/${tournamentId}/settings/player-signup`)}
-            >
-              <Users className="mr-2 h-4 w-4" />
-              Import Players from Past Tournament
-            </Button>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Share2 className="h-5 w-5" /> Share event with directors
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700" htmlFor="share-emails">
-                Email addresses
-              </label>
-              <Input
-                id="share-emails"
-                value={shareEmails}
-                onChange={(event) => setShareEmails(event.target.value)}
-                placeholder="director1@example.com, director2@example.com"
-              />
-              <p className="text-xs text-muted-foreground">Separate recipients with commas or spaces.</p>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700" htmlFor="share-message">
-                Personal message (optional)
-              </label>
-              <Textarea
-                id="share-message"
-                rows={4}
-                value={shareMessage}
-                onChange={(event) => setShareMessage(event.target.value)}
-                placeholder="Add context or instructions for fellow directors."
-              />
-            </div>
-
-            <Button onClick={handleShare} className="flex items-center gap-2">
-              <Mail className="h-4 w-4" /> Share via email
-            </Button>
-          </CardContent>
-        </Card>
-
-        <Card className="border-red-200 bg-red-50/80">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-red-700">
-              <Trash2 className="h-5 w-5" /> Delete tournament
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4 text-sm text-red-700">
-            <div className="flex items-start gap-2">
-              <AlertTriangle className="mt-0.5 h-4 w-4" />
-              <p>
-                This will remove the tournament, its players, pairings, and history. This action cannot be undone.
-              </p>
-            </div>
-            <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
-              {deleting ? "Deleting..." : "Delete tournament"}
-            </Button>
-          </CardContent>
-        </Card>
-
+        <TournamentActionsContent 
+          tournamentId={tournamentId} 
+          tournament={tournament} 
+          parsedConfig={parsedConfig} 
+        />
       </div>
     </div>
   );

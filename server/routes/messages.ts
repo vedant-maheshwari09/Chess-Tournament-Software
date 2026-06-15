@@ -3,15 +3,13 @@ import { eq, or, and, desc, asc, ne, inArray, ilike, sql } from "drizzle-orm";
 import { db } from "../db";
 import { chatThreads, chatParticipants, chatMessages, users } from "../../shared/schema";
 import { addSSEClient, broadcastMessage } from "../sse";
+import { requireAuth } from "../auth";
 
 export const applyMessagesRoutes = (app: express.Express) => {
   const router = express.Router();
 
-  // Middleware to ensure authentication
-  router.use((req, res, next) => {
-    if (!req.user) return res.status(401).json({ message: "Not authenticated" });
-    next();
-  });
+  // Use requireAuth to parse session tokens and populate req.user
+  router.use(requireAuth);
 
   // SSE Endpoint
   router.get("/stream", (req, res) => {
@@ -103,6 +101,8 @@ export const applyMessagesRoutes = (app: express.Express) => {
         createdAt: chatMessages.createdAt,
         senderId: chatMessages.senderId,
         senderName: users.username,
+        isDeleted: chatMessages.isDeleted,
+        isEdited: chatMessages.isEdited,
       })
       .from(chatMessages)
       .leftJoin(users, eq(users.id, chatMessages.senderId))
@@ -126,6 +126,22 @@ export const applyMessagesRoutes = (app: express.Express) => {
 
     if (!participantIds || !Array.isArray(participantIds)) {
       return res.status(400).json({ message: "participantIds array is required" });
+    }
+
+    // Enforce messaging restrictions
+    const isGroupChat = !!isGroup || participantIds.length > 1;
+    if (isGroupChat && req.user!.role !== "tournament_director") {
+      return res.status(403).json({ message: "Only Tournament Directors can create group chats." });
+    }
+
+    if (!isGroupChat) {
+      const otherId = participantIds[0];
+      if (otherId && req.user!.role === "player") {
+        const [otherUser] = await db.select().from(users).where(eq(users.id, otherId)).limit(1);
+        if (otherUser && otherUser.role !== "tournament_director") {
+          return res.status(403).json({ message: "Players can only create individual chats with tournament directors." });
+        }
+      }
     }
 
     // Add current user to participants
@@ -283,11 +299,85 @@ export const applyMessagesRoutes = (app: express.Express) => {
     res.json(updated[0]);
   });
 
+  // Edit message
+  router.patch("/:id", async (req, res) => {
+    const userId = req.user!.id;
+    const messageId = parseInt(req.params.id);
+    const { content } = req.body;
+
+    if (!content || !content.trim()) {
+      return res.status(400).json({ message: "Content cannot be empty" });
+    }
+
+    const message = await db
+      .select()
+      .from(chatMessages)
+      .where(eq(chatMessages.id, messageId))
+      .limit(1);
+
+    if (message.length === 0) {
+      return res.status(404).json({ message: "Message not found" });
+    }
+
+    if (message[0].senderId !== userId) {
+      return res.status(403).json({ message: "Cannot edit another user's message" });
+    }
+
+    if (message[0].isDeleted) {
+      return res.status(400).json({ message: "Cannot edit a deleted message" });
+    }
+
+    const updated = await db
+      .update(chatMessages)
+      .set({ content, isEdited: true })
+      .where(eq(chatMessages.id, messageId))
+      .returning();
+
+    // Broadcast edit event
+    const allParticipants = await db
+      .select({ userId: chatParticipants.userId })
+      .from(chatParticipants)
+      .where(eq(chatParticipants.threadId, message[0].threadId));
+
+    const participantIds = allParticipants.map((p) => p.userId);
+    
+    // Fetch sender info for broadcast
+    const sender = await db.select({ username: users.username }).from(users).where(eq(users.id, userId)).limit(1);
+
+    broadcastMessage(participantIds, {
+      type: "message_edited",
+      message: {
+        id: updated[0].id,
+        threadId: updated[0].threadId,
+        content: updated[0].content,
+        createdAt: updated[0].createdAt,
+        isDeleted: updated[0].isDeleted,
+        isEdited: updated[0].isEdited,
+        senderId: userId,
+        senderName: sender[0]?.username,
+      }
+    });
+
+    res.json(updated[0]);
+  });
+
   // Search users for new chat
   router.get("/users/search", async (req, res) => {
     const query = req.query.q as string;
     if (!query || query.length < 2) {
       return res.json([]);
+    }
+
+    const searchConditions = [
+      or(
+        ilike(users.username, `%${query}%`),
+        ilike(users.firstName, `%${query}%`),
+        ilike(users.lastName, `%${query}%`)
+      )
+    ];
+
+    if (req.user!.role === "player") {
+      searchConditions.push(eq(users.role, "tournament_director"));
     }
 
     const results = await db
@@ -298,13 +388,7 @@ export const applyMessagesRoutes = (app: express.Express) => {
         lastName: users.lastName,
       })
       .from(users)
-      .where(
-        or(
-          ilike(users.username, `%${query}%`),
-          ilike(users.firstName, `%${query}%`),
-          ilike(users.lastName, `%${query}%`)
-        )
-      )
+      .where(and(...searchConditions))
       .limit(20);
 
     res.json(results);

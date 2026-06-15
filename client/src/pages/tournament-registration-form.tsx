@@ -100,6 +100,7 @@ const registrationSchema = z.object({
   currency: z.string().optional(),
   amountDue: z.number().optional(),
   amountPaid: z.number().optional(),
+  customAnswers: z.record(z.any()).optional().default({}),
 });
 
 type RegistrationFormValues = z.infer<typeof registrationSchema>;
@@ -137,6 +138,7 @@ const DEFAULT_FORM_VALUES: RegistrationFormValues = {
   currency: undefined,
   amountDue: undefined,
   amountPaid: undefined,
+  customAnswers: {},
 };
 
 interface PaymentsConfigResponse {
@@ -390,6 +392,41 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
       amountPaid: undefined,
     },
   });
+  const validateCustomFormConfig = (): boolean => {
+    let isValid = true;
+    const values = form.getValues();
+    const fields = config?.registrationFormConfig?.fields || [];
+    
+    form.clearErrors("customAnswers");
+
+    for (const field of fields) {
+      if (!field.isCustom) {
+        if (field.visible && field.required) {
+          const val = values[field.id as keyof RegistrationFormValues];
+          if (val === undefined || val === null || (typeof val === "string" && !val.trim()) || (Array.isArray(val) && val.length === 0)) {
+            form.setError(field.id as keyof RegistrationFormValues, {
+              type: "manual",
+              message: `${field.label} is required`
+            });
+            isValid = false;
+          }
+        }
+      } else {
+        const customVal = values.customAnswers?.[field.id];
+        if (field.visible && field.required) {
+          if (customVal === undefined || customVal === null || (typeof customVal === "string" && !customVal.trim())) {
+            form.setError(`customAnswers.${field.id}` as any, {
+              type: "manual",
+              message: `${field.label} is required`
+            });
+            isValid = false;
+          }
+        }
+      }
+    }
+    return isValid;
+  };
+
   const paymentSubmitRef = useRef<(() => Promise<boolean>) | null>(null);
   const paymentIntentRequestKeyRef = useRef<string | null>(null);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
@@ -668,6 +705,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
         currency: values.currency,
         amountDue: typeof values.amountDue === "number" ? values.amountDue : undefined,
         amountPaid: typeof values.amountPaid === "number" ? values.amountPaid : undefined,
+        customAnswers: values.customAnswers ?? {},
       };
 
       DEBUG_LOG("Submitting single registration mutation payload", payload);
@@ -870,6 +908,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
         currency: values.currency,
         amountDue: typeof values.amountDue === "number" ? values.amountDue : undefined,
         amountPaid: typeof values.amountPaid === "number" ? values.amountPaid : undefined,
+        customAnswers: values.customAnswers ?? {},
       }));
 
       DEBUG_LOG("Submitting batch registration mutation payload", payloadArray);
@@ -1163,6 +1202,10 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
       valid = await form.trigger(fields, { shouldFocus: true });
     }
 
+    if (valid && currentStep === 2) {
+      valid = validateCustomFormConfig();
+    }
+
     if (!valid) {
       DEBUG_LOG("Step navigation blocked: validation failed", form.formState.errors, 'warn');
       if (fields.includes("entryFeeId")) {
@@ -1252,6 +1295,10 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
       valid = await form.trigger(fields, { shouldFocus: true });
     }
 
+    if (valid && currentStep === 2) {
+      valid = validateCustomFormConfig();
+    }
+
     if (!valid) {
       DEBUG_LOG("Add another player blocked: validation failed", form.formState.errors, 'warn');
       if (fields.includes("entryFeeId")) {
@@ -1319,6 +1366,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
       currency: undefined,
       amountDue: undefined,
       amountPaid: undefined,
+      customAnswers: {},
     });
     setCurrentStep(1);
   };
@@ -1962,6 +2010,26 @@ interface RatingLookupResponse {
   errors?: Partial<Record<RatingLookupSource, string>>;
 }
 
+function getFieldConfig(config: any, fieldId: string) {
+  const defaultFields = [
+    { id: "address1", label: "Address Line 1", type: "text", required: false, visible: true },
+    { id: "address2", label: "Address Line 2", type: "text", required: false, visible: true },
+    { id: "city", label: "City", type: "text", required: false, visible: true },
+    { id: "state", label: "State / Province", type: "text", required: false, visible: true },
+    { id: "postalCode", label: "Postal Code", type: "text", required: false, visible: true },
+    { id: "country", label: "Country", type: "text", required: false, visible: true },
+    { id: "uscfId", label: "USCF ID", type: "text", required: false, visible: true },
+    { id: "fideId", label: "FIDE ID", type: "text", required: false, visible: true },
+    { id: "byePreference", label: "Bye Requests", type: "boolean", required: false, visible: true },
+    { id: "arrivalTime", label: "Expected Arrival Time", type: "text", required: false, visible: true },
+    { id: "notes", label: "Notes / Requests", type: "text", required: false, visible: true },
+    { id: "newsletter", label: "Receive Bulletins", type: "boolean", required: false, visible: true },
+  ];
+  const fields = config?.registrationFormConfig?.fields || defaultFields;
+  const field = fields.find((f: any) => f.id === fieldId);
+  return field ?? { id: fieldId, label: fieldId, type: "text", required: false, visible: false };
+}
+
 function StepOne({
   config,
   players,
@@ -2277,8 +2345,20 @@ function StepOne({
           <div className="grid gap-5 sm:grid-cols-2">
             <Field label="First name" name="firstName" required />
             <Field label="Last name" name="lastName" required />
-            <Field label="USCF ID" name="uscfId" />
-            <Field label="FIDE ID" name="fideId" />
+            {getFieldConfig(config, "uscfId").visible && (
+              <Field 
+                label={getFieldConfig(config, "uscfId").label} 
+                name="uscfId" 
+                required={getFieldConfig(config, "uscfId").required} 
+              />
+            )}
+            {getFieldConfig(config, "fideId").visible && (
+              <Field 
+                label={getFieldConfig(config, "fideId").label} 
+                name="fideId" 
+                required={getFieldConfig(config, "fideId").required} 
+              />
+            )}
             {config?.details.primaryRatingSystem === "fide" ? (
               <>
                 <Field label="FIDE rating (Primary)" name="fideRating" />
@@ -2420,6 +2500,10 @@ function StepTwo({
   const fideRatingValue = form.watch("fideRating");
   const selectedSection = form.watch("sectionChoice");
   const selectedEntryFeeId = form.watch("entryFeeId");
+
+  const customFields = useMemo(() => {
+    return config?.registrationFormConfig?.fields.filter(f => f.isCustom) ?? [];
+  }, [config]);
 
   const numericRating = useMemo(
     () => derivePlayerRating(ratingProvider, uscfRatingValue, fideRatingValue, config?.details.primaryRatingSystem),
@@ -2607,33 +2691,79 @@ function StepTwo({
           )}
         </div>
 
-        <Separator />
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Address" name="address1" />
-          <Field label="Address 2" name="address2" />
-          <Field label="City" name="city" />
-          <Field label="State / Province" name="state" />
-          <Field label="Postal code" name="postalCode" />
-          <div>
-            <Label className="text-sm font-medium text-slate-700">Country</Label>
-            <Select
-              value={form.watch("country") ?? "United States"}
-              onValueChange={(value) => form.setValue("country", value, { shouldDirty: true })}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select country" />
-              </SelectTrigger>
-              <SelectContent>
-                {COUNTRY_OPTIONS.map((country) => (
-                  <SelectItem key={country} value={country}>
-                    {country}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
+        {(getFieldConfig(config, "address1").visible ||
+          getFieldConfig(config, "address2").visible ||
+          getFieldConfig(config, "city").visible ||
+          getFieldConfig(config, "state").visible ||
+          getFieldConfig(config, "postalCode").visible ||
+          getFieldConfig(config, "country").visible) && (
+          <>
+            <Separator />
+            <div className="grid gap-4 sm:grid-cols-2">
+              {getFieldConfig(config, "address1").visible && (
+                <Field 
+                  label={getFieldConfig(config, "address1").label} 
+                  name="address1" 
+                  required={getFieldConfig(config, "address1").required} 
+                />
+              )}
+              {getFieldConfig(config, "address2").visible && (
+                <Field 
+                  label={getFieldConfig(config, "address2").label} 
+                  name="address2" 
+                  required={getFieldConfig(config, "address2").required} 
+                />
+              )}
+              {getFieldConfig(config, "city").visible && (
+                <Field 
+                  label={getFieldConfig(config, "city").label} 
+                  name="city" 
+                  required={getFieldConfig(config, "city").required} 
+                />
+              )}
+              {getFieldConfig(config, "state").visible && (
+                <Field 
+                  label={getFieldConfig(config, "state").label} 
+                  name="state" 
+                  required={getFieldConfig(config, "state").required} 
+                />
+              )}
+              {getFieldConfig(config, "postalCode").visible && (
+                <Field 
+                  label={getFieldConfig(config, "postalCode").label} 
+                  name="postalCode" 
+                  required={getFieldConfig(config, "postalCode").required} 
+                />
+              )}
+              {getFieldConfig(config, "country").visible && (
+                <div>
+                  <Label className="text-sm font-medium text-slate-700">
+                    {getFieldConfig(config, "country").label}
+                    {getFieldConfig(config, "country").required && <span className="ml-1 text-red-500">*</span>}
+                  </Label>
+                  <Select
+                    value={form.watch("country") ?? "United States"}
+                    onValueChange={(value) => form.setValue("country", value, { shouldDirty: true })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select country" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {COUNTRY_OPTIONS.map((country) => (
+                        <SelectItem key={country} value={country}>
+                          {country}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {form.formState.errors.country && (
+                    <p className="mt-1 text-xs text-red-500">{form.formState.errors.country.message}</p>
+                  )}
+                </div>
+              )}
+            </div>
+          </>
+        )}
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
@@ -2655,32 +2785,45 @@ function StepTwo({
               </SelectContent>
             </Select>
           </div>
-          <div className="flex items-start gap-4 rounded-xl border border-slate-200 bg-slate-50/50 p-5 transition-all group hover:bg-white hover:shadow-md hover:border-indigo-200">
-            <input
-              id="newsletter"
-              type="checkbox"
-              className="mt-1 h-4 w-4 rounded-md border-slate-300 text-indigo-600 focus:ring-indigo-500"
-              checked={form.watch("newsletter") ?? false}
-              onChange={(event) => form.setValue("newsletter", event.target.checked)}
-            />
-            <div className="space-y-1">
-              <Label htmlFor="newsletter" className="text-sm font-bold text-slate-900 cursor-pointer">
-                Receive Tournament Bulletins
-              </Label>
-              <p className="text-xs leading-relaxed text-slate-500">
-                Register for the official newsletter to receive pairing alerts, result updates, and future event invitations.
-              </p>
+          {getFieldConfig(config, "newsletter").visible && (
+            <div className="flex items-start gap-4 rounded-xl border border-slate-200 bg-slate-50/50 p-5 transition-all group hover:bg-white hover:shadow-md hover:border-indigo-200">
+              <input
+                id="newsletter"
+                type="checkbox"
+                className="mt-1 h-4 w-4 rounded-md border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                checked={form.watch("newsletter") ?? false}
+                onChange={(event) => form.setValue("newsletter", event.target.checked)}
+              />
+              <div className="space-y-1">
+                <Label htmlFor="newsletter" className="text-sm font-bold text-slate-900 cursor-pointer">
+                  {getFieldConfig(config, "newsletter").label}
+                  {getFieldConfig(config, "newsletter").required && <span className="ml-1 text-red-500">*</span>}
+                </Label>
+                <p className="text-xs leading-relaxed text-slate-500">
+                  Register for the official newsletter to receive pairing alerts, result updates, and future event invitations.
+                </p>
+              </div>
             </div>
+          )}
+        </div>
+
+        {getFieldConfig(config, "arrivalTime").visible && (
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field 
+              label={getFieldConfig(config, "arrivalTime").label} 
+              name="arrivalTime" 
+              placeholder="e.g., Arriving Saturday 9AM" 
+              required={getFieldConfig(config, "arrivalTime").required}
+            />
           </div>
-        </div>
+        )}
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Expected arrival notes" name="arrivalTime" placeholder="e.g., Arriving Saturday 9AM" />
-        </div>
-
-        {(config?.format !== "arena" && config?.format !== "knockout") && (
+        {getFieldConfig(config, "byePreference").visible && (config?.format !== "arena" && config?.format !== "knockout") && (
           <div className="space-y-4">
-            <Label className="text-sm font-medium text-slate-700">Bye requests</Label>
+            <Label className="text-sm font-medium text-slate-700">
+              {getFieldConfig(config, "byePreference").label}
+              {getFieldConfig(config, "byePreference").required && <span className="ml-1 text-red-500">*</span>}
+            </Label>
             <RadioGroup
               value={byePreference}
               onValueChange={(value) =>
@@ -2720,18 +2863,109 @@ function StepTwo({
                 </div>
               </div>
             )}
+            {form.formState.errors.byePreference && (
+              <p className="mt-1 text-xs text-red-500">{form.formState.errors.byePreference.message}</p>
+            )}
           </div>
         )}
 
-        <div>
-          <Label className="text-sm font-medium text-slate-700">Notes to tournament director</Label>
-          <Textarea
-            className="mt-2"
-            rows={4}
-            placeholder="Share any additional information, such as companions, accessibility needs, or late arrival details."
-            {...form.register("notes")}
-          />
-        </div>
+        {getFieldConfig(config, "notes").visible && (
+          <div>
+            <Label className="text-sm font-medium text-slate-700">
+              {getFieldConfig(config, "notes").label}
+              {getFieldConfig(config, "notes").required && <span className="ml-1 text-red-500">*</span>}
+            </Label>
+            <Textarea
+              className="mt-2"
+              rows={4}
+              placeholder="Share any additional information, such as companions, accessibility needs, or late arrival details."
+              {...form.register("notes")}
+            />
+            {form.formState.errors.notes && (
+              <p className="mt-1 text-xs text-red-500">{form.formState.errors.notes.message}</p>
+            )}
+          </div>
+        )}
+
+        {/* Custom additional questions */}
+        {customFields.length > 0 && (
+          <div className="space-y-6 pt-6 border-t border-slate-100">
+            <div>
+              <Label className="text-base font-bold text-slate-900">Additional Questions</Label>
+              <p className="text-xs text-slate-500">Please provide answers for the tournament director.</p>
+            </div>
+            <div className="grid gap-5 sm:grid-cols-2">
+              {customFields.map((field) => {
+                if (field.type === "boolean") {
+                  return (
+                    <div key={field.id} className="flex items-start gap-4 rounded-xl border border-slate-200 bg-slate-50/50 p-5 transition-all group hover:bg-white hover:shadow-md hover:border-indigo-200 col-span-2">
+                      <input
+                        id={field.id}
+                        type="checkbox"
+                        className="mt-1 h-4 w-4 rounded-md border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                        checked={form.watch(`customAnswers.${field.id}`) ?? false}
+                        onChange={(event) => form.setValue(`customAnswers.${field.id}`, event.target.checked, { shouldDirty: true })}
+                      />
+                      <div className="space-y-1">
+                        <Label htmlFor={field.id} className="text-sm font-bold text-slate-900 cursor-pointer">
+                          {field.label}
+                          {field.required && <span className="ml-1 text-red-500">*</span>}
+                        </Label>
+                      </div>
+                    </div>
+                  );
+                }
+
+                if (field.type === "select") {
+                  return (
+                    <div key={field.id} className="group space-y-2">
+                      <Label className="text-sm font-medium text-slate-700">
+                        {field.label}
+                        {field.required && <span className="ml-1 text-red-500">*</span>}
+                      </Label>
+                      <Select
+                        value={form.watch(`customAnswers.${field.id}`) ?? ""}
+                        onValueChange={(val) => form.setValue(`customAnswers.${field.id}`, val, { shouldDirty: true })}
+                      >
+                        <SelectTrigger className="bg-white border-slate-200">
+                          <SelectValue placeholder={`Select ${field.label}`} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {field.options?.map((opt) => (
+                            <SelectItem key={opt} value={opt}>
+                              {opt}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {form.formState.errors.customAnswers?.[field.id] && (
+                        <p className="text-xs text-red-500">{(form.formState.errors.customAnswers as any)[field.id].message}</p>
+                      )}
+                    </div>
+                  );
+                }
+
+                return (
+                  <div key={field.id} className="group space-y-2">
+                    <Label className="text-sm font-medium text-slate-700">
+                      {field.label}
+                      {field.required && <span className="ml-1 text-red-500">*</span>}
+                    </Label>
+                    <Input
+                      type={field.type === "number" ? "number" : "text"}
+                      placeholder={field.label}
+                      {...form.register(`customAnswers.${field.id}`, { valueAsNumber: field.type === "number" })}
+                      className="focus:border-indigo-400 focus:ring-indigo-200"
+                    />
+                    {form.formState.errors.customAnswers?.[field.id] && (
+                      <p className="text-xs text-red-500">{(form.formState.errors.customAnswers as any)[field.id].message}</p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

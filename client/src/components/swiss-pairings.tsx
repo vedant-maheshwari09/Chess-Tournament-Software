@@ -227,8 +227,53 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
 
   const swissMatches = useMemo(() => {
     if (tournament?.format !== 'swiss') return [] as Match[];
-    return [...filteredMatches].sort((a, b) => (a.board || 0) - (b.board || 0));
+    return [...filteredMatches].filter(m => !m.isExtraGame).sort((a, b) => (a.board || 0) - (b.board || 0));
   }, [filteredMatches, tournament?.format]);
+
+  const extraMatches = useMemo(() => {
+    return [...filteredMatches].filter(m => m.isExtraGame).sort((a, b) => a.id - b.id);
+  }, [filteredMatches]);
+
+  const [selectedWhitePlayerId, setSelectedWhitePlayerId] = useState<string>("");
+  const [selectedBlackPlayerId, setSelectedBlackPlayerId] = useState<string>("");
+
+  const sectionPlayers = useMemo(() => {
+    if (!players) return [];
+    return players.filter((player) => {
+      if (activeSection === "all") return true;
+      const section = playerSectionMap.get(player.id);
+      return section?.id === activeSection;
+    });
+  }, [players, playerSectionMap, activeSection]);
+
+  const addExtraMatchMutation = useMutation({
+    mutationFn: async ({ whitePlayerId, blackPlayerId }: { whitePlayerId: number; blackPlayerId: number }) => {
+      return await apiRequest(`/api/tournaments/${tournamentId}/extra-matches`, {
+        method: "POST",
+        body: JSON.stringify({
+          round: currentRound,
+          whitePlayerId,
+          blackPlayerId,
+        }),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/matches`] });
+      toast({
+        title: "Extra Game Added",
+        description: "The extra game has been successfully added to this round.",
+      });
+      setSelectedWhitePlayerId("");
+      setSelectedBlackPlayerId("");
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to add extra game.",
+        variant: "destructive",
+      });
+    },
+  });
 
   // Group knockout matches by round and board to handle series
   const knockoutGroups = useMemo(() => {
@@ -607,6 +652,16 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
     [allMatches, allTournamentPairings],
   );
 
+  const formatPointsWithFractions = (val: number): string => {
+    if (val === 0) return "0";
+    const integerPart = Math.floor(val);
+    const fractionalPart = val - integerPart;
+    if (fractionalPart === 0.5) {
+      return integerPart > 0 ? `${integerPart}½` : "½";
+    }
+    return val.toString();
+  };
+
   const handlePrintPairings = useCallback(async () => {
     if (!hasPrintableMatches || typeof window === "undefined") return;
     const headingSuffix = activeSection === "all" ? "" : ` – ${selectedSectionLabel}`;
@@ -614,37 +669,45 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
     const printWindow = window.open("", "_blank");
     if (!printWindow) return;
 
+    const getFormattedPlayerLabel = (playerId: number | null, beforeRound: number) => {
+      if (!playerId) return "";
+      const p = getPlayerObject(playerId);
+      if (!p) return "";
+      const titleStr = p.title ? `${p.title} ` : "";
+      const rating = getPlayerRating(playerId);
+      const points = getPlayerPoints(playerId, beforeRound);
+      const pointsStr = formatPointsWithFractions(points);
+      return `${titleStr}${p.firstName} ${p.lastName} (${rating} ${pointsStr})`;
+    };
+
     printWindow.document.write(
       `<html><head><title>${title}</title><style>
-        body { font-family: 'Courier New', Courier, monospace; padding: 24px; color: #000; font-size: 13px; background-color: #fff; }
-        h1 { font-size: 18px; margin-bottom: 12px; font-weight: bold; font-family: Arial, sans-serif; text-align: center; }
-        h2 { font-size: 14px; margin: 20px 0 8px; font-weight: bold; font-family: Arial, sans-serif; }
-        table { width: 100%; border-collapse: collapse; margin-bottom: 24px; font-size: 13px; }
-        th { text-align: left; padding: 4px; border: 1px solid #000; background-color: #e8e8e8; font-weight: bold; }
-        td { padding: 4px; border: 1px solid #000; }
+        @media print {
+          @page { size: auto; margin: 15mm; }
+        }
+        body { font-family: Arial, sans-serif; padding: 10px; color: #000; font-size: 14px; background-color: #fff; }
+        .round-header { font-size: 16px; margin: 10px 0 15px; font-weight: bold; font-family: Arial, sans-serif; text-align: left; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 14px; }
+        th { text-align: left; padding: 6px 10px; border: 1px solid #000; background-color: #fff; font-weight: bold; }
+        td { padding: 6px 10px; border: 1px solid #000; vertical-align: middle; }
+        .page-footer { display: flex; justify-content: space-between; font-size: 12px; font-family: Arial, sans-serif; margin-top: 30px; border-top: 1px solid transparent; padding-top: 10px; }
       </style></head><body>`,
     );
-    printWindow.document.write(`<h1>${title}</h1>`);
-
-    const baseUrl = window.location.origin;
 
     for (const { round, matches } of pairingGroups) {
       if (!matches.length) continue;
+      
       printWindow.document.write(
-        `<h2>Round ${round}</h2><table><thead><tr><th>Bd</th><th>QR</th><th>White</th><th>Res</th><th>Black</th><th>Res</th></tr></thead><tbody>`,
+        `<div class="round-header">${tournament?.name || "Tournament"}: ${selectedSectionLabel} -- Round ${round}. &nbsp;&nbsp;TIME: ${tournament?.timeControl || "G/90;d10"}</div>`
       );
+
+      printWindow.document.write(
+        `<table><thead><tr><th style="width: 50px; text-align: center;">Bd</th><th style="width: 60px; text-align: center;">Res</th><th>White</th><th style="width: 60px; text-align: center;">Res</th><th>Black</th></tr></thead><tbody>`,
+      );
+
       for (const match of matches) {
-        const whiteName = getPlayerName(match.whitePlayerId);
-        const whiteRating = getPlayerRating(match.whitePlayerId);
-        const blackName = match.blackPlayerId ? getPlayerName(match.blackPlayerId) : "Bye";
-        const blackRating = match.blackPlayerId ? getPlayerRating(match.blackPlayerId) : 0;
-        
-        let qrDataUrl = "";
-        try {
-          qrDataUrl = await QRCode.toDataURL(`${baseUrl}/mobile/matches/${match.id}/submit`, { margin: 1, width: 100 });
-        } catch (err) {
-          console.error("QR Code generation failed", err);
-        }
+        const whiteLabel = getFormattedPlayerLabel(match.whitePlayerId, round);
+        const blackLabel = match.blackPlayerId ? getFormattedPlayerLabel(match.blackPlayerId, round) : "BYE";
 
         const isWhiteWin = match.result === "1-0" || match.result === "1F-0F";
         const isBlackWin = match.result === "0-1" || match.result === "0F-1F";
@@ -654,40 +717,59 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
 
         printWindow.document.write(
           `<tr>
-            <td>${match.board ?? ""}</td>
-            <td class="qr-cell">${qrDataUrl ? `<img src="${qrDataUrl}" class="qr-img" />` : ""}</td>
-            <td>${whiteName} (${whiteRating})</td>
+            <td style="text-align: center; font-weight: bold;">${match.board ?? ""}</td>
             <td style="text-align: center; font-weight: bold;">${wRes}</td>
-            <td>${blackName} (${blackRating})</td>
+            <td>${whiteLabel}</td>
             <td style="text-align: center; font-weight: bold;">${bRes}</td>
+            <td>${blackLabel}</td>
           </tr>`,
         );
       }
-      printWindow.document.write(`</tbody></table>`);
-    }
 
-    if (tournament?.format === 'swiss' && filteredByes.length > 0) {
-      printWindow.document.write(
-        `<h2>Byes</h2><table><thead><tr><th>Player</th><th>Points</th><th>Type</th></tr></thead><tbody>`,
-      );
-      filteredByes.forEach((bye) => {
-        const playerName = getPlayerName(bye.playerId);
-        const points = bye.points === 1 ? "0.5" : bye.points === 2 ? "1" : "0";
-        const type = bye.byeType === 'half_point' ? '½ Point Bye' : bye.byeType === 'zero_point' ? '0 Point Bye' : '1 Point Bye';
-        printWindow.document.write(`<tr><td colspan="2">${playerName}</td><td>${points}</td><td colspan="3">${type}</td></tr>`);
-      });
+      // Append byes directly into the same table
+      if (tournament?.format === 'swiss' && filteredByes.length > 0) {
+        filteredByes.forEach((bye) => {
+          const whiteLabel = getFormattedPlayerLabel(bye.playerId, round);
+          const points = bye.points === 1 ? "½" : bye.points === 2 ? "1" : "0";
+          printWindow.document.write(
+            `<tr>
+              <td style="text-align: center; font-weight: bold;"></td>
+              <td style="text-align: center; font-weight: bold;">${points}</td>
+              <td>${whiteLabel}</td>
+              <td style="text-align: center; font-weight: bold;"></td>
+              <td style="font-weight: bold; color: #555;">BYE</td>
+            </tr>`
+          );
+        });
+      }
+
       printWindow.document.write(`</tbody></table>`);
+      
+      const formattedDate = new Date().toLocaleString('en-US', {
+        month: 'numeric',
+        day: 'numeric',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      }).replace(',', '');
+
+      printWindow.document.write(
+        `<div class="page-footer">
+          <span>Page 1</span>
+          <span>${formattedDate}</span>
+        </div>`
+      );
     }
 
     printWindow.document.write(`</body></html>`);
     printWindow.document.close();
     
-    // Slight delay to allow images to load before printing
     setTimeout(() => {
       printWindow.focus();
       printWindow.print();
     }, 500);
-  }, [filteredByes, getPlayerName, getPlayerRating, hasPrintableMatches, pairingGroups, activeSection, selectedSectionLabel, tournament?.name]);
+  }, [filteredByes, getPlayerObject, getPlayerRating, getPlayerPoints, hasPrintableMatches, pairingGroups, activeSection, selectedSectionLabel, tournament]);
 
   const handleDownloadPairings = useCallback(() => {
     if (!hasPrintableMatches || typeof window === "undefined") return;
@@ -1250,21 +1332,21 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
                             <table className="min-w-full text-slate-700 dark:text-slate-300">
                               <thead className="bg-slate-50/80 dark:bg-slate-900/60 border-b border-slate-100 dark:border-slate-800">
                                 <tr>
-                                  <th className="px-4 py-3.5 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-16">Bd</th>
+                                  <th className="px-4 py-3.5 text-left text-xs font-medium text-slate-500 dark:text-slate-400 w-16">Bd</th>
                                   {isTournamentDirector ? (
                                       <>
-                                        <th className="px-2 py-3.5 text-center text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-16">Res</th>
-                                        <th className="px-4 py-3.5 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">White</th>
-                                        <th className="px-2 py-3.5 text-center text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-16">Res</th>
-                                        <th className="px-4 py-3.5 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Black</th>
-                                        <th className="px-4 py-3.5 text-right text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-24">Edit</th>
+                                        <th className="px-2 py-3.5 text-center text-xs font-medium text-slate-500 dark:text-slate-400 w-16">Res</th>
+                                        <th className="px-4 py-3.5 text-left text-xs font-medium text-slate-500 dark:text-slate-400">White</th>
+                                        <th className="px-2 py-3.5 text-center text-xs font-medium text-slate-500 dark:text-slate-400 w-16">Res</th>
+                                        <th className="px-4 py-3.5 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Black</th>
+                                        <th className="px-4 py-3.5 text-right text-xs font-medium text-slate-500 dark:text-slate-400 w-24">Edit</th>
                                       </>
                                     ) : (
                                       <>
-                                        <th className="px-4 py-3.5 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">White</th>
-                                        <th className="px-4 py-3.5 text-center text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-24">Res</th>
-                                        <th className="px-4 py-3.5 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Black</th>
-                                        <th className="px-4 py-3.5 text-center text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-24">Res</th>
+                                        <th className="px-4 py-3.5 text-left text-xs font-medium text-slate-500 dark:text-slate-400">White</th>
+                                        <th className="px-4 py-3.5 text-center text-xs font-medium text-slate-500 dark:text-slate-400 w-24">Res</th>
+                                        <th className="px-4 py-3.5 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Black</th>
+                                        <th className="px-4 py-3.5 text-center text-xs font-medium text-slate-500 dark:text-slate-400 w-24">Res</th>
                                       </>
                                     )}
                                   </tr>
@@ -1453,12 +1535,12 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
                           >
                             {isCollapsed ? (
                               <div className="flex items-center gap-1.5">
-                                <span className="text-xs font-medium uppercase tracking-wider">Expand</span>
+                                <span className="text-xs font-medium">Expand</span>
                                 <ChevronDown className="h-4 w-4" />
                               </div>
                             ) : (
                               <div className="flex items-center gap-1.5">
-                                <span className="text-xs font-medium uppercase tracking-wider">Collapse</span>
+                                <span className="text-xs font-medium">Collapse</span>
                                 <ChevronUp className="h-4 w-4" />
                               </div>
                             )}
@@ -1470,12 +1552,12 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
                             <table className="min-w-full divide-y divide-gray-200">
                               <thead className="bg-gray-50">
                                 <tr>
-                                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 w-8"></th>
-                                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Board</th>
-                                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Players</th>
-                                  <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500">Score</th>
+                                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 w-8"></th>
+                                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Board</th>
+                                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Players</th>
+                                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500">Score</th>
                                   {isTournamentDirector && (
-                                    <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">Actions</th>
+                                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500">Actions</th>
                                   )}
                                 </tr>
                               </thead>
@@ -1549,7 +1631,7 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
                                         <tr>
                                           <td colSpan={isTournamentDirector ? 5 : 4} className="p-0 border-b border-t border-slate-100 bg-slate-50/50">
                                             <div className="px-14 py-4 space-y-3 shadow-inner">
-                                              <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500">Series History</h4>
+                                              <h4 className="text-xs font-semibold text-slate-500">Series History</h4>
                                               {seriesGames.length === 0 ? (
                                                 <div className="text-sm text-slate-400 italic">No games played yet.</div>
                                               ) : (
@@ -1597,7 +1679,7 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
               // Swiss - Show current round only
               <div className="space-y-6">
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider">
+                  <h3 className="text-sm font-semibold text-slate-500">
                     Matches
                   </h3>
                 </div>
@@ -1611,21 +1693,21 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
                         <table className="min-w-full text-slate-700 dark:text-slate-300">
                           <thead className="bg-slate-50/80 dark:bg-slate-900/60 border-b border-slate-100 dark:border-slate-800">
                             <tr>
-                              <th className="px-4 py-3.5 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-16">Bd</th>
+                              <th className="px-4 py-3.5 text-left text-xs font-medium text-slate-500 dark:text-slate-400 w-16">Bd</th>
                               {isTournamentDirector ? (
                                 <>
-                                  <th className="px-2 py-3.5 text-center text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-16">Res</th>
-                                  <th className="px-4 py-3.5 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">White</th>
-                                  <th className="px-2 py-3.5 text-center text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-16">Res</th>
-                                  <th className="px-4 py-3.5 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Black</th>
-                                  <th className="px-4 py-3.5 text-right text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-24">Edit</th>
+                                  <th className="px-2 py-3.5 text-center text-xs font-medium text-slate-500 dark:text-slate-400 w-16">Res</th>
+                                  <th className="px-4 py-3.5 text-left text-xs font-medium text-slate-500 dark:text-slate-400">White</th>
+                                  <th className="px-2 py-3.5 text-center text-xs font-medium text-slate-500 dark:text-slate-400 w-16">Res</th>
+                                  <th className="px-4 py-3.5 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Black</th>
+                                  <th className="px-4 py-3.5 text-right text-xs font-medium text-slate-500 dark:text-slate-400 w-24">Edit</th>
                                 </>
                               ) : (
                                 <>
-                                  <th className="px-4 py-3.5 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">White</th>
-                                  <th className="px-4 py-3.5 text-center text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-24">Res</th>
-                                  <th className="px-4 py-3.5 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Black</th>
-                                  <th className="px-4 py-3.5 text-center text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-24">Res</th>
+                                  <th className="px-4 py-3.5 text-left text-xs font-medium text-slate-500 dark:text-slate-400">White</th>
+                                  <th className="px-4 py-3.5 text-center text-xs font-medium text-slate-500 dark:text-slate-400 w-24">Res</th>
+                                  <th className="px-4 py-3.5 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Black</th>
+                                  <th className="px-4 py-3.5 text-center text-xs font-medium text-slate-500 dark:text-slate-400 w-24">Res</th>
                                 </>
                               )}
                             </tr>
@@ -1792,7 +1874,7 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
                 {/* Byes Section */}
                 {filteredByes.length > 0 && (
                   <div className="bg-slate-50/60 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                    <h4 className="text-xs font-semibold text-slate-400 dark:text-slate-500">
                       Byes This Round
                     </h4>
                     <div className="divide-y divide-slate-100 dark:divide-slate-800/40">
@@ -1820,6 +1902,274 @@ export default function SwissPairings({ tournamentId, activeSection, showExportC
                         </div>
                       ))}
                     </div>
+                  </div>
+                )}
+
+                {/* Extra Games Section */}
+                {tournament?.format === 'swiss' && tournamentConfig?.registers?.allowExtraGames && (isOwner || extraMatches.length > 0) && (
+                  <div className="bg-slate-50/60 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-semibold text-slate-600 dark:text-slate-300">
+                        Extra Games This Round
+                      </h4>
+                      <Badge variant="outline" className="text-xs border-indigo-200/50 bg-indigo-50/30 text-indigo-600 dark:border-indigo-900/30 dark:bg-indigo-950/20 dark:text-indigo-400">
+                        Rated • Excluded from Standings
+                      </Badge>
+                    </div>
+
+                    {extraMatches.length > 0 ? (
+                      <div className="overflow-hidden border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm bg-white dark:bg-slate-950">
+                        <table className="min-w-full text-slate-700 dark:text-slate-300">
+                          <thead className="bg-slate-50/80 dark:bg-slate-900/60 border-b border-slate-100 dark:border-slate-800">
+                            <tr>
+                              <th className="px-4 py-3.5 text-left text-xs font-medium text-slate-500 dark:text-slate-400 w-16">Bd</th>
+                              {isTournamentDirector ? (
+                                <>
+                                  <th className="px-2 py-3.5 text-center text-xs font-medium text-slate-500 dark:text-slate-400 w-16">Res</th>
+                                  <th className="px-4 py-3.5 text-left text-xs font-medium text-slate-500 dark:text-slate-400">White</th>
+                                  <th className="px-2 py-3.5 text-center text-xs font-medium text-slate-500 dark:text-slate-400 w-16">Res</th>
+                                  <th className="px-4 py-3.5 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Black</th>
+                                  <th className="px-4 py-3.5 text-right text-xs font-medium text-slate-500 dark:text-slate-400 w-24">Edit</th>
+                                </>
+                              ) : (
+                                <>
+                                  <th className="px-4 py-3.5 text-left text-xs font-medium text-slate-500 dark:text-slate-400">White</th>
+                                  <th className="px-4 py-3.5 text-center text-xs font-medium text-slate-500 dark:text-slate-400 w-24">Res</th>
+                                  <th className="px-4 py-3.5 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Black</th>
+                                  <th className="px-4 py-3.5 text-center text-xs font-medium text-slate-500 dark:text-slate-400 w-24">Res</th>
+                                </>
+                              )}
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800/40">
+                            {extraMatches.map((match) => {
+                              const whiteName = getPlayerName(match.whitePlayerId);
+                              const whiteRating = getPlayerRating(match.whitePlayerId);
+                              const blackName = match.blackPlayerId ? getPlayerName(match.blackPlayerId) : "Bye";
+                              const blackRating = match.blackPlayerId ? getPlayerName(match.blackPlayerId) : 0;
+                              
+                              const isWhiteWin = match.result === "1-0" || match.result === "1F-0F";
+                              const isBlackWin = match.result === "0-1" || match.result === "0F-1F";
+                              const isDraw = match.result === "1/2-1/2";
+                              
+                              const wResDisplay = isWhiteWin ? "1" : isDraw ? "½" : isBlackWin ? "0" : "";
+                              const bResDisplay = isBlackWin ? "1" : isDraw ? "½" : isWhiteWin ? "0" : "";
+
+                              if (isTournamentDirector) {
+                                const whiteObj = getPlayerObject(match.whitePlayerId);
+                                const blackObj = getPlayerObject(match.blackPlayerId);
+                                return (
+                                  <tr key={match.id} className="group hover:bg-indigo-50/20 dark:hover:bg-indigo-950/10 transition-colors">
+                                    <td className="px-4 py-4 whitespace-nowrap">
+                                      <span className="inline-flex items-center justify-center px-2 py-1 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 font-mono text-[11px] font-black text-slate-600 dark:text-slate-400 border border-slate-200/40 dark:border-slate-700/40 group-hover:bg-indigo-100/40 group-hover:border-indigo-200/30 transition-colors">
+                                        Extra
+                                      </span>
+                                    </td>
+                                    <td className="px-2 py-4 whitespace-nowrap text-center">
+                                      <input
+                                        type="text"
+                                        className="w-12 h-10 text-center border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all uppercase font-black text-sm text-slate-800 dark:text-slate-100 shadow-sm"
+                                        value={wResDisplay}
+                                        onChange={(e) => {
+                                          const val = e.target.value.toUpperCase();
+                                          if (val === '1') handleResultChange(match.id, "1-0");
+                                          else if (val === '0') handleResultChange(match.id, "0-1");
+                                          else if (val === '5' || val === '1/2' || val === '½') handleResultChange(match.id, "1/2-1/2");
+                                          else if (val === '1F') handleResultChange(match.id, "1F-0F");
+                                          else if (val === '0F') handleResultChange(match.id, "0F-1F");
+                                          else if (val === '') handleResultChange(match.id, "Pending");
+                                        }}
+                                      />
+                                    </td>
+                                    <td 
+                                      className="px-4 py-4 whitespace-nowrap cursor-pointer select-none"
+                                      onDoubleClick={() => handleResultChange(match.id, "1-0")}
+                                    >
+                                      <div className="flex flex-col">
+                                        <span className={cn(
+                                          "font-semibold text-sm transition-colors",
+                                          isWhiteWin ? "text-emerald-600 dark:text-emerald-400" : "text-slate-800 dark:text-slate-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400"
+                                        )}>
+                                          {whiteName}
+                                        </span>
+                                        <span className="text-[10px] font-mono font-medium text-slate-400 dark:text-slate-500">
+                                          Rating: {whiteRating} {whiteObj?.localId ? `• ID: ${whiteObj.localId}` : ''}
+                                        </span>
+                                      </div>
+                                    </td>
+                                    <td className="px-2 py-3 text-center">
+                                      <input
+                                        type="text"
+                                        className="w-10 h-8 text-center border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all uppercase font-black text-xs text-slate-800 dark:text-slate-100 shadow-sm"
+                                        value={bResDisplay}
+                                        onChange={(e) => {
+                                          const val = e.target.value.toUpperCase();
+                                          if (val === '1') handleResultChange(match.id, "0-1");
+                                          else if (val === '0') handleResultChange(match.id, "1-0");
+                                          else if (val === '5' || val === '1/2' || val === '½') handleResultChange(match.id, "1/2-1/2");
+                                          else if (val === '1F') handleResultChange(match.id, "0F-1F");
+                                          else if (val === '0F') handleResultChange(match.id, "1F-0F");
+                                          else if (val === '') handleResultChange(match.id, "Pending");
+                                        }}
+                                      />
+                                    </td>
+                                    <td 
+                                      className="px-4 py-3 cursor-pointer select-none"
+                                      onDoubleClick={() => handleResultChange(match.id, "0-1")}
+                                    >
+                                      <div className="flex flex-col">
+                                        <span className="font-semibold text-slate-800 dark:text-slate-100 text-sm hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
+                                          {blackName}
+                                        </span>
+                                        <span className="text-[10px] font-mono font-medium text-slate-400 dark:text-slate-500">
+                                          Rating: {blackRating} {blackObj?.localId ? `• ID: ${blackObj.localId}` : ''}
+                                        </span>
+                                      </div>
+                                    </td>
+                                    <td className="px-4 py-3 text-right">
+                                      <Button variant="ghost" size="sm" onClick={() => setSelectedMatchForManagement(match)} className="rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300">Edit</Button>
+                                    </td>
+                                  </tr>
+                                );
+                              }
+
+                              // Player View
+                              const whiteObj = getPlayerObject(match.whitePlayerId);
+                              const blackObj = getPlayerObject(match.blackPlayerId);
+                              return (
+                                <tr key={match.id} className="group hover:bg-indigo-50/20 dark:hover:bg-indigo-950/10 transition-colors">
+                                  <td className="px-4 py-4 whitespace-nowrap">
+                                    <span className="inline-flex items-center justify-center px-2 py-1 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 font-mono text-[11px] font-black text-slate-600 dark:text-slate-400 border border-slate-200/40 dark:border-slate-700/40 group-hover:bg-indigo-100/40 group-hover:border-indigo-200/30 transition-colors">
+                                      Extra
+                                    </span>
+                                  </td>
+                                  <td className="px-4 py-4 whitespace-nowrap">
+                                    <div className="flex flex-col">
+                                      <span className={cn(
+                                        "font-semibold text-sm transition-colors",
+                                        isWhiteWin ? "text-emerald-600 dark:text-emerald-400" : "text-slate-800 dark:text-slate-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400"
+                                      )}>
+                                        {whiteName}
+                                      </span>
+                                      <span className="text-[10px] font-mono font-medium text-slate-400 dark:text-slate-500">
+                                        Rating: {whiteRating} {whiteObj?.localId ? `• ID: ${whiteObj.localId}` : ''}
+                                      </span>
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-4 whitespace-nowrap text-center">
+                                    <span className={cn(
+                                      "inline-flex items-center justify-center px-3 py-1.5 rounded-lg text-sm font-black font-mono shadow-sm border",
+                                      wResDisplay === "1" ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900/30" :
+                                      wResDisplay === "0" ? "bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 border-rose-100 dark:border-rose-900/30" :
+                                      wResDisplay === "½" ? "bg-slate-50 dark:bg-slate-800/50 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700/50" :
+                                      "bg-slate-50/50 dark:bg-slate-900/50 text-slate-400 dark:text-slate-500 border-slate-100 dark:border-slate-800"
+                                    )}>
+                                      {wResDisplay || "—"}
+                                    </span>
+                                  </td>
+                                  <td className="px-4 py-4 whitespace-nowrap">
+                                    <div className="flex flex-col">
+                                      <span className={cn(
+                                        "font-semibold text-sm transition-colors",
+                                        isBlackWin ? "text-emerald-600 dark:text-emerald-400" : "text-slate-800 dark:text-slate-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400"
+                                      )}>
+                                        {blackName}
+                                      </span>
+                                      <span className="text-[10px] font-mono font-medium text-slate-400 dark:text-slate-500">
+                                        Rating: {blackRating} {blackObj?.localId ? `• ID: ${blackObj.localId}` : ''}
+                                      </span>
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-4 whitespace-nowrap text-center">
+                                    <span className={cn(
+                                      "inline-flex items-center justify-center px-3 py-1.5 rounded-lg text-sm font-black font-mono shadow-sm border",
+                                      bResDisplay === "1" ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900/30" :
+                                      bResDisplay === "0" ? "bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 border-rose-100 dark:border-rose-900/30" :
+                                      bResDisplay === "½" ? "bg-slate-50 dark:bg-slate-800/50 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700/50" :
+                                      "bg-slate-50/50 dark:bg-slate-900/50 text-slate-400 dark:text-slate-500 border-slate-100 dark:border-slate-800"
+                                    )}>
+                                      {bResDisplay || "—"}
+                                    </span>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-slate-500 dark:text-slate-400 italic">
+                        No extra games added for this round.
+                      </p>
+                    )}
+
+                    {/* TD Controls for Adding Extra Games */}
+                    {isOwner && (
+                      <div className="pt-4 border-t border-slate-250 dark:border-slate-800 space-y-3">
+                        <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                          Create Extra Game
+                        </div>
+                        <div className="flex flex-wrap items-end gap-3">
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-semibold text-slate-500 dark:text-slate-400">White Player</label>
+                            <Select value={selectedWhitePlayerId} onValueChange={setSelectedWhitePlayerId}>
+                              <SelectTrigger className="w-56 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-xl">
+                                <SelectValue placeholder="Select White..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {sectionPlayers
+                                  .filter(p => p.status !== 'withdrawn' && p.id.toString() !== selectedBlackPlayerId)
+                                  .map(p => (
+                                    <SelectItem key={p.id} value={p.id.toString()}>
+                                      {p.firstName} {p.lastName} ({p.rating ?? 1000})
+                                    </SelectItem>
+                                  ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-semibold text-slate-500 dark:text-slate-400">Black Player</label>
+                            <Select value={selectedBlackPlayerId} onValueChange={setSelectedBlackPlayerId}>
+                              <SelectTrigger className="w-56 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-xl">
+                                <SelectValue placeholder="Select Black..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {sectionPlayers
+                                  .filter(p => p.status !== 'withdrawn' && p.id.toString() !== selectedWhitePlayerId)
+                                  .map(p => (
+                                    <SelectItem key={p.id} value={p.id.toString()}>
+                                      {p.firstName} {p.lastName} ({p.rating ?? 1000})
+                                    </SelectItem>
+                                  ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <Button
+                            type="button"
+                            onClick={() => {
+                              if (!selectedWhitePlayerId || !selectedBlackPlayerId) {
+                                toast({
+                                  title: "Error",
+                                  description: "Please select both a White and a Black player.",
+                                  variant: "destructive",
+                                });
+                                return;
+                              }
+                              addExtraMatchMutation.mutate({
+                                whitePlayerId: parseInt(selectedWhitePlayerId),
+                                blackPlayerId: parseInt(selectedBlackPlayerId),
+                              });
+                            }}
+                            disabled={addExtraMatchMutation.isPending || !selectedWhitePlayerId || !selectedBlackPlayerId}
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-medium px-4 h-10 gap-2"
+                          >
+                            Add Extra Game
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
