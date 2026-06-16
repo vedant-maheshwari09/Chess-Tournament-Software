@@ -402,7 +402,7 @@ export default function Standings({ tournamentId, showExportControls = true }: S
                               {getPositionIcon(standing.position)}
                             </div>
                           ) : (
-                            <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 font-mono text-sm font-black text-slate-600 dark:text-slate-400 border border-slate-200/40 dark:border-slate-700/40 group-hover:bg-indigo-100/40 group-hover:border-indigo-200/30 transition-colors">
+                            <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 font-sans text-sm font-black text-slate-600 dark:text-slate-400 border border-slate-200/40 dark:border-slate-700/40 group-hover:bg-indigo-100/40 group-hover:border-indigo-200/30 transition-colors">
                               {standing.position}
                             </span>
                           )}
@@ -413,13 +413,13 @@ export default function Standings({ tournamentId, showExportControls = true }: S
                           <span className="font-semibold text-slate-800 dark:text-slate-100 text-sm group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
                             {standing.player.firstName} {standing.player.lastName}
                           </span>
-                          <span className="text-[10px] font-mono font-medium text-slate-400 dark:text-slate-500">
+                          <span className="text-[10px] font-sans font-medium text-slate-400 dark:text-slate-500">
                             {standing.player.localId ? `ID: ${standing.player.localId}` : 'No ID'}
                           </span>
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-center">
-                        <span className="inline-flex items-center justify-center px-2.5 py-1 rounded-lg text-sm font-black font-mono shadow-sm border bg-indigo-50 dark:bg-indigo-950/30 text-indigo-700 dark:text-indigo-400 border-indigo-100 dark:border-indigo-900/30">
+                        <span className="inline-flex items-center justify-center px-2.5 py-1 rounded-lg text-sm font-black font-sans shadow-sm border bg-indigo-50 dark:bg-indigo-950/30 text-indigo-700 dark:text-indigo-400 border-indigo-100 dark:border-indigo-900/30">
                           {standing.points}
                         </span>
                       </td>

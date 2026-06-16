@@ -1424,7 +1424,7 @@ a:hover { text-decoration: underline; }
                           isWithdrawn ? "opacity-60 line-through" : ""
                         )}
                       >
-                        <td className="px-3 py-2 text-center font-mono text-sm font-bold border-r border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 bg-slate-50/50 dark:bg-slate-800/20 w-12">
+                        <td className="px-3 py-2 text-center font-sans text-sm font-bold border-r border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 bg-slate-50/50 dark:bg-slate-800/20 w-12">
                           {pairingNum}
                         </td>
                         <td className="px-4 py-2 text-sm font-bold border-r border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200">
@@ -1451,21 +1451,21 @@ a:hover { text-decoration: underline; }
                             {renderRoundOutcomeBadge(result)}
                           </td>
                         ))}
-                        <td className="px-3 py-2 text-center font-black border-r border-slate-200 dark:border-slate-800 font-mono text-indigo-600 dark:text-indigo-400 bg-indigo-50/10 dark:bg-indigo-950/10">
+                        <td className="px-3 py-2 text-center font-black border-r border-slate-200 dark:border-slate-800 font-sans text-indigo-600 dark:text-indigo-400 bg-indigo-50/10 dark:bg-indigo-950/10">
                           {standing.totalPoints.toFixed(1).replace(/\.0$/, "")}
                         </td>
                         {activeTiebreakRules.map((rule) => {
                           const val = standing.tiebreakValues[rule];
                           return (
-                            <td key={rule} className="px-3 py-2 text-center text-sm font-mono border-r border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400">
+                            <td key={rule} className="px-3 py-2 text-center text-sm font-sans border-r border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400">
                               {val !== undefined ? val.toFixed(2) : "0.00"}
                             </td>
                           );
                         })}
-                        <td className="px-3 py-2 text-center text-sm font-mono border-r border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400">
+                        <td className="px-3 py-2 text-center text-sm font-sans border-r border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400">
                           {standing.postRating ?? playerRating}
                         </td>
-                        <td className="px-3 py-2 text-center text-sm font-mono border-r border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400">
+                        <td className="px-3 py-2 text-center text-sm font-sans border-r border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400">
                           {standing.performanceRating ?? playerRating}
                         </td>
                         {tournamentConfig?.prizesEnabled && showPrizes && (
@@ -1487,7 +1487,7 @@ a:hover { text-decoration: underline; }
                         )}
                       >
                         <td className="px-3 py-1.5 border-r border-slate-200 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-800/20 text-center">&nbsp;</td>
-                        <td className="px-4 py-1.5 text-xs font-mono border-r border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400">
+                        <td className="px-4 py-1.5 text-xs font-sans border-r border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400">
                           Rating: <span className="font-semibold text-slate-700 dark:text-slate-300">{playerRating}</span>{uscfId ? ` \u00a0\u00a0 ID: ${uscfId}` : ''}
                         </td>
                         {standing.roundResults.map((_, roundIndex) => {
@@ -1496,7 +1496,7 @@ a:hover { text-decoration: underline; }
                             .reduce((sum, entry) => sum + entry.points, 0);
                           const cumulativeText = roundIndex < currentRound ? cumulative.toFixed(1).replace(/\.0$/, ".0") : '';
                           return (
-                            <td key={roundIndex} className="px-3 py-1.5 text-center text-xs font-mono font-medium border-r border-slate-200 dark:border-slate-800 text-slate-400 dark:text-slate-500">
+                            <td key={roundIndex} className="px-3 py-1.5 text-center text-xs font-sans font-medium border-r border-slate-200 dark:border-slate-800 text-slate-400 dark:text-slate-500">
                               {cumulativeText}
                             </td>
                           );
