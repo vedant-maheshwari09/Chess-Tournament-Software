@@ -103,15 +103,9 @@ function AuthenticatedApp() {
                   {(params) => <Redirect to={`/tournaments/${params.id}/manage/dashboard`} />}
                 </Route>
                 <Route path="/tournaments/:id/settings/:section">
-                  {(params) => <TournamentActionsPage tournamentId={parseInt(params.id)} section={params.section} />}
-                </Route>
-                <Route path="/tournaments/:id/settings">
-                  {(params) => <TournamentActionsPage tournamentId={parseInt(params.id)} />}
-                </Route>
-                <Route path="/tournaments/:id/advanced-settings/:section">
                   {(params) => <TournamentSettingsPage tournamentId={parseInt(params.id)} section={params.section} />}
                 </Route>
-                <Route path="/tournaments/:id/advanced-settings">
+                <Route path="/tournaments/:id/settings">
                   {(params) => <TournamentSettingsPage tournamentId={parseInt(params.id)} />}
                 </Route>
                 <Route path="/tournaments/:id/reports/uscf">

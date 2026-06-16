@@ -128,28 +128,13 @@ export function generateUscfDbfZip(options: GenerateUscfDbfOptions): Buffer {
   const eventId = formatDate(config.basic.startDate || tournament.createdAt?.toISOString()).substring(0, 8) + 
                   String(tournament.id).padStart(4, '0').substring(0, 4);
 
-  // Filter out guests/houseplayers from standard sections
-  const standardPlayers = players.filter(p => p.status !== 'guest' && p.status !== 'houseplayer');
-
   // Group players by section to find how many sections exist
-  const playersBySection = standardPlayers.reduce((acc, p) => {
+  const playersBySection = players.reduce((acc, p) => {
     const key = p.sectionId || "default";
     if (!acc[key]) acc[key] = [];
     acc[key].push(p);
     return acc;
   }, {} as Record<string, Player[]>);
-
-  // Group all extra games into a virtual section "extra_games"
-  const extraMatchesGlobal = matches.filter(m => m.isExtraGame);
-  if (extraMatchesGlobal.length > 0) {
-    const extraPlayerIds = new Set(
-      extraMatchesGlobal.flatMap(m => [m.whitePlayerId, m.blackPlayerId]).filter((id): id is number => id !== null && id !== undefined)
-    );
-    const extraPlayersList = players.filter(p => extraPlayerIds.has(p.id));
-    if (extraPlayersList.length > 0) {
-      playersBySection["extra_games"] = extraPlayersList;
-    }
-  }
 
   const sectionKeys = Object.keys(playersBySection);
   const totalSections = Math.max(1, sectionKeys.length);
@@ -224,22 +209,8 @@ export function generateUscfDbfZip(options: GenerateUscfDbfOptions): Buffer {
   sectionKeys.forEach((secKey, index) => {
     const secPlayers = playersBySection[secKey] || [];
     const secPlayerIds = new Set(secPlayers.map(p => p.id));
-    
-    // Filter matches and pairings specifically for this section's players and match type
-    const secMatches = matches.filter(m => {
-      const matchInvolvesPlayer = (m.whitePlayerId && secPlayerIds.has(m.whitePlayerId)) || 
-                                  (m.blackPlayerId && secPlayerIds.has(m.blackPlayerId));
-      if (secKey === 'extra_games') {
-        return m.isExtraGame && matchInvolvesPlayer;
-      } else {
-        return !m.isExtraGame && matchInvolvesPlayer;
-      }
-    });
-
-    const secPairings = pairings.filter(p => {
-      const pairingInvolvesPlayer = secPlayerIds.has(p.playerId);
-      return secKey !== 'extra_games' && pairingInvolvesPlayer;
-    });
+    const secMatches = matches.filter(m => m.whitePlayerId && secPlayerIds.has(m.whitePlayerId) || m.blackPlayerId && secPlayerIds.has(m.blackPlayerId));
+    const secPairings = pairings.filter(p => secPlayerIds.has(p.playerId));
 
     // Determine total rounds
     const maxMatchRound = secMatches.reduce((max, m) => Math.max(max, m.round ?? 0), 0);
@@ -267,24 +238,6 @@ export function generateUscfDbfZip(options: GenerateUscfDbfOptions): Buffer {
   sectionKeys.forEach((secKey, index) => {
     const secNum = String(index + 1).padEnd(2);
     const secPlayers = playersBySection[secKey] || [];
-    const secPlayerIds = new Set(secPlayers.map(p => p.id));
-    
-    // Filter matches and pairings specifically for this section's players and match type
-    const secMatches = matches.filter(m => {
-      const matchInvolvesPlayer = (m.whitePlayerId && secPlayerIds.has(m.whitePlayerId)) || 
-                                  (m.blackPlayerId && secPlayerIds.has(m.blackPlayerId));
-      if (secKey === 'extra_games') {
-        return m.isExtraGame && matchInvolvesPlayer;
-      } else {
-        return !m.isExtraGame && matchInvolvesPlayer;
-      }
-    });
-
-    const secPairings = pairings.filter(p => {
-      const pairingInvolvesPlayer = secPlayerIds.has(p.playerId);
-      return secKey !== 'extra_games' && pairingInvolvesPlayer;
-    });
-
     const numRounds = sectionRoundsMap.get(secKey) || 1;
 
     // Seeding/Sorting players to assign pairing numbers
@@ -303,9 +256,7 @@ export function generateUscfDbfZip(options: GenerateUscfDbfOptions): Buffer {
     });
 
     // Add Section Record
-    const sectionName = secKey === 'extra_games'
-      ? 'Extra Games'
-      : (secPlayers[0]?.sectionName || (secKey === 'default' ? 'Open' : secKey)).substring(0, 30);
+    const sectionName = (secPlayers[0]?.sectionName || (secKey === 'default' ? 'Open' : secKey)).substring(0, 30);
     const ratingSystem = config.details.timeControl === 'blitz' ? 'Q' : (config.details.timeControl === 'rapid' ? 'D' : 'R');
     const timeControlStr = (config.uscf.timeControl || `${config.details.timeControls[0]?.minutes || 90}/inc${config.details.timeControls[0]?.addonValue || 30}`).substring(0, 40);
     const trnType = tournament.format === 'roundrobin' ? 'R' : 'S';
@@ -360,12 +311,10 @@ export function generateUscfDbfZip(options: GenerateUscfDbfOptions): Buffer {
         }
 
         // Find match for this player in this round
-        const match = secMatches.find(m => m.round === r && (m.whitePlayerId === player.id || m.blackPlayerId === player.id));
+        const match = matches.find(m => m.round === r && (m.whitePlayerId === player.id || m.blackPlayerId === player.id));
         if (!match) {
           // Check if there was a bye pairing
-          const bye = secKey !== 'extra_games'
-            ? secPairings.find(p => p.round === r && p.playerId === player.id && p.isBye)
-            : undefined;
+          const bye = pairings.find(p => p.round === r && p.playerId === player.id && p.isBye);
           if (bye) {
             const code = bye.byeType === 'half_point' ? 'H' : (bye.byeType === 'full_point' ? 'B' : 'U');
             record[roundFieldName] = `${code}0000  `;

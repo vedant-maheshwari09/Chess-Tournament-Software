@@ -113,8 +113,8 @@ export default function SwissStandings({ tournamentId, showExportControls = true
   const tournamentConfig = useMemo(() => (tournament ? parseTournamentConfig(tournament) : null), [tournament]);
 
   const hasExtraGames = useMemo(() => {
-    return (matches?.some(m => m.isExtraGame) ?? false) || !!tournamentConfig?.registers?.allowExtraGames;
-  }, [matches, tournamentConfig]);
+    return matches?.some(m => m.isExtraGame) ?? false;
+  }, [matches]);
 
   const isDirector = !!(user?.role === 'tournament_director' && tournament && user && tournament.createdBy === user.id);
 
@@ -210,9 +210,8 @@ export default function SwissStandings({ tournamentId, showExportControls = true
       );
       return players.filter((player) => extraGamePlayerIds.has(player.id));
     }
-    const standardPlayers = players.filter(player => player.status !== 'guest' && player.status !== 'houseplayer');
-    if (selectedSectionId === "__all__") return standardPlayers;
-    return standardPlayers.filter((player) => playerSectionMap.get(player.id)?.id === selectedSectionId);
+    if (selectedSectionId === "__all__") return players;
+    return players.filter((player) => playerSectionMap.get(player.id)?.id === selectedSectionId);
   }, [players, playerSectionMap, selectedSectionId, matches]);
 
   const filteredMatches = useMemo(() => {
@@ -346,47 +345,9 @@ export default function SwissStandings({ tournamentId, showExportControls = true
       const playerPointsMap = new Map<number, number>();
       basicStandings.forEach((s) => playerPointsMap.set(s.player.id, s.totalPoints));
 
-      // USCF/FIDE-compliant virtual opponent scores helper for Solkoff, Buchholz, Median, and Modified Median
-      const getTiebreakOpponentScores = (playerId: number, myPoints: number): number[] => {
-        const scores: number[] = [];
-        const playerMatches = matches.filter(
-          (m) => m.whitePlayerId === playerId || m.blackPlayerId === playerId
-        );
-        const playerByes = pairings.filter(
-          (pairing) => pairing.playerId === playerId && pairing.isBye && pairing.points !== null && pairing.round <= currentRound
-        );
-
-        for (let round = 1; round <= currentRound; round++) {
-          const bye = playerByes.find((b) => b.round === round);
-          if (bye) {
-            // Treated as draw against oneself -> virtual opponent has my own total points
-            scores.push(myPoints);
-            continue;
-          }
-
-          const match = playerMatches.find((m) => m.round === round);
-          if (match) {
-            const isWhite = match.whitePlayerId === playerId;
-            const oppId = isWhite ? match.blackPlayerId : match.whitePlayerId;
-            const normalized = normalizeMatchResult(match.result);
-            if (!normalized) continue;
-
-            const interpretation = interpretPlayerResult(match.result, isWhite);
-            if (interpretation.outcome === 'W' || interpretation.outcome === 'D' || interpretation.outcome === 'L') {
-              const oppPoints = oppId ? playerPointsMap.get(oppId) ?? 0 : 0;
-              scores.push(oppPoints);
-            } else if (interpretation.outcome === 'forfeit-win') {
-              // Treated as draw against oneself -> virtual opponent has my own total points
-              scores.push(myPoints);
-            } else if (interpretation.outcome === 'forfeit-loss') {
-              scores.push(0);
-            }
-          } else {
-            // Any unplayed/withdrawn round if not explicitly bye
-            scores.push(0);
-          }
-        }
-        return scores;
+      // Calculate opponent scores helper
+      const getOpponentScores = (playerId: number): number[] => {
+        return getOpponents(playerId).map((oppId) => playerPointsMap.get(oppId) ?? 0);
       };
 
       // Precompute Cumulative Scores for all players
@@ -423,17 +384,15 @@ export default function SwissStandings({ tournamentId, showExportControls = true
       // Define tiebreaker calculators
       const tiebreakCalculators: Record<string, (playerId: number) => number> = {
         "Solkoff": (playerId) => {
-          const points = playerPointsMap.get(playerId) ?? 0;
-          return getTiebreakOpponentScores(playerId, points).reduce((sum, s) => sum + s, 0);
+          return getOpponentScores(playerId).reduce((sum, s) => sum + s, 0);
         },
         "Buchholz": (playerId) => {
-          const points = playerPointsMap.get(playerId) ?? 0;
-          return getTiebreakOpponentScores(playerId, points).reduce((sum, s) => sum + s, 0);
+          return getOpponentScores(playerId).reduce((sum, s) => sum + s, 0);
         },
         "Modified Median": (playerId) => {
-          const points = playerPointsMap.get(playerId) ?? 0;
-          const scores = getTiebreakOpponentScores(playerId, points);
+          const scores = getOpponentScores(playerId);
           if (scores.length === 0) return 0;
+          const points = playerPointsMap.get(playerId) ?? 0;
           const halfPoints = totalRounds * 0.5;
 
           const sorted = [...scores].sort((a, b) => a - b);
@@ -451,57 +410,32 @@ export default function SwissStandings({ tournamentId, showExportControls = true
           }
         },
         "Median": (playerId) => {
-          const points = playerPointsMap.get(playerId) ?? 0;
-          const scores = getTiebreakOpponentScores(playerId, points);
-          if (scores.length === 0) return 0;
-          const sorted = [...scores].sort((a, b) => a - b);
-          const numToExclude = totalRounds >= 9 ? 2 : 1;
-          if (sorted.length <= numToExclude * 2) {
-            return 0;
-          }
-          return sorted.slice(numToExclude, -numToExclude).reduce((sum, s) => sum + s, 0);
+          return tiebreakCalculators["Modified Median"](playerId);
         },
         "Cumulative": (playerId) => {
           return playerCumulativeMap.get(playerId) ?? 0;
         },
         "Sonneborn-Berger": (playerId) => {
           let sb = 0;
-          const myPoints = playerPointsMap.get(playerId) ?? 0;
-          const playerMatches = matches.filter(
-            (m) => m.whitePlayerId === playerId || m.blackPlayerId === playerId
-          );
-          const playerByes = pairings.filter(
-            (pairing) => pairing.playerId === playerId && pairing.isBye && pairing.points !== null && pairing.round <= currentRound
-          );
+          matches.forEach((match) => {
+            const isWhite = match.whitePlayerId === playerId;
+            const isBlack = match.blackPlayerId === playerId;
+            if (!isWhite && !isBlack) return;
 
-          for (let round = 1; round <= currentRound; round++) {
-            const bye = playerByes.find((b) => b.round === round);
-            if (bye) {
-              // Treated as draw against oneself -> adds 0.5 * myPoints
-              sb += 0.5 * myPoints;
-              continue;
+            const normalized = normalizeMatchResult(match.result);
+            if (!normalized) return;
+
+            const oppId = isWhite ? match.blackPlayerId : match.whitePlayerId;
+            if (!oppId) return;
+
+            const oppPoints = playerPointsMap.get(oppId) ?? 0;
+            const resultPoints = getPointsForResult(match.result, isWhite ? "white" : "black");
+            if (resultPoints === 1) {
+              sb += oppPoints;
+            } else if (resultPoints === 0.5) {
+              sb += oppPoints * 0.5;
             }
-
-            const match = playerMatches.find((m) => m.round === round);
-            if (match) {
-              const isWhite = match.whitePlayerId === playerId;
-              const oppId = isWhite ? match.blackPlayerId : match.whitePlayerId;
-              const normalized = normalizeMatchResult(match.result);
-              if (!normalized) continue;
-
-              const interpretation = interpretPlayerResult(match.result, isWhite);
-              if (interpretation.outcome === 'W') {
-                const oppPoints = oppId ? playerPointsMap.get(oppId) ?? 0 : 0;
-                sb += oppPoints;
-              } else if (interpretation.outcome === 'D') {
-                const oppPoints = oppId ? playerPointsMap.get(oppId) ?? 0 : 0;
-                sb += oppPoints * 0.5;
-              } else if (interpretation.outcome === 'forfeit-win') {
-                // Treated as draw against oneself -> adds 0.5 * myPoints
-                sb += 0.5 * myPoints;
-              }
-            }
-          }
+          });
           return sb;
         },
         "Kashdan": (playerId) => {
@@ -509,39 +443,14 @@ export default function SwissStandings({ tournamentId, showExportControls = true
           const playerMatches = matches.filter(
             (m) => m.whitePlayerId === playerId || m.blackPlayerId === playerId
           );
-          const playerByes = pairings.filter(
-            (pairing) => pairing.playerId === playerId && pairing.isBye && pairing.points !== null && pairing.round <= currentRound
-          );
-
-          for (let round = 1; round <= currentRound; round++) {
-            const bye = playerByes.find((b) => b.round === round);
-            if (bye) {
-              // Treated as draw against oneself -> adds 2 points
-              kashdan += 2;
-              continue;
-            }
-
-            const match = playerMatches.find((m) => m.round === round);
-            if (match) {
-              const isWhite = match.whitePlayerId === playerId;
-              const normalized = normalizeMatchResult(match.result);
-              if (!normalized) continue;
-
-              const interpretation = interpretPlayerResult(match.result, isWhite);
-              if (interpretation.outcome === 'W') {
-                kashdan += 4;
-              } else if (interpretation.outcome === 'D') {
-                kashdan += 2;
-              } else if (interpretation.outcome === 'L') {
-                kashdan += 1;
-              } else if (interpretation.outcome === 'forfeit-win') {
-                // Treated as draw against oneself -> adds 2 points
-                kashdan += 2;
-              } else if (interpretation.outcome === 'forfeit-loss') {
-                kashdan += 0;
-              }
-            }
-          }
+          playerMatches.forEach((match) => {
+            const normalized = normalizeMatchResult(match.result);
+            if (!normalized) return;
+            const pts = getPointsForResult(match.result, match.whitePlayerId === playerId ? "white" : "black");
+            if (pts === 1) kashdan += 4;
+            else if (pts === 0.5) kashdan += 2;
+            else kashdan += 1;
+          });
           return kashdan;
         },
         "Opponent's Cumulative": (playerId) => {
@@ -554,9 +463,8 @@ export default function SwissStandings({ tournamentId, showExportControls = true
           if (opponentIds.length === 0) return 0;
           const ratings = opponentIds.map(id => {
             const p = playerById.get(id);
-            if (!p) return 1000;
-            const r = (isFide ? (p.fideRating ?? p.rating) : (p.uscfRating ?? p.rating)) || 0;
-            return r === 0 ? 1000 : r;
+            if (!p) return 0;
+            return (isFide ? (p.fideRating ?? p.rating) : (p.uscfRating ?? p.rating)) || 0;
           });
           return ratings.reduce((sum, r) => sum + r, 0) / ratings.length;
         },
@@ -564,28 +472,10 @@ export default function SwissStandings({ tournamentId, showExportControls = true
           const playerMatches = matches.filter(
             (m) => m.whitePlayerId === playerId || m.blackPlayerId === playerId
           );
-          let wins = 0;
-          playerMatches.forEach(m => {
-            const isWhite = m.whitePlayerId === playerId;
-            const normalized = normalizeMatchResult(m.result);
-            if (!normalized) return;
-            const interpretation = interpretPlayerResult(m.result, isWhite);
-            if (interpretation.outcome === 'W' || interpretation.outcome === 'forfeit-win') {
-              wins++;
-            }
-          });
-
-          const playerByes = pairings.filter(
-            (pairing) => pairing.playerId === playerId && pairing.isBye && pairing.points !== null && pairing.round <= currentRound
-          );
-          playerByes.forEach(bye => {
-            const byePoints = bye.points === 1 ? 0.5 : bye.points === 2 ? 1 : 0;
-            if (byePoints === 1) {
-              wins++;
-            }
-          });
-
-          return wins;
+          const playedWins = playerMatches.filter(m => getPointsForResult(m.result, m.whitePlayerId === playerId ? "white" : "black") === 1).length;
+          const p = playerById.get(playerId);
+          const extraWins = (p?.fullPointByesReceived ?? 0) + (p?.forfeitWinsReceived ?? 0);
+          return playedWins + extraWins;
         }
       };
 
@@ -608,16 +498,9 @@ export default function SwissStandings({ tournamentId, showExportControls = true
         };
       });
 
-      // Sort strictly by points descending, then tiebreakers (if enabled), then rating descending, then player ID ascending
+      // Sort strictly by points descending, then rating descending
       standingsWithTiebreakers.sort((a, b) => {
         if (b.totalPoints !== a.totalPoints) return b.totalPoints - a.totalPoints;
-
-        // Apply active tiebreakers in configured priority order (if enabled)
-        for (const rule of activeTiebreakRules) {
-          const valA = a.tiebreakValues[rule] ?? 0;
-          const valB = b.tiebreakValues[rule] ?? 0;
-          if (valB !== valA) return valB - valA;
-        }
 
         const ratingA = (isFide ? (a.player.fideRating ?? a.player.rating) : (a.player.uscfRating ?? a.player.rating)) || 0;
         const ratingB = (isFide ? (b.player.fideRating ?? b.player.rating) : (b.player.uscfRating ?? b.player.rating)) || 0;
@@ -632,51 +515,45 @@ export default function SwissStandings({ tournamentId, showExportControls = true
         position: index + 1,
       }));
 
-      // Helper functions for dynamic rating calculations (USCF formulas)
+      // Helper functions for dynamic rating calculations
       const calculatePerformanceRating = (preRating: number, roundResults: PlayerRoundResult[]): number => {
         const playedGames = roundResults.filter(
-          r => r.opponent && (r.result === 'W' || r.result === 'L' || r.result === 'D')
+          r => r.opponent && (r.result === 'W' || r.result === 'L' || r.result === 'D' || r.result === 'forfeit-win' || r.result === 'forfeit-loss')
         );
-        const effectivePreRating = preRating || 1000;
+        const effectivePreRating = preRating || 1200;
         if (playedGames.length === 0) return effectivePreRating;
 
         let totalOpponentRating = 0;
-        let wins = 0;
-        let losses = 0;
+        let actualScore = 0;
         let gamesCount = 0;
 
         playedGames.forEach(g => {
           if (!g.opponent) return;
           let oppRating = (isFide ? (g.opponent.fideRating ?? g.opponent.rating) : (g.opponent.uscfRating ?? g.opponent.rating)) || 0;
-          if (oppRating === 0) oppRating = 1000; // default unrated opponent is 1000
+          if (oppRating === 0) oppRating = 1200; // default for unrated opponent
           totalOpponentRating += oppRating;
           gamesCount++;
-          if (g.result === 'W') {
-            wins++;
-          } else if (g.result === 'L') {
-            losses++;
+          if (g.result === 'W' || g.result === 'forfeit-win') {
+            actualScore += 1;
+          } else if (g.result === 'D') {
+            actualScore += 0.5;
           }
         });
 
         if (gamesCount === 0) return effectivePreRating;
 
         const avgOpponentRating = totalOpponentRating / gamesCount;
-        const perf = avgOpponentRating + 400 * (wins - losses) / gamesCount;
-        return Math.round(perf);
+        const p = actualScore / gamesCount;
+        const diff = 400 * (2 * p - 1);
+        return Math.round(avgOpponentRating + diff);
       };
 
       const calculateEstimatedPostRating = (preRating: number, roundResults: PlayerRoundResult[]): number => {
         const playedGames = roundResults.filter(
-          r => r.opponent && (r.result === 'W' || r.result === 'L' || r.result === 'D')
+          r => r.opponent && (r.result === 'W' || r.result === 'L' || r.result === 'D' || r.result === 'forfeit-win' || r.result === 'forfeit-loss')
         );
-        const hasPreRating = preRating && preRating > 0;
-        
-        if (!hasPreRating) {
-          // If unrated, equal to Performance Rating
-          return calculatePerformanceRating(preRating, roundResults);
-        }
-
-        if (playedGames.length === 0) return preRating;
+        const effectivePreRating = preRating || 1200;
+        if (playedGames.length === 0) return effectivePreRating;
 
         let actualScore = 0;
         let expectedScore = 0;
@@ -684,11 +561,11 @@ export default function SwissStandings({ tournamentId, showExportControls = true
         playedGames.forEach(g => {
           if (!g.opponent) return;
           let oppRating = (isFide ? (g.opponent.fideRating ?? g.opponent.rating) : (g.opponent.uscfRating ?? g.opponent.rating)) || 0;
-          if (oppRating === 0) oppRating = 1000; // default unrated opponent is 1000
-          const expected = 1 / (1 + Math.pow(10, (oppRating - preRating) / 400));
+          if (oppRating === 0) oppRating = 1200; // default for unrated opponent
+          const expected = 1 / (1 + Math.pow(10, (oppRating - effectivePreRating) / 400));
           expectedScore += expected;
 
-          if (g.result === 'W') {
+          if (g.result === 'W' || g.result === 'forfeit-win') {
             actualScore += 1;
           } else if (g.result === 'D') {
             actualScore += 0.5;
@@ -696,9 +573,8 @@ export default function SwissStandings({ tournamentId, showExportControls = true
         });
 
         const K = 32;
-        const postRating = preRating + K * (actualScore - expectedScore);
-        const rounded = Math.round(postRating);
-        return Math.max(100, rounded); // capped at 100 minimum
+        const postRating = effectivePreRating + K * (actualScore - expectedScore);
+        return Math.round(postRating);
       };
 
       // Second pass: Calculate detailed round results
@@ -933,7 +809,7 @@ export default function SwissStandings({ tournamentId, showExportControls = true
     
     // Headers
     html += `<thead>\n  <tr style="border: 1px solid black; padding: 6px 8px;">\n`;
-    html += `    <td style="background-color: #e8e8e8; border: 1px solid black; font-weight: bold; padding: 6px 8px; text-align: center; width: 45px;">#</td>\n`;
+    html += `    <td style="background-color: #e8e8e8; border: 1px solid black; font-weight: bold; padding: 6px 8px; text-align: center; width: 45px;">Bd</td>\n`;
     html += `    <td style="background-color: #e8e8e8; border: 1px solid black; font-weight: bold; padding: 6px 8px; text-align: left; width: 200px;">Name/Rating/ID</td>\n`;
     for (let r = 1; r <= totalRounds; r++) {
       html += `    <td style="background-color: #e8e8e8; border: 1px solid black; font-weight: bold; padding: 6px 8px; text-align: center; width: 55px;">Rd ${r}</td>\n`;
@@ -945,7 +821,7 @@ export default function SwissStandings({ tournamentId, showExportControls = true
     html += `  </tr>\n</thead>\n<tbody>\n`;
     
     // Rows
-    sectionStandings.forEach((standing, index) => {
+    sectionStandings.forEach((standing) => {
       const playerRating = (isFide ? (standing.player.fideRating ?? standing.player.rating) : (standing.player.uscfRating ?? standing.player.rating)) || 'Unrated';
       const playerID = standing.player.localId || '';
       const lastName = standing.player.lastName || '';
@@ -962,7 +838,7 @@ export default function SwissStandings({ tournamentId, showExportControls = true
         
       // Row 1: Pairing No, Name, Round results, Total Points, Prize Category
       html += `  <tr style="border: 1px solid black; padding: 6px 8px;">\n`;
-      html += `    <td style="background-color: #e8e8e8; border: 1px solid black; font-weight: bold; padding: 6px 8px; text-align: center;">${index + 1}</td>\n`;
+      html += `    <td style="background-color: #e8e8e8; border: 1px solid black; font-weight: bold; padding: 6px 8px; text-align: center;">${pairingNum}</td>\n`;
       html += `    <td style="border: 1px solid black; font-weight: bold; padding: 6px 8px; text-align: left;">${nameHtml}</td>\n`;
       
       standing.roundResults.forEach((res) => {
@@ -994,7 +870,7 @@ export default function SwissStandings({ tournamentId, showExportControls = true
       html += `    <td style="border: 1px solid black; padding: 6px 8px; text-align: center;">&nbsp;</td>\n`;
       
       if (tournamentConfig?.prizesEnabled && showPrizes) {
-        const amountText = standing.prizeAmount || '---';
+        const amountText = tournamentConfig?.showPrizeAmounts !== false ? (standing.prizeAmount || '---') : '---';
         html += `    <td style="border: 1px solid black; padding: 6px 8px; text-align: left; font-weight: bold;">${amountText}</td>\n`;
       }
       html += `  </tr>\n`;
@@ -1252,13 +1128,51 @@ a:hover { text-decoration: underline; }
 
   const renderRoundOutcomeBadge = (res: PlayerRoundResult) => {
     const text = formatRoundResultDisplay(res);
-    if (text === '---') return <span className="text-slate-400 dark:text-slate-600">—</span>;
-    return <span className="text-slate-800 dark:text-slate-200 text-xs font-bold font-sans">{text}</span>;
+    if (text === '---') return <span className="text-slate-300 dark:text-slate-700">—</span>;
+    
+    const outcome = res.result;
+    
+    if (outcome === 'W' || outcome === 'forfeit-win') {
+      return (
+        <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 tracking-wide">
+          {text}
+        </span>
+      );
+    }
+    if (outcome === 'L' || outcome === 'forfeit-loss' || outcome === 'double-forfeit') {
+      return (
+        <span className="text-xs font-medium text-rose-600 dark:text-rose-455">
+          {text}
+        </span>
+      );
+    }
+    if (outcome === 'D') {
+      return (
+        <span className="text-xs font-semibold text-slate-550 dark:text-slate-400">
+          {text}
+        </span>
+      );
+    }
+    if (outcome === 'bye') {
+      return (
+        <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400">
+          {text}
+        </span>
+      );
+    }
+    if (outcome === 'unplayed') {
+      return (
+        <span className="text-xs font-medium text-slate-400 dark:text-slate-500">
+          {text}
+        </span>
+      );
+    }
+    return <span className="text-slate-500 dark:text-slate-400 text-xs font-medium">{text}</span>;
   };
 
 
   return (
-    <Card className="mx-4 md:mx-0 border border-slate-200 dark:border-slate-800 shadow-xl dark:bg-slate-900">
+    <Card className="border-none shadow-xl dark:bg-slate-900">
       <CardHeader className="border-b border-slate-100 dark:border-slate-800">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
           <div>
@@ -1321,6 +1235,20 @@ a:hover { text-decoration: underline; }
                 </div>
               )}
 
+              {/* Director-only Prize Amount Toggler */}
+              {tournamentConfig?.prizesEnabled && isDirector && (
+                <div className="flex items-center space-x-2 bg-slate-50 dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-100 dark:border-slate-700">
+                  <Switch
+                    id="show-amounts-toggle"
+                    checked={tournamentConfig?.showPrizeAmounts !== false}
+                    onCheckedChange={(checked) => updateShowPrizeAmountsMutation.mutate(checked)}
+                    disabled={updateShowPrizeAmountsMutation.isPending}
+                  />
+                  <Label htmlFor="show-amounts-toggle" className="text-xs font-medium text-slate-500 dark:text-slate-400 cursor-pointer">
+                    {updateShowPrizeAmountsMutation.isPending ? "Saving..." : "Show Payouts"}
+                  </Label>
+                </div>
+              )}
 
               {showExportControls && (
                 <div className="flex items-center gap-2">
@@ -1360,50 +1288,53 @@ a:hover { text-decoration: underline; }
           </div>
         </div>
       </CardHeader>
-      <CardContent className="px-4 pb-4 md:px-6 md:pb-6">
+      <CardContent className="p-0">
         {standings.length === 0 ? (
           <div className="text-center py-16 text-slate-500 dark:text-slate-400">
             No standings available yet
           </div>
         ) : (
-          <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
-            <table className="w-full border-collapse font-sans">
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse border border-slate-200 dark:border-slate-800">
               <thead>
-                <tr className="bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300">
-                  <th className="px-3 py-3 text-center text-xs font-bold w-12 border-b border-r border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-sans">
+                <tr className="bg-slate-50 dark:bg-slate-800/85 border-b border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300">
+                  <th className="px-3 py-3 text-center text-xs font-bold w-12 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">
                     #
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-bold border-b border-r border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-sans">
-                    Name/Rating/ID
+                  <th className="px-4 py-3 text-left text-xs font-bold border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">
+                    Name
+                  </th>
+                  <th className="px-3 py-3 text-left text-xs font-bold w-20 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">
+                    Rating
                   </th>
                   {Array.from({ length: totalRounds }, (_, i) => (
-                    <th key={i} className="px-3 py-3 text-center text-xs font-bold w-16 border-b border-r border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-sans">
+                    <th key={i} className="px-3 py-3 text-center text-xs font-bold w-16 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">
                       Rd {i + 1}
                     </th>
                   ))}
-                  <th className="px-3 py-3 text-center text-xs font-bold w-20 border-b border-r border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-sans">
-                    Total
+                  <th className="px-3 py-3 text-center text-xs font-bold w-20 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">
+                    Total points
                   </th>
                   {activeTiebreakRules.map((rule) => (
-                    <th key={rule} className="px-3 py-3 text-center text-xs font-bold w-20 border-b border-r border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-sans">
+                    <th key={rule} className="px-3 py-3 text-center text-xs font-bold w-20 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">
                       {rule}
                     </th>
                   ))}
-                  <th className="px-3 py-3 text-center text-xs font-bold w-20 border-b border-r border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-sans">
+                  <th className="px-3 py-3 text-center text-xs font-bold w-20 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">
                     Est. Post
                   </th>
-                  <th className="px-3 py-3 text-center text-xs font-bold w-20 border-b border-r border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-sans">
+                  <th className="px-3 py-3 text-center text-xs font-bold w-20 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">
                     Perf.
                   </th>
                   {tournamentConfig?.prizesEnabled && showPrizes && (
-                    <th className="px-4 py-3 text-left text-xs font-bold w-36 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-sans">
+                    <th className="px-4 py-3 text-left text-xs font-bold w-36 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">
                       Prizes
                     </th>
                   )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-                {standings.map((standing, index) => {
+                {standings.map((standing) => {
                   const isFide = tournamentConfig?.details.primaryRatingSystem === 'fide';
                   const playerRating = (isFide ? (standing.player.fideRating ?? standing.player.rating) : (standing.player.uscfRating ?? standing.player.rating)) || 'Unrated';
                   const lastName = standing.player.lastName || '';
@@ -1413,111 +1344,81 @@ a:hover { text-decoration: underline; }
                   const uscfId = standing.player.localId;
                   const isDigitsOnly = !!(uscfId && /^\d+$/.test(uscfId));
                   const isWithdrawn = standing.player.status === 'withdrawn' || standing.isWithdrawn;
-                  const pairingNum = getPlayerPairingNumber(standing.player.id);
 
                   return (
-                    <React.Fragment key={standing.player.id}>
-                      {/* Row 1: Bd, Name, Round results, Total Points, Tiebreaks, Est. Post, Perf, Prizes */}
-                      <tr
-                        className={cn(
-                          "bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 border-t border-slate-200 dark:border-slate-800 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors",
-                          isWithdrawn ? "opacity-60 line-through" : ""
-                        )}
-                      >
-                        <td className="px-3 py-2 text-center font-sans text-sm font-bold border-r border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 bg-slate-50/50 dark:bg-slate-800/20 w-12">
-                          {index + 1}
+                    <tr
+                      key={standing.player.id}
+                      className={cn(
+                        "hover:bg-indigo-50/20 dark:hover:bg-indigo-950/10 transition-colors",
+                        isWithdrawn ? "opacity-60 bg-slate-50/50 dark:bg-slate-900/40 line-through text-slate-450 dark:text-slate-550" : ""
+                      )}
+                    >
+                      <td className="px-3 py-2.5 text-center font-mono text-sm font-semibold border border-slate-200 dark:border-slate-800">
+                        {standing.position}
+                      </td>
+                      <td className="px-4 py-2.5 text-sm font-semibold text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-800">
+                        <div className="flex items-center gap-1.5">
+                          {isDigitsOnly ? (
+                            <a
+                              href={`http://www.uschess.org/msa/MbrDtlMain.php?${uscfId}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-semibold text-indigo-650 dark:text-indigo-400 hover:underline transition-colors"
+                            >
+                              {nameStr}
+                            </a>
+                          ) : (
+                            <span>{nameStr}</span>
+                          )}
+                          {standing.player.isActiveTd && (
+                            <Badge variant="outline" className="text-[10px] py-0 px-1.5 border-slate-200 dark:border-slate-800 text-slate-400 dark:text-slate-500 font-normal">substitute</Badge>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2.5 text-sm text-slate-600 dark:text-slate-350 border border-slate-200 dark:border-slate-800 font-mono">
+                        {playerRating}
+                      </td>
+                      {standing.roundResults.map((result, roundIdx) => (
+                        <td key={roundIdx} className="px-3 py-2.5 text-center border border-slate-200 dark:border-slate-800 bg-white/10 dark:bg-slate-950/5">
+                          {renderRoundOutcomeBadge(result)}
                         </td>
-                        <td className="px-4 py-2 text-sm font-bold border-r border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200">
-                          <div className="flex items-center gap-1.5">
-                            {isDigitsOnly ? (
-                              <a
-                                href={`http://www.uschess.org/msa/MbrDtlMain.php?${uscfId}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 hover:underline transition-colors"
-                              >
-                                {nameStr}
-                              </a>
-                            ) : (
-                              <span>{nameStr}</span>
-                            )}
-                            {standing.player.isActiveTd && (
-                              <span className="text-[10px] text-slate-400 dark:text-slate-500 font-normal ml-1.5">(substitute)</span>
-                            )}
-                          </div>
-                        </td>
-                        {standing.roundResults.map((result, roundIdx) => (
-                          <td key={roundIdx} className="px-3 py-2 text-center border-r border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200">
-                            {renderRoundOutcomeBadge(result)}
+                      ))}
+                      <td className="px-3 py-2.5 text-center font-bold text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 font-mono bg-slate-50/50 dark:bg-slate-900/20">
+                        {standing.totalPoints.toFixed(1).replace(/\.0$/, "")}
+                      </td>
+                      {activeTiebreakRules.map((rule) => {
+                        const val = standing.tiebreakValues[rule];
+                        return (
+                          <td key={rule} className="px-3 py-2.5 text-center text-sm font-mono text-slate-600 dark:text-slate-350 border border-slate-200 dark:border-slate-800">
+                            {val !== undefined ? val.toFixed(2) : "0.00"}
                           </td>
-                        ))}
-                        <td className="px-3 py-2 text-center font-black border-r border-slate-200 dark:border-slate-800 font-sans text-slate-900 dark:text-slate-100 bg-slate-50 dark:bg-slate-800/30">
-                          {standing.totalPoints.toFixed(1).replace(/\.0$/, "")}
+                        );
+                      })}
+                      <td className="px-3 py-2.5 text-center text-sm font-mono text-slate-600 dark:text-slate-350 border border-slate-200 dark:border-slate-800 bg-slate-50/10 dark:bg-slate-900/5">
+                        {standing.postRating ?? playerRating}
+                      </td>
+                      <td className="px-3 py-2.5 text-center text-sm font-mono text-slate-600 dark:text-slate-350 border border-slate-200 dark:border-slate-800 bg-slate-50/10 dark:bg-slate-900/5">
+                        {standing.performanceRating ?? playerRating}
+                      </td>
+                      {tournamentConfig?.prizesEnabled && showPrizes && (
+                        <td className="px-4 py-2.5 text-left text-sm border border-slate-200 dark:border-slate-800">
+                          {standing.prizeCategory && standing.prizeCategory !== '---' ? (
+                            <div className="flex flex-col gap-0.5">
+                              <Badge className="bg-indigo-50 dark:bg-indigo-950/30 text-indigo-650 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/30 font-semibold text-[11px] py-0.5 px-2 hover:bg-indigo-50 dark:hover:bg-indigo-900/40 shadow-sm w-fit">
+                                {standing.prizeCategory}
+                              </Badge>
+                              {tournamentConfig?.showPrizeAmounts !== false && standing.prizeAmount !== '---' && (
+                                <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 pl-1">
+                                  {standing.prizeAmount}
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-slate-350 dark:text-slate-750 font-medium">—</span>
+                          )}
                         </td>
-                        {activeTiebreakRules.map((rule) => {
-                          const val = standing.tiebreakValues[rule];
-                          return (
-                            <td key={rule} className="px-3 py-2 text-center text-sm font-sans border-r border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400">
-                              {val !== undefined ? val.toFixed(2) : "0.00"}
-                            </td>
-                          );
-                        })}
-                        <td className="px-3 py-2 text-center text-sm font-sans border-r border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400">
-                          {standing.postRating ?? playerRating}
-                        </td>
-                        <td className="px-3 py-2 text-center text-sm font-sans border-r border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400">
-                          {standing.performanceRating ?? playerRating}
-                        </td>
-                        {tournamentConfig?.prizesEnabled && showPrizes && (
-                          <td className="px-4 py-2 text-left text-sm border-r border-slate-200 dark:border-slate-800 font-bold text-emerald-600 dark:text-emerald-400 font-sans">
-                            {standing.prizeCategory && standing.prizeCategory !== '---' ? (
-                              standing.prizeCategory
-                            ) : (
-                              "—"
-                            )}
-                          </td>
-                        )}
-                      </tr>
-
-                      {/* Row 2: Empty Bd cell, Rating & Local ID, Cumulative scores per round, empty for total & tiebreaks */}
-                      <tr
-                        className={cn(
-                          "bg-slate-50/20 dark:bg-slate-900/10 text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors",
-                          isWithdrawn ? "opacity-60 line-through" : ""
-                        )}
-                      >
-                        <td className="px-3 py-1.5 border-r border-slate-200 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-800/20 text-center">&nbsp;</td>
-                        <td className="px-4 py-1.5 text-xs font-sans border-r border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400">
-                          Rating: <span className="font-semibold text-slate-700 dark:text-slate-300">{playerRating}</span>{uscfId ? ` \u00a0\u00a0 ID: ${uscfId}` : ''}
-                        </td>
-                        {standing.roundResults.map((_, roundIndex) => {
-                          const cumulative = standing.roundResults
-                            .slice(0, roundIndex + 1)
-                            .reduce((sum, entry) => sum + entry.points, 0);
-                          const cumulativeText = roundIndex < currentRound ? cumulative.toFixed(1).replace(/\.0$/, ".0") : '';
-                          return (
-                            <td key={roundIndex} className="px-3 py-1.5 text-center text-xs font-sans font-medium border-r border-slate-200 dark:border-slate-800 text-slate-400 dark:text-slate-500">
-                              {cumulativeText}
-                            </td>
-                          );
-                        })}
-                        <td className="px-3 py-1.5 border-r border-slate-200 dark:border-slate-800 text-center">&nbsp;</td>
-                        {activeTiebreakRules.map((rule) => (
-                          <td key={rule} className="px-3 py-1.5 border-r border-slate-200 dark:border-slate-800 text-center">&nbsp;</td>
-                        ))}
-                        <td className="px-3 py-1.5 border-r border-slate-200 dark:border-slate-800 text-center">&nbsp;</td>
-                        <td className="px-3 py-1.5 border-r border-slate-200 dark:border-slate-800 text-center">&nbsp;</td>
-                        {tournamentConfig?.prizesEnabled && showPrizes && (
-                          <td className="px-4 py-1.5 text-left text-xs font-bold text-emerald-600 dark:text-emerald-400 font-sans">
-                            {standing.prizeAmount && standing.prizeAmount !== '---' ? (
-                              standing.prizeAmount
-                            ) : (
-                              "—"
-                            )}
-                          </td>
-                        )}
-                      </tr>
-                    </React.Fragment>
+                      )}
+                    </tr>
                   );
                 })}
               </tbody>

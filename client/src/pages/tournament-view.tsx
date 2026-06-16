@@ -320,16 +320,6 @@ export default function TournamentView({ tournamentId }: TournamentViewProps) {
                             {section.name}
                           </Button>
                         ))}
-                        {tournament?.format === 'swiss' && config?.registers?.allowExtraGames && (
-                          <Button
-                            variant={activeRoundSection === "extra_games" ? "default" : "outline"}
-                            size="sm"
-                            onClick={() => setActiveRoundSection("extra_games")}
-                            className={activeRoundSection === "extra_games" ? "bg-blue-600 hover:bg-blue-700 whitespace-nowrap" : "whitespace-nowrap"}
-                          >
-                            Extra Games
-                          </Button>
-                        )}
                       </div>
                     )}
                     <SwissPairings

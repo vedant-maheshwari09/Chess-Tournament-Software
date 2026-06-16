@@ -674,9 +674,6 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
                       {section.name}
                     </TabsTrigger>
                   ))}
-                  {tournament?.format === 'swiss' && tournamentConfig?.registers?.allowExtraGames && (
-                    <TabsTrigger value="extra_games">Extra Games</TabsTrigger>
-                  )}
                 </TabsList>
                 <Card className="mt-4">
                   <CardHeader>

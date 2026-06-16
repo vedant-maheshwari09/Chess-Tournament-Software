@@ -56,6 +56,7 @@ import {
 import { Upload, Check, ChevronRight, Settings, X, ChevronUp, ChevronDown, Plus, CreditCard, ExternalLink, Trophy, Users, Calculator, Link, QrCode, Printer, Copy, Clock, Zap, Paperclip, Loader2, Trash2, Eye, EyeOff, FileDown, FileUp } from "lucide-react";
 import qrcode from "qrcode";
 import TournamentPagePanel from "@/components/tournament-page-panel";
+import { RegistrationFormCustomizer } from "@/components/registration-form-customizer";
 import { KnockoutFormatEditor } from "@/components/knockout-format-editor";
 import { DatePicker } from "@/components/ui/date-picker";
 import { TimePicker } from "@/components/ui/time-picker";
@@ -1955,10 +1956,8 @@ function StepTwo({ format, mode, builderMode, config, onConfigChange, onBack: _o
   const setTiebreaks = (next: string[]) => updateDetails({ tiebreaks: next });
   const addTiebreakRule = () => {
     const fallback = TIEBREAK_OPTIONS.find((option) => !tiebreaks.includes(option.label))?.label ?? "Buchholz";
-    updateDetails({
-      tiebreaks: [...tiebreaks, fallback],
-      tiebreaksEnabled: true,
-    });
+    setTiebreaks([...tiebreaks, fallback]);
+    updateDetails({ tiebreaksEnabled: true });
   };
   const updateTiebreakRule = (index: number, value: string) => {
     const next = [...tiebreaks];
@@ -2316,27 +2315,6 @@ function StepTwo({ format, mode, builderMode, config, onConfigChange, onBack: _o
                         </Button>
                       </div>
                     )}
-                  </div>
-                )}
-
-                {config.format === 'swiss' && (
-                  <div className="space-y-4 pt-6 border-t border-slate-100">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="text-base font-semibold text-black">Extra Games</h3>
-                        <p className="text-xs text-slate-500">
-                          Allow tournament directors to schedule rated extra games that are excluded from official standings.
-                        </p>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Switch
-                          id="allow-extra-games-switch"
-                          checked={config.registers.allowExtraGames ?? false}
-                          onCheckedChange={(checked) => updateRegisters({ allowExtraGames: checked })}
-                        />
-                        <Label htmlFor="allow-extra-games-switch">Allow Extra Games</Label>
-                      </div>
-                    </div>
                   </div>
                 )}
 
@@ -2780,17 +2758,6 @@ function StepTwo({ format, mode, builderMode, config, onConfigChange, onBack: _o
 
                       <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/30 px-5 py-4 transition-all hover:bg-slate-50/50">
                         <div className="space-y-0.5">
-                          <Label className="text-base font-medium text-black">Auto-Accept Registrations</Label>
-                          <p className="text-xs text-slate-500 font-normal">Automatically approve and roster players upon registration.</p>
-                        </div>
-                        <Switch
-                          checked={config.registers.autoAcceptRegistrations ?? false}
-                          onCheckedChange={(checked) => updateRegisters({ autoAcceptRegistrations: checked })}
-                        />
-                      </div>
-
-                      <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/30 px-5 py-4 transition-all hover:bg-slate-50/50">
-                        <div className="space-y-0.5">
                           <Label className="text-base font-medium text-black">Multi-Player Entry</Label>
                           <p className="text-xs text-slate-500 font-normal">Enable registration of multiple players per account.</p>
                         </div>
@@ -2929,6 +2896,12 @@ function StepTwo({ format, mode, builderMode, config, onConfigChange, onBack: _o
                       />
                 </div>
                 </div>
+
+                {/* Registration Form Customizer */}
+                <RegistrationFormCustomizer
+                  config={config}
+                  onConfigChange={onConfigChange}
+                />
 
                 {/* Page Customization */}
                 <div className="rounded-2xl border bg-white p-6 space-y-8 shadow-sm border-slate-200/60">

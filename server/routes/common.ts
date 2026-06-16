@@ -829,11 +829,7 @@ export async function generateSwissPairings(
   }
 
   const rawActivePlayers = players.filter(player =>
-    !withdrawnPlayerIds.has(player.id) &&
-    !roundByePlayerIds.has(player.id) &&
-    player.status !== 'withdrawn' &&
-    player.status !== 'guest' &&
-    player.status !== 'houseplayer'
+    !withdrawnPlayerIds.has(player.id) && !roundByePlayerIds.has(player.id) && player.status !== 'withdrawn'
   );
 
   let activePlayers = [...rawActivePlayers];

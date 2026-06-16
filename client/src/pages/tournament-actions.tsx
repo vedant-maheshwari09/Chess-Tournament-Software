@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,18 +7,10 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { AlertTriangle, ChevronLeft, Mail, Share2, Trash2, Users, UserPlus, Loader2, Sliders } from "lucide-react";
+import { AlertTriangle, ChevronLeft, Mail, Share2, Trash2, Users } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { cn } from "@/lib/utils";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   parseTournamentConfig,
   serializeTournamentConfig,
@@ -37,7 +29,6 @@ import type { Tournament, Player } from "@shared/schema";
 
 interface TournamentActionsPageProps {
   tournamentId: number;
-  section?: string;
 }
 
 export function TournamentActionsContent({ 
@@ -298,32 +289,6 @@ export function TournamentActionsContent({
         </CardContent>
       </Card>
 
-      {/* Player Roster Import */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Users className="h-5 w-5 text-indigo-600" />
-            Player Roster
-          </CardTitle>
-          <CardDescription>
-            Import the same set of players from one of your past tournaments to quickly sign everyone up.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-sm text-slate-600 leading-relaxed">
-            Go to <strong>Settings → Player Signup</strong> to select a past tournament and choose which players to import into this one. Their name, rating, and section details will carry over.
-          </p>
-          <Button
-            variant="outline"
-            className="border-indigo-200 text-indigo-700 hover:bg-indigo-50"
-            onClick={() => setLocation(`/tournaments/${tournamentId}/settings/player-signup`)}
-          >
-            <Users className="mr-2 h-4 w-4" />
-            Import Players from Past Tournament
-          </Button>
-        </CardContent>
-      </Card>
-
       {/* Share Event Card */}
       <Card>
         <CardHeader>
@@ -387,7 +352,7 @@ export function TournamentActionsContent({
   );
 }
 
-export default function TournamentActionsPage({ tournamentId, section }: TournamentActionsPageProps) {
+export default function TournamentActionsPage({ tournamentId }: TournamentActionsPageProps) {
   const { user, isLoading: authLoading } = useAuth();
   const [, setLocation] = useLocation();
 
@@ -428,35 +393,6 @@ export default function TournamentActionsPage({ tournamentId, section }: Tournam
     return null;
   }
 
-  if (section === "player-signup") {
-    return (
-      <div className="min-h-screen bg-transparent">
-        <div className="mx-auto max-w-4xl space-y-6 p-6">
-          <Button
-            variant="link"
-            onClick={() => setLocation(`/tournaments/${tournamentId}/settings`)}
-            className="pl-0 text-slate-500 hover:text-slate-900"
-          >
-            <ChevronLeft className="mr-1 h-4 w-4" />
-            Back to settings
-          </Button>
-
-          <div className="flex flex-wrap items-center justify-between gap-4 border-b pb-4">
-            <div>
-              <h1 className="text-2xl font-semibold text-slate-900">Player Roster Import</h1>
-              <p className="text-sm text-muted-foreground">
-                Import player rosters from your past events into {tournament.name}.
-              </p>
-            </div>
-            <Badge variant="outline">ID #{tournament.id}</Badge>
-          </div>
-
-          <PlayerImportCard tournamentId={tournamentId} targetTournamentName={tournament.name} />
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-transparent">
       <div className="mx-auto max-w-4xl space-y-6 p-6">
@@ -486,196 +422,5 @@ export default function TournamentActionsPage({ tournamentId, section }: Tournam
         />
       </div>
     </div>
-  );
-}
-
-function PlayerImportCard({ tournamentId, targetTournamentName }: { tournamentId: number; targetTournamentName?: string }) {
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const [selectedSourceId, setSelectedSourceId] = useState<string>("");
-  const [selectedPlayerIds, setSelectedPlayerIds] = useState<Set<number>>(new Set());
-
-  // Fetch all my tournaments
-  const { data: tournaments = [], isLoading: loadingTournaments } = useQuery<Tournament[]>({
-    queryKey: ["/api/my-tournaments"],
-  });
-
-  // Filter out current tournament
-  const sourceTournaments = tournaments.filter(t => t.id !== tournamentId);
-
-  // Fetch players for selected source tournament
-  const { data: sourcePlayers = [], isLoading: loadingPlayers } = useQuery<Player[]>({
-    queryKey: [`/api/tournaments/${selectedSourceId}/players`],
-    enabled: !!selectedSourceId,
-  });
-
-  // Update selected players when source tournament changes
-  useEffect(() => {
-    setSelectedPlayerIds(new Set());
-  }, [selectedSourceId]);
-
-  const togglePlayer = (id: number) => {
-    setSelectedPlayerIds(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
-  };
-
-  const toggleAll = () => {
-    if (selectedPlayerIds.size === sourcePlayers.length) {
-      setSelectedPlayerIds(new Set());
-    } else {
-      setSelectedPlayerIds(new Set(sourcePlayers.map(p => p.id)));
-    }
-  };
-
-  const importMutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest(`/api/tournaments/${tournamentId}/import-players`, {
-        method: "POST",
-        body: JSON.stringify({
-          sourceTournamentId: parseInt(selectedSourceId),
-          playerIds: Array.from(selectedPlayerIds),
-        }),
-      });
-      return res;
-    },
-    onSuccess: async (res) => {
-      const responseData = await res.json();
-      toast({
-        title: "Players Imported",
-        description: responseData.message || `Successfully imported ${selectedPlayerIds.size} players.`,
-      });
-      queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/players`] });
-      setSelectedPlayerIds(new Set());
-      setSelectedSourceId("");
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Import failed",
-        description: error?.message ?? "An error occurred during import.",
-        variant: "destructive",
-      });
-    },
-  });
-
-  return (
-    <Card className="shadow-sm">
-      <CardHeader>
-        <CardTitle className="text-xl font-bold flex items-center gap-2 text-indigo-900">
-          <UserPlus className="h-5 w-5 text-indigo-600" />
-          <span>Import Players from Past Tournament</span>
-        </CardTitle>
-        <p className="text-sm text-slate-500">
-          Clone player rosters from your previous tournaments to quickly sign up the same set of players.
-        </p>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="space-y-2">
-          <label className="text-sm font-semibold text-slate-700">Select Past Tournament</label>
-          {loadingTournaments ? (
-            <div className="flex items-center gap-2 text-slate-500 text-sm py-2">
-              <Loader2 className="h-4 w-4 animate-spin text-indigo-500" />
-              <span>Loading tournaments...</span>
-            </div>
-          ) : sourceTournaments.length === 0 ? (
-            <p className="text-sm text-slate-500 italic py-2">No other tournaments available to clone from.</p>
-          ) : (
-            <Select value={selectedSourceId} onValueChange={setSelectedSourceId}>
-              <SelectTrigger className="w-full md:w-80">
-                <SelectValue placeholder="Choose a tournament..." />
-              </SelectTrigger>
-              <SelectContent>
-                {sourceTournaments.map(t => (
-                  <SelectItem key={t.id} value={String(t.id)}>
-                    {t.name} ({t.status})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-        </div>
-
-        {selectedSourceId && (
-          <div className="space-y-4 pt-4 border-t">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-slate-800">
-                Available Players ({sourcePlayers.length})
-              </h3>
-              {sourcePlayers.length > 0 && (
-                <Button variant="outline" size="sm" onClick={toggleAll}>
-                  {selectedPlayerIds.size === sourcePlayers.length ? "Deselect All" : "Select All"}
-                </Button>
-              )}
-            </div>
-
-            {loadingPlayers ? (
-              <div className="flex items-center justify-center py-8 text-slate-500 text-sm">
-                <Loader2 className="h-6 w-6 animate-spin text-indigo-500 mr-2" />
-                <span>Loading players roster...</span>
-              </div>
-            ) : sourcePlayers.length === 0 ? (
-              <p className="text-sm text-slate-500 italic py-4 text-center">No players found in this tournament.</p>
-            ) : (
-              <div className="border rounded-lg overflow-hidden max-h-[300px] overflow-y-auto">
-                <table className="w-full text-left text-sm text-slate-600 border-collapse">
-                  <thead className="bg-slate-50 text-slate-700 uppercase text-xs font-semibold border-b sticky top-0">
-                    <tr>
-                      <th className="p-3 w-12 text-center">Select</th>
-                      <th className="p-3">Name</th>
-                      <th className="p-3">Rating</th>
-                      <th className="p-3">Section</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {sourcePlayers.map(p => {
-                      const isSelected = selectedPlayerIds.has(p.id);
-                      return (
-                        <tr
-                          key={p.id}
-                          className={cn(
-                            "hover:bg-slate-50 cursor-pointer transition-colors",
-                            isSelected && "bg-indigo-50/50"
-                          )}
-                          onClick={() => togglePlayer(p.id)}
-                        >
-                          <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
-                            <Checkbox
-                              checked={isSelected}
-                              onCheckedChange={() => togglePlayer(p.id)}
-                            />
-                          </td>
-                          <td className="p-3 font-medium text-slate-900">
-                            {p.firstName} {p.lastName}
-                          </td>
-                          <td className="p-3">{p.rating ?? "1000"}</td>
-                          <td className="p-3 text-slate-500">{p.sectionName || "Open"}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            <div className="flex justify-end pt-4 border-t">
-              <Button
-                onClick={() => importMutation.mutate()}
-                disabled={selectedPlayerIds.size === 0 || importMutation.isPending}
-                className="bg-indigo-600 text-white hover:bg-indigo-700 flex items-center gap-2"
-              >
-                {importMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-                <span>Import Selected ({selectedPlayerIds.size})</span>
-              </Button>
-            </div>
-          </div>
-        )}
-      </CardContent>
-    </Card>
   );
 }

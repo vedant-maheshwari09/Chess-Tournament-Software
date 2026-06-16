@@ -42,7 +42,6 @@ export interface RegistersConfig {
   registrationDeadlineDate?: string | null;
   registrationDeadlineTime?: string | null;
   allowExtraGames?: boolean;
-  autoAcceptRegistrations?: boolean;
 }
 
 export interface FideRegistrationData {
@@ -214,6 +213,9 @@ export interface RegistrationFormField {
   required: boolean;
   visible: boolean;
   isCustom?: boolean;
+  placeholder?: string;
+  description?: string;
+  prebuiltType?: string;
 }
 
 export interface RegistrationFormConfig {
@@ -221,18 +223,112 @@ export interface RegistrationFormConfig {
 }
 
 export const DEFAULT_REGISTRATION_FIELDS: RegistrationFormField[] = [
-  { id: "address1", label: "Address Line 1", type: "text", required: false, visible: true },
-  { id: "address2", label: "Address Line 2", type: "text", required: false, visible: true },
-  { id: "city", label: "City", type: "text", required: false, visible: true },
-  { id: "state", label: "State / Province", type: "text", required: false, visible: true },
-  { id: "postalCode", label: "Postal Code", type: "text", required: false, visible: true },
-  { id: "country", label: "Country", type: "text", required: false, visible: true },
-  { id: "uscfId", label: "USCF ID", type: "text", required: false, visible: true },
-  { id: "fideId", label: "FIDE ID", type: "text", required: false, visible: true },
-  { id: "byePreference", label: "Bye Requests", type: "boolean", required: false, visible: true },
-  { id: "arrivalTime", label: "Expected Arrival Time", type: "text", required: false, visible: true },
-  { id: "notes", label: "Notes / Requests", type: "text", required: false, visible: true },
-  { id: "newsletter", label: "Receive Bulletins", type: "boolean", required: false, visible: true },
+  { 
+    id: "address1", 
+    label: "Address Line 1", 
+    type: "text", 
+    required: false, 
+    visible: true,
+    placeholder: "e.g. 123 Main Street",
+    description: "Your primary street address for billing and prize verification."
+  },
+  { 
+    id: "address2", 
+    label: "Address Line 2", 
+    type: "text", 
+    required: false, 
+    visible: true,
+    placeholder: "e.g. Suite 4B or Apt 12",
+    description: "Apartment, suite, unit, or floor (optional)."
+  },
+  { 
+    id: "city", 
+    label: "City", 
+    type: "text", 
+    required: false, 
+    visible: true,
+    placeholder: "e.g. New York",
+    description: "City of residence."
+  },
+  { 
+    id: "state", 
+    label: "State / Province", 
+    type: "text", 
+    required: false, 
+    visible: true,
+    placeholder: "e.g. NY",
+    description: "State or province abbreviation."
+  },
+  { 
+    id: "postalCode", 
+    label: "Postal Code", 
+    type: "text", 
+    required: false, 
+    visible: true,
+    placeholder: "e.g. 10001",
+    description: "Postal/ZIP code."
+  },
+  { 
+    id: "country", 
+    label: "Country", 
+    type: "text", 
+    required: false, 
+    visible: true,
+    placeholder: "e.g. United States",
+    description: "Country of residence."
+  },
+  { 
+    id: "uscfId", 
+    label: "USCF ID", 
+    type: "text", 
+    required: false, 
+    visible: true,
+    placeholder: "e.g. 12345678",
+    description: "Your 8-digit United States Chess Federation ID."
+  },
+  { 
+    id: "fideId", 
+    label: "FIDE ID", 
+    type: "text", 
+    required: false, 
+    visible: true,
+    placeholder: "e.g. 1500021",
+    description: "Your official World Chess Federation ID (if applicable)."
+  },
+  { 
+    id: "byePreference", 
+    label: "Bye Requests", 
+    type: "boolean", 
+    required: false, 
+    visible: true,
+    description: "A half-point bye can be requested for rounds you are unable to play."
+  },
+  { 
+    id: "arrivalTime", 
+    label: "Expected Arrival Time", 
+    type: "text", 
+    required: false, 
+    visible: true,
+    placeholder: "e.g. Friday 6:30 PM",
+    description: "Helpful for directors to manage section start times and check-ins."
+  },
+  { 
+    id: "notes", 
+    label: "Notes / Requests", 
+    type: "text", 
+    required: false, 
+    visible: true,
+    placeholder: "e.g. Wheelchair access, traveling with family, section-specific requests...",
+    description: "Any special accommodations, travel issues, or messages for the Director."
+  },
+  { 
+    id: "newsletter", 
+    label: "Receive Bulletins", 
+    type: "boolean", 
+    required: false, 
+    visible: true,
+    description: "Opt-in to receive round pairings, final standings, and future event details."
+  },
 ];
 
 export interface TournamentConfig {
@@ -450,7 +546,6 @@ export function createDefaultConfig(format: Tournament["format"], mode: Tourname
       thirdPlaceMatch: false,
       pushNotifications: true,
       allowExtraGames: false,
-      autoAcceptRegistrations: false,
     },
     fide: {
       prizeFund: "",

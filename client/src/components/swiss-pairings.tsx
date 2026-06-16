@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef, forwardRef, useImperativeHandle } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
@@ -14,9 +15,8 @@ import { parseTournamentConfig } from "@/lib/tournament-config";
 import { calculateMatchupScore, type SectionDefinition } from "@shared/tournament-config";
 import { HEAD_TO_HEAD_RESULT_OPTIONS, BYE_RESULT_OPTIONS, getPointsForResult } from "@shared/match-results";
 import { MatchManagementDialog } from "./match-management-dialog";
-import { Swords, Info, UserPlus } from "lucide-react";
+import { Swords, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Input } from "@/components/ui/input";
 import QRCode from "qrcode";
 
 interface TournamentPairingsProps {
@@ -49,6 +49,15 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
   const [expandedSeries, setExpandedSeries] = useState<Set<number>>(new Set());
   const [collapsedRounds, setCollapsedRounds] = useState<Set<number>>(new Set());
   const [finishConfirmation, setFinishConfirmation] = useState("");
+  // Scanner state
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [scanImage, setScanImage] = useState<string | null>(null);
+  const [scanImageFile, setScanImageFile] = useState<File | null>(null);
+  const [isScanning, setIsScanning] = useState(false);
+  const [scanResults, setScanResults] = useState<{ board: number; result: string; matchId: number | null }[]>([]);
+  const [appliedCount, setAppliedCount] = useState(0);
+  const scanFileInputRef = useRef<HTMLInputElement>(null);
+
   const [pendingResults, setPendingResults] = useState<PendingResultsMap>({});
   // clickState tracks which sides have been single-clicked for a draw gesture
   // key: matchId, value: set of 'white' | 'black' that have been single-clicked
@@ -68,13 +77,6 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
   // Edit mode states
   const [drawClickState, setDrawClickState] = useState<{ matchId: number; side: 'white' | 'black' } | null>(null);
   const [isSavingResults, setIsSavingResults] = useState(false);
-
-  // Guest and Houseplayer registration form state
-  const [guestFirstName, setGuestFirstName] = useState("");
-  const [guestLastName, setGuestLastName] = useState("");
-  const [guestRating, setGuestRating] = useState("1000");
-  const [guestUscfId, setGuestUscfId] = useState("");
-  const [guestStatus, setGuestStatus] = useState<'guest' | 'houseplayer'>('guest');
 
   const toggleExpand = (matchId: number) => {
     setExpandedSeries(prev => {
@@ -235,13 +237,8 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
 
   const filteredMatches = useMemo(() => {
     if (!matches) return [] as Match[];
-    if (activeSection === "extra_games") {
-      return matches.filter((match) => match.isExtraGame);
-    }
-    if (activeSection === "all") {
-      return matches.filter((match) => !match.isExtraGame);
-    }
-    return matches.filter((match) => !match.isExtraGame && matchSectionFilter(match, activeSection));
+    if (activeSection === "all") return [...matches];
+    return matches.filter((match) => matchSectionFilter(match, activeSection));
   }, [matches, matchSectionFilter, activeSection]);
 
   const roundRobinGroups = useMemo(() => {
@@ -282,11 +279,6 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
     });
   }, [players, playerSectionMap, activeSection]);
 
-  const selectablePlayers = useMemo(() => {
-    if (!players) return [];
-    return players.filter(p => p.status !== 'withdrawn');
-  }, [players]);
-
   const addExtraMatchMutation = useMutation({
     mutationFn: async ({ whitePlayerId, blackPlayerId }: { whitePlayerId: number; blackPlayerId: number }) => {
       return await apiRequest(`/api/tournaments/${tournamentId}/extra-matches`, {
@@ -311,43 +303,6 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
       toast({
         title: "Error",
         description: "Failed to add extra game.",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const registerGuestMutation = useMutation({
-    mutationFn: async (payload: {
-      firstName: string;
-      lastName: string;
-      rating: number;
-      status: 'guest' | 'houseplayer';
-      localId?: string;
-    }) => {
-      return await apiRequest(`/api/tournaments/${tournamentId}/players`, {
-        method: "POST",
-        body: JSON.stringify({
-          ...payload,
-          sectionId: null,
-          sectionName: null,
-        }),
-      });
-    },
-    onSuccess: () => {
-      toast({
-        title: "Player Registered",
-        description: `Successfully registered ${guestFirstName} ${guestLastName} as a ${guestStatus}.`,
-      });
-      queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/players`] });
-      setGuestFirstName("");
-      setGuestLastName("");
-      setGuestRating("1000");
-      setGuestUscfId("");
-    },
-    onError: () => {
-      toast({
-        title: "Registration Failed",
-        description: "Failed to register guest/houseplayer player.",
         variant: "destructive",
       });
     },
@@ -407,7 +362,7 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
   }, [currentRound, roundRobinGroups, swissMatches, knockoutGroups, tournament?.format]);
 
   const hasPrintableMatches = pairingGroups.some((group) => group.matches.length > 0);
-  const hasDisplayData = activeSection === "extra_games" || hasPrintableMatches || (tournament?.format === 'swiss' && filteredByes.length > 0);
+  const hasDisplayData = hasPrintableMatches || (tournament?.format === 'swiss' && filteredByes.length > 0);
 
   const matchesForStatus = useMemo(() => {
     if (tournament?.format === 'roundrobin') {
@@ -923,83 +878,22 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
     });
   };
 
-  // Handle double click on white or black cell (win/draw editing flow)
+  // Handle double click on white or black cell (win for that side)
   const handleResultCellDoubleClick = (matchId: number, side: 'white' | 'black') => {
     if (!isEditMode) return;
     // Clear click state for this match
     setClickState(prev => ({ ...prev, [matchId]: new Set() }));
     const currentEffective = pendingResults[matchId] ?? allMatches?.find(m => m.id === matchId)?.result ?? null;
-
-    if (side === 'white') {
-      if (currentEffective === '1-0' || currentEffective === '1F-0F') {
-        // Double-clicking the winning side again clears it back to Pending
-        handleResultChange(matchId, 'Pending');
-      } else if (currentEffective === '0-1' || currentEffective === '0F-1F') {
-        // If it's currently a Black win, double-clicking the White box transitions it to a Draw
-        handleResultChange(matchId, '1/2-1/2');
-      } else {
-        // If it is Pending or a Draw, double-clicking White sets it to a White Win
-        handleResultChange(matchId, '1-0');
-      }
-    } else { // side === 'black'
-      if (currentEffective === '0-1' || currentEffective === '0F-1F') {
-        // Double-clicking the winning side again clears it back to Pending
-        handleResultChange(matchId, 'Pending');
-      } else if (currentEffective === '1-0' || currentEffective === '1F-0F') {
-        // If it's currently a White win, double-clicking the Black box transitions it to a Draw
-        handleResultChange(matchId, '1/2-1/2');
-      } else {
-        // If it is Pending or a Draw, double-clicking Black sets it to a Black Win
-        handleResultChange(matchId, '0-1');
-      }
+    const newResult = side === 'white' ? '1-0' : '0-1';
+    if (currentEffective === newResult) {
+      // Toggle off - reset to pending
+      handleResultChange(matchId, 'Pending');
+    } else {
+      handleResultChange(matchId, newResult);
     }
   };
 
-  // Save all pending results to server
-  const handleSaveResults = async () => {
-    const entries = Object.entries(pendingResults);
-    if (entries.length === 0) {
-      setIsEditMode(false);
-      return;
-    }
-    try {
-      await Promise.all(entries.map(([matchId, result]) =>
-        apiRequest(`/api/matches/${matchId}`, {
-          method: 'PUT',
-          body: JSON.stringify({
-            result,
-            status: result === 'Pending' ? 'pending' : 'completed',
-          }),
-        })
-      ));
-      queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}`] });
-      queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/matches`] });
-      queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/pairings`] });
-      queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/players`] });
-      queryClient.invalidateQueries({ queryKey: [`/api/standings/${tournamentId}`] });
-      toast({ title: 'Results Saved', description: `${entries.length} result(s) saved successfully.` });
-      setPendingResults({});
-      setClickState({});
-      setIsEditMode(false);
-    } catch {
-      toast({ title: 'Error', description: 'Failed to save results.', variant: 'destructive' });
-    }
-  };
-
-  const handleCancelEdit = () => {
-    setPendingResults({});
-    setClickState({});
-    setIsEditMode(false);
-  };
-
-  useImperativeHandle(ref, () => ({
-    save: handleSaveResults,
-    cancel: handleCancelEdit,
-    openScan: () => {
-      setScanDialogOpen(true);
-      startCamera();
-    }
-  }));
+  // Save all pending results to server (main full definition is declared below)
 
   // Webcam helpers
   const startCamera = async () => {
@@ -1256,7 +1150,72 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
       setDrawClickState({ matchId, side });
     }
   };
-  
+
+  const handleSaveResults = async () => {
+    setIsSavingResults(true);
+    try {
+      const entries = Object.entries(pendingResults);
+      if (entries.length > 0) {
+        await Promise.all(
+          entries.map(([matchIdStr, result]) =>
+            apiRequest(`/api/matches/${parseInt(matchIdStr, 10)}`, {
+              method: "PUT",
+              body: JSON.stringify({
+                result,
+                status: result === "Pending" ? "pending" : "completed",
+              }),
+            })
+          )
+        );
+      }
+
+      // Invalidate queries to refresh standings and pairings
+      queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/matches`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/pairings`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/players`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/standings/${tournamentId}`] });
+
+      toast({
+        title: "Results Saved",
+        description: `Successfully saved ${entries.length} result(s). Standings have been updated.`,
+      });
+
+      setPendingResults({});
+      setClickState({});
+      setIsEditMode(false);
+      setDrawClickState(null);
+    } catch (err: any) {
+      console.error(err);
+      toast({
+        title: "Error Saving Results",
+        description: err?.message || "Failed to save results. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSavingResults(false);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setPendingResults({});
+    setClickState({});
+    setIsEditMode(false);
+    setDrawClickState(null);
+    toast({
+      title: "Edits Cancelled",
+      description: "Pending result changes have been discarded."
+    });
+  };
+
+  useImperativeHandle(ref, () => ({
+    save: handleSaveResults,
+    cancel: handleCancelEdit,
+    openScan: () => {
+      setScanDialogOpen(true);
+      startCamera();
+    }
+  }));
 
   const confirmResultChange = () => {
     if (pendingResultChange) {
@@ -1333,52 +1292,56 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
     const isPending = !currentRes || currentRes === "Pending";
     const hasUnsavedChange = pendingResults[match.id] !== undefined;
 
-    const whiteClicked = isEditMode && (clickState[match.id]?.has('white') ?? false);
-    const blackClicked = isEditMode && (clickState[match.id]?.has('black') ?? false);
-
     const renderCell = (role: 'white' | 'black') => {
-      const isWhite = role === 'white';
-      const clicked = isWhite ? whiteClicked : blackClicked;
-      const isWinner = isWhite ? isWhiteWin : isBlackWin;
-      const isLoser = isWhite ? isBlackWin : isWhiteWin;
+      if (isPending) {
+        return (
+          <span className={cn(
+            "font-bold text-base select-none px-1.5 py-0.5 rounded",
+            hasUnsavedChange ? "bg-amber-100/60 dark:bg-amber-950/30 text-amber-600 border border-amber-300/50" : "text-slate-300 dark:text-slate-600"
+          )}>
+            —
+          </span>
+        );
+      }
 
       let displayValue = "—";
-      let textClass = hasUnsavedChange ? "text-amber-600" : "text-slate-300 dark:text-slate-600";
+      let textClass = "text-slate-400";
 
-      if (isWinner) {
-        displayValue = (currentRes === "1F-0F" && isWhite) || (currentRes === "0F-1F" && !isWhite) ? "1F" : "1";
-        textClass = "text-emerald-600 dark:text-emerald-400 font-extrabold text-sm";
-      } else if (isLoser) {
-        displayValue = (currentRes === "1F-0F" && !isWhite) || (currentRes === "0F-1F" && isWhite) ? "0F" : "0";
-        textClass = "text-slate-400 dark:text-slate-550 font-medium text-sm";
-      } else if (isDraw) {
-        displayValue = "½";
-        textClass = "text-slate-600 dark:text-slate-400 font-extrabold text-sm";
+      if (role === 'white') {
+        if (isWhiteWin) {
+          displayValue = currentRes === "1F-0F" ? "1F" : "1";
+          textClass = "text-emerald-600 dark:text-emerald-400 font-extrabold";
+        } else if (isBlackWin) {
+          displayValue = currentRes === "0F-1F" ? "0F" : "0";
+          textClass = "text-slate-400 dark:text-slate-550 font-medium";
+        } else if (isDraw) {
+          displayValue = "½";
+          textClass = "text-slate-600 dark:text-slate-400 font-extrabold";
+        }
+      } else {
+        if (isBlackWin) {
+          displayValue = currentRes === "0F-1F" ? "1F" : "1";
+          textClass = "text-emerald-600 dark:text-emerald-400 font-extrabold";
+        } else if (isWhiteWin) {
+          displayValue = currentRes === "1F-0F" ? "0F" : "0";
+          textClass = "text-slate-400 dark:text-slate-550 font-medium";
+        } else if (isDraw) {
+          displayValue = "½";
+          textClass = "text-slate-600 dark:text-slate-400 font-extrabold";
+        }
       }
 
       if (isEditMode && isOwner) {
-        let bgBorderClass = "border-slate-200 dark:border-slate-800";
-        if (isWinner) {
-          bgBorderClass = "bg-emerald-50 dark:bg-emerald-950/20 border-emerald-500";
-        } else if (isLoser) {
-          bgBorderClass = "border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/10";
-        } else if (isDraw) {
-          bgBorderClass = "bg-slate-50 dark:bg-slate-900/30 border-slate-300 dark:border-slate-700";
-        }
-
         return (
           <button
             type="button"
-            onClick={() => handleResultCellClick(match.id, role)}
-            onDoubleClick={() => handleResultCellDoubleClick(match.id, role)}
+            onClick={() => handleResultChange(match.id, "Pending")}
             className={cn(
-              "w-8 h-8 flex items-center justify-center rounded-lg border transition-all cursor-pointer hover:bg-indigo-50 dark:hover:bg-indigo-950/30",
+              "text-sm font-black cursor-pointer select-none px-1.5 py-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-850 transition-colors",
               textClass,
-              bgBorderClass,
-              clicked && "bg-amber-100/60 dark:bg-amber-900/20 border-amber-500",
-              hasUnsavedChange && !clicked && !isWinner && !isLoser && !isDraw && "bg-amber-50 dark:bg-amber-950/10 border-amber-350"
+              hasUnsavedChange ? "bg-amber-100/60 dark:bg-amber-950/30 border border-amber-300/50" : ""
             )}
-            title={isWhite ? "Double-click to set White Win; click both sides once for Draw" : "Double-click to set Black Win; click both sides once for Draw"}
+            title="Click to reset result"
           >
             {displayValue}
           </button>
@@ -1386,7 +1349,7 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
       } else {
         return (
           <span className={cn(
-            isPending ? "font-bold text-base select-none px-1.5 py-0.5 rounded" : "text-sm font-black select-none px-1.5 py-0.5 rounded",
+            "text-sm font-black select-none px-1.5 py-0.5 rounded",
             textClass,
             hasUnsavedChange ? "bg-amber-100/60 dark:bg-amber-950/30 border border-amber-300/50" : ""
           )}>
@@ -1482,26 +1445,26 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
           <td 
             className={cn(
               "px-4 py-2 border border-slate-200 dark:border-slate-800 select-none text-left transition-all",
-              (!isEditMode && isOwner && match.whitePlayerId) ? "cursor-pointer hover:bg-blue-50/30 dark:hover:bg-blue-950/10" : "",
-              (!isEditMode && isWhiteSelected) ? "bg-blue-50 dark:bg-blue-950/30 border-blue-300" : "",
-              (!isEditMode && isWhiteDrawSelected) ? "bg-violet-50 dark:bg-violet-950/30 border-violet-400 border-dashed" : ""
+              isOwner && match.whitePlayerId ? "cursor-pointer hover:bg-blue-50/30 dark:hover:bg-blue-950/10" : "",
+              isWhiteSelected ? "bg-blue-50 dark:bg-blue-950/30 border-blue-300" : "",
+              isWhiteDrawSelected ? "bg-violet-50 dark:bg-violet-950/30 border-violet-400 border-dashed" : ""
             )}
-            onClick={!isEditMode ? handleWhiteCellClick : undefined}
-            onDoubleClick={undefined}
-            title={(!isEditMode && isOwner) ? "Click to select for swap" : ""}
+            onClick={handleWhiteCellClick}
+            onDoubleClick={handleWhiteCellDoubleClick}
+            title={isOwner ? (isEditMode ? "Click once to select for draw • Double-click to award win/toggle" : "Click to select for swap") : ""}
           >
             {formatPlayerNameWithDetails(match.whitePlayerId, match.round, false)}
           </td>
           <td 
             className={cn(
               "px-4 py-2 border border-slate-200 dark:border-slate-800 select-none text-right transition-all",
-              (!isEditMode && isOwner && match.blackPlayerId) ? "cursor-pointer hover:bg-blue-50/30 dark:hover:bg-blue-950/10" : "",
-              (!isEditMode && isBlackSelected) ? "bg-blue-50 dark:bg-blue-950/30 border-blue-300" : "",
-              (!isEditMode && isBlackDrawSelected) ? "bg-violet-50 dark:bg-violet-950/30 border-violet-400 border-dashed" : ""
+              isOwner && match.blackPlayerId ? "cursor-pointer hover:bg-blue-50/30 dark:hover:bg-blue-950/10" : "",
+              isBlackSelected ? "bg-blue-50 dark:bg-blue-950/30 border-blue-300" : "",
+              isBlackDrawSelected ? "bg-violet-50 dark:bg-violet-950/30 border-violet-400 border-dashed" : ""
             )}
-            onClick={!isEditMode ? handleBlackCellClick : undefined}
-            onDoubleClick={undefined}
-            title={(!isEditMode && isOwner) ? "Click to select for swap" : ""}
+            onClick={handleBlackCellClick}
+            onDoubleClick={handleBlackCellDoubleClick}
+            title={isOwner ? (isEditMode ? "Click once to select for draw • Double-click to award win/toggle" : "Click to select for swap") : ""}
           >
             {formatPlayerNameWithDetails(match.blackPlayerId, match.round, true)}
           </td>
@@ -1599,14 +1562,14 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
   };
 
   return (
-    <div className="space-y-6">
-      <div className="space-y-6">
+    <Card>
+      <CardHeader className="space-y-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h3 className="text-lg font-bold flex items-center gap-2 text-slate-900">
+            <CardTitle className="flex items-center gap-2">
               <img src="/logo.png" alt="Logo" className="h-5 w-5 object-contain" />
               Round {currentRound} Pairings
-            </h3>
+            </CardTitle>
             <p className="mt-1 text-sm text-gray-600">
               {tournament?.format === 'roundrobin' ? 'Round Robin - Complete Schedule' : 'Swiss System - USCF Tournament Rules'}
             </p>
@@ -1695,7 +1658,24 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                 </Button>
               </>
             ) : null}
-
+            {/* OCR Scanner – TD only (visible only in Edit Mode) */}
+            {isEditMode && isTournamentDirector && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setScanImage(null);
+                  setScanImageFile(null);
+                  setScanResults([]);
+                  setAppliedCount(0);
+                  setScannerOpen(true);
+                }}
+                className="border-violet-500 text-violet-600 hover:bg-violet-50 dark:border-violet-700 dark:text-violet-400 dark:hover:bg-violet-950/30 font-bold"
+              >
+                <ScanLine className="mr-2 h-4 w-4" />
+                Scan Sheet
+              </Button>
+            )}
             {isOwner && (
               <>
                 {tournament?.format === "roundrobin" && (
@@ -1919,8 +1899,8 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
             )}
           </div>
         </div>
-      </div>
-      <div>
+      </CardHeader>
+      <CardContent>
         {isLoading ? (
           <div className="space-y-4">
             {[1, 2, 3, 4].map((i) => (
@@ -1971,18 +1951,18 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                           </h3>
                         </div>
                         <div className="overflow-x-auto">
-                          <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-                            <table className="min-w-full border-collapse font-sans">
-                              <thead className="bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300">
+                          <div className="overflow-hidden border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm bg-white dark:bg-slate-950">
+                            <table className="min-w-full text-slate-700 dark:text-slate-300 border-collapse border border-slate-200 dark:border-slate-800">
+                              <thead className="bg-slate-50 dark:bg-slate-800/85 border-b border-slate-200 dark:border-slate-800">
                                 <tr>
-                                  <th className="px-3 py-2 text-center text-xs font-bold w-14 border-b border-r border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-sans">Bd</th>
-                                  <th className="px-3 py-2 text-center text-xs font-bold w-16 border-b border-r border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-sans">Res</th>
-                                  <th className="px-4 py-2 text-left text-xs font-bold border-b border-r border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-sans">White</th>
-                                  <th className="px-3 py-2 text-center text-xs font-bold w-16 border-b border-r border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-sans">Res</th>
-                                  <th className="px-4 py-2 text-left text-xs font-bold border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-sans">Black</th>
+                                  <th className="px-3 py-2 text-center text-xs font-bold text-slate-600 dark:text-slate-350 w-14 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">Bd</th>
+                                  <th className="px-3 py-2 text-center text-xs font-bold text-slate-600 dark:text-slate-350 w-16 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">Result</th>
+                                  <th className="px-4 py-2 text-left text-xs font-bold text-slate-600 dark:text-slate-350 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">White Player</th>
+                                  <th className="px-3 py-2 text-center text-xs font-bold text-slate-600 dark:text-slate-350 w-32 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">Result</th>
+                                  <th className="px-4 py-2 text-left text-xs font-bold text-slate-600 dark:text-slate-350 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">Black Player</th>
                                 </tr>
                               </thead>
-                              <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/40">
                                 {roundMatches.map((match) => {
                                   const whiteName = getPlayerName(match.whitePlayerId);
                                   const whiteRating = getPlayerRating(match.whitePlayerId);
@@ -2006,77 +1986,94 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                                   const whiteClicked = isEditMode && (clickState[match.id]?.has('white') ?? false);
                                   const blackClicked = isEditMode && (clickState[match.id]?.has('black') ?? false);
 
-                                  const isWhiteSelected = selectedPlayers.some(p => p.playerId === match.whitePlayerId && p.matchId === match.id);
-                                  const isBlackSelected = match.blackPlayerId ? selectedPlayers.some(p => p.playerId === match.blackPlayerId && p.matchId === match.id) : false;
-
                                   return (
-                                    <tr key={match.id} className={cn("bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 border-b border-slate-200 dark:border-slate-800 last:border-b-0 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors", isPending && "bg-amber-50/30 dark:bg-amber-950/10")}>
-                                      <td className="px-3 py-3 text-center border-r border-slate-200 dark:border-slate-800 font-sans text-sm font-bold text-slate-500 dark:text-slate-400 bg-slate-50/50 dark:bg-slate-800/20 w-14">
-                                        {match.board}
-                                      </td>
-                                      <td
-                                        className={cn(
-                                          "px-2 py-2 border-r border-slate-200 dark:border-slate-800 text-center select-none align-middle font-sans font-bold text-sm w-16 text-slate-700 dark:text-slate-300 bg-slate-50/10 dark:bg-slate-900/5 transition-all",
-                                          isEditMode && "cursor-pointer hover:bg-amber-50 dark:hover:bg-amber-950/20",
-                                          isEditMode && whiteClicked && "bg-amber-50 dark:bg-amber-950/20 border-r border-slate-200 dark:border-slate-800 text-amber-900 dark:text-amber-300"
-                                        )}
-                                        onClick={() => isEditMode && handleResultCellClick(match.id, 'white')}
-                                        onDoubleClick={() => isEditMode && handleResultCellDoubleClick(match.id, 'white')}
-                                        title={isEditMode ? "Double-click to set White Win; click both sides once for Draw" : ""}
-                                      >
-                                        <div className="flex items-center justify-center">
-                                          {isWhiteWin ? "1" : isDraw ? "½" : isBlackWin ? "0" : ""}
-                                        </div>
-                                      </td>
-                                      <td
-                                        className={cn(
-                                          "px-4 py-2 border-r border-slate-200 dark:border-slate-800 select-none text-left bg-transparent transition-all",
-                                          (!isEditMode && isOwner && match.whitePlayerId) && "cursor-pointer hover:bg-blue-50/40 dark:hover:bg-blue-950/10",
-                                          (!isEditMode && isWhiteSelected) && "bg-blue-50 dark:bg-blue-950/30 text-blue-900 dark:text-blue-300 border-r border-slate-200 dark:border-slate-800"
-                                        )}
-                                        onClick={() => {
-                                          if (!isEditMode && match.whitePlayerId && isOwner) {
-                                            handlePlayerClick(match.whitePlayerId, match.id, 'white', whiteName);
-                                          }
-                                        }}
-                                        title={(!isEditMode && isOwner) ? "Click to select for swap" : ""}
-                                      >
-                                        <span className="font-bold text-sm text-slate-800 dark:text-slate-200">
-                                          {whiteName} <span className="font-sans text-xs text-slate-500 dark:text-slate-400 font-normal">({whiteRating} {whitePointsStr})</span>
-                                        </span>
-                                      </td>
-                                      <td
-                                        className={cn(
-                                          "px-2 py-2 border-r border-slate-200 dark:border-slate-800 text-center select-none align-middle font-sans font-bold text-sm w-16 text-slate-700 dark:text-slate-300 bg-slate-50/10 dark:bg-slate-900/5 transition-all",
-                                          isEditMode && "cursor-pointer hover:bg-amber-50 dark:hover:bg-amber-950/20",
-                                          isEditMode && blackClicked && "bg-amber-50 dark:bg-amber-950/20 border-r border-slate-200 dark:border-slate-800 text-amber-900 dark:text-amber-300"
-                                        )}
-                                        onClick={() => isEditMode && handleResultCellClick(match.id, 'black')}
-                                        onDoubleClick={() => isEditMode && handleResultCellDoubleClick(match.id, 'black')}
-                                        title={isEditMode ? "Double-click to set Black Win; click both sides once for Draw" : ""}
-                                      >
-                                        <div className="flex items-center justify-center">
-                                          {isBlackWin ? "1" : isDraw ? "½" : isWhiteWin ? "0" : ""}
-                                        </div>
-                                      </td>
-                                      <td
-                                        className={cn(
-                                          "px-4 py-2 border-r border-slate-200 dark:border-slate-800 select-none text-left bg-transparent transition-all",
-                                          (!isEditMode && isOwner && match.blackPlayerId) && "cursor-pointer hover:bg-blue-50/40 dark:hover:bg-blue-950/10",
-                                          (!isEditMode && isBlackSelected) && "bg-blue-50 dark:bg-blue-950/30 text-blue-900 dark:text-blue-300 border-r border-slate-200 dark:border-slate-800"
-                                        )}
-                                        onClick={() => {
-                                          if (!isEditMode && match.blackPlayerId && isOwner) {
-                                            handlePlayerClick(match.blackPlayerId, match.id, 'black', blackName);
-                                          }
-                                        }}
-                                        title={(!isEditMode && isOwner) ? "Click to select for swap" : ""}
-                                      >
-                                        <span className="font-bold text-sm text-slate-800 dark:text-slate-200">
-                                          {blackName} <span className="font-sans text-xs text-slate-500 dark:text-slate-400 font-normal">({blackRating} {blackPointsStr})</span>
-                                        </span>
-                                      </td>
-                                    </tr>
+                                    <tr key={match.id} className={cn("group hover:bg-indigo-50/20 dark:hover:bg-indigo-950/10 transition-colors border-b border-slate-100 dark:border-slate-800/40 last:border-0", isPending && "bg-amber-50/40 dark:bg-amber-950/10")}>
+                                        <td className="px-3 py-3 text-center border border-slate-200 dark:border-slate-800/60 font-mono text-sm font-bold text-slate-600 dark:text-slate-400 bg-slate-50/50 dark:bg-slate-800/20">
+                                          {match.board}
+                                        </td>
+                                        <td
+                                          className={cn(
+                                            "px-4 py-2 border border-slate-200 dark:border-slate-800/60 select-none transition-colors",
+                                            (!isEditMode && isOwner && match.whitePlayerId) ? "cursor-pointer hover:bg-blue-50/30 dark:hover:bg-blue-950/10" : ""
+                                          )}
+                                          onClick={() => {
+                                            if (!isEditMode && match.whitePlayerId && isOwner) {
+                                              handlePlayerClick(match.whitePlayerId, match.id, 'white', whiteName);
+                                            }
+                                          }}
+                                          title={(!isEditMode && isOwner) ? "Click to select for swap" : ""}
+                                        >
+                                          <div className="flex flex-col">
+                                            <span className={cn(
+                                              "font-semibold text-sm transition-colors",
+                                              isWhiteWin ? "text-emerald-600 dark:text-emerald-400" : "text-slate-800 dark:text-slate-100"
+                                            )}>
+                                              {whiteName}
+                                            </span>
+                                            <span className="text-[11px] font-mono text-slate-400 dark:text-slate-550">
+                                              Rating: {whiteRating} • Score: {whitePointsStr} {whiteObj?.localId ? `• ID: ${whiteObj.localId}` : ''}
+                                            </span>
+                                          </div>
+                                        </td>
+                                        <td className="px-2 py-2 border border-slate-200 dark:border-slate-800/60 text-center bg-slate-50/10 dark:bg-slate-900/5 align-middle">
+                                          <div className="flex items-center justify-center gap-1.5 font-mono font-black text-sm select-none">
+                                            <div
+                                              onClick={() => isEditMode && handleResultCellClick(match.id, 'white')}
+                                              onDoubleClick={() => isEditMode && handleResultCellDoubleClick(match.id, 'white')}
+                                              className={cn(
+                                                "w-8 h-8 flex items-center justify-center rounded-lg border transition-all",
+                                                isEditMode ? "cursor-pointer hover:bg-indigo-50 dark:hover:bg-indigo-950/30" : "",
+                                                isWhiteWin ? "bg-emerald-50 dark:bg-emerald-950/20 border-emerald-500 text-emerald-600 dark:text-emerald-400" : "border-slate-200 dark:border-slate-800 text-slate-400 dark:text-slate-650",
+                                                isEditMode && whiteClicked && "bg-amber-100/60 dark:bg-amber-900/20 border-amber-500"
+                                              )}
+                                              title={isEditMode ? "Double-click to set White Win; click both sides once for Draw" : ""}
+                                            >
+                                              {isWhiteWin ? "1" : isDraw ? "½" : isBlackWin ? "0" : "—"}
+                                            </div>
+                                            <span className="text-slate-300 dark:text-slate-700 px-0.5">—</span>
+                                            <div
+                                              onClick={() => isEditMode && handleResultCellClick(match.id, 'black')}
+                                              onDoubleClick={() => isEditMode && handleResultCellDoubleClick(match.id, 'black')}
+                                              className={cn(
+                                                "w-8 h-8 flex items-center justify-center rounded-lg border transition-all",
+                                                isEditMode ? "cursor-pointer hover:bg-indigo-50 dark:hover:bg-indigo-950/30" : "",
+                                                isBlackWin ? "bg-emerald-50 dark:bg-emerald-950/20 border-emerald-500 text-emerald-600 dark:text-emerald-400" : "border-slate-200 dark:border-slate-800 text-slate-400 dark:text-slate-650",
+                                                isEditMode && blackClicked && "bg-amber-100/60 dark:bg-amber-900/20 border-amber-500"
+                                              )}
+                                              title={isEditMode ? "Double-click to set Black Win; click both sides once for Draw" : ""}
+                                            >
+                                              {isBlackWin ? "1" : isDraw ? "½" : isWhiteWin ? "0" : "—"}
+                                            </div>
+                                          </div>
+                                          {isEditMode && isPending && (
+                                            <div className="text-[9px] text-amber-600 font-bold uppercase tracking-wider mt-1">unsaved</div>
+                                          )}
+                                        </td>
+                                        <td
+                                          className={cn(
+                                            "px-4 py-2 border border-slate-200 dark:border-slate-800/60 select-none transition-colors",
+                                            (!isEditMode && isOwner && match.blackPlayerId) ? "cursor-pointer hover:bg-blue-50/30 dark:hover:bg-blue-950/10" : ""
+                                          )}
+                                          onClick={() => {
+                                            if (!isEditMode && match.blackPlayerId && isOwner) {
+                                              handlePlayerClick(match.blackPlayerId, match.id, 'black', blackName);
+                                            }
+                                          }}
+                                          title={(!isEditMode && isOwner) ? "Click to select for swap" : ""}
+                                        >
+                                          <div className="flex flex-col">
+                                            <span className={cn(
+                                              "font-semibold text-sm transition-colors",
+                                              isBlackWin ? "text-emerald-600 dark:text-emerald-400" : "text-slate-800 dark:text-slate-100"
+                                            )}>
+                                              {blackName}
+                                            </span>
+                                            <span className="text-[11px] font-mono text-slate-400 dark:text-slate-550">
+                                              Rating: {blackRating} • Score: {blackPointsStr} {blackObj?.localId ? `• ID: ${blackObj.localId}` : ''}
+                                            </span>
+                                          </div>
+                                        </td>
+                                      </tr>
                                   );
                                 })}
                               </tbody>
@@ -2260,9 +2257,7 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                   })}
                 </div>
               ) : (
-                <>
-                  {activeSection !== "extra_games" && (
-                    <div className="space-y-6">
+              <div className="space-y-6">
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="text-sm font-semibold text-slate-500">
                     Matches
@@ -2274,18 +2269,17 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                       No pairings or byes for this section in Round {currentRound}.
                     </div>
                   ) : (
-                    <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-                        <table className="min-w-full border-collapse font-sans">
-                          <thead className="bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300">
+                    <div className="overflow-hidden border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm bg-white dark:bg-slate-950">
+                        <table className="min-w-full text-slate-700 dark:text-slate-300 border-collapse border border-slate-200 dark:border-slate-800">
+                          <thead className="bg-slate-50 dark:bg-slate-800/85 border-b border-slate-200 dark:border-slate-800">
                             <tr>
-                              <th className="px-3 py-2 text-center text-xs font-bold w-14 border-b border-r border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-sans">Bd</th>
-                              <th className="px-3 py-2 text-center text-xs font-bold w-16 border-b border-r border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-sans">Res</th>
-                              <th className="px-4 py-2 text-left text-xs font-bold border-b border-r border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-sans">White</th>
-                              <th className="px-3 py-2 text-center text-xs font-bold w-16 border-b border-r border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-sans">Res</th>
-                              <th className="px-4 py-2 text-left text-xs font-bold border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-sans">Black</th>
+                              <th className="px-3 py-2 text-center text-xs font-bold text-slate-600 dark:text-slate-350 w-14 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">Bd</th>
+                              <th className="px-4 py-2 text-left text-xs font-bold text-slate-600 dark:text-slate-350 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">White Player</th>
+                              <th className="px-3 py-2 text-center text-xs font-bold text-slate-600 dark:text-slate-350 w-32 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">Result</th>
+                              <th className="px-4 py-2 text-left text-xs font-bold text-slate-600 dark:text-slate-350 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">Black Player</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800/40">
                             {swissMatches.map((match) => {
                               const whiteName = getPlayerName(match.whitePlayerId);
                               const whiteRating = getPlayerRating(match.whitePlayerId);
@@ -2309,33 +2303,15 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                               const whiteClicked = isEditMode && (clickState[match.id]?.has('white') ?? false);
                               const blackClicked = isEditMode && (clickState[match.id]?.has('black') ?? false);
 
-                              const isWhiteSelected = selectedPlayers.some(p => p.playerId === match.whitePlayerId && p.matchId === match.id);
-                              const isBlackSelected = match.blackPlayerId ? selectedPlayers.some(p => p.playerId === match.blackPlayerId && p.matchId === match.id) : false;
-
                               return (
-                                <tr key={match.id} className={cn("bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 border-b border-slate-200 dark:border-slate-800 last:border-b-0 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors", isPending && "bg-amber-50/30 dark:bg-amber-950/10")}>
-                                  <td className="px-3 py-3 text-center border-r border-slate-200 dark:border-slate-800 font-sans text-sm font-bold text-slate-500 dark:text-slate-400 bg-slate-50/50 dark:bg-slate-800/20 w-14">
+                                <tr key={match.id} className={cn("group hover:bg-indigo-50/20 dark:hover:bg-indigo-950/10 transition-colors border-b border-slate-100 dark:border-slate-800/40 last:border-0", isPending && "bg-amber-50/40 dark:bg-amber-950/10")}>
+                                  <td className="px-3 py-3 text-center border border-slate-200 dark:border-slate-800/60 font-mono text-sm font-bold text-slate-600 dark:text-slate-400 bg-slate-50/50 dark:bg-slate-800/20">
                                     {match.board}
                                   </td>
-                                  <td
+                                  <td 
                                     className={cn(
-                                      "px-2 py-2 border-r border-slate-200 dark:border-slate-800 text-center select-none align-middle font-sans font-bold text-sm w-16 text-slate-700 dark:text-slate-300 bg-slate-50/10 dark:bg-slate-900/5 transition-all",
-                                      isEditMode && "cursor-pointer hover:bg-amber-50 dark:hover:bg-amber-950/20",
-                                      isEditMode && whiteClicked && "bg-amber-50 dark:bg-amber-950/20 border-r border-slate-200 dark:border-slate-800 text-amber-900 dark:text-amber-300"
-                                    )}
-                                    onClick={() => isEditMode && handleResultCellClick(match.id, 'white')}
-                                    onDoubleClick={() => isEditMode && handleResultCellDoubleClick(match.id, 'white')}
-                                    title={isEditMode ? "Double-click to set White Win; click both sides once for Draw" : ""}
-                                  >
-                                    <div className="flex items-center justify-center">
-                                      {isWhiteWin ? "1" : isDraw ? "½" : isBlackWin ? "0" : ""}
-                                    </div>
-                                  </td>
-                                  <td
-                                    className={cn(
-                                      "px-4 py-2 border-r border-slate-200 dark:border-slate-800 select-none text-left bg-transparent transition-all",
-                                      (!isEditMode && isOwner && match.whitePlayerId) && "cursor-pointer hover:bg-blue-50/40 dark:hover:bg-blue-950/10",
-                                      (!isEditMode && isWhiteSelected) && "bg-blue-50 dark:bg-blue-950/30 text-blue-900 dark:text-blue-300 border-r border-slate-200 dark:border-slate-800"
+                                      "px-4 py-2 border border-slate-200 dark:border-slate-800/60 select-none transition-colors",
+                                      (!isEditMode && isOwner && match.whitePlayerId) ? "cursor-pointer hover:bg-blue-50/30 dark:hover:bg-blue-950/10" : ""
                                     )}
                                     onClick={() => {
                                       if (!isEditMode && match.whitePlayerId && isOwner) {
@@ -2344,29 +2320,56 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                                     }}
                                     title={(!isEditMode && isOwner) ? "Click to select for swap" : ""}
                                   >
-                                    <span className="font-bold text-sm text-slate-800 dark:text-slate-200">
-                                      {whiteName} <span className="font-sans text-xs text-slate-500 dark:text-slate-400 font-normal">({whiteRating} {whitePointsStr})</span>
-                                    </span>
-                                  </td>
-                                  <td
-                                    className={cn(
-                                      "px-2 py-2 border-r border-slate-200 dark:border-slate-800 text-center select-none align-middle font-sans font-bold text-sm w-16 text-slate-700 dark:text-slate-300 bg-slate-50/10 dark:bg-slate-900/5 transition-all",
-                                      isEditMode && "cursor-pointer hover:bg-amber-50 dark:hover:bg-amber-950/20",
-                                      isEditMode && blackClicked && "bg-amber-50 dark:bg-amber-950/20 border-r border-slate-200 dark:border-slate-800 text-amber-900 dark:text-amber-300"
-                                    )}
-                                    onClick={() => isEditMode && handleResultCellClick(match.id, 'black')}
-                                    onDoubleClick={() => isEditMode && handleResultCellDoubleClick(match.id, 'black')}
-                                    title={isEditMode ? "Double-click to set Black Win; click both sides once for Draw" : ""}
-                                  >
-                                    <div className="flex items-center justify-center">
-                                      {isBlackWin ? "1" : isDraw ? "½" : isWhiteWin ? "0" : ""}
+                                    <div className="flex flex-col">
+                                      <span className={cn(
+                                        "font-semibold text-sm transition-colors",
+                                        isWhiteWin ? "text-emerald-600 dark:text-emerald-400" : "text-slate-800 dark:text-slate-100"
+                                      )}>
+                                        {whiteName}
+                                      </span>
+                                      <span className="text-[11px] font-mono text-slate-400 dark:text-slate-550">
+                                        Rating: {whiteRating} • Score: {whitePointsStr} {whiteObj?.localId ? `• ID: ${whiteObj.localId}` : ''}
+                                      </span>
                                     </div>
                                   </td>
-                                  <td
+                                  <td className="px-2 py-2 border border-slate-200 dark:border-slate-800/60 text-center bg-slate-50/10 dark:bg-slate-900/5 align-middle">
+                                    <div className="flex items-center justify-center gap-1.5 font-mono font-black text-sm select-none">
+                                      <div
+                                        onClick={() => isEditMode && handleResultCellClick(match.id, 'white')}
+                                        onDoubleClick={() => isEditMode && handleResultCellDoubleClick(match.id, 'white')}
+                                        className={cn(
+                                          "w-8 h-8 flex items-center justify-center rounded-lg border transition-all",
+                                          isEditMode ? "cursor-pointer hover:bg-indigo-50 dark:hover:bg-indigo-950/30" : "",
+                                          isWhiteWin ? "bg-emerald-50 dark:bg-emerald-950/20 border-emerald-500 text-emerald-600 dark:text-emerald-400" : "border-slate-200 dark:border-slate-800 text-slate-400 dark:text-slate-650",
+                                          isEditMode && whiteClicked && "bg-amber-100/60 dark:bg-amber-900/20 border-amber-500"
+                                        )}
+                                        title={isEditMode ? "Double-click to set White Win; click both sides once for Draw" : ""}
+                                      >
+                                        {isWhiteWin ? "1" : isDraw ? "½" : isBlackWin ? "0" : "—"}
+                                      </div>
+                                      <span className="text-slate-300 dark:text-slate-700 px-0.5">—</span>
+                                      <div
+                                        onClick={() => isEditMode && handleResultCellClick(match.id, 'black')}
+                                        onDoubleClick={() => isEditMode && handleResultCellDoubleClick(match.id, 'black')}
+                                        className={cn(
+                                          "w-8 h-8 flex items-center justify-center rounded-lg border transition-all",
+                                          isEditMode ? "cursor-pointer hover:bg-indigo-50 dark:hover:bg-indigo-950/30" : "",
+                                          isBlackWin ? "bg-emerald-50 dark:bg-emerald-950/20 border-emerald-500 text-emerald-600 dark:text-emerald-400" : "border-slate-200 dark:border-slate-800 text-slate-400 dark:text-slate-650",
+                                          isEditMode && blackClicked && "bg-amber-100/60 dark:bg-amber-900/20 border-amber-500"
+                                        )}
+                                        title={isEditMode ? "Double-click to set Black Win; click both sides once for Draw" : ""}
+                                      >
+                                        {isBlackWin ? "1" : isDraw ? "½" : isWhiteWin ? "0" : "—"}
+                                      </div>
+                                    </div>
+                                    {isEditMode && isPending && (
+                                      <div className="text-[9px] text-amber-600 font-bold uppercase tracking-wider mt-1">unsaved</div>
+                                    )}
+                                  </td>
+                                  <td 
                                     className={cn(
-                                      "px-4 py-2 border-r border-slate-200 dark:border-slate-800 select-none text-left bg-transparent transition-all",
-                                      (!isEditMode && isOwner && match.blackPlayerId) && "cursor-pointer hover:bg-blue-50/40 dark:hover:bg-blue-950/10",
-                                      (!isEditMode && isBlackSelected) && "bg-blue-50 dark:bg-blue-950/30 text-blue-900 dark:text-blue-300 border-r border-slate-200 dark:border-slate-800"
+                                      "px-4 py-2 border border-slate-200 dark:border-slate-800/60 select-none transition-colors",
+                                      (!isEditMode && isOwner && match.blackPlayerId) ? "cursor-pointer hover:bg-blue-50/30 dark:hover:bg-blue-950/10" : ""
                                     )}
                                     onClick={() => {
                                       if (!isEditMode && match.blackPlayerId && isOwner) {
@@ -2375,9 +2378,17 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                                     }}
                                     title={(!isEditMode && isOwner) ? "Click to select for swap" : ""}
                                   >
-                                    <span className="font-bold text-sm text-slate-800 dark:text-slate-200">
-                                      {blackName} <span className="font-sans text-xs text-slate-500 dark:text-slate-400 font-normal">({blackRating} {blackPointsStr})</span>
-                                    </span>
+                                    <div className="flex flex-col">
+                                      <span className={cn(
+                                        "font-semibold text-sm transition-colors",
+                                        isBlackWin ? "text-emerald-600 dark:text-emerald-400" : "text-slate-800 dark:text-slate-100"
+                                      )}>
+                                        {blackName}
+                                      </span>
+                                      <span className="text-[11px] font-mono text-slate-400 dark:text-slate-550">
+                                        Rating: {blackRating} • Score: {blackPointsStr} {blackObj?.localId ? `• ID: ${blackObj.localId}` : ''}
+                                      </span>
+                                    </div>
                                   </td>
                                 </tr>
                               );
@@ -2393,27 +2404,30 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                               const byePointsRaw = byeResult ? getPointsForResult(byeResult, 'white') : null;
                               const byePointsDisplay = byePointsRaw !== null
                                 ? formatPointsWithFractions(byePointsRaw)
-                                : '';
+                                : '—';
 
+                              // Player View
                               return (
-                                <tr key={`bye-${bye.id}`} className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 border-b border-slate-200 dark:border-slate-800 last:border-b-0 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
-                                  <td className="px-3 py-3 text-center border-r border-slate-200 dark:border-slate-800 font-sans text-sm font-bold text-slate-500 dark:text-slate-400 bg-slate-50/50 dark:bg-slate-800/20 w-14">
-                                    
+                                <tr key={`bye-${bye.id}`} className="group hover:bg-indigo-50/20 dark:hover:bg-indigo-950/10 transition-colors border-b border-slate-100 dark:border-slate-800/40 last:border-0">
+                                  <td className="px-3 py-3 text-center border border-slate-200 dark:border-slate-800/60 font-mono text-sm font-bold text-slate-400 dark:text-slate-650 bg-slate-50/50 dark:bg-slate-800/20">
+                                    —
                                   </td>
-                                  <td className="px-2 py-2 border-r border-slate-200 dark:border-slate-800 text-center font-sans font-bold text-sm w-16 text-slate-700 dark:text-slate-300 bg-slate-50/10 dark:bg-slate-900/5">
-                                    <div className="flex items-center justify-center">
-                                      {byePointsDisplay}
+                                  <td className="px-4 py-2 border border-slate-200 dark:border-slate-800/60">
+                                    <div className="flex flex-col">
+                                      <span className="font-semibold text-sm text-slate-800 dark:text-slate-100">
+                                        {playerName}
+                                      </span>
+                                      <span className="text-[11px] font-mono text-slate-400 dark:text-slate-550">
+                                        Rating: {playerRating} • Score: {playerPointsStr} {playerObj?.localId ? `• ID: ${playerObj.localId}` : ''}
+                                      </span>
                                     </div>
                                   </td>
-                                  <td className="px-4 py-2 border-r border-slate-200 dark:border-slate-800 select-none text-left bg-transparent">
-                                    <span className="font-bold text-sm text-slate-800 dark:text-slate-200">
-                                      {playerName} <span className="font-sans text-xs text-slate-500 dark:text-slate-400 font-normal">({playerRating} {playerPointsStr})</span>
+                                  <td className="px-4 py-2 border border-slate-200 dark:border-slate-800/60 text-center bg-slate-50/20 dark:bg-slate-900/5">
+                                    <span className="inline-flex items-center justify-center px-3 py-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/30 text-indigo-650 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/30 font-black text-sm font-mono shadow-sm">
+                                      {byePointsDisplay}
                                     </span>
                                   </td>
-                                  <td className="px-2 py-2 border-r border-slate-200 dark:border-slate-800 text-center font-sans font-bold text-sm w-16 text-slate-700 dark:text-slate-300 bg-slate-50/10 dark:bg-slate-900/5">
-                                    
-                                  </td>
-                                  <td className="px-4 py-2 italic text-slate-500 dark:text-slate-400 bg-transparent text-left font-normal text-sm">
+                                  <td className="px-4 py-2 border border-slate-200 dark:border-slate-800/60 italic text-slate-450 dark:text-slate-500 font-semibold text-sm">
                                     {bye.isRequested ? 'Requested Bye' : 'Unpaired'}
                                   </td>
                                 </tr>
@@ -2422,34 +2436,35 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                           </tbody>
                         </table>
                       </div>
-                  )}
-                </div>
-              </div>
-            )}
+                    )}
+                  </div>
 
                 {/* Extra Games Section */}
-                {tournament?.format === 'swiss' && tournamentConfig?.registers?.allowExtraGames && activeSection === "extra_games" && (
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-sm font-semibold text-slate-500">
-                        Extra Games This Round (Rated • Excluded from Standings)
-                      </h3>
+                {tournament?.format === 'swiss' && tournamentConfig?.registers?.allowExtraGames && (isOwner || extraMatches.length > 0) && (
+                  <div className="bg-slate-50/60 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-semibold text-slate-600 dark:text-slate-300">
+                        Extra Games This Round
+                      </h4>
+                      <Badge variant="outline" className="text-xs border-indigo-200/50 bg-indigo-50/30 text-indigo-600 dark:border-indigo-900/30 dark:bg-indigo-950/20 dark:text-indigo-400">
+                        Rated • Excluded from Standings
+                      </Badge>
                     </div>
                     {extraMatches.length > 0 ? (
-                      <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-                        <table className="min-w-full border-collapse font-sans">
-                          <thead className="bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300">
-                            <tr>
-                              <th className="px-3 py-2 text-center text-xs font-bold w-14 border-b border-r border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-sans">Bd</th>
-                              <th className="px-3 py-2 text-center text-xs font-bold w-16 border-b border-r border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-sans">Res</th>
-                              <th className="px-4 py-2 text-left text-xs font-bold border-b border-r border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-sans">White</th>
-                              <th className="px-3 py-2 text-center text-xs font-bold w-16 border-b border-r border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-sans">Res</th>
-                              <th className="px-4 py-2 text-left text-xs font-bold border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-sans">Black</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-                            {extraMatches.map((match) => {
-                              const whiteName = getPlayerName(match.whitePlayerId);
+                      <div className="overflow-x-auto">
+                        <div className="overflow-hidden border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm bg-white dark:bg-slate-950">
+                          <table className="min-w-full text-slate-700 dark:text-slate-300 border-collapse border border-slate-200 dark:border-slate-800">
+                            <thead className="bg-slate-50 dark:bg-slate-800/85 border-b border-slate-200 dark:border-slate-800">
+                              <tr>
+                                <th className="px-3 py-2 text-center text-xs font-bold text-slate-600 dark:text-slate-350 w-14 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">Bd</th>
+                                <th className="px-4 py-2 text-left text-xs font-bold text-slate-600 dark:text-slate-350 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">White Player</th>
+                                <th className="px-3 py-2 text-center text-xs font-bold text-slate-600 dark:text-slate-350 w-32 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">Result</th>
+                                <th className="px-4 py-2 text-left text-xs font-bold text-slate-600 dark:text-slate-350 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">Black Player</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800/40">
+                              {extraMatches.map((match) => {
+                               const whiteName = getPlayerName(match.whitePlayerId);
                               const whiteRating = getPlayerRating(match.whitePlayerId);
                               const blackName = match.blackPlayerId ? getPlayerName(match.blackPlayerId) : "Bye";
                               const blackRating = match.blackPlayerId ? getPlayerRating(match.blackPlayerId) : 0;
@@ -2471,33 +2486,15 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                               const whiteClicked = isEditMode && (clickState[match.id]?.has('white') ?? false);
                               const blackClicked = isEditMode && (clickState[match.id]?.has('black') ?? false);
 
-                              const isWhiteSelected = selectedPlayers.some(p => p.playerId === match.whitePlayerId && p.matchId === match.id);
-                              const isBlackSelected = match.blackPlayerId ? selectedPlayers.some(p => p.playerId === match.blackPlayerId && p.matchId === match.id) : false;
-
                               return (
-                                <tr key={match.id} className={cn("bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 border-b border-slate-200 dark:border-slate-800 last:border-b-0 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors", isPending && "bg-amber-50/30 dark:bg-amber-950/10")}>
-                                  <td className="px-3 py-3 text-center border-r border-slate-200 dark:border-slate-800 font-sans text-sm font-bold text-slate-500 dark:text-slate-400 bg-slate-50/50 dark:bg-slate-800/20 w-14">
+                                <tr key={match.id} className={cn("group hover:bg-indigo-50/20 dark:hover:bg-indigo-950/10 transition-colors border-b border-slate-100 dark:border-slate-800/40 last:border-0", isPending && "bg-amber-50/40 dark:bg-amber-950/10")}>
+                                  <td className="px-3 py-3 text-center border border-slate-200 dark:border-slate-800/60 font-mono text-[10px] font-extrabold text-slate-500 dark:text-slate-400 bg-slate-50/50 dark:bg-slate-800/20">
                                     Extra
-                                  </td>
-                                  <td
-                                    className={cn(
-                                      "px-2 py-2 border-r border-slate-200 dark:border-slate-800 text-center select-none align-middle font-sans font-bold text-sm w-16 text-slate-700 dark:text-slate-300 bg-slate-50/10 dark:bg-slate-900/5 transition-all",
-                                      isEditMode && "cursor-pointer hover:bg-amber-50 dark:hover:bg-amber-950/20",
-                                      isEditMode && whiteClicked && "bg-amber-50 dark:bg-amber-950/20 border-r border-slate-200 dark:border-slate-800 text-amber-900 dark:text-amber-300"
-                                    )}
-                                    onClick={() => isEditMode && handleResultCellClick(match.id, 'white')}
-                                    onDoubleClick={() => isEditMode && handleResultCellDoubleClick(match.id, 'white')}
-                                    title={isEditMode ? "Double-click to set White Win; click both sides once for Draw" : ""}
-                                  >
-                                    <div className="flex items-center justify-center">
-                                      {isWhiteWin ? "1" : isDraw ? "½" : isBlackWin ? "0" : ""}
-                                    </div>
                                   </td>
                                   <td 
                                     className={cn(
-                                      "px-4 py-2 border-r border-slate-200 dark:border-slate-800 select-none text-left bg-transparent transition-all",
-                                      (!isEditMode && isOwner && match.whitePlayerId) && "cursor-pointer hover:bg-blue-50/40 dark:hover:bg-blue-950/10",
-                                      (!isEditMode && isWhiteSelected) && "bg-blue-50 dark:bg-blue-950/30 text-blue-900 dark:text-blue-300 border-r border-slate-200 dark:border-slate-800"
+                                      "px-4 py-2 border border-slate-200 dark:border-slate-800/60 select-none transition-colors",
+                                      (!isEditMode && isOwner && match.whitePlayerId) ? "cursor-pointer hover:bg-blue-50/30 dark:hover:bg-blue-950/10" : ""
                                     )}
                                     onClick={() => {
                                       if (!isEditMode && match.whitePlayerId && isOwner) {
@@ -2506,29 +2503,56 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                                     }}
                                     title={(!isEditMode && isOwner) ? "Click to select for swap" : ""}
                                   >
-                                    <span className="font-bold text-sm text-slate-800 dark:text-slate-200">
-                                      {whiteName} <span className="font-sans text-xs text-slate-500 dark:text-slate-400 font-normal">({whiteRating} {whitePointsStr})</span>
-                                    </span>
-                                  </td>
-                                  <td
-                                    className={cn(
-                                      "px-2 py-2 border-r border-slate-200 dark:border-slate-800 text-center select-none align-middle font-sans font-bold text-sm w-16 text-slate-700 dark:text-slate-300 bg-slate-50/10 dark:bg-slate-900/5 transition-all",
-                                      isEditMode && "cursor-pointer hover:bg-amber-50 dark:hover:bg-amber-950/20",
-                                      isEditMode && blackClicked && "bg-amber-50 dark:bg-amber-950/20 border-r border-slate-200 dark:border-slate-800 text-amber-900 dark:text-amber-300"
-                                    )}
-                                    onClick={() => isEditMode && handleResultCellClick(match.id, 'black')}
-                                    onDoubleClick={() => isEditMode && handleResultCellDoubleClick(match.id, 'black')}
-                                    title={isEditMode ? "Double-click to set Black Win; click both sides once for Draw" : ""}
-                                  >
-                                    <div className="flex items-center justify-center">
-                                      {isBlackWin ? "1" : isDraw ? "½" : isWhiteWin ? "0" : ""}
+                                    <div className="flex flex-col">
+                                      <span className={cn(
+                                        "font-semibold text-sm transition-colors",
+                                        isWhiteWin ? "text-emerald-600 dark:text-emerald-400" : "text-slate-800 dark:text-slate-100"
+                                      )}>
+                                        {whiteName}
+                                      </span>
+                                      <span className="text-[11px] font-mono text-slate-400 dark:text-slate-550">
+                                        Rating: {whiteRating} • Score: {whitePointsStr} {whiteObj?.localId ? `• ID: ${whiteObj.localId}` : ''}
+                                      </span>
                                     </div>
+                                  </td>
+                                  <td className="px-2 py-2 border border-slate-200 dark:border-slate-800/60 text-center bg-slate-50/10 dark:bg-slate-900/5 align-middle">
+                                    <div className="flex items-center justify-center gap-1.5 font-mono font-black text-sm select-none">
+                                      <div
+                                        onClick={() => isEditMode && handleResultCellClick(match.id, 'white')}
+                                        onDoubleClick={() => isEditMode && handleResultCellDoubleClick(match.id, 'white')}
+                                        className={cn(
+                                          "w-8 h-8 flex items-center justify-center rounded-lg border transition-all",
+                                          isEditMode ? "cursor-pointer hover:bg-indigo-50 dark:hover:bg-indigo-950/30" : "",
+                                          isWhiteWin ? "bg-emerald-50 dark:bg-emerald-950/20 border-emerald-500 text-emerald-650 dark:text-emerald-400" : "border-slate-200 dark:border-slate-800 text-slate-400 dark:text-slate-650",
+                                          isEditMode && whiteClicked && "bg-amber-100/60 dark:bg-amber-900/20 border-amber-500"
+                                        )}
+                                        title={isEditMode ? "Double-click to set White Win; click both sides once for Draw" : ""}
+                                      >
+                                        {isWhiteWin ? "1" : isDraw ? "½" : isBlackWin ? "0" : "—"}
+                                      </div>
+                                      <span className="text-slate-300 dark:text-slate-700 px-0.5">—</span>
+                                      <div
+                                        onClick={() => isEditMode && handleResultCellClick(match.id, 'black')}
+                                        onDoubleClick={() => isEditMode && handleResultCellDoubleClick(match.id, 'black')}
+                                        className={cn(
+                                          "w-8 h-8 flex items-center justify-center rounded-lg border transition-all",
+                                          isEditMode ? "cursor-pointer hover:bg-indigo-50 dark:hover:bg-indigo-950/30" : "",
+                                          isBlackWin ? "bg-emerald-50 dark:bg-emerald-950/20 border-emerald-500 text-emerald-650 dark:text-emerald-400" : "border-slate-200 dark:border-slate-800 text-slate-400 dark:text-slate-650",
+                                          isEditMode && blackClicked && "bg-amber-100/60 dark:bg-amber-900/20 border-amber-500"
+                                        )}
+                                        title={isEditMode ? "Double-click to set Black Win; click both sides once for Draw" : ""}
+                                      >
+                                        {isBlackWin ? "1" : isDraw ? "½" : isWhiteWin ? "0" : "—"}
+                                      </div>
+                                    </div>
+                                    {isEditMode && isPending && (
+                                      <div className="text-[9px] text-amber-600 font-bold uppercase tracking-wider mt-1">unsaved</div>
+                                    )}
                                   </td>
                                   <td 
                                     className={cn(
-                                      "px-4 py-2 border-r border-slate-200 dark:border-slate-800 select-none text-left bg-transparent transition-all",
-                                      (!isEditMode && isOwner && match.blackPlayerId) && "cursor-pointer hover:bg-blue-50/40 dark:hover:bg-blue-950/10",
-                                      (!isEditMode && isBlackSelected) && "bg-blue-50 dark:bg-blue-950/30 text-blue-900 dark:text-blue-300 border-r border-slate-200 dark:border-slate-800"
+                                      "px-4 py-2 border border-slate-200 dark:border-slate-800/60 select-none transition-colors",
+                                      (!isEditMode && isOwner && match.blackPlayerId) ? "cursor-pointer hover:bg-blue-50/30 dark:hover:bg-blue-950/10" : ""
                                     )}
                                     onClick={() => {
                                       if (!isEditMode && match.blackPlayerId && isOwner) {
@@ -2537,9 +2561,17 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                                     }}
                                     title={(!isEditMode && isOwner) ? "Click to select for swap" : ""}
                                   >
-                                    <span className="font-bold text-sm text-slate-800 dark:text-slate-200">
-                                      {blackName} <span className="font-sans text-xs text-slate-500 dark:text-slate-400 font-normal">({blackRating} {blackPointsStr})</span>
-                                    </span>
+                                    <div className="flex flex-col">
+                                      <span className={cn(
+                                        "font-semibold text-sm transition-colors",
+                                        isBlackWin ? "text-emerald-600 dark:text-emerald-400" : "text-slate-800 dark:text-slate-100"
+                                      )}>
+                                        {blackName}
+                                      </span>
+                                      <span className="text-[11px] font-mono text-slate-400 dark:text-slate-555">
+                                        Rating: {blackRating} • Score: {blackPointsStr} {blackObj?.localId ? `• ID: ${blackObj.localId}` : ''}
+                                      </span>
+                                    </div>
                                   </td>
                                 </tr>
                               );
@@ -2547,7 +2579,8 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                           </tbody>
                         </table>
                       </div>
-                    ) : (
+                    </div>
+                   ) : (
                       <p className="text-sm text-slate-500 dark:text-slate-400 italic">
                         No extra games added for this round.
                       </p>
@@ -2555,191 +2588,78 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
 
                     {/* TD Controls for Adding Extra Games */}
                     {isOwner && (
-                      <div className="pt-6 border-t border-slate-200 dark:border-slate-800">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                          {/* Column 1: Pair Players */}
-                          <div className="space-y-4 p-5 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-slate-100 dark:border-slate-850">
-                            <div className="flex items-center gap-2 mb-1">
-                              <Swords className="h-5 w-5 text-indigo-500" />
-                              <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100 font-sans">Create Extra Game</h4>
-                            </div>
-                            <p className="text-xs text-slate-500 font-sans leading-relaxed">
-                              Pair any two active players (including guests and houseplayers) for a rated extra game.
-                            </p>
-                            
-                            <div className="space-y-3 pt-2">
-                              <div className="space-y-1.5">
-                                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-sans">White Player</label>
-                                <Select value={selectedWhitePlayerId} onValueChange={setSelectedWhitePlayerId}>
-                                  <SelectTrigger className="w-full bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-xl">
-                                    <SelectValue placeholder="Select White..." />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {selectablePlayers
-                                      .filter(p => p.id.toString() !== selectedBlackPlayerId)
-                                      .map(p => (
-                                        <SelectItem key={p.id} value={p.id.toString()}>
-                                          {p.firstName} {p.lastName} ({p.rating ?? 1000}){p.status === 'guest' ? ' [GUEST]' : p.status === 'houseplayer' ? ' [HOUSEPLAYER]' : ''}
-                                        </SelectItem>
-                                      ))}
-                                  </SelectContent>
-                                </Select>
-                              </div>
-
-                              <div className="space-y-1.5">
-                                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-sans">Black Player</label>
-                                <Select value={selectedBlackPlayerId} onValueChange={setSelectedBlackPlayerId}>
-                                  <SelectTrigger className="w-full bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-xl">
-                                    <SelectValue placeholder="Select Black..." />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {selectablePlayers
-                                      .filter(p => p.id.toString() !== selectedWhitePlayerId)
-                                      .map(p => (
-                                        <SelectItem key={p.id} value={p.id.toString()}>
-                                          {p.firstName} {p.lastName} ({p.rating ?? 1000}){p.status === 'guest' ? ' [GUEST]' : p.status === 'houseplayer' ? ' [HOUSEPLAYER]' : ''}
-                                        </SelectItem>
-                                      ))}
-                                  </SelectContent>
-                                </Select>
-                              </div>
-
-                              <Button
-                                type="button"
-                                onClick={() => {
-                                  if (!selectedWhitePlayerId || !selectedBlackPlayerId) {
-                                    toast({
-                                      title: "Error",
-                                      description: "Please select both a White and a Black player.",
-                                      variant: "destructive",
-                                    });
-                                    return;
-                                  }
-                                  addExtraMatchMutation.mutate({
-                                    whitePlayerId: parseInt(selectedWhitePlayerId),
-                                    blackPlayerId: parseInt(selectedBlackPlayerId),
-                                  });
-                                }}
-                                disabled={addExtraMatchMutation.isPending || !selectedWhitePlayerId || !selectedBlackPlayerId}
-                                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-medium h-10 gap-2 mt-2"
-                              >
-                                {addExtraMatchMutation.isPending ? "Adding..." : "Add Extra Game"}
-                              </Button>
-                            </div>
+                      <div className="pt-4 border-t border-slate-250 dark:border-slate-800 space-y-3">
+                        <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                          Create Extra Game
+                        </div>
+                        <div className="flex flex-wrap items-end gap-3">
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-semibold text-slate-500 dark:text-slate-400">White Player</label>
+                            <Select value={selectedWhitePlayerId} onValueChange={setSelectedWhitePlayerId}>
+                              <SelectTrigger className="w-56 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-xl">
+                                <SelectValue placeholder="Select White..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {sectionPlayers
+                                  .filter(p => p.status !== 'withdrawn' && p.id.toString() !== selectedBlackPlayerId)
+                                  .map(p => (
+                                    <SelectItem key={p.id} value={p.id.toString()}>
+                                      {p.firstName} {p.lastName} ({p.rating ?? 1000})
+                                    </SelectItem>
+                                  ))}
+                              </SelectContent>
+                            </Select>
                           </div>
 
-                          {/* Column 2: Quick Register Guest / Houseplayer */}
-                          <div className="space-y-4 p-5 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-slate-100 dark:border-slate-850">
-                            <div className="flex items-center gap-2 mb-1">
-                              <UserPlus className="h-5 w-5 text-indigo-500" />
-                              <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100 font-sans">Register Guest / Houseplayer</h4>
-                            </div>
-                            <p className="text-xs text-slate-500 font-sans leading-relaxed">
-                              Register a non-tournament participant to play rated extra games without affecting standings.
-                            </p>
-                            
-                            <div className="space-y-3 pt-2">
-                              <div className="grid grid-cols-2 gap-3">
-                                <div className="space-y-1.5">
-                                  <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-sans">First Name</label>
-                                  <Input
-                                    placeholder="First Name"
-                                    value={guestFirstName}
-                                    onChange={(e) => setGuestFirstName(e.target.value)}
-                                    className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-xl h-10 text-sm"
-                                  />
-                                </div>
-                                <div className="space-y-1.5">
-                                  <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-sans">Last Name</label>
-                                  <Input
-                                    placeholder="Last Name"
-                                    value={guestLastName}
-                                    onChange={(e) => setGuestLastName(e.target.value)}
-                                    className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-xl h-10 text-sm"
-                                  />
-                                </div>
-                              </div>
-
-                              <div className="grid grid-cols-2 gap-3">
-                                <div className="space-y-1.5">
-                                  <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-sans">Rating</label>
-                                  <Input
-                                    type="number"
-                                    placeholder="1000"
-                                    value={guestRating}
-                                    onChange={(e) => setGuestRating(e.target.value)}
-                                    className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-xl h-10 text-sm"
-                                  />
-                                </div>
-                                <div className="space-y-1.5">
-                                  <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-sans">USCF ID (Optional)</label>
-                                  <Input
-                                    placeholder="e.g. 12345678"
-                                    value={guestUscfId}
-                                    onChange={(e) => setGuestUscfId(e.target.value)}
-                                    className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-xl h-10 text-sm"
-                                  />
-                                </div>
-                              </div>
-
-                              <div className="space-y-1.5">
-                                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-sans">Status Type</label>
-                                <Select value={guestStatus} onValueChange={(v: 'guest' | 'houseplayer') => setGuestStatus(v)}>
-                                  <SelectTrigger className="w-full bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-xl">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="guest">Guest (casual rated games)</SelectItem>
-                                    <SelectItem value="houseplayer">Houseplayer (fills odd-person pairings)</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </div>
-
-                              <Button
-                                type="button"
-                                onClick={() => {
-                                  if (!guestFirstName || !guestLastName) {
-                                    toast({
-                                      title: "Error",
-                                      description: "First name and Last name are required.",
-                                      variant: "destructive",
-                                    });
-                                    return;
-                                  }
-                                  const ratingNum = parseInt(guestRating);
-                                  if (isNaN(ratingNum) || ratingNum < 100) {
-                                    toast({
-                                      title: "Error",
-                                      description: "Please enter a valid rating (at least 100).",
-                                      variant: "destructive",
-                                    });
-                                    return;
-                                  }
-                                  registerGuestMutation.mutate({
-                                    firstName: guestFirstName,
-                                    lastName: guestLastName,
-                                    rating: ratingNum,
-                                    status: guestStatus,
-                                    localId: guestUscfId || undefined,
-                                  });
-                                }}
-                                disabled={registerGuestMutation.isPending || !guestFirstName || !guestLastName}
-                                className="w-full bg-teal-650 hover:bg-teal-700 text-white rounded-xl font-medium h-10 gap-2 mt-2"
-                              >
-                                {registerGuestMutation.isPending ? "Registering..." : "Register Player"}
-                              </Button>
-                            </div>
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-semibold text-slate-500 dark:text-slate-400">Black Player</label>
+                            <Select value={selectedBlackPlayerId} onValueChange={setSelectedBlackPlayerId}>
+                              <SelectTrigger className="w-56 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-xl">
+                                <SelectValue placeholder="Select Black..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {sectionPlayers
+                                  .filter(p => p.status !== 'withdrawn' && p.id.toString() !== selectedWhitePlayerId)
+                                  .map(p => (
+                                    <SelectItem key={p.id} value={p.id.toString()}>
+                                      {p.firstName} {p.lastName} ({p.rating ?? 1000})
+                                    </SelectItem>
+                                  ))}
+                              </SelectContent>
+                            </Select>
                           </div>
+
+                          <Button
+                            type="button"
+                            onClick={() => {
+                              if (!selectedWhitePlayerId || !selectedBlackPlayerId) {
+                                toast({
+                                  title: "Error",
+                                  description: "Please select both a White and a Black player.",
+                                  variant: "destructive",
+                                });
+                                return;
+                              }
+                              addExtraMatchMutation.mutate({
+                                whitePlayerId: parseInt(selectedWhitePlayerId),
+                                blackPlayerId: parseInt(selectedBlackPlayerId),
+                              });
+                            }}
+                            disabled={addExtraMatchMutation.isPending || !selectedWhitePlayerId || !selectedBlackPlayerId}
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-medium px-4 h-10 gap-2"
+                          >
+                            Add Extra Game
+                          </Button>
                         </div>
                       </div>
                     )}
                   </div>
                 )}
-              </>
+              </div>
             )}
           </div>
         )}
-      </div>
+      </CardContent>
 
       {/* Webcam / OCR Scan Dialog */}
       <Dialog open={scanDialogOpen} onOpenChange={(open) => { if (!open) handleCloseScanDialog(); }}>
@@ -2846,7 +2766,284 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
         }}
       />
 
+      {/* ── OCR Scanner Dialog ───────────────────────────────────────────── */}
+      <Dialog open={scannerOpen} onOpenChange={(open) => { if (!isScanning) setScannerOpen(open); }}>
+        <DialogContent className="max-w-2xl w-full">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-lg font-bold">
+              <ScanLine className="h-5 w-5 text-violet-500" />
+              Scan Pairings Sheet
+            </DialogTitle>
+            <DialogDescription>
+              Upload a photo of the printed pairings sheet with handwritten results. The scanner will detect board numbers and results automatically.
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Hidden file input */}
+          <input
+            ref={scanFileInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              setScanImageFile(file);
+              setScanResults([]);
+              setAppliedCount(0);
+              const reader = new FileReader();
+              reader.onload = (ev) => setScanImage(ev.target?.result as string);
+              reader.readAsDataURL(file);
+            }}
+          />
+
+          <div className="space-y-4">
+            {/* Upload area */}
+            {!scanImage ? (
+              <div
+                className="border-2 border-dashed border-violet-300 dark:border-violet-700 rounded-xl p-10 flex flex-col items-center justify-center gap-4 cursor-pointer hover:bg-violet-50/40 dark:hover:bg-violet-950/20 transition-colors"
+                onClick={() => scanFileInputRef.current?.click()}
+              >
+                <div className="w-14 h-14 rounded-full bg-violet-100 dark:bg-violet-900/40 flex items-center justify-center">
+                  <Upload className="h-7 w-7 text-violet-500" />
+                </div>
+                <div className="text-center">
+                  <p className="font-semibold text-slate-700 dark:text-slate-200">Click to upload or use camera</p>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">PNG, JPG, HEIC supported</p>
+                </div>
+                <div className="flex gap-3">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-violet-400 text-violet-600"
+                    onClick={(e) => { e.stopPropagation(); scanFileInputRef.current?.click(); }}
+                  >
+                    <Upload className="mr-2 h-4 w-4" /> Upload File
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-violet-400 text-violet-600"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (scanFileInputRef.current) {
+                        scanFileInputRef.current.setAttribute('capture', 'environment');
+                        scanFileInputRef.current.click();
+                      }
+                    }}
+                  >
+                    <Camera className="mr-2 h-4 w-4" /> Take Photo
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {/* Preview */}
+                <div className="relative rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 max-h-52">
+                  <img src={scanImage} alt="Pairings sheet" className="w-full object-contain max-h-52" />
+                  <button
+                    className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 text-white rounded-full p-1 transition-colors"
+                    onClick={() => { setScanImage(null); setScanImageFile(null); setScanResults([]); setAppliedCount(0); }}
+                  >
+                    <XCircle className="h-4 w-4" />
+                  </button>
+                </div>
+
+                {/* Scan button */}
+                {scanResults.length === 0 && !isScanning && (
+                  <Button
+                    className="w-full bg-violet-600 hover:bg-violet-700 text-white"
+                    onClick={async () => {
+                      if (!scanImageFile) return;
+                      setIsScanning(true);
+                      setScanResults([]);
+                      try {
+                        // Dynamic import to avoid heavy bundle
+                        const { createWorker } = await import('tesseract.js');
+                        const worker = await createWorker('eng');
+                        const { data: { text } } = await worker.recognize(scanImageFile);
+                        await worker.terminate();
+
+                        // Get current-round matches indexed by board number
+                        const currentRoundMatches = (allMatches || []).filter(m => m.round === currentRound && !m.isExtraGame);
+                        const boardToMatch: Record<number, Match> = {};
+                        for (const m of currentRoundMatches) {
+                          if (m.board) boardToMatch[m.board] = m;
+                        }
+
+                        // Parse OCR text line by line using robust tokenizer parser
+                        const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+                        const detected: { board: number; result: string; matchId: number | null }[] = [];
+
+                        const normalizeToken = (t: string) => {
+                          const clean = t.trim();
+                          if (clean === '1' || clean === '1.0') return '1';
+                          if (clean === '0' || clean === '0.0') return '0';
+                          if (clean === '1/2' || clean === '½' || clean === '0.5' || clean === '0,5') return '1/2';
+                          return null;
+                        };
+
+                        for (const line of lines) {
+                          const cleanLine = line.trim().replace(/\s+/g, ' ');
+                          
+                          // Find the first number (board number)
+                          const boardMatch = cleanLine.match(/^(\d+)\b/);
+                          if (!boardMatch) continue;
+                          
+                          const board = parseInt(boardMatch[1], 10);
+                          if (board < 1 || board > 200) continue;
+                          
+                          const content = cleanLine.substring(boardMatch[0].length).trim();
+                          let resultValue: string | null = null;
+                          
+                          // 1. Check for explicit 1-0, 0-1, 1/2-1/2, ½-½, etc.
+                          if (content.match(/\b1[-–]0\b/) || content.match(/\b1F[-–]0F\b/)) {
+                            resultValue = '1-0';
+                          } else if (content.match(/\b0[-–]1\b/) || content.match(/\b0F[-–]1F\b/)) {
+                            resultValue = '0-1';
+                          } else if (content.match(/\b(1\/2[-–]1\/2|½[-–]½|1\/2\s*1\/2|½\s*½)\b/) || content.toLowerCase().includes('draw')) {
+                            resultValue = '1/2-1/2';
+                          } else {
+                            // 2. Tokenize and extract result tokens
+                            const tokens = content.split(' ');
+                            const resultTokens = tokens.map(normalizeToken).filter(Boolean);
+                            
+                            if (resultTokens.length >= 2) {
+                              const r1 = resultTokens[0];
+                              const r2 = resultTokens[1];
+                              if (r1 === '1' && r2 === '0') resultValue = '1-0';
+                              else if (r1 === '0' && r2 === '1') resultValue = '0-1';
+                              else if (r1 === '1/2' && r2 === '1/2') resultValue = '1/2-1/2';
+                            } else if (tokens.length > 0) {
+                              // 3. Fallback: single result digit
+                              const firstNorm = normalizeToken(tokens[0]);
+                              if (firstNorm === '1') resultValue = '1-0';
+                              else if (firstNorm === '0') resultValue = '0-1';
+                              else if (firstNorm === '1/2') resultValue = '1/2-1/2';
+                              else {
+                                const lastNorm = normalizeToken(tokens[tokens.length - 1]);
+                                if (lastNorm === '1') resultValue = '0-1'; // Board X Player A 0 Player B 1
+                                if (lastNorm === '0') resultValue = '1-0'; // Board X Player A 1 Player B 0
+                                if (lastNorm === '1/2') resultValue = '1/2-1/2';
+                              }
+                            }
+                          }
+                          
+                          if (resultValue) {
+                            const match = boardToMatch[board];
+                            detected.push({ board, result: resultValue, matchId: match?.id ?? null });
+                          }
+                        }
+
+                        setScanResults(detected);
+                        if (detected.length === 0) {
+                          toast({ title: 'No results detected', description: 'Try a clearer photo. Ensure the board numbers and results are legible.', variant: 'destructive' });
+                        }
+                      } catch (err: any) {
+                        toast({ title: 'OCR failed', description: err?.message ?? 'Unknown error', variant: 'destructive' });
+                      } finally {
+                        setIsScanning(false);
+                      }
+                    }}
+                  >
+                    {isScanning ? (
+                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Scanning…</>
+                    ) : (
+                      <><ScanLine className="mr-2 h-4 w-4" /> Scan for Results</>
+                    )}
+                  </Button>
+                )}
+
+                {/* Results preview table */}
+                {scanResults.length > 0 && (
+                  <div className="space-y-3">
+                    <div className="text-sm font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                      {scanResults.length} result{scanResults.length !== 1 ? 's' : ''} detected
+                    </div>
+                    <div className="border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden max-h-52 overflow-y-auto">
+                      <table className="w-full text-sm">
+                        <thead className="bg-slate-50 dark:bg-slate-800">
+                          <tr>
+                            <th className="px-3 py-2 text-left font-semibold text-slate-600 dark:text-slate-300 w-16">Board</th>
+                            <th className="px-3 py-2 text-center font-semibold text-slate-600 dark:text-slate-300">Result</th>
+                            <th className="px-3 py-2 text-center font-semibold text-slate-600 dark:text-slate-300 w-20">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {scanResults.map((r) => (
+                            <tr key={r.board} className="border-t border-slate-100 dark:border-slate-800">
+                              <td className="px-3 py-1.5 font-mono font-bold text-slate-700 dark:text-slate-300">{r.board}</td>
+                              <td className="px-3 py-1.5 text-center">
+                                <span className={cn(
+                                  "inline-flex items-center justify-center px-2 py-0.5 rounded-md text-xs font-black font-mono",
+                                  r.result === '1-0' ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400' :
+                                  r.result === '0-1' ? 'bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-400' :
+                                  'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                                )}>
+                                  {r.result === '1/2-1/2' ? '½–½' : r.result}
+                                </span>
+                              </td>
+                              <td className="px-3 py-1.5 text-center">
+                                {r.matchId ? (
+                                  <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">✓ Found</span>
+                                ) : (
+                                  <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">? No match</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    {appliedCount > 0 && (
+                      <div className="text-sm text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-2">
+                        <CheckCircle2 className="h-4 w-4" /> {appliedCount} result{appliedCount !== 1 ? 's' : ''} applied successfully
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
+
+          <DialogFooter className="gap-2 flex-wrap">
+            <Button variant="outline" onClick={() => setScannerOpen(false)} disabled={isScanning}>
+              Close
+            </Button>
+            {scanResults.length > 0 && appliedCount === 0 && (
+              <Button
+                className="bg-violet-600 hover:bg-violet-700 text-white"
+                onClick={() => {
+                  let count = 0;
+                  const updates: Record<number, string> = {};
+                  for (const r of scanResults) {
+                    if (r.matchId) {
+                      updates[r.matchId] = r.result;
+                      count++;
+                    }
+                  }
+                  setPendingResults(prev => ({
+                    ...prev,
+                    ...updates
+                  }));
+                  setAppliedCount(count);
+                  toast({
+                    title: `Applied ${count} result${count !== 1 ? 's' : ''}`,
+                    description: count > 0 ? 'Results have been recorded in the edit table. Please review and click Save.' : 'No valid board numbers were matched.',
+                  });
+                }}
+              >
+                <CheckCircle2 className="mr-2 h-4 w-4" />
+                Apply {scanResults.filter(r => r.matchId).length} Results
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* ── End OCR Scanner Dialog ─────────────────────────────────────────── */}
+    </Card>
   );
 }
 );

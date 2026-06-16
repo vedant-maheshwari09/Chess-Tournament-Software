@@ -50,6 +50,7 @@ import {
   type PaymentSettings,
   type OfflinePaymentMethod,
   type SectionDefinition,
+  DEFAULT_REGISTRATION_FIELDS,
 } from "@/lib/tournament-config";
 import type { Tournament, Player, PlayerRegistration } from "@shared/schema";
 import { loadStripe } from "@stripe/stripe-js";
@@ -179,8 +180,8 @@ const formatDate = (value: string | Date | null | undefined) => {
 };
 
 const statusStyles: Record<string, string> = {
-  draft: "bg-primary/10 text-primary border border-primary/20",
-  upcoming: "bg-primary/5 text-primary border border-primary/20",
+  draft: "bg-indigo-100/80 text-indigo-800 border border-indigo-200/50",
+  upcoming: "bg-indigo-50/80 text-indigo-700 border border-indigo-200/50",
   active: "bg-emerald-50 text-emerald-700 border border-emerald-200/50",
   completed: "bg-slate-100 text-slate-600 border border-slate-200/50",
 };
@@ -1045,10 +1046,10 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
 
   if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-transparent">
+      <div className="flex min-h-screen items-center justify-center bg-[#f7f6f3]">
         <div className="text-center">
-          <div className="mx-auto h-10 w-10 animate-spin rounded-full border-2 border-slate-200 border-t-primary dark:border-slate-800"></div>
-          <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">Loading registration form...</p>
+          <div className="mx-auto h-10 w-10 animate-spin rounded-full border-2 border-gray-200 border-t-blue-600"></div>
+          <p className="mt-4 text-sm text-gray-500">Loading registration form...</p>
         </div>
       </div>
     );
@@ -1056,13 +1057,13 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
 
   if (!tournament || !config) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-transparent px-4">
+      <div className="flex min-h-screen items-center justify-center bg-[#f7f6f3] px-4">
         <div className="w-full max-w-md">
-          <div className="overflow-hidden rounded-2xl border border-slate-100 dark:border-slate-800 bg-white/90 backdrop-blur-md shadow-xl dark:bg-slate-900/90">
+          <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
             <div className="p-8 text-center">
-              <ShieldCheck className="mx-auto mb-4 h-10 w-10 text-slate-400 dark:text-slate-500" />
-              <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Tournament unavailable</h2>
-              <p className="mt-2 text-sm leading-relaxed text-slate-500 dark:text-slate-400">
+              <ShieldCheck className="mx-auto mb-4 h-10 w-10 text-gray-400" />
+              <h2 className="text-lg font-semibold text-gray-900">Tournament unavailable</h2>
+              <p className="mt-2 text-sm leading-relaxed text-gray-500">
                 This registration form could not be loaded. This might happen if the tournament has been archived, paused, or deleted.
               </p>
               <Button
@@ -1085,78 +1086,78 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
   if (existingRegistration && !isEditing) {
     return (
       <div className="min-h-screen bg-transparent">
-        <div className="border-b border-slate-100 dark:border-slate-800 bg-white/85 dark:bg-slate-900/80 backdrop-blur-md">
+        <div className="border-b border-gray-200 bg-white">
           <div className="mx-auto flex max-w-4xl flex-col gap-3 px-4 py-5 sm:px-6 lg:px-8">
             <div className="flex items-center gap-3">
               <Button
                 variant="ghost"
                 size="sm"
-                className="gap-1.5 text-sm font-medium text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+                className="gap-1.5 text-sm font-medium text-gray-500 hover:text-gray-900"
                 onClick={() => setLocation(`/tournaments/${tournamentId}`)}
               >
                 <ArrowLeft className="h-3.5 w-3.5" />
                 Back to tournament
               </Button>
             </div>
-            <h1 className="text-xl font-semibold tracking-tight text-slate-900 dark:text-white">{tournament.name}</h1>
+            <h1 className="text-xl font-semibold tracking-tight text-gray-900">{tournament.name}</h1>
           </div>
         </div>
 
         <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6">
-          <div className="overflow-hidden rounded-2xl border border-slate-100 dark:border-slate-800 bg-white/85 dark:bg-slate-900/90 backdrop-blur-md shadow-xl">
+          <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
             {existingRegistration.status === 'approved' ? (
-              <div className="flex items-center gap-3 border-b border-slate-100 dark:border-slate-800 bg-emerald-50/40 dark:bg-emerald-950/20 px-6 py-4">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/30">
-                  <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+              <div className="flex items-center gap-3 border-b border-gray-100 bg-emerald-50 px-6 py-4">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100">
+                  <Check className="h-4 w-4 text-emerald-600" />
                 </div>
                 <div>
-                  <h2 className="text-sm font-semibold text-slate-900 dark:text-white">Registration Accepted</h2>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">You are fully registered for this tournament.</p>
+                  <h2 className="text-sm font-semibold text-gray-900">Registration Accepted</h2>
+                  <p className="text-xs text-gray-500">You are fully registered for this tournament.</p>
                 </div>
               </div>
             ) : existingRegistration.status === 'declined' ? (
-              <div className="flex items-center gap-3 border-b border-slate-100 dark:border-slate-800 bg-red-50/40 dark:bg-red-950/20 px-6 py-4">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
-                  <X className="h-4 w-4 text-red-600 dark:text-red-400" />
+              <div className="flex items-center gap-3 border-b border-gray-100 bg-red-50 px-6 py-4">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-red-100">
+                  <X className="h-4 w-4 text-red-600" />
                 </div>
                 <div>
-                  <h2 className="text-sm font-semibold text-slate-900 dark:text-white">Registration Declined</h2>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">Your registration for this tournament was declined.</p>
+                  <h2 className="text-sm font-semibold text-gray-900">Registration Declined</h2>
+                  <p className="text-xs text-gray-500">Your registration for this tournament was declined.</p>
                 </div>
               </div>
             ) : (
-              <div className="flex items-center gap-3 border-b border-slate-100 dark:border-slate-800 bg-primary/5 dark:bg-primary/10 px-6 py-4">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 dark:bg-primary/20">
-                  <Clock className="h-4 w-4 text-primary" />
+              <div className="flex items-center gap-3 border-b border-gray-100 bg-indigo-50 px-6 py-4">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100">
+                  <Clock className="h-4 w-4 text-indigo-600" />
                 </div>
                 <div>
-                  <h2 className="text-sm font-semibold text-slate-900 dark:text-white">Registration Pending</h2>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">Your entry is being reviewed by the tournament director.</p>
+                  <h2 className="text-sm font-semibold text-gray-900">Registration Pending</h2>
+                  <p className="text-xs text-gray-500">Your entry is being reviewed by the tournament director.</p>
                 </div>
               </div>
             )}
             <div className="p-6">
               <div className="grid grid-cols-2 gap-4 text-sm">
                 {existingRegistration.playerName && (
-                  <div className="rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 p-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">Player Name</p>
-                    <p className="mt-1 font-medium text-slate-900 dark:text-slate-100">{existingRegistration.playerName}</p>
+                  <div className="rounded-lg border border-slate-100 bg-slate-50/70 p-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Player Name</p>
+                    <p className="mt-1 font-medium text-slate-900">{existingRegistration.playerName}</p>
                   </div>
                 )}
                 {existingRegistration.uscfRating && (
-                  <div className="rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 p-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">USCF Rating</p>
-                    <p className="mt-1 font-medium text-slate-900 dark:text-slate-100">{existingRegistration.uscfRating}</p>
+                  <div className="rounded-lg border border-slate-100 bg-slate-50/70 p-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">USCF Rating</p>
+                    <p className="mt-1 font-medium text-slate-900">{existingRegistration.uscfRating}</p>
                   </div>
                 )}
                 {existingRegistration.email && (
-                  <div className="col-span-2 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 p-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">Email</p>
-                    <p className="mt-1 font-medium text-slate-900 dark:text-slate-100">{existingRegistration.email}</p>
+                  <div className="col-span-2 rounded-lg border border-slate-100 bg-slate-50/70 p-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Email</p>
+                    <p className="mt-1 font-medium text-slate-900">{existingRegistration.email}</p>
                   </div>
                 )}
               </div>
-              <div className="mt-4 rounded-xl border border-emerald-100 dark:border-emerald-900/40 bg-emerald-50/40 dark:bg-emerald-950/10 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-400">
+              <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
                 We&apos;ll notify you once the tournament director processes your registration.
               </div>
               <Button className="mt-6 w-full" onClick={() => setLocation(`/tournaments/${tournamentId}`)}>Return to tournament page</Button>
@@ -1476,21 +1477,21 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
     <div className="min-h-screen bg-transparent">
       {/* ===== Main Content ===== */}
       <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
-        <div className="overflow-hidden rounded-2xl border border-slate-100 dark:border-slate-800 bg-white/85 dark:bg-slate-900/90 backdrop-blur-md shadow-xl shadow-slate-200/50">
+        <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
           {/* ===== Compact Header Section ===== */}
-          <div className="border-b border-slate-100 dark:border-slate-800 px-6 py-5">
+          <div className="border-b border-gray-100 px-6 py-5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <Link href={`/tournaments/${tournamentId}`}>
                   <button
                     type="button"
-                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-850 text-slate-500 dark:text-slate-400 shadow-sm transition hover:border-primary/40 hover:text-primary active:scale-95"
+                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-indigo-300 hover:text-indigo-600 active:scale-95"
                     title="Back to tournament"
                   >
                     <ArrowLeft className="h-4 w-4" />
                   </button>
                 </Link>
-                <h1 className="text-xl font-semibold tracking-tight text-slate-900 dark:text-white sm:text-2xl">{tournament.name}</h1>
+                <h1 className="text-xl font-semibold tracking-tight text-gray-900 sm:text-2xl">{tournament.name}</h1>
               </div>
               <div className="flex items-center gap-3">
                 <Badge
@@ -1499,7 +1500,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
                     tournament.status === "active"
                       ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                       : tournament.status === "upcoming"
-                        ? "bg-primary/5 text-primary border-primary/20"
+                        ? "bg-indigo-50 text-indigo-700 border-indigo-200"
                         : "bg-gray-100 text-gray-600 border-gray-200",
                   )}
                   variant="outline"
@@ -1514,7 +1515,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
                     isAutosaving ? "opacity-100 translate-y-0" : "opacity-40 -translate-y-0"
                   )}>
                     {isAutosaving ? (
-                      <Loader2 className="h-3 w-3 animate-spin text-primary" />
+                      <Loader2 className="h-3 w-3 animate-spin text-indigo-500" />
                     ) : (
                       <div className="flex h-3 w-3 items-center justify-center rounded-full bg-emerald-500/10">
                         <Check className="h-2 w-2 text-emerald-600" />
@@ -1547,51 +1548,43 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
             </div>
 
             {/* Step progress indicator */}
-            <div className="mt-6 flex items-start justify-between w-full max-w-3xl mx-auto px-2">
+            <div className="mt-5 flex items-center gap-0">
               {stepMeta.map((meta, index) => {
                 const step = index + 1;
                 const isDone = currentStep > step;
                 const isActive = currentStep === step;
                 return (
-                  <div key={meta.title} className={cn("flex items-start", index < stepMeta.length - 1 && "flex-1")}>
-                    {/* Step Group */}
-                    <div className="flex items-start gap-3">
+                  <div key={meta.title} className="flex items-center">
+                    <div className="flex items-center gap-2.5">
                       <div
                         className={cn(
-                          "flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold transition-all duration-300 shadow-sm",
+                          "flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold transition-all duration-300",
                           isDone
-                            ? "bg-primary text-white shadow-primary/10"
+                            ? "bg-indigo-600 text-white shadow-sm"
                             : isActive
-                              ? "border-2 border-primary text-primary bg-primary/5"
-                              : "border border-slate-200 dark:border-slate-800 text-slate-400 bg-white dark:bg-slate-900",
+                              ? "border-[1.5px] border-indigo-600 text-indigo-600 bg-indigo-50 ring-2 ring-indigo-100"
+                              : "border-[1.5px] border-gray-200 text-gray-400 bg-white",
                         )}
                       >
-                        {isDone ? <Check className="h-4 w-4 stroke-[3]" /> : step}
+                        {isDone ? <Check className="h-3.5 w-3.5" /> : step}
                       </div>
-                      <div className="hidden sm:flex flex-col text-left pt-0.5">
-                        <span className={cn(
-                          "text-[13px] font-semibold tracking-tight transition-colors duration-300",
-                          isDone || isActive ? "text-slate-950 dark:text-white" : "text-slate-400"
-                        )}>{meta.title}</span>
-                        <span className="text-[11px] text-slate-400 font-normal leading-none mt-0.5">{meta.description}</span>
-                      </div>
+                      <span className={cn(
+                        "hidden text-[13px] font-medium sm:block",
+                        isDone ? "text-indigo-600" : isActive ? "text-gray-900" : "text-gray-400"
+                      )}>{meta.title}</span>
                     </div>
-                    {/* Connection Line */}
                     {index < stepMeta.length - 1 && (
-                      <div className="flex-1 mx-4 min-w-[2rem] sm:min-w-[4rem] mt-[16.5px]">
-                        <div
-                          className={cn(
-                            "h-[3px] rounded-full transition-all duration-500",
-                            currentStep > step ? "bg-primary" : "bg-slate-100"
-                          )}
-                        />
-                      </div>
+                      <div
+                        className={cn(
+                          "mx-3 h-px w-10 transition-all duration-500",
+                          currentStep > step ? "bg-indigo-600" : "bg-gray-200",
+                        )}
+                      />
                     )}
                   </div>
                 );
               })}
             </div>
-
           </div>
 
           {/* ===== Form Content Area ===== */}
@@ -1625,14 +1618,14 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
                             key={entry.id}
                             className={cn(
                               "flex items-center gap-3 px-5 py-3.5 transition",
-                              isEditing && "bg-primary/5",
+                              isEditing && "bg-indigo-50/60",
                             )}
                           >
                             <div
                               className={cn(
                                 "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-medium",
                                 isEditing
-                                  ? "bg-primary/5 text-primary border border-primary/20"
+                                  ? "bg-indigo-50 text-indigo-700 border border-indigo-200"
                                   : "bg-gray-50 text-gray-500 border border-gray-100",
                               )}
                             >
@@ -1768,7 +1761,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
                                 return (
                                   <div key={entry.id} className="flex items-center justify-between px-6 py-4 transition hover:bg-slate-50/50">
                                     <div className="flex min-w-0 flex-1 items-center gap-4">
-                                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/5 text-xs font-bold text-primary shadow-sm ring-1 ring-primary/20">
+                                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-xs font-bold text-indigo-700 shadow-sm ring-1 ring-indigo-100/50">
                                         {getInitials(values.firstName ?? "", values.lastName ?? "") || (index + 1)}
                                       </div>
                                       <div className="min-w-0 flex-1">
@@ -1778,7 +1771,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
                                             "rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide",
                                             (registerMutation.isSuccess || groupRegisterMutation.isSuccess)
                                               ? "bg-amber-100 text-amber-700 border border-amber-200"
-                                              : "bg-primary/10 text-primary border border-primary/20"
+                                              : "bg-indigo-100 text-indigo-700 border border-indigo-200"
                                           )}>
                                             {(registerMutation.isSuccess || groupRegisterMutation.isSuccess) ? "Pending Approval" : "Ready to Submit"}
                                           </span>
@@ -1798,7 +1791,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
                                     </div>
                                     <div className="ml-4 flex items-center gap-4">
                                       <div className="text-right">
-                                        <span className="block text-sm font-bold text-primary">
+                                        <span className="block text-sm font-bold text-indigo-700">
                                           {formatCurrency(totals.total, totals.currency)}
                                         </span>
                                         {totals.feeAmount > 0 && (
@@ -1809,7 +1802,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
                                         <button
                                           type="button"
                                           onClick={() => isDraft ? handleEditDraft(entry.id) : setCurrentStep(1)}
-                                          className="rounded p-1.5 text-slate-400 transition hover:bg-white hover:text-primary hover:shadow-sm"
+                                          className="rounded p-1.5 text-slate-400 transition hover:bg-white hover:text-indigo-600 hover:shadow-sm"
                                           title="Edit player"
                                         >
                                           <Pencil className="h-3.5 w-3.5" />
@@ -1833,7 +1826,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
 
                             <div className="flex items-center justify-between border-t border-gray-200 bg-gray-50 px-6 py-4">
                               <span className="text-sm font-medium text-gray-900">Combined registration total</span>
-                              <span className="text-lg font-bold text-primary">
+                              <span className="text-lg font-bold text-indigo-700">
                                 {formatCurrency(
                                   displayDrafts.reduce((sum, entry) => {
                                     const fee = entryFees.find((f) => f.id === entry.values.entryFeeId) ?? null;
@@ -1850,24 +1843,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
 
 
                         {canProcessOnline && clientSecret && stripePromise ? (
-                          <Elements
-                            key={clientSecret}
-                            stripe={stripePromise}
-                            options={{
-                              clientSecret,
-                              appearance: {
-                               theme: "stripe",
-                               variables: {
-                                 fontFamily: "ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
-                                 colorPrimary: "#2094f3", // signature project light blue
-                                 colorBackground: "#ffffff",
-                                 colorText: "#0f172a", // slate-900
-                                 colorDanger: "#ef4444",
-                                 borderRadius: "12px",
-                               },
-                              },
-                            }}
-                          >
+                          <Elements key={clientSecret} stripe={stripePromise} options={{ clientSecret }}>
                             <StepThree
                               paymentDetails={config?.registers?.paymentDetails}
                               paymentSettings={paymentSettings ?? null}
@@ -1919,12 +1895,12 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
                 </div>
 
                 {/* ===== Navigation Footer ===== */}
-                <div className="mt-6 border-t border-slate-100 dark:border-slate-800 pt-4">
-                  <div className="flex items-center justify-between gap-4 py-4 px-2">
-                    <div className="hidden text-xs text-slate-500 dark:text-slate-400 sm:block">
+                <div className="mt-2 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+                  <div className="flex items-center justify-between gap-4 px-5 py-4">
+                    <div className="hidden text-xs text-gray-500 sm:block">
                       <div className="flex items-center gap-3">
                         <span>
-                          <span className="font-semibold text-slate-700 dark:text-slate-300">Step {currentStep}</span> of {totalSteps} · {stepMeta[currentStep - 1]?.title}
+                          <span className="font-medium text-gray-700">Step {currentStep}</span> of {totalSteps} · {stepMeta[currentStep - 1]?.title}
                         </span>
                       </div>
                     </div>
@@ -1933,7 +1909,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
                         <button
                           type="button"
                           onClick={handlePrevStep}
-                          className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 text-sm font-medium text-slate-700 dark:text-slate-300 shadow-sm transition hover:bg-slate-50 dark:hover:bg-slate-700 active:scale-95"
+                          className="inline-flex h-9 items-center gap-1.5 rounded-md border border-gray-200 bg-white px-4 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50 active:scale-95"
                         >
                           <ArrowLeft className="h-4 w-4" />
                           Back
@@ -1947,10 +1923,10 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
                           type="button"
                           onClick={handleSaveDraft}
                           className={cn(
-                            "inline-flex h-9 items-center gap-1.5 rounded-lg border px-4 text-sm font-medium shadow-sm transition active:scale-95",
+                            "inline-flex h-9 items-center gap-1.5 rounded-md border px-4 text-sm font-medium shadow-sm transition active:scale-95",
                             draftSavedFlash
-                              ? "border-emerald-300 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400"
-                              : "border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700",
+                              ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+                              : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50",
                           )}
                         >
                           <Save className="h-3.5 w-3.5" />
@@ -1963,7 +1939,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
                           <button
                             type="button"
                             onClick={handleNextStep}
-                            className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-slate-900 dark:bg-slate-100 px-5 text-sm font-medium text-white dark:text-slate-900 shadow-sm transition hover:bg-slate-800 dark:hover:bg-white active:scale-[0.98]"
+                            className="inline-flex h-9 items-center gap-1.5 rounded-md bg-gray-900 px-5 text-sm font-medium text-white shadow-sm transition hover:bg-gray-800 active:scale-[0.98]"
                           >
                             Continue
                             <ChevronRight className="h-4 w-4" />
@@ -1975,10 +1951,10 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
                           disabled={disableSubmitButton || !paymentAcknowledged}
                           onClick={handleFinalSubmit}
                           className={cn(
-                            "inline-flex h-9 items-center gap-1.5 rounded-lg px-5 text-sm font-medium text-white dark:text-slate-900 shadow-sm transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50",
+                            "inline-flex h-9 items-center gap-1.5 rounded-md px-5 text-sm font-medium text-white shadow-sm transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50",
                             requiresPayment
-                              ? "bg-slate-900 dark:bg-slate-100 hover:bg-slate-800 dark:hover:bg-white"
-                              : "bg-slate-900 dark:bg-slate-100 hover:bg-slate-800 dark:hover:bg-white",
+                              ? "bg-gray-900 hover:bg-gray-800"
+                              : "bg-gray-900 hover:bg-gray-800",
                           )}
                         >
                           {registerMutation.isPending || groupRegisterMutation.isPending ? (
@@ -1994,7 +1970,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
                       )}
                     </div>
                   </div>
-                  <div className="border-t border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-950/20 py-3.5 text-center text-xs text-slate-400 dark:text-slate-500 rounded-b-2xl -mx-6 sm:-mx-8 lg:-mx-10 mt-2">
+                  <div className="border-t border-gray-100 bg-gray-50/50 px-5 py-3 text-center text-xs text-gray-500">
                     Registration powered by ChessSoftware · Confirmation sent after director review
                   </div>
                 </div>
@@ -2036,21 +2012,7 @@ interface RatingLookupResponse {
 }
 
 function getFieldConfig(config: any, fieldId: string) {
-  const defaultFields = [
-    { id: "address1", label: "Address Line 1", type: "text", required: false, visible: true },
-    { id: "address2", label: "Address Line 2", type: "text", required: false, visible: true },
-    { id: "city", label: "City", type: "text", required: false, visible: true },
-    { id: "state", label: "State / Province", type: "text", required: false, visible: true },
-    { id: "postalCode", label: "Postal Code", type: "text", required: false, visible: true },
-    { id: "country", label: "Country", type: "text", required: false, visible: true },
-    { id: "uscfId", label: "USCF ID", type: "text", required: false, visible: true },
-    { id: "fideId", label: "FIDE ID", type: "text", required: false, visible: true },
-    { id: "byePreference", label: "Bye Requests", type: "boolean", required: false, visible: true },
-    { id: "arrivalTime", label: "Expected Arrival Time", type: "text", required: false, visible: true },
-    { id: "notes", label: "Notes / Requests", type: "text", required: false, visible: true },
-    { id: "newsletter", label: "Receive Bulletins", type: "boolean", required: false, visible: true },
-  ];
-  const fields = config?.registrationFormConfig?.fields || defaultFields;
+  const fields = config?.registrationFormConfig?.fields || DEFAULT_REGISTRATION_FIELDS;
   const field = fields.find((f: any) => f.id === fieldId);
   return field ?? { id: fieldId, label: fieldId, type: "text", required: false, visible: false };
 }
@@ -2222,18 +2184,18 @@ function StepOne({
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4 border-b border-slate-100 dark:border-slate-800 pb-5">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-50 dark:bg-slate-850 border border-slate-100 dark:border-slate-800 shadow-sm">
-          <Search className="h-5 w-5 text-slate-600 dark:text-slate-400" />
+    <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+      <div className="flex items-center gap-4 border-b border-gray-100 bg-gray-50/50 px-6 py-5">
+        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white border border-gray-200 shadow-sm">
+          <Search className="h-5 w-5 text-gray-600" />
         </div>
         <div>
-          <h2 className="text-lg font-bold leading-tight text-slate-900 dark:text-white">Player Lookup</h2>
-          <p className="text-xs font-semibold text-slate-400 dark:text-slate-500">Step 1 of 3: Identity & Verification</p>
+          <h2 className="text-lg font-semibold leading-tight text-gray-900">Player Lookup</h2>
+          <p className="text-sm text-gray-500">Step 1 of 3: Identity & Verification</p>
         </div>
       </div>
 
-      <div className="space-y-6">
+      <div className="space-y-8 p-6 sm:p-8">
         <RadioGroup
           value={lookupMode}
           onValueChange={(value) => {
@@ -2266,22 +2228,22 @@ function StepOne({
 
         {lookupMode === "profile" && (
           <div className="space-y-4">
-            <Label className="text-sm font-medium text-slate-700 dark:text-slate-300">Search players</Label>
+            <Label className="text-sm font-medium text-slate-700">Search players</Label>
             <div className="relative">
               <Input
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
                 placeholder="Type name or ID (Min 3 chars)..."
                 autoComplete="off"
-                className="h-11 pl-10 pr-10 focus-visible:ring-primary/30"
+                className="h-11 pl-10 pr-10 focus-visible:ring-indigo-500/30"
               />
               <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             </div>
 
             {isSearching ? (
-              <div className="my-2 flex flex-col items-center justify-center gap-3 py-8 rounded-lg border border-dashed border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/20">
-                <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                <span className="text-sm font-medium text-slate-500 dark:text-slate-400">Searching USCF & FIDE databases...</span>
+              <div className="my-2 flex flex-col items-center justify-center gap-3 py-8 rounded-lg border border-dashed border-slate-200 bg-slate-50/50">
+                <Loader2 className="h-6 w-6 animate-spin text-indigo-500" />
+                <span className="text-sm font-medium text-slate-500">Searching USCF & FIDE databases...</span>
               </div>
             ) : (
               <>
@@ -2375,6 +2337,8 @@ function StepOne({
                 label={getFieldConfig(config, "uscfId").label} 
                 name="uscfId" 
                 required={getFieldConfig(config, "uscfId").required} 
+                placeholder={getFieldConfig(config, "uscfId").placeholder}
+                description={getFieldConfig(config, "uscfId").description}
               />
             )}
             {getFieldConfig(config, "fideId").visible && (
@@ -2382,6 +2346,8 @@ function StepOne({
                 label={getFieldConfig(config, "fideId").label} 
                 name="fideId" 
                 required={getFieldConfig(config, "fideId").required} 
+                placeholder={getFieldConfig(config, "fideId").placeholder}
+                description={getFieldConfig(config, "fideId").description}
               />
             )}
             {config?.details.primaryRatingSystem === "fide" ? (
@@ -2410,7 +2376,7 @@ function StepOne({
           <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Section &amp; rating</p>
           <div className="grid gap-5 sm:grid-cols-2">
             <div>
-              <Label className="text-sm font-medium text-slate-700 dark:text-slate-300">Preferred section</Label>
+              <Label className="text-sm font-medium text-slate-700">Preferred section</Label>
               <Select
                 onValueChange={(value) => form.setValue("sectionChoice", value, { shouldDirty: true })}
                 value={form.watch("sectionChoice") ?? ""}
@@ -2446,7 +2412,7 @@ function StepOne({
                             </span>
                           )}
                           {showEligibilityWarning && numericRating !== null && (
-                            <span className="text-[11px] text-primary">
+                            <span className="text-[11px] text-indigo-600">
                               Not eligible with {config?.details.primaryRatingSystem === "fide" ? "FIDE" : "USCF"} rating {numericRating}.
                             </span>
                           )}
@@ -2461,7 +2427,7 @@ function StepOne({
               )}
             </div>
             <div>
-              <Label className="text-sm font-medium text-slate-700 dark:text-slate-300">Rating provider</Label>
+              <Label className="text-sm font-medium text-slate-700">Rating provider</Label>
               <Select
                 onValueChange={(value) =>
                   form.setValue("ratingProvider", value as RegistrationFormValues["ratingProvider"], { shouldDirty: true })
@@ -2526,8 +2492,9 @@ function StepTwo({
   const selectedSection = form.watch("sectionChoice");
   const selectedEntryFeeId = form.watch("entryFeeId");
 
-  const customFields = useMemo(() => {
-    return config?.registrationFormConfig?.fields.filter(f => f.isCustom) ?? [];
+  const step2ActiveFields = useMemo(() => {
+    const fields = config?.registrationFormConfig?.fields || DEFAULT_REGISTRATION_FIELDS;
+    return fields.filter((f) => f.visible && f.id !== "uscfId" && f.id !== "fideId");
   }, [config]);
 
   const numericRating = useMemo(
@@ -2623,34 +2590,34 @@ function StepTwo({
   }, [config?.details.rounds]);
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4 border-b border-slate-100 dark:border-slate-800 pb-5">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-50 dark:bg-slate-850 border border-slate-100 dark:border-slate-800 shadow-sm">
-          <Trophy className="h-5 w-5 text-slate-600 dark:text-slate-400" />
+    <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+      <div className="flex items-center gap-4 border-b border-gray-100 bg-gray-50/50 px-6 py-5">
+        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white border border-gray-200 shadow-sm">
+          <Trophy className="h-5 w-5 text-gray-600" />
         </div>
         <div>
-          <h2 className="text-lg font-bold leading-tight text-slate-900 dark:text-white">Tournament Options</h2>
-          <p className="text-xs font-semibold text-slate-400 dark:text-slate-500">Step 2 of 3: Section & Preferences</p>
+          <h2 className="text-lg font-semibold leading-tight text-gray-900">Tournament Options</h2>
+          <p className="text-sm text-gray-500">Step 2 of 3: Section & Preferences</p>
         </div>
       </div>
 
-      <div className="space-y-6">
+      <div className="space-y-8 p-6">
         <div className="space-y-4">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <Label className="text-sm font-bold text-slate-900 tracking-tight">Entry fee type</Label>
               <p className="text-xs font-medium text-slate-500">Pick the pricing tier for your section.</p>
             </div>
-            <Badge variant="outline" className="w-fit border-primary/20 bg-primary/5 text-primary font-bold px-3 py-1">
+            <Badge variant="outline" className="w-fit border-indigo-200 bg-indigo-50/70 text-indigo-800 font-bold px-3 py-1">
               {numericRating !== null ? `Live Rating: ${numericRating}` : "Status: Unrated"}
             </Badge>
           </div>
           {entryFees.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-primary/20 bg-primary/5 p-4 text-sm text-primary">
+            <div className="rounded-lg border border-dashed border-indigo-200 bg-indigo-50/70 p-4 text-sm text-indigo-700">
               Entry fees will be confirmed by the tournament director. Continue to acknowledge payment on the next step.
             </div>
           ) : entryFeeOptions.length === 0 ? (
-            <div className="flex items-start gap-3 rounded-lg border border-primary/20 bg-primary/5 p-4 text-sm text-primary">
+            <div className="flex items-start gap-3 rounded-lg border border-indigo-200 bg-indigo-50 p-4 text-sm text-indigo-700">
               <AlertCircle className="h-4 w-4 shrink-0" />
               <p>No pricing has been configured for the selected section. Please contact the director for assistance.</p>
             </div>
@@ -2675,19 +2642,19 @@ function StepTwo({
                       className={cn(
                         "relative flex cursor-pointer flex-col gap-2 rounded-xl border p-5 transition-all shadow-sm ring-1 ring-inset ring-transparent",
                         isSelected
-                          ? "border-slate-300 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/40 shadow-md ring-slate-300/20 dark:ring-slate-700/20"
-                          : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 hover:border-slate-300 dark:hover:border-slate-700 hover:bg-slate-50/30 dark:hover:bg-slate-800/30",
+                          ? "border-indigo-400 bg-indigo-50/80 ring-indigo-400/20 shadow-md"
+                          : "border-slate-200 bg-white hover:border-indigo-300 hover:bg-indigo-50/30",
                       )}
                     >
                       <RadioGroupItem id={`entry-fee-${fee.id}`} value={fee.id} className="sr-only" />
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">{fee.section}</span>
-                        <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                        <span className="text-sm font-semibold text-slate-900">{fee.section}</span>
+                        <span className="text-sm font-semibold text-slate-900">
                           {formatCurrency(fee.amount, fee.currency)}
                         </span>
                       </div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">{formatEntryFeeRange(fee, sections, selectedSectionOption)}</p>
-                      <p className="text-[11px] text-slate-400 dark:text-slate-500">{effectiveAfterLabel}</p>
+                      <p className="text-xs text-slate-500">{formatEntryFeeRange(fee, sections, selectedSectionOption)}</p>
+                      <p className="text-[11px] text-slate-400">{effectiveAfterLabel}</p>
                       {fee.notes && <p className="text-xs text-slate-500">{fee.notes}</p>}
                       <div className="flex flex-wrap gap-2 pt-2">
                         {isRecommended && (
@@ -2699,7 +2666,7 @@ function StepTwo({
                             "border text-xs",
                             eligible
                               ? "border-emerald-200 bg-emerald-50/70 text-emerald-700"
-                              : "border-primary/20 bg-primary/5 text-primary",
+                              : "border-indigo-200 bg-indigo-50/70 text-indigo-700",
                           )}
                         >
                           {eligible ? "Matches rating" : "Director review required"}
@@ -2716,280 +2683,215 @@ function StepTwo({
           )}
         </div>
 
-        {(getFieldConfig(config, "address1").visible ||
-          getFieldConfig(config, "address2").visible ||
-          getFieldConfig(config, "city").visible ||
-          getFieldConfig(config, "state").visible ||
-          getFieldConfig(config, "postalCode").visible ||
-          getFieldConfig(config, "country").visible) && (
+        {step2ActiveFields.length > 0 && (
           <>
             <Separator />
-            <div className="grid gap-4 sm:grid-cols-2">
-              {getFieldConfig(config, "address1").visible && (
-                <Field 
-                  label={getFieldConfig(config, "address1").label} 
-                  name="address1" 
-                  required={getFieldConfig(config, "address1").required} 
-                />
-              )}
-              {getFieldConfig(config, "address2").visible && (
-                <Field 
-                  label={getFieldConfig(config, "address2").label} 
-                  name="address2" 
-                  required={getFieldConfig(config, "address2").required} 
-                />
-              )}
-              {getFieldConfig(config, "city").visible && (
-                <Field 
-                  label={getFieldConfig(config, "city").label} 
-                  name="city" 
-                  required={getFieldConfig(config, "city").required} 
-                />
-              )}
-              {getFieldConfig(config, "state").visible && (
-                <Field 
-                  label={getFieldConfig(config, "state").label} 
-                  name="state" 
-                  required={getFieldConfig(config, "state").required} 
-                />
-              )}
-              {getFieldConfig(config, "postalCode").visible && (
-                <Field 
-                  label={getFieldConfig(config, "postalCode").label} 
-                  name="postalCode" 
-                  required={getFieldConfig(config, "postalCode").required} 
-                />
-              )}
-              {getFieldConfig(config, "country").visible && (
-                <div>
-                  <Label className="text-sm font-medium text-slate-700">
-                    {getFieldConfig(config, "country").label}
-                    {getFieldConfig(config, "country").required && <span className="ml-1 text-red-500">*</span>}
-                  </Label>
-                  <Select
-                    value={form.watch("country") ?? "United States"}
-                    onValueChange={(value) => form.setValue("country", value, { shouldDirty: true })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select country" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {COUNTRY_OPTIONS.map((country) => (
-                        <SelectItem key={country} value={country}>
-                          {country}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {form.formState.errors.country && (
-                    <p className="mt-1 text-xs text-red-500">{form.formState.errors.country.message}</p>
-                  )}
-                </div>
-              )}
-            </div>
-          </>
-        )}
+            <div className="grid gap-6 sm:grid-cols-2">
+              {step2ActiveFields.map((field) => {
+                const isCustom = field.isCustom;
+                const path = isCustom ? `customAnswers.${field.id}` : field.id;
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <Label className="text-sm font-medium text-slate-700">Pairing notifications</Label>
-            <Select
-              value={form.watch("pairingNotifications") ?? "email"}
-              onValueChange={(value) =>
-                form.setValue("pairingNotifications", value as RegistrationFormValues["pairingNotifications"], {
-                  shouldDirty: true,
-                })
-              }
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select preference" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="email">Email only</SelectItem>
-                <SelectItem value="none">No notifications</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          {getFieldConfig(config, "newsletter").visible && (
-            <div className="flex items-start gap-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/20 p-5 transition-all group hover:bg-white dark:hover:bg-slate-900/50 hover:shadow-md hover:border-slate-300 dark:hover:border-slate-700">
-              <input
-                id="newsletter"
-                type="checkbox"
-                className="mt-1 h-4 w-4 rounded-md border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-primary focus:ring-primary"
-                checked={form.watch("newsletter") ?? false}
-                onChange={(event) => form.setValue("newsletter", event.target.checked)}
-              />
-              <div className="space-y-1">
-                <Label htmlFor="newsletter" className="text-sm font-bold text-slate-900 dark:text-slate-100 cursor-pointer">
-                  {getFieldConfig(config, "newsletter").label}
-                  {getFieldConfig(config, "newsletter").required && <span className="ml-1 text-red-500">*</span>}
-                </Label>
-                <p className="text-xs leading-relaxed text-slate-500 dark:text-slate-400">
-                  Register for the official newsletter to receive pairing alerts, result updates, and future event invitations.
-                </p>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {getFieldConfig(config, "arrivalTime").visible && (
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field 
-              label={getFieldConfig(config, "arrivalTime").label} 
-              name="arrivalTime" 
-              placeholder="e.g., Arriving Saturday 9AM" 
-              required={getFieldConfig(config, "arrivalTime").required}
-            />
-          </div>
-        )}
-
-        {getFieldConfig(config, "byePreference").visible && (config?.format !== "arena" && config?.format !== "knockout") && (
-          <div className="space-y-4">
-            <Label className="text-sm font-medium text-slate-700">
-              {getFieldConfig(config, "byePreference").label}
-              {getFieldConfig(config, "byePreference").required && <span className="ml-1 text-red-500">*</span>}
-            </Label>
-            <RadioGroup
-              value={byePreference}
-              onValueChange={(value) =>
-                form.setValue("byePreference", value as RegistrationFormValues["byePreference"], {
-                  shouldDirty: true,
-                })
-              }
-              className="grid gap-3 sm:grid-cols-2"
-            >
-              <RadioOption group="byePreference" value="none" title="No byes" description="I plan to play every round." />
-              <RadioOption group="byePreference" value="yes" title="Request byes" description="Select rounds you cannot attend." />
-            </RadioGroup>
-
-            {byePreference === "yes" && (
-              <div className="rounded-lg border border-slate-200 dark:border-slate-800 p-4 bg-slate-50/30 dark:bg-slate-950/10">
-                <Label className="text-sm font-medium text-slate-700 dark:text-slate-300">Select eligible rounds</Label>
-                <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                  {byeRounds.map((label) => {
-                    const checked = form.watch("byeRounds")?.includes(label);
-                    return (
-                      <button
-                        key={label}
-                        type="button"
-                        onClick={() => toggleArrayValue(form, "byeRounds", label)}
-                        className={cn(
-                          "flex items-center justify-between rounded-xl border px-4 py-3 text-sm font-medium transition-all shadow-sm",
-                          checked
-                            ? "border-primary bg-primary text-white shadow-primary/20"
-                            : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-850 text-slate-600 dark:text-slate-400 hover:border-primary/30 hover:bg-primary/5 dark:hover:bg-primary/5",
-                        )}
-                      >
-                        <span>{label}</span>
-                        {checked && <Check className="h-4 w-4" />}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-            {form.formState.errors.byePreference && (
-              <p className="mt-1 text-xs text-red-500">{form.formState.errors.byePreference.message}</p>
-            )}
-          </div>
-        )}
-
-        {getFieldConfig(config, "notes").visible && (
-          <div>
-            <Label className="text-sm font-medium text-slate-700">
-              {getFieldConfig(config, "notes").label}
-              {getFieldConfig(config, "notes").required && <span className="ml-1 text-red-500">*</span>}
-            </Label>
-            <Textarea
-              className="mt-2"
-              rows={4}
-              placeholder="Share any additional information, such as companions, accessibility needs, or late arrival details."
-              {...form.register("notes")}
-            />
-            {form.formState.errors.notes && (
-              <p className="mt-1 text-xs text-red-500">{form.formState.errors.notes.message}</p>
-            )}
-          </div>
-        )}
-
-        {/* Custom additional questions */}
-        {customFields.length > 0 && (
-          <div className="space-y-6 pt-6 border-t border-slate-100">
-            <div>
-              <Label className="text-base font-bold text-slate-900">Additional Questions</Label>
-              <p className="text-xs text-slate-500">Please provide answers for the tournament director.</p>
-            </div>
-            <div className="grid gap-5 sm:grid-cols-2">
-              {customFields.map((field) => {
-                if (field.type === "boolean") {
+                // --- BYE PREFERENCE ---
+                if (field.id === "byePreference") {
+                  if (config?.format === "arena" || config?.format === "knockout") return null;
                   return (
-                    <div key={field.id} className="flex items-start gap-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/20 p-5 transition-all group hover:bg-white dark:hover:bg-slate-900/50 hover:shadow-md hover:border-slate-300 dark:hover:border-slate-700 col-span-2">
+                    <div key={field.id} className="space-y-4 col-span-2">
+                      <Label className="text-sm font-semibold text-slate-700">
+                        {field.label}
+                        {field.required && <span className="ml-1 text-red-500">*</span>}
+                      </Label>
+                      <RadioGroup
+                        value={byePreference}
+                        onValueChange={(value) =>
+                          form.setValue("byePreference", value as RegistrationFormValues["byePreference"], {
+                            shouldDirty: true,
+                            shouldValidate: true,
+                          })
+                        }
+                        className="grid gap-3 sm:grid-cols-2"
+                      >
+                        <RadioOption group="byePreference" value="none" title="No byes" description="I plan to play every round." />
+                        <RadioOption group="byePreference" value="yes" title="Request byes" description="Select rounds you cannot attend." />
+                      </RadioGroup>
+
+                      {byePreference === "yes" && (
+                        <div className="rounded-xl border border-slate-200 bg-slate-50/20 p-5 space-y-3 animate-in fade-in slide-in-from-top-1 duration-200">
+                          <Label className="text-sm font-semibold text-slate-700">Select eligible rounds</Label>
+                          <div className="grid gap-3 sm:grid-cols-3">
+                            {byeRounds.map((label) => {
+                              const checked = form.watch("byeRounds")?.includes(label);
+                              return (
+                                <button
+                                  key={label}
+                                  type="button"
+                                  onClick={() => toggleArrayValue(form, "byeRounds", label)}
+                                  className={cn(
+                                    "flex items-center justify-between rounded-xl border px-4 py-3.5 text-sm font-medium transition-all shadow-sm active:scale-[0.98]",
+                                    checked
+                                      ? "border-indigo-500 bg-indigo-600 text-white shadow-md shadow-indigo-100/50"
+                                      : "border-slate-200 bg-white text-slate-600 hover:border-indigo-200 hover:bg-indigo-50/50",
+                                  )}
+                                >
+                                  <span>{label}</span>
+                                  {checked && <Check className="h-4 w-4" />}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                      {form.formState.errors.byePreference && (
+                        <p className="mt-1 text-xs text-red-500">{form.formState.errors.byePreference.message}</p>
+                      )}
+                    </div>
+                  );
+                }
+
+                // --- BOOLEAN (CHECKBOX CARD) ---
+                if (field.type === "boolean") {
+                  const checked = form.watch(path as any) ?? false;
+                  return (
+                    <div 
+                      key={field.id} 
+                      className={cn(
+                        "flex items-start gap-4 rounded-xl border p-5 transition-all group col-span-2 shadow-sm cursor-pointer",
+                        checked
+                          ? "border-indigo-300 bg-indigo-50/40 hover:bg-indigo-50/60"
+                          : "border-slate-200 bg-slate-50/50 hover:bg-white hover:shadow-md hover:border-indigo-200"
+                      )}
+                      onClick={() => form.setValue(path as any, !checked, { shouldDirty: true, shouldValidate: true })}
+                    >
                       <input
                         id={field.id}
                         type="checkbox"
-                        className="mt-1 h-4 w-4 rounded-md border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-primary focus:ring-primary"
-                        checked={form.watch(`customAnswers.${field.id}`) ?? false}
-                        onChange={(event) => form.setValue(`customAnswers.${field.id}`, event.target.checked, { shouldDirty: true })}
+                        className="mt-1 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                        checked={checked}
+                        onChange={(event) => {
+                          event.stopPropagation();
+                          form.setValue(path as any, event.target.checked, { shouldDirty: true, shouldValidate: true });
+                        }}
                       />
                       <div className="space-y-1">
-                        <Label htmlFor={field.id} className="text-sm font-bold text-slate-900 dark:text-slate-100 cursor-pointer">
+                        <Label htmlFor={field.id} className="text-sm font-bold text-slate-900 cursor-pointer select-none">
                           {field.label}
                           {field.required && <span className="ml-1 text-red-500">*</span>}
                         </Label>
+                        {field.description && (
+                          <p className="text-xs leading-relaxed text-slate-500 select-none">
+                            {field.description}
+                          </p>
+                        )}
                       </div>
                     </div>
                   );
                 }
 
-                if (field.type === "select") {
+                // --- NOTES (TEXTAREA) ---
+                if (field.id === "notes") {
+                  const error = form.formState.errors.notes;
                   return (
-                    <div key={field.id} className="group space-y-2">
+                    <div key={field.id} className="col-span-2 space-y-2">
                       <Label className="text-sm font-medium text-slate-700">
                         {field.label}
                         {field.required && <span className="ml-1 text-red-500">*</span>}
                       </Label>
+                      <Textarea
+                        className="mt-1 bg-white focus:border-indigo-400 focus:ring-indigo-200 min-h-24"
+                        placeholder={field.placeholder || "Share any additional information, companions, or messages for the Director."}
+                        {...form.register("notes")}
+                      />
+                      {field.description && (
+                        <p className="text-[11px] text-slate-400 leading-normal mt-1">{field.description}</p>
+                      )}
+                      {error && (
+                        <p className="mt-1 text-xs text-red-500">{error.message}</p>
+                      )}
+                    </div>
+                  );
+                }
+
+                // --- SELECT / DROPDOWN (including Country) ---
+                if (field.type === "select" || field.id === "country") {
+                  const val = form.watch(path as any) ?? (field.id === "country" ? "United States" : "");
+                  const selectOptions = field.id === "country" ? COUNTRY_OPTIONS : (field.options ?? []);
+                  const error = isCustom 
+                    ? form.formState.errors.customAnswers?.[field.id] 
+                    : form.formState.errors[field.id as keyof RegistrationFormValues];
+
+                  return (
+                    <div key={field.id} className="group space-y-2 col-span-1">
+                      <Label className="text-sm font-medium text-slate-700 transition-colors group-focus-within:text-indigo-700">
+                        {field.label}
+                        {field.required && <span className="ml-1 text-red-500">*</span>}
+                      </Label>
                       <Select
-                        value={form.watch(`customAnswers.${field.id}`) ?? ""}
-                        onValueChange={(val) => form.setValue(`customAnswers.${field.id}`, val, { shouldDirty: true })}
+                        value={val}
+                        onValueChange={(value) => form.setValue(path as any, value, { shouldDirty: true, shouldValidate: true })}
                       >
-                        <SelectTrigger className="bg-white dark:bg-slate-850 border-slate-200 dark:border-slate-800">
-                          <SelectValue placeholder={`Select ${field.label}`} />
+                        <SelectTrigger className="bg-white border-slate-200 focus:ring-indigo-200 focus:border-indigo-400">
+                          <SelectValue placeholder={field.placeholder || `Select ${field.label}`} />
                         </SelectTrigger>
                         <SelectContent>
-                          {field.options?.map((opt) => (
+                          {selectOptions.map((opt) => (
                             <SelectItem key={opt} value={opt}>
                               {opt}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
-                      {form.formState.errors.customAnswers?.[field.id] && (
-                        <p className="text-xs text-red-500">{(form.formState.errors.customAnswers as any)[field.id].message}</p>
+                      {field.description && (
+                        <p className="text-[11px] text-slate-400 leading-normal mt-0.5">{field.description}</p>
+                      )}
+                      {error && (
+                        <p className="text-xs text-red-500">{error.message as string}</p>
                       )}
                     </div>
                   );
                 }
 
+                // --- TEXT / NUMBER FIELDS ---
                 return (
-                  <div key={field.id} className="group space-y-2">
-                    <Label className="text-sm font-medium text-slate-700">
-                      {field.label}
-                      {field.required && <span className="ml-1 text-red-500">*</span>}
-                    </Label>
-                    <Input
+                  <div key={field.id} className="col-span-1">
+                    <Field
+                      label={field.label}
+                      name={path}
+                      required={field.required}
+                      placeholder={field.placeholder || `Enter ${field.label}...`}
                       type={field.type === "number" ? "number" : "text"}
-                      placeholder={field.label}
-                      {...form.register(`customAnswers.${field.id}`, { valueAsNumber: field.type === "number" })}
-                      className="focus:border-primary/50 focus:ring-primary/20"
+                      description={field.description}
                     />
-                    {form.formState.errors.customAnswers?.[field.id] && (
-                      <p className="text-xs text-red-500">{(form.formState.errors.customAnswers as any)[field.id].message}</p>
-                    )}
                   </div>
                 );
               })}
+
+              {/* Pairing Notifications (Always visible & active) */}
+              <div className="group space-y-2 col-span-1">
+                <Label className="text-sm font-medium text-slate-700 transition-colors group-focus-within:text-indigo-700">
+                  Pairing notifications
+                </Label>
+                <Select
+                  value={form.watch("pairingNotifications") ?? "email"}
+                  onValueChange={(value) =>
+                    form.setValue("pairingNotifications", value as RegistrationFormValues["pairingNotifications"], {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    })
+                  }
+                >
+                  <SelectTrigger className="bg-white border-slate-200 focus:ring-indigo-200 focus:border-indigo-400">
+                    <SelectValue placeholder="Select preference" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="email">Email only</SelectItem>
+                    <SelectItem value="none">No notifications</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-slate-400 leading-normal mt-0.5">
+                  Choose how you want to receive pairings and result alerts.
+                </p>
+              </div>
             </div>
-          </div>
+          </>
         )}
       </div>
     </div>
@@ -3110,7 +3012,7 @@ function StepThreeContent({
 
   const statusStyles: Record<PaymentStatusKey, string> = {
     unpaid: "bg-slate-100 text-slate-700",
-    processing: "bg-primary/10 text-primary",
+    processing: "bg-indigo-100 text-indigo-700",
     paid: "bg-emerald-100 text-emerald-700",
     failed: "bg-red-100 text-red-700",
     refunded: "bg-slate-100 text-slate-600 border border-slate-200",
@@ -3293,46 +3195,46 @@ function StepThreeContent({
   }, [registerPaymentHandler, handlePaymentConfirmation]);
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4 border-b border-slate-100 dark:border-slate-800 pb-5">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-50 dark:bg-slate-850 border border-slate-100 dark:border-slate-800 shadow-sm">
-          <Wallet className="h-5 w-5 text-slate-600 dark:text-slate-400" />
+    <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+      <div className="flex items-center gap-4 border-b border-gray-100 bg-gray-50/50 px-6 py-5">
+        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white border border-gray-200 shadow-sm">
+          <Wallet className="h-5 w-5 text-gray-600" />
         </div>
         <div>
-          <h2 className="text-lg font-bold leading-tight text-slate-900 dark:text-white">Payment &amp; Review</h2>
-          <p className="text-xs font-semibold text-slate-400 dark:text-slate-500">
+          <h2 className="text-lg font-semibold leading-tight text-gray-900">Payment &amp; Review</h2>
+          <p className="text-sm text-gray-500">
             Step 3 of 3: {requiresPayment ? "Complete registration with secure checkout" : "Confirm and submit your registration"}
           </p>
         </div>
       </div>
 
-      <div className="space-y-6">
-        <div className="rounded-2xl border border-slate-100 dark:border-slate-800 bg-white/60 dark:bg-slate-900/60 p-5 shadow-sm">
+      <div className="space-y-6 p-6">
+        <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-sm font-bold text-slate-900 dark:text-white">Payment summary</h3>
+            <h3 className="text-sm font-semibold text-slate-900">Payment summary</h3>
             <span className={cn("rounded-full px-3 py-1 text-xs font-semibold", statusStyles[paymentStatus])}>
               {statusLabels[paymentStatus]}
             </span>
           </div>
-          <div className="mt-3 space-y-3 text-sm text-slate-600 dark:text-slate-300">
+          <div className="mt-3 space-y-3 text-sm text-slate-600">
             <div className="flex items-center justify-between font-medium">
               <span>{playerDrafts.length > 1 ? `Subtotal (${playerDrafts.length} players)` : "Entry fee"}</span>
-              <span className="text-primary font-bold">
+              <span className="text-indigo-700">
                 {formatCurrency(paymentTotals.subtotal, paymentTotals.currency)}
               </span>
             </div>
             {playerDrafts.length <= 1 && selectedEntryFee && (
-              <p className="text-xs text-slate-500 dark:text-slate-400">
+              <p className="text-xs text-slate-500">
                 Section: {selectedEntryFee.section}
               </p>
             )}
             {contributionAllowed ? (
-              <div className="flex items-center justify-between border-t border-dashed border-slate-100 dark:border-slate-800 pt-3">
+              <div className="flex items-center justify-between border-t border-dashed border-slate-200 pt-3">
                 <label htmlFor="processing-contribution" className="text-sm">
                   Optional processing contribution
                 </label>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-slate-500 dark:text-slate-400">{selectedEntryFee?.currency ?? paymentTotals.currency}</span>
+                  <span className="text-xs text-slate-500">{selectedEntryFee?.currency ?? paymentTotals.currency}</span>
                   <Input
                     id="processing-contribution"
                     type="number"
@@ -3351,36 +3253,36 @@ function StepThreeContent({
                 </div>
               </div>
             ) : (
-              <div className="flex items-center justify-between border-t border-dashed border-slate-100 dark:border-slate-800 pt-3 text-xs text-slate-500 dark:text-slate-400">
+              <div className="flex items-center justify-between border-t border-dashed border-slate-200 pt-3 text-xs text-slate-500">
                 <span>Processing contributions</span>
                 <span>Disabled by director</span>
               </div>
             )}
             {contributionError && <p className="text-xs text-red-500">{contributionError}</p>}
             {paymentTotals.feeAmount > 0 && (
-              <div className="flex items-center justify-between border-t border-dashed border-slate-100 dark:border-slate-800 pt-3">
+              <div className="flex items-center justify-between border-t border-dashed border-slate-200 pt-3">
                 <span>Processing fee</span>
                 <span>{formatCurrency(paymentTotals.feeAmount, paymentTotals.currency)}</span>
               </div>
             )}
-            <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-800 pt-3 text-sm font-bold text-primary">
+            <div className="flex items-center justify-between border-t border-slate-200 pt-3 text-sm font-semibold text-indigo-700">
               <span>Total due</span>
               <span>{formatCurrency(paymentTotals.total, paymentTotals.currency)}</span>
             </div>
-            {paymentMethod && <p className="text-xs text-slate-500 dark:text-slate-400">Payment method: {paymentMethod.toUpperCase()}</p>}
+            {paymentMethod && <p className="text-xs text-slate-500">Payment method: {paymentMethod.toUpperCase()}</p>}
           </div>
         </div>
 
         {showPaymentToggle && (
-          <div className="flex bg-slate-100/80 dark:bg-slate-800/80 p-1 rounded-xl">
+          <div className="flex bg-gray-100/80 p-1.5 rounded-lg">
             <button
               type="button"
               onClick={() => setActivePaymentMode("online")}
               className={cn(
-                "flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all",
+                "flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-all",
                 activePaymentMode === "online"
-                  ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm border border-slate-100 dark:border-slate-800/80"
-                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white",
+                  ? "bg-white text-gray-900 shadow-sm border border-gray-200"
+                  : "text-gray-600 hover:text-gray-900",
               )}
             >
               <CreditCard className="h-4 w-4" />
@@ -3390,10 +3292,10 @@ function StepThreeContent({
               type="button"
               onClick={() => setActivePaymentMode("offline")}
               className={cn(
-                "flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all",
+                "flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-all",
                 activePaymentMode === "offline"
-                  ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm border border-slate-100 dark:border-slate-800/80"
-                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white",
+                  ? "bg-white text-gray-900 shadow-sm border border-gray-200"
+                  : "text-gray-600 hover:text-gray-900",
               )}
             >
               <Wallet className="h-4 w-4" />
@@ -3403,20 +3305,20 @@ function StepThreeContent({
         )}
 
         {(activePaymentMode === "online" || !offlineAllowed) && (
-          <div className="space-y-3 rounded-2xl border border-slate-100 dark:border-slate-800 bg-white/60 dark:bg-slate-900/60 p-5 shadow-sm">
+          <div className="space-y-3 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-slate-900 dark:text-white">Payment method</h3>
-              {requiresPayment && <Badge variant="outline" className="border-primary/20 bg-primary/5 text-primary">Required</Badge>}
+              <h3 className="text-sm font-semibold text-slate-900">Payment method</h3>
+              {requiresPayment && <Badge variant="outline">Required</Badge>}
             </div>
             {canAcceptOnlinePayment ? (
               <div className="space-y-3">
                 {paymentIntentLoading ? (
-                  <div className="flex items-center justify-center gap-2 rounded-lg border border-dashed border-primary/20 bg-primary/5 p-4 text-sm text-primary">
+                  <div className="flex items-center justify-center gap-2 rounded-lg border border-dashed border-indigo-200 bg-indigo-50/60 p-4 text-sm text-indigo-600">
                     <Loader2 className="h-4 w-4 animate-spin" />
                     Preparing secure checkout...
                   </div>
                 ) : (
-                  <div className="rounded-xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-950 p-4">
+                  <div className="rounded-lg border border-indigo-200 bg-white p-4">
                     <PaymentElement
                       options={{ layout: "tabs" }}
                       onReady={() => onPaymentElementReady(!requiresPayment)}
@@ -3430,12 +3332,12 @@ function StepThreeContent({
                     <span>{paymentIntentError}</span>
                   </div>
                 )}
-                <p className="text-xs text-slate-500 dark:text-slate-400">
+                <p className="text-xs text-slate-500">
                   Payments are securely processed by Stripe. Your receipt will be sent to {email || "your email"} when the payment succeeds.
                 </p>
               </div>
             ) : (
-              <div className="space-y-3 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 p-4 text-xs text-slate-600 dark:text-slate-400">
+              <div className="space-y-3 rounded-lg border border-dashed border-slate-200 bg-slate-50/70 p-4 text-xs text-slate-600">
                 {paymentIntentError ? (
                   <>
                     <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-red-600">
@@ -3453,7 +3355,7 @@ function StepThreeContent({
                     </Button>
                   </>
                 ) : requiresPayment ? (
-                  <p className="font-medium text-slate-700 dark:text-slate-300">
+                  <p className="font-medium text-slate-700">
                     Stripe checkout is unavailable right now. Please contact the tournament director to arrange payment.
                   </p>
                 ) : (
@@ -3465,30 +3367,30 @@ function StepThreeContent({
         )}
 
         {(activePaymentMode === "offline" || !canAcceptOnlinePayment) && (
-          <div className="space-y-3 rounded-2xl border border-slate-100 dark:border-slate-800 bg-white/60 dark:bg-slate-900/60 p-5 shadow-sm">
+          <div className="space-y-3 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-slate-900 dark:text-white">Offline payment options</h3>
-              {!canAcceptOnlinePayment && <Badge variant="secondary" className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">Alternative</Badge>}
+              <h3 className="text-sm font-semibold text-slate-900">Offline payment options</h3>
+              {!canAcceptOnlinePayment && <Badge variant="secondary">Alternative</Badge>}
             </div>
             {offlineAllowed ? (
               <div className="space-y-3">
                 <div className="flex flex-wrap gap-2">
                   {offlineMethods.map((method) => (
-                    <span key={method} className="rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+                    <span key={method} className="rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-700">
                       {OFFLINE_METHOD_LABELS[method] ?? method}
                     </span>
                   ))}
                 </div>
-                <div className="rounded-xl border border-amber-100 dark:border-amber-900/30 bg-amber-50/40 dark:bg-amber-950/10 p-3.5 text-xs leading-5 text-amber-800 dark:text-amber-400">
+                <div className="rounded-lg border border-amber-200 bg-amber-50/70 p-3 text-xs leading-5 text-amber-800">
                   <div className="flex items-center gap-2 mb-1.5 font-bold uppercase tracking-tight">
                     <AlertCircle className="h-3.5 w-3.5" />
                     Important: PENDING REGISTRATION
                   </div>
-                  If choosing an offline method, your registration will remain in a <strong>Pending</strong> status and isn&apos;t guaranteed until payment is finalized with the director.
+                  If choosing an offline method, your registration will remain in a <strong>Pending</strong> status and isn't guaranteed until payment is finalized with the director.
                 </div>
               </div>
             ) : (
-              <div className="rounded-xl border border-dashed border-red-200 dark:border-red-900/30 bg-red-50/40 dark:bg-red-950/10 p-3.5 text-xs text-red-600 dark:text-red-400 font-medium">
+              <div className="rounded-lg border border-dashed border-red-200 bg-red-50 p-3 text-xs text-red-600 font-medium">
                 Offline payments are strictly disabled. Online checkout is required to secure your spot.
               </div>
             )}
@@ -3497,7 +3399,7 @@ function StepThreeContent({
               .map((block, index) => (
                 <div
                   key={`${index}-${block.slice(0, 12)}`}
-                  className="rounded-xl border border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-950/40 p-3.5 text-xs leading-5 text-slate-600 dark:text-slate-300"
+                  className="rounded-lg border border-indigo-200 bg-indigo-50/70 p-3 text-xs leading-5 text-indigo-700"
                 >
                   {block}
                 </div>
@@ -3505,8 +3407,8 @@ function StepThreeContent({
           </div>
         )}
 
-        <div className="space-y-2 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-950/20 p-4">
-          <label className="flex items-start gap-3 text-sm text-slate-700 dark:text-slate-300 cursor-pointer">
+        <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50/50 p-4">
+          <label className="flex items-start gap-3 text-sm text-slate-700">
             <input
               type="checkbox"
               checked={Boolean(acknowledgementChecked)}
@@ -3516,12 +3418,13 @@ function StepThreeContent({
                   shouldValidate: true,
                 })
               }
-              className="mt-1 h-4 w-4 rounded border-slate-300 dark:border-slate-700 text-primary focus:ring-primary bg-white dark:bg-slate-900"
+              className="mt-1 h-4 w-4 rounded border-slate-300 text-indigo-500 focus:ring-indigo-500"
             />
-            <span className="select-none">{acknowledgementLabel}</span>
+            <span>{acknowledgementLabel}</span>
           </label>
           {acknowledgementError && <p className="text-xs text-red-500">{acknowledgementError}</p>}
         </div>
+
 
       </div>
     </div>
@@ -3544,14 +3447,14 @@ function RadioOption({
   return (
     <label
       className={cn(
-        "flex flex-1 cursor-pointer items-start gap-3 rounded-lg border border-slate-200 dark:border-slate-800 p-4 transition hover:border-slate-300 dark:hover:border-slate-700 hover:bg-slate-50/30 dark:hover:bg-slate-800/30",
-        current === value && "border-slate-300 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/50 shadow-sm",
+        "flex flex-1 cursor-pointer items-start gap-3 rounded-lg border border-slate-200 p-4 transition hover:border-indigo-300",
+        current === value && "border-indigo-500 bg-indigo-50",
       )}
     >
       <RadioGroupItem value={value} />
       <div>
-        <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{title}</p>
-        <p className="text-xs text-slate-500 dark:text-slate-400">{description}</p>
+        <p className="text-sm font-medium text-slate-900">{title}</p>
+        <p className="text-xs text-slate-500">{description}</p>
       </div>
     </label>
   );
@@ -3563,27 +3466,51 @@ function Field({
   required,
   placeholder,
   valueAs,
+  type = "text",
+  description,
 }: {
   label: string;
-  name: keyof RegistrationFormValues;
+  name: any;
   required?: boolean;
   placeholder?: string;
   valueAs?: "email";
+  type?: "text" | "number";
+  description?: string;
 }) {
   const form = useFormContext<RegistrationFormValues>();
-  const error = form.formState.errors[name];
+  
+  const getNestedError = () => {
+    const error = (form.formState.errors as Record<string, any>)[name];
+    if (error) return error;
+    if (typeof name === "string" && name.includes(".")) {
+      const parts = name.split(".");
+      let currentError: any = form.formState.errors;
+      for (const part of parts) {
+        if (!currentError) return undefined;
+        currentError = currentError[part];
+      }
+      return currentError;
+    }
+    return undefined;
+  };
+  
+  const error = getNestedError();
+
   return (
     <div className="group space-y-2">
-      <Label className="text-sm font-medium text-slate-700 dark:text-slate-300 transition-colors group-focus-within:text-primary">
+      <Label className="text-sm font-medium text-slate-700 transition-colors group-focus-within:text-indigo-700">
         {label}
         {required && <span className="ml-1 text-red-500">*</span>}
       </Label>
       <Input
         placeholder={placeholder}
-        type={valueAs === "email" ? "email" : "text"}
-        {...form.register(name)}
-        className="focus:border-primary/50 focus:ring-primary/20"
+        type={valueAs === "email" ? "email" : type}
+        {...form.register(name, { valueAsNumber: type === "number" })}
+        className="focus:border-indigo-400 focus:ring-indigo-200 bg-white"
       />
+      {description && (
+        <p className="text-[11px] text-slate-400 leading-normal mt-0.5">{description}</p>
+      )}
       {error && <p className="text-xs text-red-500">{error.message as string}</p>}
     </div>
   );
