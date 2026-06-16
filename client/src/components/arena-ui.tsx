@@ -889,7 +889,7 @@ export function ArenaLobby({ tournamentId, isTD, userId, onArenaStart }: ArenaUI
               <span>{lobbyCount} ready</span>
             </div>
             <div className="flex items-center gap-1">
-              <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+              <div className="w-2 h-2 rounded-full bg-blue-500" />
               <span>{playingCount} playing</span>
             </div>
           </div>
@@ -1067,7 +1067,7 @@ export function ArenaActiveMatches({ tournamentId, isTD, userId }: ArenaUIProps)
                     ))}
                   </div>
                 ) : (
-                  <span className="text-xs font-semibold text-blue-500 animate-pulse">Playing</span>
+                  <span className="text-xs font-semibold text-blue-500">Playing</span>
                 )}
               </div>
             </div>

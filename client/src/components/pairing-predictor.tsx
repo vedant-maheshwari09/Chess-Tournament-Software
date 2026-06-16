@@ -15,7 +15,7 @@ import {
   Search, 
   User, 
   TrendingUp, 
-  Sparkles,
+  Zap,
   ShieldAlert,
   Loader2
 } from "lucide-react";
@@ -424,7 +424,7 @@ export default function PairingPredictor({ tournamentId, tournament }: PairingPr
         <Card className="border-indigo-200 bg-indigo-50/20 backdrop-blur shadow-md">
           <CardHeader>
             <CardTitle className="text-xl font-bold text-indigo-900 flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-indigo-500 animate-pulse" />
+              <Zap className="h-5 w-5 text-indigo-500" />
               <span>Simulation Results: Round {currentRound + 1} Predictions</span>
             </CardTitle>
             <CardDescription>

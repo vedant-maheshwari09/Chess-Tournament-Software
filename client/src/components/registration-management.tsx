@@ -148,25 +148,25 @@ export default function RegistrationManagement({ tournamentId, tournament }: Reg
     <div className="space-y-6">
       {/* Stats Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card className="bg-slate-50/50 border-slate-200/60 shadow-sm">
+        <Card className="bg-slate-50 border-slate-200 shadow-sm">
           <CardContent className="p-4 flex flex-col justify-between h-20">
             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total</span>
             <span className="text-2xl font-bold text-slate-900">{stats.total}</span>
           </CardContent>
         </Card>
-        <Card className="bg-amber-50/40 border-amber-200/50 shadow-sm">
+        <Card className="bg-amber-50 border-amber-200/60 shadow-sm">
           <CardContent className="p-4 flex flex-col justify-between h-20">
             <span className="text-xs font-semibold text-amber-600 uppercase tracking-wider">Pending</span>
             <span className="text-2xl font-bold text-amber-700">{stats.pending}</span>
           </CardContent>
         </Card>
-        <Card className="bg-emerald-50/40 border-emerald-200/50 shadow-sm">
+        <Card className="bg-emerald-50 border-emerald-200/60 shadow-sm">
           <CardContent className="p-4 flex flex-col justify-between h-20">
             <span className="text-xs font-semibold text-emerald-600 uppercase tracking-wider">Approved</span>
             <span className="text-2xl font-bold text-emerald-700">{stats.approved}</span>
           </CardContent>
         </Card>
-        <Card className="bg-red-50/40 border-red-200/50 shadow-sm">
+        <Card className="bg-red-50 border-red-200/60 shadow-sm">
           <CardContent className="p-4 flex flex-col justify-between h-20">
             <span className="text-xs font-semibold text-red-600 uppercase tracking-wider">Declined</span>
             <span className="text-2xl font-bold text-red-700">{stats.declined}</span>

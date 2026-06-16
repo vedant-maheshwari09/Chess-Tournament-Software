@@ -625,7 +625,7 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
                             <BoardNumberingCard value={boardNumbering} onChange={updateBoardNumbering} />
                             <div className="flex items-center justify-end gap-2 text-sm text-muted-foreground pt-2 border-t">
                               {saveBoardNumberingMutation.isPending ? (
-                                <span className="flex items-center gap-1.5 text-blue-600 animate-pulse font-medium">
+                                <span className="flex items-center gap-1.5 text-blue-600 font-medium">
                                   <RefreshCw className="h-3.5 w-3.5 animate-spin" />
                                   Saving...
                                 </span>
@@ -763,7 +763,7 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
                               <BoardNumberingCard value={boardNumbering} onChange={updateBoardNumbering} />
                               <div className="flex items-center justify-end gap-2 text-sm text-muted-foreground pt-2 border-t">
                                 {saveBoardNumberingMutation.isPending ? (
-                                  <span className="flex items-center gap-1.5 text-blue-600 animate-pulse font-medium">
+                                  <span className="flex items-center gap-1.5 text-blue-600 font-medium">
                                     <RefreshCw className="h-3.5 w-3.5 animate-spin" />
                                     Saving...
                                   </span>

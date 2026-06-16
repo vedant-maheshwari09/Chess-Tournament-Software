@@ -375,7 +375,7 @@ export default function KnockoutBracket({ tournamentId, sectionId }: KnockoutBra
                   {playersLoading ? (
                     <div className="px-5 py-12 text-center">
                       <div className="animate-spin h-6 w-6 border-2 border-primary border-t-transparent rounded-full mx-auto mb-3" />
-                      <p className="text-xs font-bold text-slate-400 uppercase tracking-widest animate-pulse">Searching Tournament...</p>
+                      <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Searching Tournament...</p>
                     </div>
                   ) : filteredPlayers.length > 0 ? (
                     <div className="py-2">
@@ -662,7 +662,7 @@ export default function KnockoutBracket({ tournamentId, sectionId }: KnockoutBra
               <div className="flex flex-col items-center gap-y-20">
                 <div className="w-px h-12 bg-gradient-to-b from-primary/40 to-transparent" />
                 <div className="relative">
-                  <div className="absolute -inset-4 bg-primary/5 rounded-full blur-2xl animate-pulse" />
+                  <div className="absolute -inset-4 bg-primary/5 rounded-full blur-2xl" />
                   <Card className={cn(
                     "relative w-96 overflow-hidden border-4 transition-all duration-1000",
                     isTournamentCompleted ? "border-primary shadow-[0_0_40px_rgba(var(--primary),0.2)]" : "border-slate-200 opacity-50"

@@ -262,7 +262,12 @@ const DEBUG_LOG = (title: string, data?: any, level: 'info' | 'warn' | 'error' =
     console.groupCollapsed(prefix);
     console[level]("Full Data Object:", data);
     console[level]("STRINGIFIED (Copy-paste friendly):");
-    console.log(JSON.stringify(data, null, 2));
+    try {
+      console.log(JSON.stringify(data, null, 2));
+    } catch (err) {
+      console.warn("Could not stringify data (likely circular structure). Falling back to direct log.");
+      console.log(data);
+    }
     console.groupEnd();
   } else if (data !== undefined) {
     console[`${level}`](`${prefix}:`, data);

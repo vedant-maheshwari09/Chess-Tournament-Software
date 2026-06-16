@@ -572,7 +572,7 @@ export default function SettingsPage() {
                   <span>Autosaving preferences...</span>
                 </div>
               ) : (notifyEmail !== user?.notifyEmail || notifyPairings !== user?.notifyPairings || notifyRegistration !== user?.notifyRegistration || notifyTournamentStatus !== user?.notifyTournamentStatus) ? (
-                <div className="text-amber-600 font-medium animate-pulse">Unsaved changes...</div>
+                <div className="text-amber-600 font-medium">Unsaved changes...</div>
               ) : (
                 <div className="flex items-center gap-1.5 text-emerald-600 font-medium">
                   <Check className="h-4 w-4" />

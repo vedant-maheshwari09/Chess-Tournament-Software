@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { 
-  Sparkles, Heading1, Heading2, Heading3, Bold, Italic, List, ListOrdered, 
+  Zap, Heading1, Heading2, Heading3, Bold, Italic, List, ListOrdered, 
   Link2, RotateCcw, Quote, Code, Minus, Table, Undo2, Redo2, 
   Copy, Eraser, Check, Image as ImageIcon, MapPin, FileUp, Globe,
   Strikethrough, Underline, ListChecks, AlignLeft, AlignCenter, AlignRight, AlignJustify,
@@ -428,7 +428,7 @@ export default function TournamentPagePanel({ tournament, onUpdated }: Tournamen
           <div className="flex items-center gap-4">
              <div className="hidden md:flex items-center gap-2 text-xs text-muted-foreground bg-slate-100/50 px-2 py-1 rounded-md border border-slate-200/50">
                {isAutosaving ? (
-                 <span className="flex items-center gap-1.5 animate-pulse">
+                 <span className="flex items-center gap-1.5">
                    <RotateCcw className="h-3 w-3 animate-spin" />
                    Autosaving...
                  </span>
@@ -623,7 +623,7 @@ export default function TournamentPagePanel({ tournament, onUpdated }: Tournamen
                       className="bg-white pr-10 h-10 border-slate-200 shadow-sm"
                       onKeyDown={(e) => e.key === "Enter" && geminiRefine.mutate()}
                     />
-                    <Sparkles className="absolute right-3 top-3 h-4 w-4 text-primary/40 animate-pulse" />
+                    <Zap className="absolute right-3 top-3 h-4 w-4 text-primary/40" />
                   </div>
                   <Button 
                     variant="default" 
@@ -635,7 +635,7 @@ export default function TournamentPagePanel({ tournament, onUpdated }: Tournamen
                     {geminiRefine.isPending ? (
                       <RotateCcw className="h-4 w-4 animate-spin mr-2" />
                     ) : (
-                      <Sparkles className="h-4 w-4 mr-2" />
+                      <Zap className="h-4 w-4 mr-2" />
                     )}
                     <span className="hidden sm:inline">Refine with Gemini</span>
                     <span className="sm:hidden">Refine</span>

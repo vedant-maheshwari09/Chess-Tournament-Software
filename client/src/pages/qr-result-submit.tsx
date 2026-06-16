@@ -8,7 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { 
   Trophy, CheckCircle2, AlertTriangle, Loader2, RefreshCw, 
-  ArrowLeft, ArrowRight, ShieldCheck, User, Sparkles, Info
+  ArrowLeft, ArrowRight, ShieldCheck, User, Info
 } from "lucide-react";
 
 export default function QrResultSubmit() {
