@@ -345,9 +345,47 @@ export default function SwissStandings({ tournamentId, showExportControls = true
       const playerPointsMap = new Map<number, number>();
       basicStandings.forEach((s) => playerPointsMap.set(s.player.id, s.totalPoints));
 
-      // Calculate opponent scores helper
-      const getOpponentScores = (playerId: number): number[] => {
-        return getOpponents(playerId).map((oppId) => playerPointsMap.get(oppId) ?? 0);
+      // USCF/FIDE-compliant virtual opponent scores helper for Solkoff, Buchholz, Median, and Modified Median
+      const getTiebreakOpponentScores = (playerId: number, myPoints: number): number[] => {
+        const scores: number[] = [];
+        const playerMatches = matches.filter(
+          (m) => m.whitePlayerId === playerId || m.blackPlayerId === playerId
+        );
+        const playerByes = pairings.filter(
+          (pairing) => pairing.playerId === playerId && pairing.isBye && pairing.points !== null && pairing.round <= currentRound
+        );
+
+        for (let round = 1; round <= currentRound; round++) {
+          const bye = playerByes.find((b) => b.round === round);
+          if (bye) {
+            // Treated as draw against oneself -> virtual opponent has my own total points
+            scores.push(myPoints);
+            continue;
+          }
+
+          const match = playerMatches.find((m) => m.round === round);
+          if (match) {
+            const isWhite = match.whitePlayerId === playerId;
+            const oppId = isWhite ? match.blackPlayerId : match.whitePlayerId;
+            const normalized = normalizeMatchResult(match.result);
+            if (!normalized) continue;
+
+            const interpretation = interpretPlayerResult(match.result, isWhite);
+            if (interpretation.outcome === 'W' || interpretation.outcome === 'D' || interpretation.outcome === 'L') {
+              const oppPoints = oppId ? playerPointsMap.get(oppId) ?? 0 : 0;
+              scores.push(oppPoints);
+            } else if (interpretation.outcome === 'forfeit-win') {
+              // Treated as draw against oneself -> virtual opponent has my own total points
+              scores.push(myPoints);
+            } else if (interpretation.outcome === 'forfeit-loss') {
+              scores.push(0);
+            }
+          } else {
+            // Any unplayed/withdrawn round if not explicitly bye
+            scores.push(0);
+          }
+        }
+        return scores;
       };
 
       // Precompute Cumulative Scores for all players
@@ -384,15 +422,17 @@ export default function SwissStandings({ tournamentId, showExportControls = true
       // Define tiebreaker calculators
       const tiebreakCalculators: Record<string, (playerId: number) => number> = {
         "Solkoff": (playerId) => {
-          return getOpponentScores(playerId).reduce((sum, s) => sum + s, 0);
+          const points = playerPointsMap.get(playerId) ?? 0;
+          return getTiebreakOpponentScores(playerId, points).reduce((sum, s) => sum + s, 0);
         },
         "Buchholz": (playerId) => {
-          return getOpponentScores(playerId).reduce((sum, s) => sum + s, 0);
+          const points = playerPointsMap.get(playerId) ?? 0;
+          return getTiebreakOpponentScores(playerId, points).reduce((sum, s) => sum + s, 0);
         },
         "Modified Median": (playerId) => {
-          const scores = getOpponentScores(playerId);
-          if (scores.length === 0) return 0;
           const points = playerPointsMap.get(playerId) ?? 0;
+          const scores = getTiebreakOpponentScores(playerId, points);
+          if (scores.length === 0) return 0;
           const halfPoints = totalRounds * 0.5;
 
           const sorted = [...scores].sort((a, b) => a - b);
@@ -410,32 +450,57 @@ export default function SwissStandings({ tournamentId, showExportControls = true
           }
         },
         "Median": (playerId) => {
-          return tiebreakCalculators["Modified Median"](playerId);
+          const points = playerPointsMap.get(playerId) ?? 0;
+          const scores = getTiebreakOpponentScores(playerId, points);
+          if (scores.length === 0) return 0;
+          const sorted = [...scores].sort((a, b) => a - b);
+          const numToExclude = totalRounds >= 9 ? 2 : 1;
+          if (sorted.length <= numToExclude * 2) {
+            return 0;
+          }
+          return sorted.slice(numToExclude, -numToExclude).reduce((sum, s) => sum + s, 0);
         },
         "Cumulative": (playerId) => {
           return playerCumulativeMap.get(playerId) ?? 0;
         },
         "Sonneborn-Berger": (playerId) => {
           let sb = 0;
-          matches.forEach((match) => {
-            const isWhite = match.whitePlayerId === playerId;
-            const isBlack = match.blackPlayerId === playerId;
-            if (!isWhite && !isBlack) return;
+          const myPoints = playerPointsMap.get(playerId) ?? 0;
+          const playerMatches = matches.filter(
+            (m) => m.whitePlayerId === playerId || m.blackPlayerId === playerId
+          );
+          const playerByes = pairings.filter(
+            (pairing) => pairing.playerId === playerId && pairing.isBye && pairing.points !== null && pairing.round <= currentRound
+          );
 
-            const normalized = normalizeMatchResult(match.result);
-            if (!normalized) return;
-
-            const oppId = isWhite ? match.blackPlayerId : match.whitePlayerId;
-            if (!oppId) return;
-
-            const oppPoints = playerPointsMap.get(oppId) ?? 0;
-            const resultPoints = getPointsForResult(match.result, isWhite ? "white" : "black");
-            if (resultPoints === 1) {
-              sb += oppPoints;
-            } else if (resultPoints === 0.5) {
-              sb += oppPoints * 0.5;
+          for (let round = 1; round <= currentRound; round++) {
+            const bye = playerByes.find((b) => b.round === round);
+            if (bye) {
+              // Treated as draw against oneself -> adds 0.5 * myPoints
+              sb += 0.5 * myPoints;
+              continue;
             }
-          });
+
+            const match = playerMatches.find((m) => m.round === round);
+            if (match) {
+              const isWhite = match.whitePlayerId === playerId;
+              const oppId = isWhite ? match.blackPlayerId : match.whitePlayerId;
+              const normalized = normalizeMatchResult(match.result);
+              if (!normalized) continue;
+
+              const interpretation = interpretPlayerResult(match.result, isWhite);
+              if (interpretation.outcome === 'W') {
+                const oppPoints = oppId ? playerPointsMap.get(oppId) ?? 0 : 0;
+                sb += oppPoints;
+              } else if (interpretation.outcome === 'D') {
+                const oppPoints = oppId ? playerPointsMap.get(oppId) ?? 0 : 0;
+                sb += oppPoints * 0.5;
+              } else if (interpretation.outcome === 'forfeit-win') {
+                // Treated as draw against oneself -> adds 0.5 * myPoints
+                sb += 0.5 * myPoints;
+              }
+            }
+          }
           return sb;
         },
         "Kashdan": (playerId) => {
@@ -443,14 +508,39 @@ export default function SwissStandings({ tournamentId, showExportControls = true
           const playerMatches = matches.filter(
             (m) => m.whitePlayerId === playerId || m.blackPlayerId === playerId
           );
-          playerMatches.forEach((match) => {
-            const normalized = normalizeMatchResult(match.result);
-            if (!normalized) return;
-            const pts = getPointsForResult(match.result, match.whitePlayerId === playerId ? "white" : "black");
-            if (pts === 1) kashdan += 4;
-            else if (pts === 0.5) kashdan += 2;
-            else kashdan += 1;
-          });
+          const playerByes = pairings.filter(
+            (pairing) => pairing.playerId === playerId && pairing.isBye && pairing.points !== null && pairing.round <= currentRound
+          );
+
+          for (let round = 1; round <= currentRound; round++) {
+            const bye = playerByes.find((b) => b.round === round);
+            if (bye) {
+              // Treated as draw against oneself -> adds 2 points
+              kashdan += 2;
+              continue;
+            }
+
+            const match = playerMatches.find((m) => m.round === round);
+            if (match) {
+              const isWhite = match.whitePlayerId === playerId;
+              const normalized = normalizeMatchResult(match.result);
+              if (!normalized) continue;
+
+              const interpretation = interpretPlayerResult(match.result, isWhite);
+              if (interpretation.outcome === 'W') {
+                kashdan += 4;
+              } else if (interpretation.outcome === 'D') {
+                kashdan += 2;
+              } else if (interpretation.outcome === 'L') {
+                kashdan += 1;
+              } else if (interpretation.outcome === 'forfeit-win') {
+                // Treated as draw against oneself -> adds 2 points
+                kashdan += 2;
+              } else if (interpretation.outcome === 'forfeit-loss') {
+                kashdan += 0;
+              }
+            }
+          }
           return kashdan;
         },
         "Opponent's Cumulative": (playerId) => {
@@ -463,8 +553,9 @@ export default function SwissStandings({ tournamentId, showExportControls = true
           if (opponentIds.length === 0) return 0;
           const ratings = opponentIds.map(id => {
             const p = playerById.get(id);
-            if (!p) return 0;
-            return (isFide ? (p.fideRating ?? p.rating) : (p.uscfRating ?? p.rating)) || 0;
+            if (!p) return 1000;
+            const r = (isFide ? (p.fideRating ?? p.rating) : (p.uscfRating ?? p.rating)) || 0;
+            return r === 0 ? 1000 : r;
           });
           return ratings.reduce((sum, r) => sum + r, 0) / ratings.length;
         },
@@ -472,10 +563,28 @@ export default function SwissStandings({ tournamentId, showExportControls = true
           const playerMatches = matches.filter(
             (m) => m.whitePlayerId === playerId || m.blackPlayerId === playerId
           );
-          const playedWins = playerMatches.filter(m => getPointsForResult(m.result, m.whitePlayerId === playerId ? "white" : "black") === 1).length;
-          const p = playerById.get(playerId);
-          const extraWins = (p?.fullPointByesReceived ?? 0) + (p?.forfeitWinsReceived ?? 0);
-          return playedWins + extraWins;
+          let wins = 0;
+          playerMatches.forEach(m => {
+            const isWhite = m.whitePlayerId === playerId;
+            const normalized = normalizeMatchResult(m.result);
+            if (!normalized) return;
+            const interpretation = interpretPlayerResult(m.result, isWhite);
+            if (interpretation.outcome === 'W' || interpretation.outcome === 'forfeit-win') {
+              wins++;
+            }
+          });
+
+          const playerByes = pairings.filter(
+            (pairing) => pairing.playerId === playerId && pairing.isBye && pairing.points !== null && pairing.round <= currentRound
+          );
+          playerByes.forEach(bye => {
+            const byePoints = bye.points === 1 ? 0.5 : bye.points === 2 ? 1 : 0;
+            if (byePoints === 1) {
+              wins++;
+            }
+          });
+
+          return wins;
         }
       };
 
@@ -498,9 +607,16 @@ export default function SwissStandings({ tournamentId, showExportControls = true
         };
       });
 
-      // Sort strictly by points descending, then rating descending
+      // Sort strictly by points descending, then tiebreakers (if enabled), then rating descending, then player ID ascending
       standingsWithTiebreakers.sort((a, b) => {
         if (b.totalPoints !== a.totalPoints) return b.totalPoints - a.totalPoints;
+
+        // Apply active tiebreakers in configured priority order (if enabled)
+        for (const rule of activeTiebreakRules) {
+          const valA = a.tiebreakValues[rule] ?? 0;
+          const valB = b.tiebreakValues[rule] ?? 0;
+          if (valB !== valA) return valB - valA;
+        }
 
         const ratingA = (isFide ? (a.player.fideRating ?? a.player.rating) : (a.player.uscfRating ?? a.player.rating)) || 0;
         const ratingB = (isFide ? (b.player.fideRating ?? b.player.rating) : (b.player.uscfRating ?? b.player.rating)) || 0;
@@ -515,45 +631,51 @@ export default function SwissStandings({ tournamentId, showExportControls = true
         position: index + 1,
       }));
 
-      // Helper functions for dynamic rating calculations
+      // Helper functions for dynamic rating calculations (USCF formulas)
       const calculatePerformanceRating = (preRating: number, roundResults: PlayerRoundResult[]): number => {
         const playedGames = roundResults.filter(
-          r => r.opponent && (r.result === 'W' || r.result === 'L' || r.result === 'D' || r.result === 'forfeit-win' || r.result === 'forfeit-loss')
+          r => r.opponent && (r.result === 'W' || r.result === 'L' || r.result === 'D')
         );
-        const effectivePreRating = preRating || 1200;
+        const effectivePreRating = preRating || 1000;
         if (playedGames.length === 0) return effectivePreRating;
 
         let totalOpponentRating = 0;
-        let actualScore = 0;
+        let wins = 0;
+        let losses = 0;
         let gamesCount = 0;
 
         playedGames.forEach(g => {
           if (!g.opponent) return;
           let oppRating = (isFide ? (g.opponent.fideRating ?? g.opponent.rating) : (g.opponent.uscfRating ?? g.opponent.rating)) || 0;
-          if (oppRating === 0) oppRating = 1200; // default for unrated opponent
+          if (oppRating === 0) oppRating = 1000; // default unrated opponent is 1000
           totalOpponentRating += oppRating;
           gamesCount++;
-          if (g.result === 'W' || g.result === 'forfeit-win') {
-            actualScore += 1;
-          } else if (g.result === 'D') {
-            actualScore += 0.5;
+          if (g.result === 'W') {
+            wins++;
+          } else if (g.result === 'L') {
+            losses++;
           }
         });
 
         if (gamesCount === 0) return effectivePreRating;
 
         const avgOpponentRating = totalOpponentRating / gamesCount;
-        const p = actualScore / gamesCount;
-        const diff = 400 * (2 * p - 1);
-        return Math.round(avgOpponentRating + diff);
+        const perf = avgOpponentRating + 400 * (wins - losses) / gamesCount;
+        return Math.round(perf);
       };
 
       const calculateEstimatedPostRating = (preRating: number, roundResults: PlayerRoundResult[]): number => {
         const playedGames = roundResults.filter(
-          r => r.opponent && (r.result === 'W' || r.result === 'L' || r.result === 'D' || r.result === 'forfeit-win' || r.result === 'forfeit-loss')
+          r => r.opponent && (r.result === 'W' || r.result === 'L' || r.result === 'D')
         );
-        const effectivePreRating = preRating || 1200;
-        if (playedGames.length === 0) return effectivePreRating;
+        const hasPreRating = preRating && preRating > 0;
+        
+        if (!hasPreRating) {
+          // If unrated, equal to Performance Rating
+          return calculatePerformanceRating(preRating, roundResults);
+        }
+
+        if (playedGames.length === 0) return preRating;
 
         let actualScore = 0;
         let expectedScore = 0;
@@ -561,11 +683,11 @@ export default function SwissStandings({ tournamentId, showExportControls = true
         playedGames.forEach(g => {
           if (!g.opponent) return;
           let oppRating = (isFide ? (g.opponent.fideRating ?? g.opponent.rating) : (g.opponent.uscfRating ?? g.opponent.rating)) || 0;
-          if (oppRating === 0) oppRating = 1200; // default for unrated opponent
-          const expected = 1 / (1 + Math.pow(10, (oppRating - effectivePreRating) / 400));
+          if (oppRating === 0) oppRating = 1000; // default unrated opponent is 1000
+          const expected = 1 / (1 + Math.pow(10, (oppRating - preRating) / 400));
           expectedScore += expected;
 
-          if (g.result === 'W' || g.result === 'forfeit-win') {
+          if (g.result === 'W') {
             actualScore += 1;
           } else if (g.result === 'D') {
             actualScore += 0.5;
@@ -573,8 +695,9 @@ export default function SwissStandings({ tournamentId, showExportControls = true
         });
 
         const K = 32;
-        const postRating = effectivePreRating + K * (actualScore - expectedScore);
-        return Math.round(postRating);
+        const postRating = preRating + K * (actualScore - expectedScore);
+        const rounded = Math.round(postRating);
+        return Math.max(100, rounded); // capped at 100 minimum
       };
 
       // Second pass: Calculate detailed round results
