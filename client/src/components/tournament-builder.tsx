@@ -1955,8 +1955,10 @@ function StepTwo({ format, mode, builderMode, config, onConfigChange, onBack: _o
   const setTiebreaks = (next: string[]) => updateDetails({ tiebreaks: next });
   const addTiebreakRule = () => {
     const fallback = TIEBREAK_OPTIONS.find((option) => !tiebreaks.includes(option.label))?.label ?? "Buchholz";
-    setTiebreaks([...tiebreaks, fallback]);
-    updateDetails({ tiebreaksEnabled: true });
+    updateDetails({
+      tiebreaks: [...tiebreaks, fallback],
+      tiebreaksEnabled: true,
+    });
   };
   const updateTiebreakRule = (index: number, value: string) => {
     const next = [...tiebreaks];
