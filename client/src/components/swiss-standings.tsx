@@ -933,7 +933,7 @@ export default function SwissStandings({ tournamentId, showExportControls = true
     
     // Headers
     html += `<thead>\n  <tr style="border: 1px solid black; padding: 6px 8px;">\n`;
-    html += `    <td style="background-color: #e8e8e8; border: 1px solid black; font-weight: bold; padding: 6px 8px; text-align: center; width: 45px;">Bd</td>\n`;
+    html += `    <td style="background-color: #e8e8e8; border: 1px solid black; font-weight: bold; padding: 6px 8px; text-align: center; width: 45px;">#</td>\n`;
     html += `    <td style="background-color: #e8e8e8; border: 1px solid black; font-weight: bold; padding: 6px 8px; text-align: left; width: 200px;">Name/Rating/ID</td>\n`;
     for (let r = 1; r <= totalRounds; r++) {
       html += `    <td style="background-color: #e8e8e8; border: 1px solid black; font-weight: bold; padding: 6px 8px; text-align: center; width: 55px;">Rd ${r}</td>\n`;
@@ -945,7 +945,7 @@ export default function SwissStandings({ tournamentId, showExportControls = true
     html += `  </tr>\n</thead>\n<tbody>\n`;
     
     // Rows
-    sectionStandings.forEach((standing) => {
+    sectionStandings.forEach((standing, index) => {
       const playerRating = (isFide ? (standing.player.fideRating ?? standing.player.rating) : (standing.player.uscfRating ?? standing.player.rating)) || 'Unrated';
       const playerID = standing.player.localId || '';
       const lastName = standing.player.lastName || '';
@@ -962,7 +962,7 @@ export default function SwissStandings({ tournamentId, showExportControls = true
         
       // Row 1: Pairing No, Name, Round results, Total Points, Prize Category
       html += `  <tr style="border: 1px solid black; padding: 6px 8px;">\n`;
-      html += `    <td style="background-color: #e8e8e8; border: 1px solid black; font-weight: bold; padding: 6px 8px; text-align: center;">${pairingNum}</td>\n`;
+      html += `    <td style="background-color: #e8e8e8; border: 1px solid black; font-weight: bold; padding: 6px 8px; text-align: center;">${index + 1}</td>\n`;
       html += `    <td style="border: 1px solid black; font-weight: bold; padding: 6px 8px; text-align: left;">${nameHtml}</td>\n`;
       
       standing.roundResults.forEach((res) => {
@@ -1253,33 +1253,12 @@ a:hover { text-decoration: underline; }
   const renderRoundOutcomeBadge = (res: PlayerRoundResult) => {
     const text = formatRoundResultDisplay(res);
     if (text === '---') return <span className="text-slate-400 dark:text-slate-600">—</span>;
-
-    // Determine the style based on points or result type
-    let badgeClass = "bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800";
-
-    if (res.result === 'bye' || res.result === 'unplayed') {
-      badgeClass = "bg-purple-50 dark:bg-purple-950/25 text-purple-700 dark:text-purple-400 border-purple-100/50 dark:border-purple-900/30";
-    } else if (res.points === 1) {
-      badgeClass = "bg-emerald-50 dark:bg-emerald-950/25 text-emerald-700 dark:text-emerald-400 border-emerald-100/50 dark:border-emerald-900/30";
-    } else if (res.points === 0.5) {
-      badgeClass = "bg-amber-50 dark:bg-amber-950/25 text-amber-700 dark:text-amber-400 border-amber-100/50 dark:border-amber-900/30";
-    } else if (res.points === 0) {
-      badgeClass = "bg-rose-50 dark:bg-rose-950/25 text-rose-700 dark:text-rose-400 border-rose-100/50 dark:border-rose-900/30";
-    }
-
-    return (
-      <span className={cn(
-        "inline-flex items-center justify-center px-1.5 py-0.5 rounded text-[11px] font-bold font-mono border min-w-[38px] shadow-sm transition-all",
-        badgeClass
-      )}>
-        {text}
-      </span>
-    );
+    return <span className="text-slate-800 dark:text-slate-200 text-xs font-bold font-sans">{text}</span>;
   };
 
 
   return (
-    <Card className="border-none shadow-xl dark:bg-slate-900">
+    <Card className="mx-4 md:mx-0 border border-slate-200 dark:border-slate-800 shadow-xl dark:bg-slate-900">
       <CardHeader className="border-b border-slate-100 dark:border-slate-800">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
           <div>
@@ -1381,185 +1360,168 @@ a:hover { text-decoration: underline; }
           </div>
         </div>
       </CardHeader>
-      <CardContent className="p-0">
+      <CardContent className="px-4 pb-4 md:px-6 md:pb-6">
         {standings.length === 0 ? (
           <div className="text-center py-16 text-slate-500 dark:text-slate-400">
             No standings available yet
           </div>
         ) : (
-          <div className="overflow-x-auto p-1">
-            <div className="overflow-hidden border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm bg-white dark:bg-slate-950 min-w-max">
-              <table className="w-full border-collapse">
-                <thead className="bg-slate-50/85 dark:bg-slate-900/60 border-b border-slate-200 dark:border-slate-800">
-                  <tr>
-                    <th className="px-3 py-3 text-center text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-12 border-r border-slate-200/60 dark:border-slate-800/60">
-                      Bd
+          <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
+            <table className="w-full border-collapse font-sans">
+              <thead>
+                <tr className="bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300">
+                  <th className="px-3 py-3 text-center text-xs font-bold w-12 border-b border-r border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-sans">
+                    #
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-bold border-b border-r border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-sans">
+                    Name/Rating/ID
+                  </th>
+                  {Array.from({ length: totalRounds }, (_, i) => (
+                    <th key={i} className="px-3 py-3 text-center text-xs font-bold w-16 border-b border-r border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-sans">
+                      Rd {i + 1}
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-r border-slate-200/60 dark:border-slate-800/60">
-                      Name/Rating/ID
+                  ))}
+                  <th className="px-3 py-3 text-center text-xs font-bold w-20 border-b border-r border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-sans">
+                    Total
+                  </th>
+                  {activeTiebreakRules.map((rule) => (
+                    <th key={rule} className="px-3 py-3 text-center text-xs font-bold w-20 border-b border-r border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-sans">
+                      {rule}
                     </th>
-                    {Array.from({ length: totalRounds }, (_, i) => (
-                      <th key={i} className="px-3 py-3 text-center text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-16 border-r border-slate-200/60 dark:border-slate-800/60">
-                        Rd {i + 1}
-                      </th>
-                    ))}
-                    <th className="px-3 py-3 text-center text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-20 border-r border-slate-200/60 dark:border-slate-800/60">
-                      Total
+                  ))}
+                  <th className="px-3 py-3 text-center text-xs font-bold w-20 border-b border-r border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-sans">
+                    Est. Post
+                  </th>
+                  <th className="px-3 py-3 text-center text-xs font-bold w-20 border-b border-r border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-sans">
+                    Perf.
+                  </th>
+                  {tournamentConfig?.prizesEnabled && showPrizes && (
+                    <th className="px-4 py-3 text-left text-xs font-bold w-36 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-sans">
+                      Prizes
                     </th>
-                    {activeTiebreakRules.map((rule) => (
-                      <th key={rule} className="px-3 py-3 text-center text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-20 border-r border-slate-200/60 dark:border-slate-800/60">
-                        {rule}
-                      </th>
-                    ))}
-                    <th className="px-3 py-3 text-center text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-20 border-r border-slate-200/60 dark:border-slate-800/60">
-                      Est. Post
-                    </th>
-                    <th className="px-3 py-3 text-center text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-20 border-r border-slate-200/60 dark:border-slate-800/60">
-                      Perf.
-                    </th>
-                    {tournamentConfig?.prizesEnabled && showPrizes && (
-                      <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-36">
-                        Prizes
-                      </th>
-                    )}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60">
-                  {standings.map((standing, standingIdx) => {
-                    const isFide = tournamentConfig?.details.primaryRatingSystem === 'fide';
-                    const playerRating = (isFide ? (standing.player.fideRating ?? standing.player.rating) : (standing.player.uscfRating ?? standing.player.rating)) || 'Unrated';
-                    const lastName = standing.player.lastName || '';
-                    const firstName = standing.player.firstName || '';
-                    const nameStr = lastName && firstName ? `${lastName}, ${firstName}` : `${firstName} ${lastName}`.trim();
-                    
-                    const uscfId = standing.player.localId;
-                    const isDigitsOnly = !!(uscfId && /^\d+$/.test(uscfId));
-                    const isWithdrawn = standing.player.status === 'withdrawn' || standing.isWithdrawn;
-                    const pairingNum = getPlayerPairingNumber(standing.player.id);
-                    const rowBg = standingIdx % 2 === 0 ? "bg-white dark:bg-slate-950/40" : "bg-slate-50/40 dark:bg-slate-900/15";
+                  )}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                {standings.map((standing, index) => {
+                  const isFide = tournamentConfig?.details.primaryRatingSystem === 'fide';
+                  const playerRating = (isFide ? (standing.player.fideRating ?? standing.player.rating) : (standing.player.uscfRating ?? standing.player.rating)) || 'Unrated';
+                  const lastName = standing.player.lastName || '';
+                  const firstName = standing.player.firstName || '';
+                  const nameStr = lastName && firstName ? `${lastName}, ${firstName}` : `${firstName} ${lastName}`.trim();
+                  
+                  const uscfId = standing.player.localId;
+                  const isDigitsOnly = !!(uscfId && /^\d+$/.test(uscfId));
+                  const isWithdrawn = standing.player.status === 'withdrawn' || standing.isWithdrawn;
+                  const pairingNum = getPlayerPairingNumber(standing.player.id);
 
-                    return (
-                      <React.Fragment key={standing.player.id}>
-                        {/* Row 1: Bd, Name, Round results, Total Points, Tiebreaks, Est. Post, Perf, Prizes */}
-                        <tr
-                          className={cn(
-                            rowBg,
-                            "text-slate-700 dark:text-slate-300 border-t border-slate-200 dark:border-slate-800 hover:bg-indigo-50/10 dark:hover:bg-indigo-950/5 transition-colors",
-                            isWithdrawn ? "opacity-65 line-through" : ""
-                          )}
-                        >
-                          <td className="px-3 py-2.5 text-center font-mono text-xs font-black border-r border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400">
-                            {pairingNum}
+                  return (
+                    <React.Fragment key={standing.player.id}>
+                      {/* Row 1: Bd, Name, Round results, Total Points, Tiebreaks, Est. Post, Perf, Prizes */}
+                      <tr
+                        className={cn(
+                          "bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 border-t border-slate-200 dark:border-slate-800 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors",
+                          isWithdrawn ? "opacity-60 line-through" : ""
+                        )}
+                      >
+                        <td className="px-3 py-2 text-center font-sans text-sm font-bold border-r border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 bg-slate-50/50 dark:bg-slate-800/20 w-12">
+                          {index + 1}
+                        </td>
+                        <td className="px-4 py-2 text-sm font-bold border-r border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200">
+                          <div className="flex items-center gap-1.5">
+                            {isDigitsOnly ? (
+                              <a
+                                href={`http://www.uschess.org/msa/MbrDtlMain.php?${uscfId}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 hover:underline transition-colors"
+                              >
+                                {nameStr}
+                              </a>
+                            ) : (
+                              <span>{nameStr}</span>
+                            )}
+                            {standing.player.isActiveTd && (
+                              <span className="text-[10px] text-slate-400 dark:text-slate-500 font-normal ml-1.5">(substitute)</span>
+                            )}
+                          </div>
+                        </td>
+                        {standing.roundResults.map((result, roundIdx) => (
+                          <td key={roundIdx} className="px-3 py-2 text-center border-r border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200">
+                            {renderRoundOutcomeBadge(result)}
                           </td>
-                          <td className="px-4 py-2.5 text-sm font-semibold text-slate-900 dark:text-slate-100 border-r border-slate-200 dark:border-slate-800">
-                            <div className="flex items-center gap-1.5">
-                              {isDigitsOnly ? (
-                                <a
-                                  href={`http://www.uschess.org/msa/MbrDtlMain.php?${uscfId}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="font-bold text-indigo-600 dark:text-indigo-400 hover:underline transition-colors"
-                                >
-                                  {nameStr}
-                                </a>
-                              ) : (
-                                <span>{nameStr}</span>
-                              )}
-                              {standing.player.isActiveTd && (
-                                <span className="text-[10px] text-purple-600 dark:text-purple-400 font-medium ml-1.5 px-1.5 py-0.5 bg-purple-50 dark:bg-purple-950/30 rounded border border-purple-100 dark:border-purple-900/20">(substitute)</span>
-                              )}
-                            </div>
-                          </td>
-                          {standing.roundResults.map((result, roundIdx) => (
-                            <td key={roundIdx} className="px-3 py-2.5 text-center border-r border-slate-200 dark:border-slate-800">
-                              {renderRoundOutcomeBadge(result)}
+                        ))}
+                        <td className="px-3 py-2 text-center font-black border-r border-slate-200 dark:border-slate-800 font-sans text-slate-900 dark:text-slate-100 bg-slate-50 dark:bg-slate-800/30">
+                          {standing.totalPoints.toFixed(1).replace(/\.0$/, "")}
+                        </td>
+                        {activeTiebreakRules.map((rule) => {
+                          const val = standing.tiebreakValues[rule];
+                          return (
+                            <td key={rule} className="px-3 py-2 text-center text-sm font-sans border-r border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400">
+                              {val !== undefined ? val.toFixed(2) : "0.00"}
                             </td>
-                          ))}
-                          <td className="px-3 py-2.5 text-center border-r border-slate-200 dark:border-slate-800">
-                            <span className="inline-flex items-center justify-center px-2 py-0.5 rounded bg-indigo-50/80 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 border border-indigo-100/40 dark:border-indigo-900/30 font-black font-mono text-xs shadow-sm">
-                              {standing.totalPoints.toFixed(1).replace(/\.0$/, "")}
-                            </span>
-                          </td>
-                          {activeTiebreakRules.map((rule) => {
-                            const val = standing.tiebreakValues[rule];
-                            return (
-                              <td key={rule} className="px-3 py-2.5 text-center text-xs font-mono font-semibold text-slate-600 dark:text-slate-400 border-r border-slate-200 dark:border-slate-800">
-                                {val !== undefined ? val.toFixed(2) : "0.00"}
-                              </td>
-                            );
-                          })}
-                          <td className="px-3 py-2.5 text-center text-xs font-mono font-semibold text-slate-600 dark:text-slate-400 border-r border-slate-200 dark:border-slate-800">
-                            {standing.postRating ?? playerRating}
-                          </td>
-                          <td className="px-3 py-2.5 text-center text-xs font-mono font-semibold text-slate-600 dark:text-slate-400 border-r border-slate-200 dark:border-slate-800">
-                            {standing.performanceRating ?? playerRating}
-                          </td>
-                          {tournamentConfig?.prizesEnabled && showPrizes && (
-                            <td className="px-4 py-2.5 text-left text-xs border-r border-slate-200 dark:border-slate-800 font-bold text-emerald-600 dark:text-emerald-400 font-sans">
-                              {standing.prizeCategory && standing.prizeCategory !== '---' ? (
-                                standing.prizeCategory
-                              ) : (
-                                "—"
-                              )}
-                            </td>
-                          )}
-                        </tr>
-
-                        {/* Row 2: Empty Bd cell, Rating & Local ID, Cumulative scores per round, empty for total & tiebreaks */}
-                        <tr
-                          className={cn(
-                            rowBg,
-                            "text-slate-600 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800 hover:bg-indigo-50/10 dark:hover:bg-indigo-950/5 transition-colors",
-                            isWithdrawn ? "opacity-65 line-through" : ""
-                          )}
-                        >
-                          <td className="px-3 py-1.5 border-r border-slate-200 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/20 text-center text-[10px] font-mono text-slate-400">&nbsp;</td>
-                          <td className="px-4 py-1.5 text-xs font-mono text-slate-500 dark:text-slate-400 border-r border-slate-200 dark:border-slate-800">
-                            <span className="text-slate-400 dark:text-slate-500 font-sans mr-2">Rating:</span>
-                            <span className="font-semibold text-slate-700 dark:text-slate-300">{playerRating}</span>
-                            {uscfId && (
-                              <>
-                                <span className="text-slate-300 dark:text-slate-700 mx-2">|</span>
-                                <span className="text-slate-400 dark:text-slate-500 font-sans mr-1">ID:</span>
-                                <span className="font-semibold text-slate-700 dark:text-slate-300">{uscfId}</span>
-                              </>
+                          );
+                        })}
+                        <td className="px-3 py-2 text-center text-sm font-sans border-r border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400">
+                          {standing.postRating ?? playerRating}
+                        </td>
+                        <td className="px-3 py-2 text-center text-sm font-sans border-r border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400">
+                          {standing.performanceRating ?? playerRating}
+                        </td>
+                        {tournamentConfig?.prizesEnabled && showPrizes && (
+                          <td className="px-4 py-2 text-left text-sm border-r border-slate-200 dark:border-slate-800 font-bold text-emerald-600 dark:text-emerald-400 font-sans">
+                            {standing.prizeCategory && standing.prizeCategory !== '---' ? (
+                              standing.prizeCategory
+                            ) : (
+                              "—"
                             )}
                           </td>
-                          {standing.roundResults.map((_, roundIndex) => {
-                            const cumulative = standing.roundResults
-                              .slice(0, roundIndex + 1)
-                              .reduce((sum, entry) => sum + entry.points, 0);
-                            const cumulativeText = roundIndex < currentRound ? cumulative.toFixed(1).replace(/\.0$/, ".0") : '';
-                            return (
-                              <td key={roundIndex} className="px-3 py-1.5 text-center text-xs font-mono font-medium text-slate-500 dark:text-slate-400 border-r border-slate-200 dark:border-slate-800 bg-slate-50/20 dark:bg-slate-900/10">
-                                {cumulativeText}
-                              </td>
-                            );
-                          })}
-                          <td className="px-3 py-1.5 border-r border-slate-200 dark:border-slate-800 text-center">&nbsp;</td>
-                          {activeTiebreakRules.map((rule) => (
-                            <td key={rule} className="px-3 py-1.5 border-r border-slate-200 dark:border-slate-800 text-center">&nbsp;</td>
-                          ))}
-                          <td className="px-3 py-1.5 border-r border-slate-200 dark:border-slate-800 text-center">&nbsp;</td>
-                          <td className="px-3 py-1.5 border-r border-slate-200 dark:border-slate-800 text-center">&nbsp;</td>
-                          {tournamentConfig?.prizesEnabled && showPrizes && (
-                            <td className="px-4 py-1.5 text-left text-xs font-extrabold text-emerald-600 dark:text-emerald-400 font-sans">
-                              {standing.prizeAmount && standing.prizeAmount !== '---' ? (
-                                <span className="bg-emerald-50 dark:bg-emerald-950/30 px-2 py-0.5 rounded border border-emerald-100 dark:border-emerald-900/20 shadow-sm">
-                                  {standing.prizeAmount}
-                                </span>
-                              ) : (
-                                "—"
-                              )}
+                        )}
+                      </tr>
+
+                      {/* Row 2: Empty Bd cell, Rating & Local ID, Cumulative scores per round, empty for total & tiebreaks */}
+                      <tr
+                        className={cn(
+                          "bg-slate-50/20 dark:bg-slate-900/10 text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors",
+                          isWithdrawn ? "opacity-60 line-through" : ""
+                        )}
+                      >
+                        <td className="px-3 py-1.5 border-r border-slate-200 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-800/20 text-center">&nbsp;</td>
+                        <td className="px-4 py-1.5 text-xs font-sans border-r border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400">
+                          Rating: <span className="font-semibold text-slate-700 dark:text-slate-300">{playerRating}</span>{uscfId ? ` \u00a0\u00a0 ID: ${uscfId}` : ''}
+                        </td>
+                        {standing.roundResults.map((_, roundIndex) => {
+                          const cumulative = standing.roundResults
+                            .slice(0, roundIndex + 1)
+                            .reduce((sum, entry) => sum + entry.points, 0);
+                          const cumulativeText = roundIndex < currentRound ? cumulative.toFixed(1).replace(/\.0$/, ".0") : '';
+                          return (
+                            <td key={roundIndex} className="px-3 py-1.5 text-center text-xs font-sans font-medium border-r border-slate-200 dark:border-slate-800 text-slate-400 dark:text-slate-500">
+                              {cumulativeText}
                             </td>
-                          )}
-                        </tr>
-                      </React.Fragment>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                          );
+                        })}
+                        <td className="px-3 py-1.5 border-r border-slate-200 dark:border-slate-800 text-center">&nbsp;</td>
+                        {activeTiebreakRules.map((rule) => (
+                          <td key={rule} className="px-3 py-1.5 border-r border-slate-200 dark:border-slate-800 text-center">&nbsp;</td>
+                        ))}
+                        <td className="px-3 py-1.5 border-r border-slate-200 dark:border-slate-800 text-center">&nbsp;</td>
+                        <td className="px-3 py-1.5 border-r border-slate-200 dark:border-slate-800 text-center">&nbsp;</td>
+                        {tournamentConfig?.prizesEnabled && showPrizes && (
+                          <td className="px-4 py-1.5 text-left text-xs font-bold text-emerald-600 dark:text-emerald-400 font-sans">
+                            {standing.prizeAmount && standing.prizeAmount !== '---' ? (
+                              standing.prizeAmount
+                            ) : (
+                              "—"
+                            )}
+                          </td>
+                        )}
+                      </tr>
+                    </React.Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         )}
       </CardContent>
