@@ -14,8 +14,9 @@ import { parseTournamentConfig } from "@/lib/tournament-config";
 import { calculateMatchupScore, type SectionDefinition } from "@shared/tournament-config";
 import { HEAD_TO_HEAD_RESULT_OPTIONS, BYE_RESULT_OPTIONS, getPointsForResult } from "@shared/match-results";
 import { MatchManagementDialog } from "./match-management-dialog";
-import { Swords, Info } from "lucide-react";
+import { Swords, Info, UserPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Input } from "@/components/ui/input";
 import QRCode from "qrcode";
 
 interface TournamentPairingsProps {
@@ -67,6 +68,13 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
   // Edit mode states
   const [drawClickState, setDrawClickState] = useState<{ matchId: number; side: 'white' | 'black' } | null>(null);
   const [isSavingResults, setIsSavingResults] = useState(false);
+
+  // Guest and Houseplayer registration form state
+  const [guestFirstName, setGuestFirstName] = useState("");
+  const [guestLastName, setGuestLastName] = useState("");
+  const [guestRating, setGuestRating] = useState("1000");
+  const [guestUscfId, setGuestUscfId] = useState("");
+  const [guestStatus, setGuestStatus] = useState<'guest' | 'houseplayer'>('guest');
 
   const toggleExpand = (matchId: number) => {
     setExpandedSeries(prev => {
@@ -227,8 +235,13 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
 
   const filteredMatches = useMemo(() => {
     if (!matches) return [] as Match[];
-    if (activeSection === "all") return [...matches];
-    return matches.filter((match) => matchSectionFilter(match, activeSection));
+    if (activeSection === "extra_games") {
+      return matches.filter((match) => match.isExtraGame);
+    }
+    if (activeSection === "all") {
+      return matches.filter((match) => !match.isExtraGame);
+    }
+    return matches.filter((match) => !match.isExtraGame && matchSectionFilter(match, activeSection));
   }, [matches, matchSectionFilter, activeSection]);
 
   const roundRobinGroups = useMemo(() => {
@@ -269,6 +282,11 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
     });
   }, [players, playerSectionMap, activeSection]);
 
+  const selectablePlayers = useMemo(() => {
+    if (!players) return [];
+    return players.filter(p => p.status !== 'withdrawn');
+  }, [players]);
+
   const addExtraMatchMutation = useMutation({
     mutationFn: async ({ whitePlayerId, blackPlayerId }: { whitePlayerId: number; blackPlayerId: number }) => {
       return await apiRequest(`/api/tournaments/${tournamentId}/extra-matches`, {
@@ -293,6 +311,43 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
       toast({
         title: "Error",
         description: "Failed to add extra game.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const registerGuestMutation = useMutation({
+    mutationFn: async (payload: {
+      firstName: string;
+      lastName: string;
+      rating: number;
+      status: 'guest' | 'houseplayer';
+      localId?: string;
+    }) => {
+      return await apiRequest(`/api/tournaments/${tournamentId}/players`, {
+        method: "POST",
+        body: JSON.stringify({
+          ...payload,
+          sectionId: null,
+          sectionName: null,
+        }),
+      });
+    },
+    onSuccess: () => {
+      toast({
+        title: "Player Registered",
+        description: `Successfully registered ${guestFirstName} ${guestLastName} as a ${guestStatus}.`,
+      });
+      queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/players`] });
+      setGuestFirstName("");
+      setGuestLastName("");
+      setGuestRating("1000");
+      setGuestUscfId("");
+    },
+    onError: () => {
+      toast({
+        title: "Registration Failed",
+        description: "Failed to register guest/houseplayer player.",
         variant: "destructive",
       });
     },
@@ -352,7 +407,7 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
   }, [currentRound, roundRobinGroups, swissMatches, knockoutGroups, tournament?.format]);
 
   const hasPrintableMatches = pairingGroups.some((group) => group.matches.length > 0);
-  const hasDisplayData = hasPrintableMatches || (tournament?.format === 'swiss' && filteredByes.length > 0);
+  const hasDisplayData = activeSection === "extra_games" || hasPrintableMatches || (tournament?.format === 'swiss' && filteredByes.length > 0);
 
   const matchesForStatus = useMemo(() => {
     if (tournament?.format === 'roundrobin') {
@@ -2205,7 +2260,9 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                   })}
                 </div>
               ) : (
-              <div className="space-y-6">
+                <>
+                  {activeSection !== "extra_games" && (
+                    <div className="space-y-6">
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="text-sm font-semibold text-slate-500">
                     Matches
@@ -2367,9 +2424,11 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                       </div>
                   )}
                 </div>
+              </div>
+            )}
 
                 {/* Extra Games Section */}
-                {tournament?.format === 'swiss' && tournamentConfig?.registers?.allowExtraGames && (isOwner || extraMatches.length > 0) && (
+                {tournament?.format === 'swiss' && tournamentConfig?.registers?.allowExtraGames && activeSection === "extra_games" && (
                   <div className="space-y-4">
                     <div className="flex items-center justify-between mb-2">
                       <h3 className="text-sm font-semibold text-slate-500">
@@ -2496,74 +2555,187 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
 
                     {/* TD Controls for Adding Extra Games */}
                     {isOwner && (
-                      <div className="pt-4 border-t border-slate-250 dark:border-slate-800 space-y-3">
-                        <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                          Create Extra Game
-                        </div>
-                        <div className="flex flex-wrap items-end gap-3">
-                          <div className="space-y-1.5">
-                            <label className="text-xs font-semibold text-slate-500 dark:text-slate-400">White Player</label>
-                            <Select value={selectedWhitePlayerId} onValueChange={setSelectedWhitePlayerId}>
-                              <SelectTrigger className="w-56 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-xl">
-                                <SelectValue placeholder="Select White..." />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {sectionPlayers
-                                  .filter(p => p.status !== 'withdrawn' && p.id.toString() !== selectedBlackPlayerId)
-                                  .map(p => (
-                                    <SelectItem key={p.id} value={p.id.toString()}>
-                                      {p.firstName} {p.lastName} ({p.rating ?? 1000})
-                                    </SelectItem>
-                                  ))}
-                              </SelectContent>
-                            </Select>
+                      <div className="pt-6 border-t border-slate-200 dark:border-slate-800">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                          {/* Column 1: Pair Players */}
+                          <div className="space-y-4 p-5 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-slate-100 dark:border-slate-850">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Swords className="h-5 w-5 text-indigo-500" />
+                              <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100 font-sans">Create Extra Game</h4>
+                            </div>
+                            <p className="text-xs text-slate-500 font-sans leading-relaxed">
+                              Pair any two active players (including guests and houseplayers) for a rated extra game.
+                            </p>
+                            
+                            <div className="space-y-3 pt-2">
+                              <div className="space-y-1.5">
+                                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-sans">White Player</label>
+                                <Select value={selectedWhitePlayerId} onValueChange={setSelectedWhitePlayerId}>
+                                  <SelectTrigger className="w-full bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-xl">
+                                    <SelectValue placeholder="Select White..." />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {selectablePlayers
+                                      .filter(p => p.id.toString() !== selectedBlackPlayerId)
+                                      .map(p => (
+                                        <SelectItem key={p.id} value={p.id.toString()}>
+                                          {p.firstName} {p.lastName} ({p.rating ?? 1000}){p.status === 'guest' ? ' [GUEST]' : p.status === 'houseplayer' ? ' [HOUSEPLAYER]' : ''}
+                                        </SelectItem>
+                                      ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+
+                              <div className="space-y-1.5">
+                                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-sans">Black Player</label>
+                                <Select value={selectedBlackPlayerId} onValueChange={setSelectedBlackPlayerId}>
+                                  <SelectTrigger className="w-full bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-xl">
+                                    <SelectValue placeholder="Select Black..." />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {selectablePlayers
+                                      .filter(p => p.id.toString() !== selectedWhitePlayerId)
+                                      .map(p => (
+                                        <SelectItem key={p.id} value={p.id.toString()}>
+                                          {p.firstName} {p.lastName} ({p.rating ?? 1000}){p.status === 'guest' ? ' [GUEST]' : p.status === 'houseplayer' ? ' [HOUSEPLAYER]' : ''}
+                                        </SelectItem>
+                                      ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+
+                              <Button
+                                type="button"
+                                onClick={() => {
+                                  if (!selectedWhitePlayerId || !selectedBlackPlayerId) {
+                                    toast({
+                                      title: "Error",
+                                      description: "Please select both a White and a Black player.",
+                                      variant: "destructive",
+                                    });
+                                    return;
+                                  }
+                                  addExtraMatchMutation.mutate({
+                                    whitePlayerId: parseInt(selectedWhitePlayerId),
+                                    blackPlayerId: parseInt(selectedBlackPlayerId),
+                                  });
+                                }}
+                                disabled={addExtraMatchMutation.isPending || !selectedWhitePlayerId || !selectedBlackPlayerId}
+                                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-medium h-10 gap-2 mt-2"
+                              >
+                                {addExtraMatchMutation.isPending ? "Adding..." : "Add Extra Game"}
+                              </Button>
+                            </div>
                           </div>
 
-                          <div className="space-y-1.5">
-                            <label className="text-xs font-semibold text-slate-500 dark:text-slate-400">Black Player</label>
-                            <Select value={selectedBlackPlayerId} onValueChange={setSelectedBlackPlayerId}>
-                              <SelectTrigger className="w-56 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-xl">
-                                <SelectValue placeholder="Select Black..." />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {sectionPlayers
-                                  .filter(p => p.status !== 'withdrawn' && p.id.toString() !== selectedWhitePlayerId)
-                                  .map(p => (
-                                    <SelectItem key={p.id} value={p.id.toString()}>
-                                      {p.firstName} {p.lastName} ({p.rating ?? 1000})
-                                    </SelectItem>
-                                  ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
+                          {/* Column 2: Quick Register Guest / Houseplayer */}
+                          <div className="space-y-4 p-5 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-slate-100 dark:border-slate-850">
+                            <div className="flex items-center gap-2 mb-1">
+                              <UserPlus className="h-5 w-5 text-indigo-500" />
+                              <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100 font-sans">Register Guest / Houseplayer</h4>
+                            </div>
+                            <p className="text-xs text-slate-500 font-sans leading-relaxed">
+                              Register a non-tournament participant to play rated extra games without affecting standings.
+                            </p>
+                            
+                            <div className="space-y-3 pt-2">
+                              <div className="grid grid-cols-2 gap-3">
+                                <div className="space-y-1.5">
+                                  <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-sans">First Name</label>
+                                  <Input
+                                    placeholder="First Name"
+                                    value={guestFirstName}
+                                    onChange={(e) => setGuestFirstName(e.target.value)}
+                                    className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-xl h-10 text-sm"
+                                  />
+                                </div>
+                                <div className="space-y-1.5">
+                                  <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-sans">Last Name</label>
+                                  <Input
+                                    placeholder="Last Name"
+                                    value={guestLastName}
+                                    onChange={(e) => setGuestLastName(e.target.value)}
+                                    className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-xl h-10 text-sm"
+                                  />
+                                </div>
+                              </div>
 
-                          <Button
-                            type="button"
-                            onClick={() => {
-                              if (!selectedWhitePlayerId || !selectedBlackPlayerId) {
-                                toast({
-                                  title: "Error",
-                                  description: "Please select both a White and a Black player.",
-                                  variant: "destructive",
-                                });
-                                return;
-                              }
-                              addExtraMatchMutation.mutate({
-                                whitePlayerId: parseInt(selectedWhitePlayerId),
-                                blackPlayerId: parseInt(selectedBlackPlayerId),
-                              });
-                            }}
-                            disabled={addExtraMatchMutation.isPending || !selectedWhitePlayerId || !selectedBlackPlayerId}
-                            className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-medium px-4 h-10 gap-2"
-                          >
-                            Add Extra Game
-                          </Button>
+                              <div className="grid grid-cols-2 gap-3">
+                                <div className="space-y-1.5">
+                                  <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-sans">Rating</label>
+                                  <Input
+                                    type="number"
+                                    placeholder="1000"
+                                    value={guestRating}
+                                    onChange={(e) => setGuestRating(e.target.value)}
+                                    className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-xl h-10 text-sm"
+                                  />
+                                </div>
+                                <div className="space-y-1.5">
+                                  <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-sans">USCF ID (Optional)</label>
+                                  <Input
+                                    placeholder="e.g. 12345678"
+                                    value={guestUscfId}
+                                    onChange={(e) => setGuestUscfId(e.target.value)}
+                                    className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-xl h-10 text-sm"
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="space-y-1.5">
+                                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-sans">Status Type</label>
+                                <Select value={guestStatus} onValueChange={(v: 'guest' | 'houseplayer') => setGuestStatus(v)}>
+                                  <SelectTrigger className="w-full bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-xl">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="guest">Guest (casual rated games)</SelectItem>
+                                    <SelectItem value="houseplayer">Houseplayer (fills odd-person pairings)</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+
+                              <Button
+                                type="button"
+                                onClick={() => {
+                                  if (!guestFirstName || !guestLastName) {
+                                    toast({
+                                      title: "Error",
+                                      description: "First name and Last name are required.",
+                                      variant: "destructive",
+                                    });
+                                    return;
+                                  }
+                                  const ratingNum = parseInt(guestRating);
+                                  if (isNaN(ratingNum) || ratingNum < 100) {
+                                    toast({
+                                      title: "Error",
+                                      description: "Please enter a valid rating (at least 100).",
+                                      variant: "destructive",
+                                    });
+                                    return;
+                                  }
+                                  registerGuestMutation.mutate({
+                                    firstName: guestFirstName,
+                                    lastName: guestLastName,
+                                    rating: ratingNum,
+                                    status: guestStatus,
+                                    localId: guestUscfId || undefined,
+                                  });
+                                }}
+                                disabled={registerGuestMutation.isPending || !guestFirstName || !guestLastName}
+                                className="w-full bg-teal-650 hover:bg-teal-700 text-white rounded-xl font-medium h-10 gap-2 mt-2"
+                              >
+                                {registerGuestMutation.isPending ? "Registering..." : "Register Player"}
+                              </Button>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     )}
                   </div>
                 )}
-              </div>
+              </>
             )}
           </div>
         )}

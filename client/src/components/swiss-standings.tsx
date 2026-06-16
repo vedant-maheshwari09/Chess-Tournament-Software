@@ -113,8 +113,8 @@ export default function SwissStandings({ tournamentId, showExportControls = true
   const tournamentConfig = useMemo(() => (tournament ? parseTournamentConfig(tournament) : null), [tournament]);
 
   const hasExtraGames = useMemo(() => {
-    return matches?.some(m => m.isExtraGame) ?? false;
-  }, [matches]);
+    return (matches?.some(m => m.isExtraGame) ?? false) || !!tournamentConfig?.registers?.allowExtraGames;
+  }, [matches, tournamentConfig]);
 
   const isDirector = !!(user?.role === 'tournament_director' && tournament && user && tournament.createdBy === user.id);
 
@@ -210,8 +210,9 @@ export default function SwissStandings({ tournamentId, showExportControls = true
       );
       return players.filter((player) => extraGamePlayerIds.has(player.id));
     }
-    if (selectedSectionId === "__all__") return players;
-    return players.filter((player) => playerSectionMap.get(player.id)?.id === selectedSectionId);
+    const standardPlayers = players.filter(player => player.status !== 'guest' && player.status !== 'houseplayer');
+    if (selectedSectionId === "__all__") return standardPlayers;
+    return standardPlayers.filter((player) => playerSectionMap.get(player.id)?.id === selectedSectionId);
   }, [players, playerSectionMap, selectedSectionId, matches]);
 
   const filteredMatches = useMemo(() => {
