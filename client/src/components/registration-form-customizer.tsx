@@ -237,13 +237,13 @@ function OptionsManager({ options, onChange }: OptionsManagerProps) {
   };
 
   return (
-    <div className="space-y-3.5 p-4.5 bg-indigo-50/10 border border-indigo-100/50 rounded-2xl animate-in fade-in duration-200">
+    <div className="space-y-3.5 p-4.5 bg-blue-50/10 border border-blue-100/50 rounded-2xl animate-in fade-in duration-200">
       <div className="flex items-center justify-between">
-        <span className="text-[11px] font-extrabold text-indigo-950 tracking-wide flex items-center gap-1.5">
-          <ListPlus className="h-3.5 w-3.5 text-indigo-500 animate-pulse" />
+        <span className="text-[11px] font-extrabold text-blue-950 tracking-wide flex items-center gap-1.5">
+          <ListPlus className="h-3.5 w-3.5 text-blue-500 animate-pulse" />
           Dropdown Menu Choices
         </span>
-        <span className="text-[10px] text-indigo-600 font-extrabold bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100/40">
+        <span className="text-[10px] text-blue-600 font-extrabold bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100/40">
           {options.length} Options
         </span>
       </div>
@@ -254,13 +254,13 @@ function OptionsManager({ options, onChange }: OptionsManagerProps) {
           {options.map((option, idx) => (
             <div 
               key={idx} 
-              className="flex items-center gap-1.5 bg-white border border-indigo-100 text-indigo-950 font-bold px-2.5 py-1 rounded-xl text-xs shadow-sm hover:border-indigo-300 transition-all duration-150 hover:bg-slate-50 active:scale-95"
+              className="flex items-center gap-1.5 bg-white border border-blue-100 text-blue-950 font-bold px-2.5 py-1 rounded-xl text-xs shadow-sm hover:border-blue-300 transition-all duration-150 hover:bg-slate-50 active:scale-95"
             >
               <span>{option}</span>
               <button
                 type="button"
                 onClick={() => handleRemove(idx)}
-                className="text-indigo-400 hover:text-red-500 hover:bg-red-50 p-0.5 rounded-md transition"
+                className="text-blue-400 hover:text-red-500 hover:bg-red-50 p-0.5 rounded-md transition"
               >
                 <X className="h-3 w-3" />
               </button>
@@ -278,12 +278,12 @@ function OptionsManager({ options, onChange }: OptionsManagerProps) {
           onChange={(e) => setInputValue(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Type choice and press Enter..."
-          className="h-10 text-xs bg-white border-slate-200 focus:border-indigo-350 rounded-xl shadow-inner"
+          className="h-10 text-xs bg-white border-slate-200 focus:border-blue-350 rounded-xl shadow-inner"
         />
         <Button
           type="button"
           onClick={handleAdd}
-          className="h-10 text-xs px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-sm transition-all active:scale-95"
+          className="h-10 text-xs px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-sm transition-all active:scale-95"
         >
           Add Choice
         </Button>
@@ -574,7 +574,7 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions }: 
     if (field.prebuiltType === "school") return <School className="h-4 w-4 text-blue-500" />;
     if (field.prebuiltType === "grade") return <GraduationCap className="h-4 w-4 text-violet-500" />;
     if (field.prebuiltType === "coach") return <User className="h-4 w-4 text-purple-500" />;
-    if (field.prebuiltType === "club") return <Users className="h-4 w-4 text-indigo-500" />;
+    if (field.prebuiltType === "club") return <Users className="h-4 w-4 text-blue-500" />;
     if (field.prebuiltType === "tshirt") return <Shirt className="h-4 w-4 text-pink-500" />;
     if (field.prebuiltType === "gender") return <User className="h-4 w-4 text-teal-500" />;
     if (field.prebuiltType === "dob") return <Calendar className="h-4 w-4 text-amber-500" />;
@@ -582,7 +582,7 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions }: 
     if (field.prebuiltType === "fide_federation") return <Globe className="h-4 w-4 text-rose-500" />;
 
     // Standard columns mapping
-    if (field.id === "uscfId" || field.id === "fideId") return <CreditCard className="h-4 w-4 text-indigo-500" />;
+    if (field.id === "uscfId" || field.id === "fideId") return <CreditCard className="h-4 w-4 text-blue-500" />;
     if (field.id === "byePreference") return <Compass className="h-4 w-4 text-teal-500" />;
     if (field.id === "newsletter") return <Mail className="h-4 w-4 text-emerald-500" />;
     if (field.id === "arrivalTime") return <Clock className="h-4 w-4 text-amber-500" />;
@@ -601,7 +601,7 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions }: 
 
   const getFieldTagClass = (field: RegistrationFormField) => {
     if (field.prebuiltType) return "bg-amber-50 text-amber-700 border-amber-200/55";
-    if (field.isCustom) return "bg-indigo-50 text-indigo-700 border-indigo-200/55";
+    if (field.isCustom) return "bg-blue-50 text-blue-700 border-blue-200/55";
     return "bg-slate-50 text-slate-600 border-slate-200/55";
   };
 
@@ -621,7 +621,7 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions }: 
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="space-y-1">
           <h3 className="text-xl font-extrabold tracking-tight text-slate-900 flex items-center gap-2.5">
-            <LayoutGrid className="h-5.5 w-5.5 text-indigo-600 animate-spin" style={{ animationDuration: '10s' }} />
+            <LayoutGrid className="h-5.5 w-5.5 text-blue-600 animate-spin" style={{ animationDuration: '10s' }} />
             Tactile Form Builder
           </h3>
           <p className="text-xs font-semibold text-slate-500 leading-relaxed">
@@ -664,7 +664,7 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions }: 
       </div>
 
       {/* CHESS PREBUILT SHELF */}
-      <div className="bg-gradient-to-r from-amber-500/10 via-indigo-500/5 to-transparent border border-amber-200/50 rounded-2xl p-5 space-y-4 shadow-sm">
+      <div className="bg-gradient-to-r from-amber-500/10 via-blue-500/5 to-transparent border border-amber-200/50 rounded-2xl p-5 space-y-4 shadow-sm">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-2">
             <Sparkles className="h-4.5 w-4.5 text-amber-500 animate-pulse" />
@@ -691,7 +691,7 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions }: 
                 {tmpl.prebuiltType === "school" && <School className="h-3.5 w-3.5 text-blue-500" />}
                 {tmpl.prebuiltType === "grade" && <GraduationCap className="h-3.5 w-3.5 text-violet-500" />}
                 {tmpl.prebuiltType === "coach" && <User className="h-3.5 w-3.5 text-purple-500" />}
-                {tmpl.prebuiltType === "club" && <Users className="h-3.5 w-3.5 text-indigo-500" />}
+                {tmpl.prebuiltType === "club" && <Users className="h-3.5 w-3.5 text-blue-500" />}
                 {tmpl.prebuiltType === "tshirt" && <Shirt className="h-3.5 w-3.5 text-pink-500" />}
                 {tmpl.prebuiltType === "gender" && <User className="h-3.5 w-3.5 text-teal-500" />}
                 {tmpl.prebuiltType === "dob" && <Calendar className="h-3.5 w-3.5 text-amber-500" />}
@@ -724,7 +724,7 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions }: 
                   {isFocused ? (
                     /* EXPANDED ACTIVE STATE CARD */
                     <div 
-                      className="border-l-4 border-l-indigo-600 bg-white border-indigo-200 shadow-xl ring-1 ring-indigo-400/10 p-5 rounded-2xl animate-in fade-in duration-200"
+                      className="border-l-4 border-l-blue-600 bg-white border-blue-200 shadow-xl ring-1 ring-blue-400/10 p-5 rounded-2xl animate-in fade-in duration-200"
                     >
                       {/* Drag/Sort indicator & Header row */}
                       <div className="flex items-center justify-between gap-3 pb-3 mb-3.5 border-b border-slate-100">
@@ -765,25 +765,25 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions }: 
                           <SelectContent className="rounded-xl">
                             <SelectItem value="text">
                               <div className="flex items-center gap-2">
-                                <AlignLeft className="h-3.5 w-3.5 text-indigo-500" />
+                                <AlignLeft className="h-3.5 w-3.5 text-blue-500" />
                                 <span>Short answer</span>
                               </div>
                             </SelectItem>
                             <SelectItem value="number">
                               <div className="flex items-center gap-2">
-                                <Hash className="h-3.5 w-3.5 text-indigo-500" />
+                                <Hash className="h-3.5 w-3.5 text-blue-500" />
                                 <span>Number</span>
                               </div>
                             </SelectItem>
                             <SelectItem value="select">
                               <div className="flex items-center gap-2">
-                                <ListPlus className="h-3.5 w-3.5 text-indigo-500" />
+                                <ListPlus className="h-3.5 w-3.5 text-blue-500" />
                                 <span>Dropdown</span>
                               </div>
                             </SelectItem>
                             <SelectItem value="boolean">
                               <div className="flex items-center gap-2">
-                                <CheckSquare className="h-3.5 w-3.5 text-indigo-500" />
+                                <CheckSquare className="h-3.5 w-3.5 text-blue-500" />
                                 <span>Yes/No toggle</span>
                               </div>
                             </SelectItem>
@@ -800,7 +800,7 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions }: 
                             <Input
                               value={field.label}
                               onChange={(e) => updateField(field.id, { label: e.target.value })}
-                              className="h-10 text-sm bg-white rounded-xl focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400 font-semibold"
+                              className="h-10 text-sm bg-white rounded-xl focus:border-blue-400 focus:ring-1 focus:ring-blue-400 font-semibold"
                             />
                           </div>
 
@@ -812,7 +812,7 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions }: 
                                 value={field.placeholder ?? ""}
                                 onChange={(e) => updateField(field.id, { placeholder: e.target.value })}
                                 placeholder="Type a helper watermark..."
-                                className="h-10 text-sm bg-white rounded-xl focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400"
+                                className="h-10 text-sm bg-white rounded-xl focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
                               />
                             </div>
                           )}
@@ -826,7 +826,7 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions }: 
                             onChange={(e) => updateField(field.id, { description: e.target.value })}
                             rows={2}
                             placeholder="This helper text will appear underneath the question on the signup page..."
-                            className="w-full text-xs border rounded-xl p-3 bg-white border-slate-200 focus:outline-none focus:border-indigo-450 focus:ring-1 focus:ring-indigo-400/20 font-semibold leading-relaxed"
+                            className="w-full text-xs border rounded-xl p-3 bg-white border-slate-200 focus:outline-none focus:border-blue-450 focus:ring-1 focus:ring-blue-400/20 font-semibold leading-relaxed"
                           />
                         </div>
 
@@ -978,7 +978,7 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions }: 
                           <div className="flex flex-wrap gap-1.5 max-h-12 overflow-hidden items-center">
                             {(field.options && field.options.length > 0) ? (
                               field.options.map((opt, oIdx) => (
-                                <span key={oIdx} className="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-bold bg-indigo-50/30 text-indigo-600 border border-indigo-100/20 shadow-sm">
+                                <span key={oIdx} className="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-bold bg-blue-50/30 text-blue-600 border border-blue-100/20 shadow-sm">
                                   {opt}
                                 </span>
                               ))
@@ -1003,19 +1003,19 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions }: 
           {/* GORGEOUS STICKY FLOATING BUILDER TOOLBAR */}
           <div className="sticky bottom-6 z-20 mx-auto flex items-center justify-between gap-3 p-2.5 rounded-3xl border border-slate-200/80 bg-white/95 backdrop-blur-md shadow-2xl max-w-md animate-in slide-in-from-bottom-5 duration-300">
             <div className="flex items-center gap-1.5 w-full justify-around">
-              <div className="flex items-center gap-1.5 px-3 py-1 bg-indigo-50 rounded-2xl shrink-0">
-                <Sparkle className="h-3.5 w-3.5 text-indigo-600 animate-spin" style={{ animationDuration: '6s' }} />
-                <span className="text-[10px] font-extrabold text-indigo-950 tracking-wider">Add Piece</span>
+              <div className="flex items-center gap-1.5 px-3 py-1 bg-blue-50 rounded-2xl shrink-0">
+                <Sparkle className="h-3.5 w-3.5 text-blue-600 animate-spin" style={{ animationDuration: '6s' }} />
+                <span className="text-[10px] font-extrabold text-blue-950 tracking-wider">Add Piece</span>
               </div>
               
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="h-9 px-2 text-xs text-slate-700 hover:text-indigo-600 hover:bg-indigo-50/55 rounded-xl flex items-center gap-1.5 transition-all duration-150 active:scale-95 font-bold"
+                className="h-9 px-2 text-xs text-slate-700 hover:text-blue-600 hover:bg-blue-50/55 rounded-xl flex items-center gap-1.5 transition-all duration-150 active:scale-95 font-bold"
                 onClick={() => addCustomQuestionWithType("text")}
               >
-                <AlignLeft className="h-4 w-4 text-indigo-500" />
+                <AlignLeft className="h-4 w-4 text-blue-500" />
                 <span>Text</span>
               </Button>
               
@@ -1023,10 +1023,10 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions }: 
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="h-9 px-2 text-xs text-slate-700 hover:text-indigo-600 hover:bg-indigo-50/55 rounded-xl flex items-center gap-1.5 transition-all duration-150 active:scale-95 font-bold"
+                className="h-9 px-2 text-xs text-slate-700 hover:text-blue-600 hover:bg-blue-50/55 rounded-xl flex items-center gap-1.5 transition-all duration-150 active:scale-95 font-bold"
                 onClick={() => addCustomQuestionWithType("number")}
               >
-                <Hash className="h-4 w-4 text-indigo-500" />
+                <Hash className="h-4 w-4 text-blue-500" />
                 <span>Number</span>
               </Button>
               
@@ -1034,10 +1034,10 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions }: 
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="h-9 px-2 text-xs text-slate-700 hover:text-indigo-600 hover:bg-indigo-50/55 rounded-xl flex items-center gap-1.5 transition-all duration-150 active:scale-95 font-bold"
+                className="h-9 px-2 text-xs text-slate-700 hover:text-blue-600 hover:bg-blue-50/55 rounded-xl flex items-center gap-1.5 transition-all duration-150 active:scale-95 font-bold"
                 onClick={() => addCustomQuestionWithType("select")}
               >
-                <ListPlus className="h-4 w-4 text-indigo-500" />
+                <ListPlus className="h-4 w-4 text-blue-500" />
                 <span>Dropdown</span>
               </Button>
               
@@ -1045,10 +1045,10 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions }: 
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="h-9 px-2 text-xs text-slate-700 hover:text-indigo-600 hover:bg-indigo-50/55 rounded-xl flex items-center gap-1.5 transition-all duration-150 active:scale-95 font-bold"
+                className="h-9 px-2 text-xs text-slate-700 hover:text-blue-600 hover:bg-blue-50/55 rounded-xl flex items-center gap-1.5 transition-all duration-150 active:scale-95 font-bold"
                 onClick={() => addCustomQuestionWithType("boolean")}
               >
-                <CheckSquare className="h-4 w-4 text-indigo-500" />
+                <CheckSquare className="h-4 w-4 text-blue-500" />
                 <span>Yes/No</span>
               </Button>
             </div>
@@ -1066,9 +1066,9 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions }: 
                     key={step} 
                     className={`h-2 rounded-full transition-all duration-300 ${
                       previewStep === step 
-                        ? "w-8 bg-gradient-to-r from-indigo-500 to-violet-600" 
+                        ? "w-8 bg-gradient-to-r from-blue-500 to-violet-600" 
                         : previewStep > step 
-                          ? "w-4 bg-indigo-300" 
+                          ? "w-4 bg-blue-300" 
                           : "w-2.5 bg-slate-200"
                     }`} 
                   />
@@ -1079,10 +1079,10 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions }: 
             <div className="rounded-3xl border border-slate-200 bg-white p-5 space-y-4 max-h-[720px] overflow-y-auto shadow-md">
               {/* Drafts summary badge shelf for multi-player registers */}
               {multiPlayerAllowed && previewStep < 3 && (
-                <div className="bg-indigo-50/60 border border-indigo-100 rounded-2xl p-4 space-y-3 shadow-sm">
+                <div className="bg-blue-50/60 border border-blue-100 rounded-2xl p-4 space-y-3 shadow-sm">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-indigo-900 flex items-center gap-1.5">
-                      <Users className="h-4 w-4 text-indigo-600" />
+                    <span className="text-xs font-bold text-blue-900 flex items-center gap-1.5">
+                      <Users className="h-4 w-4 text-blue-600" />
                       Registration Cart ({previewDrafts.length} Saved)
                     </span>
                     {previewStep === 1 && (
@@ -1090,7 +1090,7 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions }: 
                         type="button"
                         size="sm"
                         onClick={handleAddPlayerToRoster}
-                        className="h-7 text-xs bg-indigo-600 hover:bg-indigo-700 font-bold shadow-sm"
+                        className="h-7 text-xs bg-blue-600 hover:bg-blue-700 font-bold shadow-sm"
                       >
                         <UserPlus className="h-3 w-3 mr-1" />
                         Add to Cart
@@ -1113,7 +1113,7 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions }: 
                       ))}
                     </div>
                   ) : (
-                    <p className="text-[11px] text-indigo-600/80 italic font-medium">Cart is currently empty. Fill details below and click "Add to Cart" to test cart mode.</p>
+                    <p className="text-[11px] text-blue-600/80 italic font-medium">Cart is currently empty. Fill details below and click "Add to Cart" to test cart mode.</p>
                   )}
                 </div>
               )}
@@ -1253,7 +1253,7 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions }: 
                                   name="byePref" 
                                   checked={byePreference === "none"} 
                                   onChange={() => setByePreference("none")} 
-                                  className="text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5"
+                                  className="text-blue-600 focus:ring-blue-500 h-3.5 w-3.5"
                                 />
                                 No byes
                               </label>
@@ -1263,7 +1263,7 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions }: 
                                   name="byePref" 
                                   checked={byePreference === "yes"} 
                                   onChange={() => setByePreference("yes")} 
-                                  className="text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5"
+                                  className="text-blue-600 focus:ring-blue-500 h-3.5 w-3.5"
                                 />
                                 Request byes
                               </label>
@@ -1279,7 +1279,7 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions }: 
                                       onClick={() => handleToggleByeRound(r)}
                                       className={`text-[10px] px-2.5 py-1.5 rounded-lg border font-bold transition-all active:scale-95 ${
                                         checked 
-                                          ? "bg-indigo-650 border-indigo-600 text-white shadow-sm font-extrabold" 
+                                          ? "bg-blue-650 border-blue-600 text-white shadow-sm font-extrabold" 
                                           : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
                                       }`}
                                     >
@@ -1309,7 +1309,7 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions }: 
                               type="checkbox" 
                               checked={val}
                               onChange={(e) => handleBoolChange(e.target.checked)}
-                              className="mt-1 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4 shrink-0" 
+                              className="mt-1 rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-4 w-4 shrink-0" 
                             />
                             <div className="space-y-0.5">
                               <span className="block text-xs font-bold text-slate-800">{field.label} {req && <span className="text-red-500">*</span>}</span>
@@ -1362,7 +1362,7 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions }: 
                               onChange={(e) => setNotes(e.target.value)}
                               placeholder={field.placeholder || "Write instructions..."}
                               rows={2.5}
-                              className="w-full text-xs border rounded-xl p-2.5 bg-white border-slate-200 focus:outline-none focus:border-indigo-400 font-semibold"
+                              className="w-full text-xs border rounded-xl p-2.5 bg-white border-slate-200 focus:outline-none focus:border-blue-400 font-semibold"
                             />
                             {field.description && (
                               <p className="text-[10px] text-slate-400 leading-normal mt-0.5 font-semibold">{field.description}</p>
@@ -1471,7 +1471,7 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions }: 
                               <div key={player.id} className="p-4 space-y-2 text-xs">
                                 <div className="flex items-center justify-between">
                                   <span className="font-bold text-slate-900">{idx + 1}. {player.firstName} {player.lastName}</span>
-                                  <span className="bg-indigo-50 border border-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded text-[10px]">
+                                  <span className="bg-blue-50 border border-blue-100 text-blue-700 font-bold px-2 py-0.5 rounded text-[10px]">
                                     {player.section}
                                   </span>
                                 </div>
@@ -1482,7 +1482,7 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions }: 
                                   {player.fideId && <div>FIDE ID: <span className="font-bold text-slate-700">{player.fideId}</span></div>}
                                   {player.byePreference === "yes" && player.byeRounds?.length && (
                                     <div className="col-span-2">
-                                      Byes: <span className="font-extrabold text-indigo-650 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">{player.byeRounds.join(", ")}</span>
+                                      Byes: <span className="font-extrabold text-blue-650 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">{player.byeRounds.join(", ")}</span>
                                     </div>
                                   )}
                                 </div>
