@@ -870,7 +870,7 @@ export default function SwissStandings({ tournamentId, showExportControls = true
       html += `    <td style="border: 1px solid black; padding: 6px 8px; text-align: center;">&nbsp;</td>\n`;
       
       if (tournamentConfig?.prizesEnabled && showPrizes) {
-        const amountText = tournamentConfig?.showPrizeAmounts !== false ? (standing.prizeAmount || '---') : '---';
+        const amountText = standing.prizeAmount || '---';
         html += `    <td style="border: 1px solid black; padding: 6px 8px; text-align: left; font-weight: bold;">${amountText}</td>\n`;
       }
       html += `  </tr>\n`;
@@ -1128,46 +1128,8 @@ a:hover { text-decoration: underline; }
 
   const renderRoundOutcomeBadge = (res: PlayerRoundResult) => {
     const text = formatRoundResultDisplay(res);
-    if (text === '---') return <span className="text-slate-300 dark:text-slate-700">—</span>;
-    
-    const outcome = res.result;
-    
-    if (outcome === 'W' || outcome === 'forfeit-win') {
-      return (
-        <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 tracking-wide">
-          {text}
-        </span>
-      );
-    }
-    if (outcome === 'L' || outcome === 'forfeit-loss' || outcome === 'double-forfeit') {
-      return (
-        <span className="text-xs font-medium text-rose-600 dark:text-rose-455">
-          {text}
-        </span>
-      );
-    }
-    if (outcome === 'D') {
-      return (
-        <span className="text-xs font-semibold text-slate-550 dark:text-slate-400">
-          {text}
-        </span>
-      );
-    }
-    if (outcome === 'bye') {
-      return (
-        <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400">
-          {text}
-        </span>
-      );
-    }
-    if (outcome === 'unplayed') {
-      return (
-        <span className="text-xs font-medium text-slate-400 dark:text-slate-500">
-          {text}
-        </span>
-      );
-    }
-    return <span className="text-slate-500 dark:text-slate-400 text-xs font-medium">{text}</span>;
+    if (text === '---') return <span className="text-black">—</span>;
+    return <span className="text-black text-xs font-bold font-sans">{text}</span>;
   };
 
 
@@ -1235,20 +1197,6 @@ a:hover { text-decoration: underline; }
                 </div>
               )}
 
-              {/* Director-only Prize Amount Toggler */}
-              {tournamentConfig?.prizesEnabled && isDirector && (
-                <div className="flex items-center space-x-2 bg-slate-50 dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-100 dark:border-slate-700">
-                  <Switch
-                    id="show-amounts-toggle"
-                    checked={tournamentConfig?.showPrizeAmounts !== false}
-                    onCheckedChange={(checked) => updateShowPrizeAmountsMutation.mutate(checked)}
-                    disabled={updateShowPrizeAmountsMutation.isPending}
-                  />
-                  <Label htmlFor="show-amounts-toggle" className="text-xs font-medium text-slate-500 dark:text-slate-400 cursor-pointer">
-                    {updateShowPrizeAmountsMutation.isPending ? "Saving..." : "Show Payouts"}
-                  </Label>
-                </div>
-              )}
 
               {showExportControls && (
                 <div className="flex items-center gap-2">
@@ -1295,42 +1243,42 @@ a:hover { text-decoration: underline; }
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse border border-slate-200 dark:border-slate-800">
+            <table className="w-full border-collapse border border-black bg-white rounded-none text-black">
               <thead>
-                <tr className="bg-slate-50 dark:bg-slate-800/85 border-b border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300">
-                  <th className="px-3 py-3 text-center text-xs font-bold w-12 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">
+                <tr className="bg-[#e8e8e8] border-b border-black text-black">
+                  <th className="px-3 py-3 text-center text-xs font-bold w-12 border border-black bg-[#e8e8e8] text-black">
                     Bd
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-bold border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">
+                  <th className="px-4 py-3 text-left text-xs font-bold border border-black bg-[#e8e8e8] text-black">
                     Name/Rating/ID
                   </th>
                   {Array.from({ length: totalRounds }, (_, i) => (
-                    <th key={i} className="px-3 py-3 text-center text-xs font-bold w-16 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">
+                    <th key={i} className="px-3 py-3 text-center text-xs font-bold w-16 border border-black bg-[#e8e8e8] text-black">
                       Rd {i + 1}
                     </th>
                   ))}
-                  <th className="px-3 py-3 text-center text-xs font-bold w-20 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">
+                  <th className="px-3 py-3 text-center text-xs font-bold w-20 border border-black bg-[#e8e8e8] text-black">
                     Total
                   </th>
                   {activeTiebreakRules.map((rule) => (
-                    <th key={rule} className="px-3 py-3 text-center text-xs font-bold w-20 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">
+                    <th key={rule} className="px-3 py-3 text-center text-xs font-bold w-20 border border-black bg-[#e8e8e8] text-black">
                       {rule}
                     </th>
                   ))}
-                  <th className="px-3 py-3 text-center text-xs font-bold w-20 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">
+                  <th className="px-3 py-3 text-center text-xs font-bold w-20 border border-black bg-[#e8e8e8] text-black">
                     Est. Post
                   </th>
-                  <th className="px-3 py-3 text-center text-xs font-bold w-20 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">
+                  <th className="px-3 py-3 text-center text-xs font-bold w-20 border border-black bg-[#e8e8e8] text-black">
                     Perf.
                   </th>
                   {tournamentConfig?.prizesEnabled && showPrizes && (
-                    <th className="px-4 py-3 text-left text-xs font-bold w-36 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80">
+                    <th className="px-4 py-3 text-left text-xs font-bold w-36 border border-black bg-[#e8e8e8] text-black">
                       Prizes
                     </th>
                   )}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+              <tbody className="divide-y divide-black">
                 {standings.map((standing) => {
                   const isFide = tournamentConfig?.details.primaryRatingSystem === 'fide';
                   const playerRating = (isFide ? (standing.player.fideRating ?? standing.player.rating) : (standing.player.uscfRating ?? standing.player.rating)) || 'Unrated';
@@ -1348,21 +1296,21 @@ a:hover { text-decoration: underline; }
                       {/* Row 1: Bd, Name, Round results, Total Points, Tiebreaks, Est. Post, Perf, Prizes */}
                       <tr
                         className={cn(
-                          "hover:bg-indigo-50/10 dark:hover:bg-indigo-950/5 transition-colors border-t border-slate-200 dark:border-slate-800",
-                          isWithdrawn ? "opacity-60 bg-slate-50/50 dark:bg-slate-900/40 line-through text-slate-450 dark:text-slate-550" : ""
+                          "bg-white text-black border-t border-black",
+                          isWithdrawn ? "opacity-65 line-through" : ""
                         )}
                       >
-                        <td className="px-3 py-2 text-center font-mono text-sm font-bold border border-slate-200 dark:border-slate-800 bg-slate-50/30 dark:bg-slate-850/10 text-slate-700 dark:text-slate-350">
+                        <td className="px-3 py-2 text-center font-mono text-sm font-bold border border-black bg-white text-black">
                           {pairingNum}
                         </td>
-                        <td className="px-4 py-2 text-sm font-bold text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-800">
+                        <td className="px-4 py-2 text-sm font-bold text-black border border-black bg-white">
                           <div className="flex items-center gap-1.5">
                             {isDigitsOnly ? (
                               <a
                                 href={`http://www.uschess.org/msa/MbrDtlMain.php?${uscfId}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="font-bold text-indigo-650 dark:text-indigo-400 hover:underline transition-colors"
+                                className="font-bold text-black hover:underline transition-colors"
                               >
                                 {nameStr}
                               </a>
@@ -1370,40 +1318,38 @@ a:hover { text-decoration: underline; }
                               <span>{nameStr}</span>
                             )}
                             {standing.player.isActiveTd && (
-                              <Badge variant="outline" className="text-[10px] py-0 px-1.5 border-slate-200 dark:border-slate-800 text-slate-400 dark:text-slate-500 font-normal">substitute</Badge>
+                              <span className="text-[10px] text-black font-normal ml-1.5">(substitute)</span>
                             )}
                           </div>
                         </td>
                         {standing.roundResults.map((result, roundIdx) => (
-                          <td key={roundIdx} className="px-3 py-2 text-center border border-slate-200 dark:border-slate-800 bg-white/10 dark:bg-slate-950/5 font-semibold">
+                          <td key={roundIdx} className="px-3 py-2 text-center border border-black bg-white text-black">
                             {renderRoundOutcomeBadge(result)}
                           </td>
                         ))}
-                        <td className="px-3 py-2 text-center font-black text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 font-mono bg-slate-50/50 dark:bg-slate-900/20">
+                        <td className="px-3 py-2 text-center font-black text-black border border-black font-mono bg-white">
                           {standing.totalPoints.toFixed(1).replace(/\.0$/, "")}
                         </td>
                         {activeTiebreakRules.map((rule) => {
                           const val = standing.tiebreakValues[rule];
                           return (
-                            <td key={rule} className="px-3 py-2 text-center text-sm font-mono text-slate-600 dark:text-slate-350 border border-slate-200 dark:border-slate-800">
+                            <td key={rule} className="px-3 py-2 text-center text-sm font-mono text-black border border-black bg-white">
                               {val !== undefined ? val.toFixed(2) : "0.00"}
                             </td>
                           );
                         })}
-                        <td className="px-3 py-2 text-center text-sm font-mono text-slate-600 dark:text-slate-350 border border-slate-200 dark:border-slate-800 bg-slate-50/10 dark:bg-slate-900/5">
+                        <td className="px-3 py-2 text-center text-sm font-mono text-black border border-black bg-white">
                           {standing.postRating ?? playerRating}
                         </td>
-                        <td className="px-3 py-2 text-center text-sm font-mono text-slate-600 dark:text-slate-350 border border-slate-200 dark:border-slate-800 bg-slate-50/10 dark:bg-slate-900/5">
+                        <td className="px-3 py-2 text-center text-sm font-mono text-black border border-black bg-white">
                           {standing.performanceRating ?? playerRating}
                         </td>
                         {tournamentConfig?.prizesEnabled && showPrizes && (
-                          <td className="px-4 py-2 text-left text-sm border border-slate-200 dark:border-slate-800 font-semibold">
+                          <td className="px-4 py-2 text-left text-sm border border-black bg-white font-bold text-black font-sans">
                             {standing.prizeCategory && standing.prizeCategory !== '---' ? (
-                              <Badge className="bg-indigo-50 dark:bg-indigo-950/30 text-indigo-650 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/30 font-semibold text-[11px] py-0.5 px-2 hover:bg-indigo-50 dark:hover:bg-indigo-900/40 shadow-sm w-fit">
-                                {standing.prizeCategory}
-                              </Badge>
+                              standing.prizeCategory
                             ) : (
-                              <span className="text-slate-350 dark:text-slate-750 font-medium">—</span>
+                              "—"
                             )}
                           </td>
                         )}
@@ -1412,12 +1358,12 @@ a:hover { text-decoration: underline; }
                       {/* Row 2: Empty Bd cell, Rating & Local ID, Cumulative scores per round, empty for total & tiebreaks */}
                       <tr
                         className={cn(
-                          "hover:bg-indigo-50/5 dark:hover:bg-indigo-950/2 transition-colors border-b border-slate-200 dark:border-slate-800",
-                          isWithdrawn ? "opacity-60 bg-slate-50/50 dark:bg-slate-900/40 line-through text-slate-400 dark:text-slate-600" : ""
+                          "bg-white text-black border-b border-black",
+                          isWithdrawn ? "opacity-65 line-through" : ""
                         )}
                       >
-                        <td className="px-3 py-1.5 border border-slate-200 dark:border-slate-800 bg-slate-100/60 dark:bg-slate-800/45 text-center">&nbsp;</td>
-                        <td className="px-4 py-1.5 text-xs font-mono text-slate-450 dark:text-slate-555 border border-slate-200 dark:border-slate-800">
+                        <td className="px-3 py-1.5 border border-black bg-[#e8e8e8] text-center">&nbsp;</td>
+                        <td className="px-4 py-1.5 text-xs font-mono text-black border border-black bg-white">
                           {playerRating}{uscfId ? ` \u00a0\u00a0 ID: ${uscfId}` : ''}
                         </td>
                         {standing.roundResults.map((_, roundIndex) => {
@@ -1426,23 +1372,23 @@ a:hover { text-decoration: underline; }
                             .reduce((sum, entry) => sum + entry.points, 0);
                           const cumulativeText = roundIndex < currentRound ? cumulative.toFixed(1).replace(/\.0$/, ".0") : '';
                           return (
-                            <td key={roundIndex} className="px-3 py-1.5 text-center text-xs font-mono font-medium text-slate-450 dark:text-slate-500 border border-slate-200 dark:border-slate-800 bg-white/5 dark:bg-slate-950/2">
+                            <td key={roundIndex} className="px-3 py-1.5 text-center text-xs font-mono font-medium text-black border border-black bg-white">
                               {cumulativeText}
                             </td>
                           );
                         })}
-                        <td className="px-3 py-1.5 border border-slate-200 dark:border-slate-800 bg-slate-50/10 dark:bg-slate-900/2">&nbsp;</td>
+                        <td className="px-3 py-1.5 border border-black bg-white text-center">&nbsp;</td>
                         {activeTiebreakRules.map((rule) => (
-                          <td key={rule} className="px-3 py-1.5 border border-slate-200 dark:border-slate-800 bg-slate-50/5 dark:bg-slate-900/1">&nbsp;</td>
+                          <td key={rule} className="px-3 py-1.5 border border-black bg-white text-center">&nbsp;</td>
                         ))}
-                        <td className="px-3 py-1.5 border border-slate-200 dark:border-slate-800 bg-slate-50/10 dark:bg-slate-900/2">&nbsp;</td>
-                        <td className="px-3 py-1.5 border border-slate-200 dark:border-slate-800 bg-slate-50/10 dark:bg-slate-900/2">&nbsp;</td>
+                        <td className="px-3 py-1.5 border border-black bg-white text-center">&nbsp;</td>
+                        <td className="px-3 py-1.5 border border-black bg-white text-center">&nbsp;</td>
                         {tournamentConfig?.prizesEnabled && showPrizes && (
-                          <td className="px-4 py-1.5 text-left text-xs font-bold text-emerald-600 dark:text-emerald-400 border border-slate-200 dark:border-slate-800">
-                            {tournamentConfig?.showPrizeAmounts !== false && standing.prizeAmount && standing.prizeAmount !== '---' ? (
-                              <span>{standing.prizeAmount}</span>
+                          <td className="px-4 py-1.5 text-left text-xs font-bold text-black border border-black bg-white font-sans">
+                            {standing.prizeAmount && standing.prizeAmount !== '---' ? (
+                              standing.prizeAmount
                             ) : (
-                              <span>&nbsp;</span>
+                              "—"
                             )}
                           </td>
                         )}
