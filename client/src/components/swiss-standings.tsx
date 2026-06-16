@@ -933,7 +933,7 @@ export default function SwissStandings({ tournamentId, showExportControls = true
     
     // Headers
     html += `<thead>\n  <tr style="border: 1px solid black; padding: 6px 8px;">\n`;
-    html += `    <td style="background-color: #e8e8e8; border: 1px solid black; font-weight: bold; padding: 6px 8px; text-align: center; width: 45px;">Bd</td>\n`;
+    html += `    <td style="background-color: #e8e8e8; border: 1px solid black; font-weight: bold; padding: 6px 8px; text-align: center; width: 45px;">#</td>\n`;
     html += `    <td style="background-color: #e8e8e8; border: 1px solid black; font-weight: bold; padding: 6px 8px; text-align: left; width: 200px;">Name/Rating/ID</td>\n`;
     for (let r = 1; r <= totalRounds; r++) {
       html += `    <td style="background-color: #e8e8e8; border: 1px solid black; font-weight: bold; padding: 6px 8px; text-align: center; width: 55px;">Rd ${r}</td>\n`;
@@ -945,7 +945,7 @@ export default function SwissStandings({ tournamentId, showExportControls = true
     html += `  </tr>\n</thead>\n<tbody>\n`;
     
     // Rows
-    sectionStandings.forEach((standing) => {
+    sectionStandings.forEach((standing, index) => {
       const playerRating = (isFide ? (standing.player.fideRating ?? standing.player.rating) : (standing.player.uscfRating ?? standing.player.rating)) || 'Unrated';
       const playerID = standing.player.localId || '';
       const lastName = standing.player.lastName || '';
@@ -962,7 +962,7 @@ export default function SwissStandings({ tournamentId, showExportControls = true
         
       // Row 1: Pairing No, Name, Round results, Total Points, Prize Category
       html += `  <tr style="border: 1px solid black; padding: 6px 8px;">\n`;
-      html += `    <td style="background-color: #e8e8e8; border: 1px solid black; font-weight: bold; padding: 6px 8px; text-align: center;">${pairingNum}</td>\n`;
+      html += `    <td style="background-color: #e8e8e8; border: 1px solid black; font-weight: bold; padding: 6px 8px; text-align: center;">${index + 1}</td>\n`;
       html += `    <td style="border: 1px solid black; font-weight: bold; padding: 6px 8px; text-align: left;">${nameHtml}</td>\n`;
       
       standing.roundResults.forEach((res) => {
@@ -1258,7 +1258,7 @@ a:hover { text-decoration: underline; }
 
 
   return (
-    <Card className="border-none shadow-xl dark:bg-slate-900">
+    <Card className="mx-4 md:mx-0 border border-slate-200 dark:border-slate-800 shadow-xl dark:bg-slate-900">
       <CardHeader className="border-b border-slate-100 dark:border-slate-800">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
           <div>
@@ -1360,7 +1360,7 @@ a:hover { text-decoration: underline; }
           </div>
         </div>
       </CardHeader>
-      <CardContent className="p-0">
+      <CardContent className="px-4 pb-4 md:px-6 md:pb-6">
         {standings.length === 0 ? (
           <div className="text-center py-16 text-slate-500 dark:text-slate-400">
             No standings available yet
@@ -1371,7 +1371,7 @@ a:hover { text-decoration: underline; }
               <thead>
                 <tr className="bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300">
                   <th className="px-3 py-3 text-center text-xs font-bold w-12 border-b border-r border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-sans">
-                    Bd
+                    #
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-bold border-b border-r border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-sans">
                     Name/Rating/ID
@@ -1403,7 +1403,7 @@ a:hover { text-decoration: underline; }
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-                {standings.map((standing) => {
+                {standings.map((standing, index) => {
                   const isFide = tournamentConfig?.details.primaryRatingSystem === 'fide';
                   const playerRating = (isFide ? (standing.player.fideRating ?? standing.player.rating) : (standing.player.uscfRating ?? standing.player.rating)) || 'Unrated';
                   const lastName = standing.player.lastName || '';
@@ -1425,7 +1425,7 @@ a:hover { text-decoration: underline; }
                         )}
                       >
                         <td className="px-3 py-2 text-center font-sans text-sm font-bold border-r border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 bg-slate-50/50 dark:bg-slate-800/20 w-12">
-                          {pairingNum}
+                          {index + 1}
                         </td>
                         <td className="px-4 py-2 text-sm font-bold border-r border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200">
                           <div className="flex items-center gap-1.5">
@@ -1451,7 +1451,7 @@ a:hover { text-decoration: underline; }
                             {renderRoundOutcomeBadge(result)}
                           </td>
                         ))}
-                        <td className="px-3 py-2 text-center font-black border-r border-slate-200 dark:border-slate-800 font-sans text-indigo-600 dark:text-indigo-400 bg-indigo-50/10 dark:bg-indigo-950/10">
+                        <td className="px-3 py-2 text-center font-black border-r border-slate-200 dark:border-slate-800 font-sans text-slate-900 dark:text-slate-100 bg-slate-50 dark:bg-slate-800/30">
                           {standing.totalPoints.toFixed(1).replace(/\.0$/, "")}
                         </td>
                         {activeTiebreakRules.map((rule) => {

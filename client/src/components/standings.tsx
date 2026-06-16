@@ -419,7 +419,7 @@ export default function Standings({ tournamentId, showExportControls = true }: S
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-center">
-                        <span className="inline-flex items-center justify-center px-2.5 py-1 rounded-lg text-sm font-black font-sans shadow-sm border bg-indigo-50 dark:bg-indigo-950/30 text-indigo-700 dark:text-indigo-400 border-indigo-100 dark:border-indigo-900/30">
+                        <span className="inline-flex items-center justify-center px-2.5 py-1 rounded-lg text-sm font-black font-sans shadow-sm border bg-slate-100 dark:bg-slate-800/60 text-slate-900 dark:text-slate-100 border-slate-200 dark:border-slate-700">
                           {standing.points}
                         </span>
                       </td>
