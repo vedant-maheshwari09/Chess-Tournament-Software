@@ -2780,6 +2780,17 @@ function StepTwo({ format, mode, builderMode, config, onConfigChange, onBack: _o
 
                       <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/30 px-5 py-4 transition-all hover:bg-slate-50/50">
                         <div className="space-y-0.5">
+                          <Label className="text-base font-medium text-black">Auto-Accept Registrations</Label>
+                          <p className="text-xs text-slate-500 font-normal">Automatically approve and roster players upon registration.</p>
+                        </div>
+                        <Switch
+                          checked={config.registers.autoAcceptRegistrations ?? false}
+                          onCheckedChange={(checked) => updateRegisters({ autoAcceptRegistrations: checked })}
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/30 px-5 py-4 transition-all hover:bg-slate-50/50">
+                        <div className="space-y-0.5">
                           <Label className="text-base font-medium text-black">Multi-Player Entry</Label>
                           <p className="text-xs text-slate-500 font-normal">Enable registration of multiple players per account.</p>
                         </div>

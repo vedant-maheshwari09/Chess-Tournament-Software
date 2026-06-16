@@ -42,6 +42,7 @@ export interface RegistersConfig {
   registrationDeadlineDate?: string | null;
   registrationDeadlineTime?: string | null;
   allowExtraGames?: boolean;
+  autoAcceptRegistrations?: boolean;
 }
 
 export interface FideRegistrationData {
@@ -449,6 +450,7 @@ export function createDefaultConfig(format: Tournament["format"], mode: Tourname
       thirdPlaceMatch: false,
       pushNotifications: true,
       allowExtraGames: false,
+      autoAcceptRegistrations: false,
     },
     fide: {
       prizeFund: "",

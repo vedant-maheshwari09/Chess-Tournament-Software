@@ -62,10 +62,10 @@ export default function RegistrationManagement({ tournamentId, tournament }: Reg
   });
 
   const updateRegistrationMutation = useMutation({
-    mutationFn: async ({ registrationId, status }: { registrationId: number; status: string }) => {
+    mutationFn: async ({ registrationId, status, paymentStatus }: { registrationId: number; status: string; paymentStatus?: string }) => {
       return apiRequest(`/api/tournaments/${tournamentId}/registrations/${registrationId}`, {
         method: "PATCH",
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({ status, paymentStatus }),
       });
     },
     onSuccess: (_, { registrationId, status }) => {
@@ -148,25 +148,25 @@ export default function RegistrationManagement({ tournamentId, tournament }: Reg
     <div className="space-y-6">
       {/* Stats Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card className="bg-slate-50/50 border-slate-200/60 shadow-sm">
+        <Card className="bg-white border-slate-200 shadow-sm">
           <CardContent className="p-4 flex flex-col justify-between h-20">
             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total</span>
             <span className="text-2xl font-bold text-slate-900">{stats.total}</span>
           </CardContent>
         </Card>
-        <Card className="bg-amber-50/40 border-amber-200/50 shadow-sm">
+        <Card className="bg-amber-50 border-amber-200 shadow-sm">
           <CardContent className="p-4 flex flex-col justify-between h-20">
             <span className="text-xs font-semibold text-amber-600 uppercase tracking-wider">Pending</span>
             <span className="text-2xl font-bold text-amber-700">{stats.pending}</span>
           </CardContent>
         </Card>
-        <Card className="bg-emerald-50/40 border-emerald-200/50 shadow-sm">
+        <Card className="bg-emerald-50 border-emerald-200 shadow-sm">
           <CardContent className="p-4 flex flex-col justify-between h-20">
             <span className="text-xs font-semibold text-emerald-600 uppercase tracking-wider">Approved</span>
             <span className="text-2xl font-bold text-emerald-700">{stats.approved}</span>
           </CardContent>
         </Card>
-        <Card className="bg-red-50/40 border-red-200/50 shadow-sm">
+        <Card className="bg-red-50 border-red-200 shadow-sm">
           <CardContent className="p-4 flex flex-col justify-between h-20">
             <span className="text-xs font-semibold text-red-600 uppercase tracking-wider">Declined</span>
             <span className="text-2xl font-bold text-red-700">{stats.declined}</span>
@@ -299,24 +299,50 @@ export default function RegistrationManagement({ tournamentId, tournament }: Reg
                           <>
                             <AlertDialog>
                               <AlertDialogTrigger asChild>
-                                <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50">
+                                <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50" title="Approve Registration">
                                   <UserCheck className="h-4 w-4" />
                                 </Button>
                               </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Approve {reg.playerName}?</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    This will add {reg.playerName} as an active player in the tournament roster.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction onClick={() => updateRegistrationMutation.mutate({ registrationId: reg.id, status: "approved" })}>
-                                    Approve
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
+                              {reg.paymentStatus === "paid" ? (
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Approve {reg.playerName}?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      This will add {reg.playerName} as an active player in the tournament roster.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction onClick={() => updateRegistrationMutation.mutate({ registrationId: reg.id, status: "approved" })}>
+                                      Approve
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              ) : (
+                                <AlertDialogContent className="max-w-md">
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Approve {reg.playerName}?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      Choose how to approve this registration. Either mark their payment as Paid (for cash/check/Venmo in-person payments) or approve them as Unpaid.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter className="flex flex-col sm:flex-row gap-2">
+                                    <AlertDialogCancel className="sm:mr-auto mt-0">Cancel</AlertDialogCancel>
+                                    <AlertDialogAction 
+                                      onClick={() => updateRegistrationMutation.mutate({ registrationId: reg.id, status: "approved" })}
+                                      className="bg-slate-200 hover:bg-slate-300 text-slate-900 border border-slate-300 shadow-sm font-semibold"
+                                    >
+                                      Approve & Keep Unpaid
+                                    </AlertDialogAction>
+                                    <AlertDialogAction 
+                                      onClick={() => updateRegistrationMutation.mutate({ registrationId: reg.id, status: "approved", paymentStatus: "paid" })}
+                                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+                                    >
+                                      Approve & Mark Paid
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              )}
                             </AlertDialog>
 
                             <AlertDialog>
@@ -555,24 +581,50 @@ export default function RegistrationManagement({ tournamentId, tournament }: Reg
 
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
-                    <Button className="bg-emerald-600 hover:bg-emerald-700">
+                    <Button className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold">
                       Approve & Roster Player
                     </Button>
                   </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Approve {selectedReg.playerName}?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This will add the player to the tournament immediately.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction onClick={() => updateRegistrationMutation.mutate({ registrationId: selectedReg.id, status: "approved" })}>
-                        Approve
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
+                  {selectedReg.paymentStatus === "paid" ? (
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Approve {selectedReg.playerName}?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This will add the player to the tournament immediately.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => updateRegistrationMutation.mutate({ registrationId: selectedReg.id, status: "approved" })}>
+                          Approve
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  ) : (
+                    <AlertDialogContent className="max-w-md">
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Approve {selectedReg.playerName}?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Choose how to approve this registration. Either mark their payment as Paid (for cash/check/Venmo in-person payments) or approve them as Unpaid.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter className="flex flex-col sm:flex-row gap-2">
+                        <AlertDialogCancel className="sm:mr-auto mt-0">Cancel</AlertDialogCancel>
+                        <AlertDialogAction 
+                          onClick={() => updateRegistrationMutation.mutate({ registrationId: selectedReg.id, status: "approved" })}
+                          className="bg-slate-200 hover:bg-slate-300 text-slate-900 border border-slate-300 shadow-sm font-semibold"
+                        >
+                          Approve & Keep Unpaid
+                        </AlertDialogAction>
+                        <AlertDialogAction 
+                          onClick={() => updateRegistrationMutation.mutate({ registrationId: selectedReg.id, status: "approved", paymentStatus: "paid" })}
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+                        >
+                          Approve & Mark Paid
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  )}
                 </AlertDialog>
               </div>
             )}

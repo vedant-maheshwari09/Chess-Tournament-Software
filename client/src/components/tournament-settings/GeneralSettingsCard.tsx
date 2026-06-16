@@ -13,6 +13,7 @@ interface GeneralSettingsCardProps {
     allowExtraGames?: boolean;
     fideRated?: boolean;
     uscfRated?: boolean;
+    autoAcceptRegistrations?: boolean;
   };
   format?: string;
   onChange: (update: Partial<GeneralSettingsCardProps['value']>) => void;
@@ -55,6 +56,19 @@ export function GeneralSettingsCard({ value, onChange, format }: GeneralSettings
             id="allowOnlineRegistration"
             checked={value.allowSignup}
             onCheckedChange={(checked) => onChange({ allowSignup: checked })}
+          />
+        </div>
+        <div className="flex items-center justify-between">
+          <div className="space-y-0.5">
+            <Label htmlFor="autoAcceptRegistrations">Auto-Accept Registrations</Label>
+            <p className="text-sm text-muted-foreground">
+              Automatically approve and roster players upon registration
+            </p>
+          </div>
+          <Switch
+            id="autoAcceptRegistrations"
+            checked={value.autoAcceptRegistrations ?? false}
+            onCheckedChange={(checked) => onChange({ autoAcceptRegistrations: checked })}
           />
         </div>
         <div className="flex items-center justify-between">

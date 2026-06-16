@@ -1820,6 +1820,8 @@ app.post("/api/tournaments/:id/register-batch", requireAuth, async (req, res) =>
         await storage.deletePlayerRegistration(reg.id);
       }
 
+      const autoAccept = config.registers.autoAcceptRegistrations || (paymentStatus === "paid");
+
       for (const payload of payloadArray) {
         console.log(`[BATCH_REG] Processing player entry: ${payload.playerName}`);
         let localNotes = payload.paymentNotes ?? null;
@@ -1827,7 +1829,7 @@ app.post("/api/tournaments/:id/register-batch", requireAuth, async (req, res) =>
           localNotes = notes;
         }
 
-        const newRegistration = await storage.createPlayerRegistration({
+        let newRegistration = await storage.createPlayerRegistration({
           tournamentId,
           userId: user.id,
           playerName: payload.playerName,
@@ -1866,6 +1868,11 @@ app.post("/api/tournaments/:id/register-batch", requireAuth, async (req, res) =>
           status: "pending",
         });
 
+        if (autoAccept && newRegistration) {
+          console.log(`[BATCH_REG] Auto-accepting registration ${newRegistration.id} for user ${user.id}`);
+          newRegistration = await handleRegistrationApprovalHelper(newRegistration.id, tournamentId, "approved", paymentStatus);
+        }
+
         results.push(newRegistration);
       }
       
@@ -1873,8 +1880,12 @@ app.post("/api/tournaments/:id/register-batch", requireAuth, async (req, res) =>
       try {
         const relatedTournament = await storage.getTournament(tournamentId);
         if (user && relatedTournament && (user.notifyRegistration ?? true)) {
-          const subject = `Registration Confirmation: ${relatedTournament.name}`;
-          const message = `Thank you for registering for ${relatedTournament.name}. We have received your ${results.length > 1 ? 'batch registration for ' + results.length + ' players' : 'registration'}. Your entry is currently pending review.`;
+          const subject = autoAccept 
+            ? `Registration Confirmed: ${relatedTournament.name}`
+            : `Registration Confirmation: ${relatedTournament.name}`;
+          const message = autoAccept
+            ? `Thank you for registering for ${relatedTournament.name}. We have confirmed your registration for ${results.length > 1 ? results.length + ' players' : 'player'}.`
+            : `Thank you for registering for ${relatedTournament.name}. We have received your ${results.length > 1 ? 'batch registration for ' + results.length + ' players' : 'registration'}. Your entry is currently pending review.`;
           
           await storage.createNotification({
             userId: user.id,
@@ -2068,6 +2079,8 @@ app.post("/api/tournaments/:id/register", requireAuth, async (req, res) => {
 
       console.log(`[REG_SERVER] Final registration data for user ${user.id}:`, JSON.stringify(registrationData, null, 2));
 
+      const autoAccept = config.registers.autoAcceptRegistrations || (paymentStatus === "paid");
+
       let result: any = null;
       if (existingToUpdate) {
         if (existingToUpdate.status === "approved" && existingToUpdate.playerName) {
@@ -2092,32 +2105,37 @@ app.post("/api/tournaments/:id/register", requireAuth, async (req, res) => {
         } as any);
       }
 
-      // Send Registration Received notification
-      try {
-        const user = req.user!;
-        const tournament = await storage.getTournament(tournamentId);
-        if (user && tournament && (user.notifyRegistration ?? true)) {
-          const subject = `Registration Received: ${tournament.name}`;
-          const message = `Thank you for registering for ${tournament.name}. Your registration is currently pending review by the tournament director.`;
-          
-          await storage.createNotification({
-            userId: user.id,
-            title: subject,
-            message,
-            type: 'registration_status',
-            read: false,
-            meta: { tournamentId, registrationId: result.id },
-          });
+      if (autoAccept && result) {
+        console.log(`[REG_FLOW] Auto-accepting registration ${result.id} for user ${user.id}`);
+        result = await handleRegistrationApprovalHelper(result.id, tournamentId, "approved", paymentStatus);
+      } else {
+        // Send Registration Received notification
+        try {
+          const userForNotif = req.user!;
+          const tournamentForNotif = await storage.getTournament(tournamentId);
+          if (userForNotif && tournamentForNotif && (userForNotif.notifyRegistration ?? true)) {
+            const subject = `Registration Received: ${tournamentForNotif.name}`;
+            const message = `Thank you for registering for ${tournamentForNotif.name}. Your registration is currently pending review by the tournament director.`;
+            
+            await storage.createNotification({
+              userId: userForNotif.id,
+              title: subject,
+              message,
+              type: 'registration_status',
+              read: false,
+              meta: { tournamentId, registrationId: result.id },
+            });
 
-          if ((user.notifyEmail ?? true) && user.email) {
-            await notificationService.sendEmail({ to: user.email, subject, text: message });
+            if ((userForNotif.notifyEmail ?? true) && userForNotif.email) {
+              await notificationService.sendEmail({ to: userForNotif.email, subject, text: message });
+            }
+            if ((userForNotif as any).id) {
+              await notificationService.sendWebPushNotificationToUser((userForNotif as any).id, subject, message);
+            }
           }
-          if ((user as any).id) {
-            await notificationService.sendWebPushNotificationToUser((user as any).id, subject, message);
-          }
+        } catch (notifErr) {
+          console.error("Error sending registration confirmation:", notifErr);
         }
-      } catch (notifErr) {
-        console.error("Error sending registration confirmation:", notifErr);
       }
 
       if (result) {
@@ -2266,147 +2284,155 @@ app.get("/api/tournaments/:id/registrations", requireAuth, requireTournamentAcce
     }
   });
 
+// Helper function to approve/decline player registration and roster the player
+async function handleRegistrationApprovalHelper(
+  registrationId: number,
+  tournamentId: number,
+  status: "approved" | "declined",
+  paymentStatus?: string
+) {
+  const registration = await storage.getPlayerRegistration(registrationId);
+  if (!registration || registration.tournamentId !== tournamentId) {
+    throw new Error("Registration not found");
+  }
+
+  const updatePayload: any = { status };
+  if (status === "approved" && paymentStatus === "paid") {
+    updatePayload.paymentStatus = "paid";
+    updatePayload.paidAt = new Date();
+    updatePayload.amountPaid = registration.amountDue || "0";
+  }
+
+  const updatedRegistration = await storage.updatePlayerRegistration(registrationId, updatePayload);
+  if (!updatedRegistration) {
+    throw new Error("Failed to update registration");
+  }
+
+  // If approved, add player to tournament
+  if (status === "approved" && updatedRegistration) {
+    const user = await storage.getUserById(updatedRegistration.userId);
+    if (user) {
+      const fullName = normalizePlayerName(updatedRegistration.playerName || `${user.firstName} ${user.lastName}`);
+      const nameParts = fullName.split(/\s+/);
+      const firstName = nameParts[0] || "";
+      const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
+
+      const tournament = await storage.getTournament(tournamentId);
+      if (!tournament) {
+        throw new Error("Tournament not found");
+      }
+      const regConfig = parseTournamentConfig(tournament);
+      const primarySystem = regConfig.details.primaryRatingSystem || 'uscf';
+      
+      let rating: number | null = null;
+      const provider = (updatedRegistration as any).ratingProvider;
+      
+      console.log(`[APPROVAL_LOG] Processing approval for ${updatedRegistration.playerName}`);
+      if (provider === "fide") {
+        rating = updatedRegistration.fideRating ?? updatedRegistration.uscfRating ?? null;
+      } else if (provider === "uscf") {
+        rating = updatedRegistration.uscfRating ?? updatedRegistration.fideRating ?? null;
+      } else if (provider === "manual") {
+        rating = updatedRegistration.uscfRating ?? updatedRegistration.fideRating ?? null;
+      } else {
+        rating = primarySystem === 'fide' 
+          ? (updatedRegistration.fideRating ?? updatedRegistration.uscfRating ?? null)
+          : (updatedRegistration.uscfRating ?? updatedRegistration.fideRating ?? null);
+      }
+
+      const federation = provider === 'fide' ? 'FIDE' : (provider === 'uscf' ? 'USCF' : (primarySystem === 'fide' ? 'FIDE' : 'USCF'));
+
+      const players = await storage.getPlayersByTournament(tournamentId);
+      const existingPlayer = players.find((p: any) => 
+        p.firstName.trim().toLowerCase() === firstName.toLowerCase() && 
+        p.lastName.trim().toLowerCase() === lastName.toLowerCase()
+      );
+
+      const playerUpdatePayload = {
+        rating: rating,
+        uscfRating: updatedRegistration.uscfRating,
+        fideRating: updatedRegistration.fideRating,
+        federation: federation,
+        userId: updatedRegistration.userId,
+      };
+
+      if (existingPlayer) {
+        await storage.updatePlayer(existingPlayer.id, playerUpdatePayload);
+      } else {
+        await storage.createPlayer({
+          ...playerUpdatePayload,
+          tournamentId,
+          firstName,
+          lastName,
+        });
+      }
+    }
+  }
+
+  // Send status update notification
+  try {
+    const userForNotification = await storage.getUserById(updatedRegistration.userId);
+    const relatedTournament = await storage.getTournament(tournamentId);
+    if (userForNotification && relatedTournament) {
+      const subject = `Tournament Registration ${status.charAt(0).toUpperCase() + status.slice(1)}`;
+      let message = '';
+      if (status === 'approved') {
+        message = `Great news! Your registration for ${relatedTournament.name} has been approved.`;
+      } else if (status === 'declined') {
+        message = `Your registration for ${relatedTournament.name} has been declined. Please contact the organizer for details.`;
+      }
+      
+      if (message) {
+        try {
+          await storage.createNotification({
+            userId: updatedRegistration.userId,
+            title: subject,
+            message,
+            type: 'registration_status',
+            read: false,
+            meta: { tournamentId, registrationId, status },
+          });
+        } catch (dbNotifErr) {
+          console.error("Error persisting in-app notification:", dbNotifErr);
+        }
+
+        if (userForNotification.notifyRegistration ?? true) {
+          if (userForNotification.email && (userForNotification.notifyEmail ?? true)) {
+            await notificationService.sendEmail({ 
+              to: userForNotification.email, 
+              subject, 
+              text: message 
+            });
+          }
+          if ((userForNotification as any).id) {
+            await notificationService.sendWebPushNotificationToUser((userForNotification as any).id, subject, message);
+          }
+        }
+      }
+    }
+  } catch (notifErr) {
+    console.error("Error sending status notification:", notifErr);
+  }
+
+  return updatedRegistration;
+}
+
 // Approve/decline player registration (for tournament directors)
 app.patch("/api/tournaments/:id/registrations/:registrationId", requireAuth, requireTournamentAccess, async (req, res) => {
     try {
       const tournamentId = parseInt(req.params.id);
       const registrationId = parseInt(req.params.registrationId);
-      const { status } = req.body;
+      const { status, paymentStatus } = req.body;
 
       if (!["approved", "declined"].includes(status)) {
         return res.status(400).json({ error: "Invalid status. Must be 'approved' or 'declined'" });
       }
 
-      const registration = await storage.getPlayerRegistration(registrationId);
-      if (!registration || registration.tournamentId !== tournamentId) {
-        return res.status(404).json({ error: "Registration not found" });
-      }
-
-      const updatedRegistration = await storage.updatePlayerRegistration(registrationId, { status });
-
-      // If approved, add player to tournament
-      if (status === "approved" && updatedRegistration) {
-        const user = await storage.getUserById(updatedRegistration.userId);
-        if (user) {
-          const fullName = normalizePlayerName(updatedRegistration.playerName || `${user.firstName} ${user.lastName}`);
-          const nameParts = fullName.split(/\s+/);
-          const firstName = nameParts[0] || "";
-          const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
-
-          const tournament = await storage.getTournament(tournamentId);
-          if (!tournament) {
-            return res.status(404).json({ error: "Tournament not found" });
-          }
-          const regConfig = parseTournamentConfig(tournament);
-          const primarySystem = regConfig.details.primaryRatingSystem || 'uscf';
-          
-          // Determine which rating to use. 
-          // 1. If the registration has a specific provider, use it.
-          // 2. Fall back to tournament default config.
-          let rating: number | null = null;
-          const provider = (updatedRegistration as any).ratingProvider;
-          
-          console.log(`[APPROVAL_LOG] Processing approval for ${updatedRegistration.playerName}`);
-          console.log(`[APPROVAL_LOG] User selected provider: ${provider}, Primary System: ${primarySystem}`);
-          console.log(`[APPROVAL_LOG] USCF Rating in registration: ${updatedRegistration.uscfRating}`);
-          console.log(`[APPROVAL_LOG] FIDE Rating in registration: ${updatedRegistration.fideRating}`);
-
-          if (provider === "fide") {
-            rating = updatedRegistration.fideRating ?? updatedRegistration.uscfRating ?? null;
-          } else if (provider === "uscf") {
-            rating = updatedRegistration.uscfRating ?? updatedRegistration.fideRating ?? null;
-          } else if (provider === "manual") {
-            rating = updatedRegistration.uscfRating ?? updatedRegistration.fideRating ?? null;
-          } else {
-            // Standard fallback logic using Primary System
-            rating = primarySystem === 'fide' 
-              ? (updatedRegistration.fideRating ?? updatedRegistration.uscfRating ?? null)
-              : (updatedRegistration.uscfRating ?? updatedRegistration.fideRating ?? null);
-            console.log(`[APPROVAL_LOG] Falling back to Primary System (${primarySystem}), Selected rating: ${rating}`);
-          }
-
-          const federation = provider === 'fide' ? 'FIDE' : (provider === 'uscf' ? 'USCF' : (primarySystem === 'fide' ? 'FIDE' : 'USCF'));
-          console.log(`[APPROVAL_LOG] Creating/Updating player with rating: ${rating}, federation: ${federation}`);
-
-          const players = await storage.getPlayersByTournament(tournamentId);
-          const existingPlayer = players.find((p: any) => 
-            p.firstName.trim().toLowerCase() === firstName.toLowerCase() && 
-            p.lastName.trim().toLowerCase() === lastName.toLowerCase()
-          );
-
-          const playerUpdatePayload = {
-            rating: rating,
-            uscfRating: updatedRegistration.uscfRating,
-            fideRating: updatedRegistration.fideRating,
-            federation: federation,
-            userId: updatedRegistration.userId,
-          };
-
-          if (existingPlayer) {
-            console.log(`[APPROVAL_LOG] Existing player found (ID: ${existingPlayer.id}), updating instead of creating duplicate.`);
-            await storage.updatePlayer(existingPlayer.id, playerUpdatePayload);
-          } else {
-            await storage.createPlayer({
-              ...playerUpdatePayload,
-              tournamentId,
-              firstName,
-              lastName,
-            });
-          }
-        }
-      }
-      // Send status update notification
-      if (updatedRegistration) {
-        try {
-          const userForNotification = await storage.getUserById(updatedRegistration.userId);
-          const relatedTournament = await storage.getTournament(tournamentId);
-          if (userForNotification && relatedTournament) {
-            const subject = `Tournament Registration ${status.charAt(0).toUpperCase() + status.slice(1)}`;
-            let message = '';
-            if (status === 'approved') {
-              message = `Great news! Your registration for ${relatedTournament.name} has been approved.`;
-            } else if (status === 'declined') {
-              message = `Your registration for ${relatedTournament.name} has been declined. Please contact the organizer for details.`;
-            }
-            
-            if (message) {
-              // Persist in-app notification
-              try {
-                await storage.createNotification({
-                  userId: updatedRegistration.userId,
-                  title: subject,
-                  message,
-                  type: 'registration_status',
-                  read: false,
-                  meta: { tournamentId, registrationId, status },
-                });
-              } catch (dbNotifErr) {
-                console.error("Error persisting in-app notification:", dbNotifErr);
-              }
-
-              if (userForNotification.notifyRegistration ?? true) {
-                if (userForNotification.email && (userForNotification.notifyEmail ?? true)) {
-                  await notificationService.sendEmail({ 
-                    to: userForNotification.email, 
-                    subject, 
-                    text: message 
-                  });
-                }
-                if ((userForNotification as any).id) {
-                  await notificationService.sendWebPushNotificationToUser((userForNotification as any).id, subject, message);
-                }
-              }
-            }
-          }
-        } catch (notifErr) {
-          console.error("Error sending status notification:", notifErr);
-        }
-      }
-
+      const updatedRegistration = await handleRegistrationApprovalHelper(registrationId, tournamentId, status, paymentStatus);
       res.json(updatedRegistration);
     } catch (error) {
       console.error("Error updating player registration:", error);
-      res.status(500).json({ error: "Failed to update player registration" });
+      res.status(500).json({ error: error instanceof Error ? error.message : "Failed to update player registration" });
     }
   });
 
