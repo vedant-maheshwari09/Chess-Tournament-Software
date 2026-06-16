@@ -239,7 +239,7 @@ function OptionsManager({ options, onChange }: OptionsManagerProps) {
   return (
     <div className="space-y-3.5 p-4.5 bg-indigo-50/10 border border-indigo-100/50 rounded-2xl animate-in fade-in duration-200">
       <div className="flex items-center justify-between">
-        <span className="text-[11px] font-extrabold text-indigo-950 uppercase tracking-wide flex items-center gap-1.5">
+        <span className="text-[11px] font-extrabold text-indigo-950 tracking-wide flex items-center gap-1.5">
           <ListPlus className="h-3.5 w-3.5 text-indigo-500 animate-pulse" />
           Dropdown Menu Choices
         </span>
@@ -669,7 +669,7 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions }: 
           <div className="flex items-center gap-2">
             <Sparkles className="h-4.5 w-4.5 text-amber-500 animate-pulse" />
             <span className="text-sm font-extrabold text-slate-950 tracking-tight">Chess Registration Templates Shelf</span>
-            <span className="text-[9px] bg-amber-100 text-amber-800 font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider">One-Click Add</span>
+            <span className="text-[9px] bg-amber-100 text-amber-800 font-extrabold px-2 py-0.5 rounded-full tracking-wide">One-Click Add</span>
           </div>
           <p className="text-[11px] font-semibold text-slate-500">Inject prebuilt dynamic fields customized specifically for chess players.</p>
         </div>
@@ -709,7 +709,7 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions }: 
         {/* Left: Configuration Builder List */}
         <div className="space-y-4">
           <div className="flex items-center justify-between border-b pb-2">
-            <span className="text-xs font-extrabold text-slate-500 uppercase tracking-wider">Registration Form Fields Schema</span>
+            <span className="text-xs font-extrabold text-slate-500 tracking-wider">Registration Form Fields Schema</span>
             <span className="text-xs text-slate-400 font-semibold">{formConfig.fields.length} blocks total</span>
           </div>
 
@@ -730,7 +730,7 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions }: 
                       <div className="flex items-center justify-between gap-3 pb-3 mb-3.5 border-b border-slate-100">
                         <div className="flex items-center gap-2">
                           <GripVertical className="h-4 w-4 text-slate-400 cursor-grab active:cursor-grabbing" />
-                          <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
+                          <span className="text-[10px] font-extrabold text-slate-400 tracking-wider">
                             Question {idx + 1}
                           </span>
                           <span className={`text-[10px] font-extrabold px-1.5 py-0.25 border rounded-full ${getFieldTagClass(field)}`}>
@@ -755,7 +755,7 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions }: 
                             });
                             toast({
                               title: "Question Type Updated",
-                              description: `Changed question to ${val.toUpperCase()} input.`
+                              description: `Changed question to ${val} input.`
                             });
                           }}
                         >
@@ -796,7 +796,7 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions }: 
                         <div className="grid gap-4 sm:grid-cols-2">
                           {/* Label Edit */}
                           <div className="space-y-1">
-                            <Label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wide">Question Label</Label>
+                            <Label className="text-[11px] font-extrabold text-slate-500 tracking-wide">Question Label</Label>
                             <Input
                               value={field.label}
                               onChange={(e) => updateField(field.id, { label: e.target.value })}
@@ -807,7 +807,7 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions }: 
                           {/* Input Placeholder Edit */}
                           {field.type !== "boolean" && (
                             <div className="space-y-1">
-                              <Label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wide">Watermark Placeholder</Label>
+                              <Label className="text-[11px] font-extrabold text-slate-500 tracking-wide">Watermark Placeholder</Label>
                               <Input
                                 value={field.placeholder ?? ""}
                                 onChange={(e) => updateField(field.id, { placeholder: e.target.value })}
@@ -820,7 +820,7 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions }: 
 
                         {/* Field Help Description */}
                         <div className="space-y-1">
-                          <Label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wide">Helper Explanation / Instructions</Label>
+                          <Label className="text-[11px] font-extrabold text-slate-500 tracking-wide">Helper Explanation / Instructions</Label>
                           <textarea
                             value={field.description ?? ""}
                             onChange={(e) => updateField(field.id, { description: e.target.value })}
@@ -1005,7 +1005,7 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions }: 
             <div className="flex items-center gap-1.5 w-full justify-around">
               <div className="flex items-center gap-1.5 px-3 py-1 bg-indigo-50 rounded-2xl shrink-0">
                 <Sparkle className="h-3.5 w-3.5 text-indigo-600 animate-spin" style={{ animationDuration: '6s' }} />
-                <span className="text-[10px] font-extrabold text-indigo-950 uppercase tracking-wider">Add Piece</span>
+                <span className="text-[10px] font-extrabold text-indigo-950 tracking-wider">Add Piece</span>
               </div>
               
               <Button
@@ -1059,7 +1059,7 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions }: 
         {showPreview && (
           <div className="space-y-4">
             <div className="flex items-center justify-between border-b pb-2">
-              <span className="text-xs font-extrabold text-slate-500 uppercase tracking-wider">High-Fidelity Live Preview</span>
+              <span className="text-xs font-extrabold text-slate-500 tracking-wider">High-Fidelity Live Preview</span>
               <div className="flex items-center gap-1.5">
                 {[1, 2, 3].map((step) => (
                   <div 
@@ -1464,7 +1464,7 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions }: 
                       return (
                         <div className="space-y-4">
                           <div className="border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-sm divide-y">
-                            <div className="bg-slate-50/50 px-4 py-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-wide">
+                            <div className="bg-slate-50/50 px-4 py-2.5 text-[10px] font-bold text-slate-400 tracking-wide">
                               Enrolled Players ({roster.length})
                             </div>
                             {roster.map((player, idx) => (
@@ -1490,7 +1490,7 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions }: 
                                 {/* Dynamically list custom answers */}
                                 {player.customAnswers && Object.keys(player.customAnswers).length > 0 && (
                                   <div className="pt-2 border-t mt-2 bg-slate-50/60 p-2.5 rounded-xl border border-slate-100/60 space-y-1 animate-in slide-in-from-bottom-2 duration-300">
-                                    <span className="block font-bold text-[9px] text-slate-400 uppercase tracking-wide">Dynamic Responses</span>
+                                    <span className="block font-bold text-[9px] text-slate-400 tracking-wide">Dynamic Responses</span>
                                     {Object.entries(player.customAnswers).map(([qid, val]) => {
                                       const label = formConfig.fields.find(f => f.id === qid)?.label || qid;
                                       return (
@@ -1510,7 +1510,7 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions }: 
 
                           {/* Calculated fees card */}
                           <div className="bg-gradient-to-r from-slate-900 to-slate-950 text-white rounded-2xl p-4.5 space-y-3 shadow-md">
-                            <div className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider border-b border-slate-800 pb-1.5">
+                            <div className="text-[10px] font-extrabold text-slate-400 tracking-wider border-b border-slate-800 pb-1.5">
                               Fees Calculations
                             </div>
                             <div className="text-xs space-y-2.5 font-bold">
@@ -1537,7 +1537,7 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions }: 
 
               {/* Progress and Navigation Footer */}
               <div className="pt-4 border-t border-slate-100 flex items-center justify-between gap-2">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">
+                <span className="text-[10px] font-bold text-slate-400 tracking-wide">
                   Step {previewStep} of 3
                 </span>
                 <div className="flex items-center gap-2">
