@@ -7,7 +7,7 @@ import { db } from "../db";
 import { users, uscfChallengeCodes, uscfVerificationAttempts } from "@shared/schema";
 import { eq, and, desc, gt, ne } from "drizzle-orm";
 import { analyzeUscfVideo } from "../lib/video-analysis";
-import { getLocalUSCFPlayerById } from "../lib/localRatings";
+import { getLocalUSCFPlayerById, searchFide } from "../lib/localRatings";
 import { notificationService } from "../notifications";
 
 const router = Router();
@@ -298,6 +298,39 @@ router.post("/uscf/connect", requireAuth, async (req, res) => {
       });
     }
 
+    // Attempt to search for a matching FIDE record by name
+    let fideId: string | null = null;
+    try {
+      const fideResults = await searchFide(player.name);
+      
+      const normalizeName = (n: string) => n.toLowerCase().replace(/[^a-z]/g, "");
+      const targetNorm = normalizeName(player.name);
+      
+      const exactMatch = fideResults.find(f => normalizeName(f.name) === targetNorm);
+      if (exactMatch) {
+        fideId = exactMatch.id;
+        console.log(`[USCF Connect] Found exact FIDE match by name for ${player.name}: FIDE ID ${fideId}`);
+      } else {
+        // Try to match last name and first name
+        const uscfParts = player.name.split(",").map(p => normalizeName(p));
+        if (uscfParts.length >= 2) {
+          const lastName = uscfParts[0];
+          const firstName = uscfParts[1];
+          // Find if there is a FIDE record containing both
+          const partialMatch = fideResults.find(f => {
+            const fNorm = normalizeName(f.name);
+            return fNorm.includes(lastName) && fNorm.includes(firstName);
+          });
+          if (partialMatch) {
+            fideId = partialMatch.id;
+            console.log(`[USCF Connect] Found partial FIDE match by name for ${player.name}: FIDE ID ${fideId}`);
+          }
+        }
+      }
+    } catch (err) {
+      console.error("[USCF Connect] Error searching FIDE database:", err);
+    }
+
     // Connect and set to pending verification (waiting for TD verification)
     await db.update(users)
       .set({
@@ -310,7 +343,7 @@ router.post("/uscf/connect", requireAuth, async (req, res) => {
         uscfRatingBlitz: player.blitzRating?.value ? parseInt(player.blitzRating.value) : null,
         uscfState: player.location || null,
         uscfMemberExpiry: player.metadata?.expiration || null,
-        uscfFideId: null,
+        uscfFideId: fideId,
         uscfThinPhpLastFetched: new Date()
       })
       .where(eq(users.id, userId));
@@ -418,6 +451,43 @@ router.post("/uscf/verify-player-connection", requireAuth, async (req, res) => {
 
     if (!updatedUser) {
       return res.status(404).json({ message: "Target user not found." });
+    }
+
+    // Try to auto-populate FIDE ID on verification if missing
+    let fideIdToUpdate: string | null = null;
+    if (verified && !updatedUser.uscfFideId && updatedUser.uscfName) {
+      try {
+        const fideResults = await searchFide(updatedUser.uscfName);
+        const normalizeName = (n: string) => n.toLowerCase().replace(/[^a-z]/g, "");
+        const targetNorm = normalizeName(updatedUser.uscfName);
+        const exactMatch = fideResults.find(f => normalizeName(f.name) === targetNorm);
+        if (exactMatch) {
+          fideIdToUpdate = exactMatch.id;
+        } else {
+          const uscfParts = updatedUser.uscfName.split(",").map(p => normalizeName(p));
+          if (uscfParts.length >= 2) {
+            const lastName = uscfParts[0];
+            const firstName = uscfParts[1];
+            const partialMatch = fideResults.find(f => {
+              const fNorm = normalizeName(f.name);
+              return fNorm.includes(lastName) && fNorm.includes(firstName);
+            });
+            if (partialMatch) {
+              fideIdToUpdate = partialMatch.id;
+            }
+          }
+        }
+        
+        if (fideIdToUpdate) {
+          await db.update(users)
+            .set({ uscfFideId: fideIdToUpdate })
+            .where(eq(users.id, targetUserId));
+          updatedUser.uscfFideId = fideIdToUpdate;
+          console.log(`[TD Verify] Automatically populated FIDE ID ${fideIdToUpdate} for User ${targetUserId}`);
+        }
+      } catch (err) {
+        console.error("[TD Verify] Error auto-populating FIDE ID:", err);
+      }
     }
 
     console.log(`[USCF Verify Connection] TD ${req.user!.id} set verification status of User ${targetUserId} to ${status}`);
