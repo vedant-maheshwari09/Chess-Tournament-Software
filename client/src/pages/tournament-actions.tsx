@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { AlertTriangle, ChevronLeft, Mail, Share2, Trash2, Users, UserPlus, Loader2 } from "lucide-react";
+import { AlertTriangle, ChevronLeft, Mail, Share2, Trash2, Users, UserPlus, Loader2, Sliders } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -360,6 +360,30 @@ export function TournamentActionsContent({
 
           <Button onClick={handleShare} className="flex items-center gap-2">
             <Mail className="h-4 w-4" /> Share via email
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Advanced Settings Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Sliders className="h-5 w-5 text-indigo-600" /> Advanced settings
+          </CardTitle>
+          <CardDescription>
+            Configure rating federations (FIDE, USCF), board numbering rules, Custom API Webhook Sync, and other advanced registers like extra pairings.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-slate-600 leading-relaxed">
+            Need to enable rated extra games, customize your board numbering parameters, manage federation settings, or synchronize tournament data with external webhooks? Access all advanced configurations securely below.
+          </p>
+          <Button
+            variant="outline"
+            className="border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+            onClick={() => setLocation(`/tournaments/${tournamentId}/advanced-settings`)}
+          >
+            <Sliders className="mr-2 h-4 w-4" /> Go to advanced settings
           </Button>
         </CardContent>
       </Card>

@@ -268,7 +268,7 @@ export default function TournamentSettingsPage({ tournamentId, section }: Tourna
   useEffect(() => {
     if (!config) return;
     if (!allowedSections.includes(currentSection)) {
-      setLocation(`/tournaments/${tournamentId}/settings/${allowedSections[0] ?? "registers"}`);
+      setLocation(`/tournaments/${tournamentId}/advanced-settings/${allowedSections[0] ?? "registers"}`);
     }
   }, [allowedSections, config, currentSection, setLocation, tournamentId]);
 
@@ -292,7 +292,7 @@ export default function TournamentSettingsPage({ tournamentId, section }: Tourna
 
   const goToSection = (id: SettingsSection) => {
     if (!allowedSections.includes(id)) return;
-    setLocation(`/tournaments/${tournamentId}/settings/${id}`);
+    setLocation(`/tournaments/${tournamentId}/advanced-settings/${id}`);
   };
 
   const unsavedChanges = isDirty || JSON.stringify(config) !== JSON.stringify(baseline);
@@ -302,11 +302,11 @@ export default function TournamentSettingsPage({ tournamentId, section }: Tourna
       <div className="mx-auto max-w-6xl space-y-6 p-6">
         <Button
           variant="link"
-          onClick={() => setLocation(`/tournaments/${tournamentId}/manage`)}
+          onClick={() => setLocation(`/tournaments/${tournamentId}/settings`)}
           className="pl-0 text-slate-500 hover:text-slate-900"
         >
           <ChevronLeft className="mr-1 h-4 w-4" />
-          Back to management
+          Back to settings
         </Button>
 
         <div className="flex flex-col gap-4 border-b pb-4 md:flex-row md:items-center md:justify-between">
