@@ -364,30 +364,6 @@ export function TournamentActionsContent({
         </CardContent>
       </Card>
 
-      {/* Advanced Settings Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Sliders className="h-5 w-5 text-indigo-600" /> Advanced settings
-          </CardTitle>
-          <CardDescription>
-            Configure rating federations (FIDE, USCF), board numbering rules, Custom API Webhook Sync, and other advanced registers like extra pairings.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-sm text-slate-600 leading-relaxed">
-            Need to enable rated extra games, customize your board numbering parameters, manage federation settings, or synchronize tournament data with external webhooks? Access all advanced configurations securely below.
-          </p>
-          <Button
-            variant="outline"
-            className="border-indigo-200 text-indigo-700 hover:bg-indigo-50"
-            onClick={() => setLocation(`/tournaments/${tournamentId}/advanced-settings`)}
-          >
-            <Sliders className="mr-2 h-4 w-4" /> Go to advanced settings
-          </Button>
-        </CardContent>
-      </Card>
-
       {/* Delete Tournament Card */}
       <Card className="border-red-200 bg-red-50/80">
         <CardHeader>

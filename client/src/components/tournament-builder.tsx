@@ -2317,6 +2317,27 @@ function StepTwo({ format, mode, builderMode, config, onConfigChange, onBack: _o
                   </div>
                 )}
 
+                {config.format === 'swiss' && (
+                  <div className="space-y-4 pt-6 border-t border-slate-100">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-base font-semibold text-black">Extra Games</h3>
+                        <p className="text-xs text-slate-500">
+                          Allow tournament directors to schedule rated extra games that are excluded from official standings.
+                        </p>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Switch
+                          id="allow-extra-games-switch"
+                          checked={config.registers.allowExtraGames ?? false}
+                          onCheckedChange={(checked) => updateRegisters({ allowExtraGames: checked })}
+                        />
+                        <Label htmlFor="allow-extra-games-switch">Allow Extra Games</Label>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {renderTabSaveButton()}
               </TabsContent>
 
