@@ -78,6 +78,7 @@ export default function RegistrationFormConfigurator({ tournamentId, tournament 
       <RegistrationFormCustomizer 
         config={localConfig}
         onConfigChange={setLocalConfig}
+        tournamentId={tournamentId}
         actions={
           <Button 
             onClick={handleSave} 
