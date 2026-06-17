@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { Switch, Route, Redirect, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
-import { QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
@@ -28,6 +28,60 @@ import MatchSubmitMobile from "@/pages/match-submit-mobile";
 
 import LandingPage from "@/pages/landing-page";
 import ScrollToTop from "@/components/scroll-to-top";
+
+function TournamentSlugResolver() {
+  const [location, setLocation] = useLocation();
+  
+  const match = location.match(/^\/tournaments\/([^/]+)(.*)$/);
+  if (!match) return null;
+  
+  const slugOrId = match[1];
+  const rest = match[2];
+  
+  if (slugOrId === "new" || /^\d+$/.test(slugOrId)) {
+    return null;
+  }
+  
+  const { data: tournament, error, isLoading } = useQuery<any>({
+    queryKey: [`/api/tournaments/by-name/${slugOrId}`],
+    enabled: !!slugOrId && slugOrId !== "new" && !/^\d+$/.test(slugOrId),
+    retry: false,
+  });
+  
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white/50 backdrop-blur-md">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+          <p className="mt-4 text-slate-600 font-medium">Resolving tournament link...</p>
+        </div>
+      </div>
+    );
+  }
+  
+  if (error || !tournament) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-transparent">
+        <div className="text-center max-w-md p-8 bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-2xl">
+          <h2 className="text-2xl font-bold text-slate-950 dark:text-white">Tournament Not Found</h2>
+          <p className="mt-2 text-slate-500">The tournament link or name you requested could not be resolved.</p>
+          <button 
+            onClick={() => setLocation('/')}
+            className="mt-6 px-6 py-2.5 bg-indigo-600 text-white rounded-xl font-bold shadow-lg hover:bg-indigo-700 transition-all"
+          >
+            Go to Home
+          </button>
+        </div>
+      </div>
+    );
+  }
+  
+  setTimeout(() => {
+    setLocation(`/tournaments/${tournament.id}${rest || ''}`);
+  }, 0);
+  
+  return null;
+}
 
 function AuthenticatedApp() {
   const { user, isLoading } = useAuth();
@@ -58,6 +112,7 @@ function AuthenticatedApp() {
   return (
     <>
       <AnimatedBackground />
+      <TournamentSlugResolver />
       {!user ? (
         <div className="min-h-screen bg-transparent">
           <Switch>

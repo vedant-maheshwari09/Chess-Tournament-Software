@@ -687,17 +687,108 @@ interface PlayerStats {
   isUnrated: boolean;
 }
 
-function getColorPreferenceScore(player: PlayerStats, color: 'white' | 'black') {
-  let score = 0;
-  if (color === 'white') {
-    if (player.lastColor === 'black') score += 1;
-    if (player.colorBalance < 0) score += 1;
-    if (player.colorBalance > 0) score -= 1;
-  } else {
-    if (player.lastColor === 'white') score += 1;
-    if (player.colorBalance > 0) score += 1;
-    if (player.colorBalance < 0) score -= 1;
+function isHigherSeed(p1: PlayerStats, p2: PlayerStats, primaryRatingSystem: string): boolean {
+  const isFide = primaryRatingSystem === 'fide';
+  const ratingA = (isFide ? (p1.player.fideRating ?? p1.player.rating) : (p1.player.uscfRating ?? p1.player.rating)) || 0;
+  const ratingB = (isFide ? (p2.player.fideRating ?? p2.player.rating) : (p2.player.uscfRating ?? p2.player.rating)) || 0;
+  if (ratingA !== ratingB) {
+    return ratingA > ratingB;
   }
+  const firstNameCmp = (p1.player.firstName || '').localeCompare(p2.player.firstName || '');
+  if (firstNameCmp !== 0) {
+    return firstNameCmp < 0; // lower alphabetical is higher seed
+  }
+  const lastNameCmp = (p1.player.lastName || '').localeCompare(p2.player.lastName || '');
+  if (lastNameCmp !== 0) {
+    return lastNameCmp < 0;
+  }
+  return p1.id < p2.id;
+}
+
+function lookBackColorDifference(p1: PlayerStats, p2: PlayerStats, dueColor: 'white' | 'black'): number {
+  const history1 = p1.colorHistory || [];
+  const history2 = p2.colorHistory || [];
+  const len1 = history1.length;
+  const len2 = history2.length;
+  const maxLen = Math.max(len1, len2);
+  const avoidedColor = dueColor === 'white' ? 'black' : 'white';
+
+  for (let i = 1; i <= maxLen; i++) {
+    const c1 = len1 >= i ? history1[len1 - i] : null;
+    const c2 = len2 >= i ? history2[len2 - i] : null;
+    if (c1 !== c2) {
+      if (c1 === avoidedColor) return 1;
+      if (c2 === avoidedColor) return -1;
+    }
+  }
+  return 0;
+}
+
+function getPlayerDueColorAndStrength(p: PlayerStats): { color: 'white' | 'black' | null, strength: number } {
+  const balance = p.colorBalance || 0;
+  if (balance > 0) {
+    return { color: 'black', strength: balance };
+  } else if (balance < 0) {
+    return { color: 'white', strength: -balance };
+  } else {
+    const last = p.lastColor;
+    if (last === 'black') {
+      return { color: 'white', strength: 0.1 };
+    } else if (last === 'white') {
+      return { color: 'black', strength: 0.1 };
+    }
+  }
+  return { color: null, strength: 0 };
+}
+
+function scoreColorOption(p1: PlayerStats, p2: PlayerStats, p1White: boolean, primaryRatingSystem: string): number {
+  const p1Pref = getPlayerDueColorAndStrength(p1);
+  const p2Pref = getPlayerDueColorAndStrength(p2);
+
+  if (p1Pref.color === 'white' && p2Pref.color === 'white') {
+    let p1Claim = p1Pref.strength - p2Pref.strength;
+    if (Math.abs(p1Claim) < 0.01) {
+      p1Claim = lookBackColorDifference(p1, p2, 'white');
+      if (p1Claim === 0) {
+        const p1IsHigher = isHigherSeed(p1, p2, primaryRatingSystem);
+        p1Claim = p1IsHigher ? 1 : -1;
+      }
+    }
+    return p1White ? p1Claim : -p1Claim;
+  }
+
+  if (p1Pref.color === 'black' && p2Pref.color === 'black') {
+    let p1BlackClaim = p1Pref.strength - p2Pref.strength;
+    if (Math.abs(p1BlackClaim) < 0.01) {
+      p1BlackClaim = lookBackColorDifference(p1, p2, 'black');
+      if (p1BlackClaim === 0) {
+        const p1IsHigher = isHigherSeed(p1, p2, primaryRatingSystem);
+        p1BlackClaim = p1IsHigher ? 1 : -1;
+      }
+    }
+    return p1White ? -p1BlackClaim : p1BlackClaim;
+  }
+
+  if (p1Pref.color === 'white' && p2Pref.color === 'black') {
+    return p1White ? 10 : -10;
+  }
+  if (p1Pref.color === 'black' && p2Pref.color === 'white') {
+    return p1White ? -10 : 10;
+  }
+
+  let score = 0;
+  if (p1White) {
+    if (p1Pref.color === 'white') score += p1Pref.strength;
+    if (p1Pref.color === 'black') score -= p1Pref.strength;
+    if (p2Pref.color === 'black') score += p2Pref.strength;
+    if (p2Pref.color === 'white') score -= p2Pref.strength;
+  } else {
+    if (p1Pref.color === 'black') score += p1Pref.strength;
+    if (p1Pref.color === 'white') score -= p1Pref.strength;
+    if (p2Pref.color === 'white') score += p2Pref.strength;
+    if (p2Pref.color === 'black') score -= p2Pref.strength;
+  }
+
   return score;
 }
 
@@ -705,16 +796,15 @@ function getValidColorAssignments(
   p1: PlayerStats,
   p2: PlayerStats,
   strictColors: boolean,
-  allowRepeats: boolean
+  allowRepeats: boolean,
+  primaryRatingSystem: string
 ): ('p1_white_p2_black' | 'p1_black_p2_white')[] {
-  // Check if they have played before
   if (!allowRepeats && p1.opponents.has(p2.id)) {
     return [];
   }
 
   const options: ('p1_white_p2_black' | 'p1_black_p2_white')[] = [];
 
-  // Option 1: P1 is White, P2 is Black
   let p1WhiteOk = true;
   let p2BlackOk = true;
 
@@ -729,7 +819,6 @@ function getValidColorAssignments(
     options.push('p1_white_p2_black');
   }
 
-  // Option 2: P1 is Black, P2 is White
   let p1BlackOk = true;
   let p2WhiteOk = true;
 
@@ -744,10 +833,9 @@ function getValidColorAssignments(
     options.push('p1_black_p2_white');
   }
 
-  // Sort options by color preference score so we try the better one first
   if (options.length === 2) {
-    const pref1 = getColorPreferenceScore(p1, 'white') + getColorPreferenceScore(p2, 'black');
-    const pref2 = getColorPreferenceScore(p1, 'black') + getColorPreferenceScore(p2, 'white');
+    const pref1 = scoreColorOption(p1, p2, true, primaryRatingSystem);
+    const pref2 = scoreColorOption(p1, p2, false, primaryRatingSystem);
     if (pref2 > pref1) {
       return ['p1_black_p2_white', 'p1_white_p2_black'];
     }
@@ -762,20 +850,19 @@ function backtrack(
   strictColors: boolean,
   allowRepeats: boolean,
   boardNumbers: number[],
-  boardIdx: number
+  boardIdx: number,
+  primaryRatingSystem: string
 ): boolean {
   if (unpairedList.length === 0) {
     return true;
   }
 
-  // Take the highest-ranked unpaired player
   const p1 = unpairedList[0];
 
-  // Try to pair p1 with some opponent p2 from the rest of the list
   for (let i = 1; i < unpairedList.length; i++) {
     const p2 = unpairedList[i];
 
-    const colorOptions = getValidColorAssignments(p1, p2, strictColors, allowRepeats);
+    const colorOptions = getValidColorAssignments(p1, p2, strictColors, allowRepeats, primaryRatingSystem);
     for (const option of colorOptions) {
       const whitePlayer = option === 'p1_white_p2_black' ? p1 : p2;
       const blackPlayer = option === 'p1_white_p2_black' ? p2 : p1;
@@ -790,11 +877,10 @@ function backtrack(
 
       const remaining = unpairedList.filter(p => p.id !== p1.id && p.id !== p2.id);
 
-      if (backtrack(remaining, currentPairings, strictColors, allowRepeats, boardNumbers, boardIdx + 1)) {
+      if (backtrack(remaining, currentPairings, strictColors, allowRepeats, boardNumbers, boardIdx + 1, primaryRatingSystem)) {
         return true;
       }
 
-      // Backtrack
       currentPairings.pop();
     }
   }
@@ -1067,7 +1153,7 @@ export async function generateSwissPairings(
           const remainingPlayers = sortedPlayers.filter(p => p.id !== byeCandidate.id);
           const tempPairings: any[] = [];
 
-          if (backtrack(remainingPlayers, tempPairings, level.strictColors, level.allowRepeats, resolvedBoardNumbers, 0)) {
+          if (backtrack(remainingPlayers, tempPairings, level.strictColors, level.allowRepeats, resolvedBoardNumbers, 0, primaryRatingSystem)) {
             pairingsResult = tempPairings;
             const byeBoard = resolvedBoardNumbers[resolvedBoardNumbers.length - 1];
             pairingsResult.push({
@@ -1083,7 +1169,7 @@ export async function generateSwissPairings(
         }
       } else {
         const tempPairings: any[] = [];
-        if (backtrack(sortedPlayers, tempPairings, level.strictColors, level.allowRepeats, resolvedBoardNumbers, 0)) {
+        if (backtrack(sortedPlayers, tempPairings, level.strictColors, level.allowRepeats, resolvedBoardNumbers, 0, primaryRatingSystem)) {
           pairingsResult = tempPairings;
           success = true;
         }

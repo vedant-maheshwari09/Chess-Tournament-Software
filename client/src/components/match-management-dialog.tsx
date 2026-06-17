@@ -13,6 +13,7 @@ import { ArrowLeftRight } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { calculateMatchupScore, getMatchFormat, parseTournamentConfig } from "@shared/tournament-config";
 import { cn } from "@/lib/utils";
+import { HEAD_TO_HEAD_RESULT_OPTIONS } from "@shared/match-results";
 
 interface MatchManagementDialogProps {
   match: Match | null;
@@ -269,14 +270,13 @@ export function MatchManagementDialog({
                         <SelectTrigger className="h-8 text-xs bg-background border-border w-[110px] font-bold text-center justify-center">
                           <SelectValue placeholder="Result" />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="max-h-[300px]">
                           <SelectItem value="pending">Pending</SelectItem>
-                          <SelectItem value="1-0">1-0 (White)</SelectItem>
-                          <SelectItem value="0-1">0-1 (Black)</SelectItem>
-                          <SelectItem value="1/2-1/2">1/2-1/2 (Draw)</SelectItem>
-                          <SelectItem value="1-0F">1-0F (Fft)</SelectItem>
-                          <SelectItem value="0-1F">0-1F (Fft)</SelectItem>
-                          <SelectItem value="0-0F">0-0F (Fft)</SelectItem>
+                          {HEAD_TO_HEAD_RESULT_OPTIONS.map((opt) => (
+                            <SelectItem key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     ) : (

@@ -53,6 +53,9 @@ const LEGACY_RESULT_MAP: Record<string, string> = {
   black_wins: "0-1",
   draw: "1/2-1/2",
   bye: "1-bye",
+  "1-0F": "1F-0F",
+  "0-1F": "0F-1F",
+  "0-0F": "0F-0F",
 };
 
 export function normalizeMatchResult(result: string | null | undefined): string | null {

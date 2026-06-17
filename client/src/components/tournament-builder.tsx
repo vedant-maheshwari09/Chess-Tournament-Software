@@ -2811,18 +2811,7 @@ function StepTwo({ format, mode, builderMode, config, onConfigChange, onBack: _o
                         </div>
                       )}
 
-                      {config.format === "swiss" && (
-                        <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/30 px-5 py-4 transition-all hover:bg-slate-50/50">
-                          <div className="space-y-0.5">
-                            <Label className="text-base font-medium text-black">Extra Games</Label>
-                            <p className="text-xs text-slate-500 font-normal">Allow TDs to schedule rated extra games that are excluded from official standings.</p>
-                          </div>
-                          <Switch
-                            checked={config.registers.allowExtraGames ?? false}
-                            onCheckedChange={(checked) => updateRegisters({ allowExtraGames: checked })}
-                          />
-                        </div>
-                      )}
+
                     </div>
 
                     <div className="grid gap-8 md:grid-cols-2 pt-6 border-t border-slate-100">
@@ -3264,8 +3253,11 @@ function StepTwo({ format, mode, builderMode, config, onConfigChange, onBack: _o
               Scan this QR code to spectate the tournament.
             </DialogDescription>
           </DialogHeader>
-          <div className="flex justify-center p-4">
-
+          <div className="flex flex-col items-center justify-center p-6 space-y-4 w-full">
+            <div className="p-4 bg-white rounded-2xl shadow-md border border-slate-100 flex items-center justify-center">
+              <QRCodeCanvas value={spectatorLink} size={256} className="rounded-lg" />
+            </div>
+            <p className="text-xs font-semibold text-slate-400 select-all font-mono tracking-wider text-center break-all w-full max-w-xs">{spectatorLink}</p>
           </div>
         </DialogContent>
       </Dialog>

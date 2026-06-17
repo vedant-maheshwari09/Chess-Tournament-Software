@@ -36,6 +36,8 @@ interface PlayerRoundResult {
   color: 'white' | 'black' | null;
   points: number;
   isRequested?: boolean;
+  isInProgress?: boolean;
+  board?: number;
 }
 
 interface SwissPlayerStanding {
@@ -873,6 +875,8 @@ export default function SwissStandings({ tournamentId, showExportControls = true
             result: interpretation.outcome,
             color: isWhite ? "white" : "black",
             points: interpretation.points,
+            isInProgress: !matchThisRound.result && matchThisRound.status !== 'completed',
+            board: matchThisRound.board ?? undefined,
           });
         }
 
@@ -1211,6 +1215,10 @@ a:hover { text-decoration: underline; }
   }
 
   function formatRoundResult(result: PlayerRoundResult, round: number): string {
+    if (result.isInProgress) {
+      return `GIP${result.board ?? ""}`;
+    }
+
     if (result.result === 'bye' || result.result === 'unplayed') {
       if (result.isRequested) {
         if (result.points === 1) return 'B';
@@ -1248,6 +1256,10 @@ a:hover { text-decoration: underline; }
   }
 
   function formatRoundOpponent(result: PlayerRoundResult): string {
+    if (result.isInProgress) {
+      return `GIP${result.board ?? ""}`;
+    }
+
     if (!result.opponent) {
       return '---';
     }
@@ -1271,6 +1283,10 @@ a:hover { text-decoration: underline; }
   }
 
   function formatRoundResultDisplay(result: PlayerRoundResult): string {
+    if (result.isInProgress) {
+      return `GIP${result.board ?? ""}`;
+    }
+
     if (result.result === 'bye' || result.result === 'unplayed') {
       if (result.isRequested) {
         if (result.points === 1) return 'B';

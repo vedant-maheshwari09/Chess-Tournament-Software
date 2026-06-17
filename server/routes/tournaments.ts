@@ -487,6 +487,47 @@ app.get("/api/tournaments", async (req, res) => {
   });
 
 
+function slugify(text: string): string {
+  return text
+    .toString()
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, '-')           // Replace spaces with -
+    .replace(/[^\w\-]+/g, '')       // Remove all non-word chars
+    .replace(/\-\-+/g, '-')         // Replace multiple - with single -
+    .replace(/^-+/, '')             // Trim - from start of text
+    .replace(/-+$/, '');            // Trim - from end of text
+}
+
+app.get("/api/tournaments/by-name/:name", async (req, res) => {
+  try {
+    const nameParam = req.params.name;
+    
+    // First check if it's a numeric ID
+    const possibleId = parseInt(nameParam, 10);
+    if (!isNaN(possibleId)) {
+      const tournament = await storage.getTournament(possibleId);
+      if (tournament) {
+        return res.json(tournament);
+      }
+    }
+
+    // Otherwise, retrieve all tournaments and find a match by slugified name
+    const tournaments = await storage.getAllTournaments();
+    const targetSlug = slugify(nameParam);
+    
+    const matched = tournaments.find(t => slugify(t.name) === targetSlug);
+    if (matched) {
+      return res.json(matched);
+    }
+
+    return res.status(404).json({ message: "Tournament not found" });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to resolve tournament slug" });
+  }
+});
+
+
 app.get("/api/tournaments/starred", requireAuth, async (req, res) => {
     try {
       const user = req.user;
