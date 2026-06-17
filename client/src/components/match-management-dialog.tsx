@@ -194,12 +194,13 @@ export function MatchManagementDialog({
       setCustomResult(newResult);
     };
 
-    const handleApplyCustomResult = () => {
-      let normalized = normalizeMatchResult(customResult);
+    const handleApplyCustomResult = (codeToApply?: string) => {
+      const code = codeToApply || customResult;
+      let normalized = normalizeMatchResult(code);
       if (!normalized) {
         toast({
           title: "Invalid Code",
-          description: `"${customResult}" is not a recognized chess result code. Common codes: 1-0, 0-1, 1/2-1/2, 1F-0, 0-1F, 0F-0F, 1-bye, 1/2-bye.`,
+          description: `"${code}" is not a recognized chess result code. Common codes: 1-0, 0-1, 1/2-1/2, 1F-0, 0-1F, 0F-0F, 1-bye, 1/2-bye.`,
           variant: "destructive"
         });
         return;
@@ -208,6 +209,7 @@ export function MatchManagementDialog({
         normalized = `${normalized}U`;
       }
       updateResultMutation.mutate({ matchId: match.id, result: normalized });
+      setCustomResult(normalized);
       toast({
         title: "Result Recorded",
         description: `Result updated to ${normalized}`
@@ -216,47 +218,63 @@ export function MatchManagementDialog({
 
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-[480px] bg-card border-border text-card-foreground shadow-2xl overflow-hidden p-0 rounded-2xl">
-          <DialogHeader className="p-6 bg-muted/20 border-b border-border">
-            <DialogTitle className="text-xl font-black tracking-tight flex items-center justify-between">
-              <span>{isByeMatch ? `Bye Details — Round ${match.round}` : `Board ${match.board} — Round ${match.round}`}</span>
-              <Badge variant="outline" className="text-[10px] font-bold uppercase tracking-wider bg-primary/5 border-primary/20 text-primary">
-                {format === 'roundrobin' ? 'Round Robin' : 'Swiss System'}
+        <DialogContent className="sm:max-w-[500px] bg-gradient-to-b from-slate-900 to-slate-950 text-white border-slate-800 shadow-2xl p-0 rounded-2xl overflow-hidden font-sans">
+          {/* Header Section */}
+          <div className="p-6 bg-gradient-to-r from-indigo-950/40 via-purple-950/20 to-slate-950 border-b border-slate-800/60 relative">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-pulse"></span>
+                <span className="text-xs font-bold uppercase tracking-widest text-indigo-400">Match Management</span>
+              </div>
+              <Badge variant="outline" className="text-[10px] font-black uppercase tracking-wider bg-indigo-500/10 border-indigo-500/30 text-indigo-300">
+                {isByeMatch ? 'Bye Round' : `Board ${match.board}`}
               </Badge>
-            </DialogTitle>
-            <DialogDescription className="text-muted-foreground font-medium mt-1">
-              {isByeMatch ? "Record the point value for this player's bye." : "Select the outcome or enter a custom result code."}
-            </DialogDescription>
-          </DialogHeader>
+            </div>
+            <h3 className="text-xl font-extrabold tracking-tight mt-2 flex items-center gap-2 text-slate-100">
+              {isByeMatch ? `Bye Details — Round ${match.round}` : `Matchup — Round ${match.round}`}
+            </h3>
+            <p className="text-xs text-slate-400 font-medium mt-1">
+              {isByeMatch ? "Select the point value for this player's round bye." : "Select the result or record forfeit wins/losses."}
+            </p>
+          </div>
 
           <div className="p-6 space-y-6">
-            {/* Player Info Card */}
+            {/* Player Broadcast Scoreboard */}
             {isByeMatch ? (
-              <div className="p-4 rounded-xl bg-muted/30 border border-border flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary font-bold text-sm">
+              <div className="p-4 rounded-xl bg-slate-900/50 border border-slate-800 flex items-center gap-4 hover:border-slate-700 transition-all">
+                <div className="w-12 h-12 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center font-bold text-sm border border-indigo-500/20">
                   BYE
                 </div>
-                <div>
-                  <div className="text-sm font-bold text-foreground">{whiteName}</div>
-                  <div className="text-[10px] text-muted-foreground font-semibold mt-0.5">Rating: {whiteRating} • Assigned a Bye</div>
+                <div className="flex-1">
+                  <div className="text-base font-extrabold text-slate-100">{whiteName}</div>
+                  <div className="text-xs text-slate-400 font-semibold mt-0.5">Rating: {whiteRating} • Assigned 1.0 Pt Bye</div>
                 </div>
               </div>
             ) : (
-              <div className="flex items-center justify-between p-4 rounded-xl bg-muted/30 border border-border">
-                <div className="flex-1 text-left">
-                  <div className="flex items-center gap-2">
-                    <span className="w-3.5 h-3.5 rounded bg-foreground border border-border inline-block shadow-sm"></span>
-                    <span className="text-sm font-bold truncate max-w-[150px]" title={whiteName}>{whiteName}</span>
+              <div className="relative rounded-2xl bg-slate-955/80 border border-slate-800/80 p-4 flex items-center justify-between gap-4">
+                {/* White Player */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className="w-3.5 h-3.5 rounded bg-white border border-slate-700 shadow-inner flex-shrink-0" />
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">White</span>
                   </div>
-                  <div className="text-[10px] text-muted-foreground mt-1 font-semibold">White • Rating: {whiteRating}</div>
+                  <div className="text-sm font-black text-slate-100 truncate" title={whiteName}>{whiteName}</div>
+                  <div className="text-[10px] text-slate-400 font-bold mt-0.5">Rtg: {whiteRating}</div>
                 </div>
-                <span className="text-[10px] font-black text-muted-foreground/40 px-3 uppercase">vs</span>
-                <div className="flex-1 text-right">
-                  <div className="flex items-center gap-2 justify-end">
-                    <span className="text-sm font-bold truncate max-w-[150px]" title={blackName}>{blackName}</span>
-                    <span className="w-3.5 h-3.5 rounded bg-background border border-border inline-block shadow-sm"></span>
+
+                {/* VS Badge */}
+                <div className="w-10 h-10 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center flex-shrink-0 z-10 shadow-lg">
+                  <Swords className="h-4 w-4 text-indigo-400" />
+                </div>
+
+                {/* Black Player */}
+                <div className="flex-1 min-w-0 text-right">
+                  <div className="flex items-center gap-2 mb-1.5 justify-end">
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Black</span>
+                    <span className="w-3.5 h-3.5 rounded bg-slate-800 border border-slate-950 shadow-inner flex-shrink-0" />
                   </div>
-                  <div className="text-[10px] text-muted-foreground mt-1 font-semibold">Black • Rating: {blackRating}</div>
+                  <div className="text-sm font-black text-slate-100 truncate" title={blackName}>{blackName}</div>
+                  <div className="text-[10px] text-slate-400 font-bold mt-0.5">Rtg: {blackRating}</div>
                 </div>
               </div>
             )}
@@ -264,156 +282,174 @@ export function MatchManagementDialog({
             {/* Selection Options */}
             <div className="space-y-4">
               {isByeMatch ? (
-                <>
-                  <h4 className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Select Bye Points</h4>
-                  <div className="grid grid-cols-3 gap-2">
-                    <Button
-                      variant={baseResult === '1-bye' ? 'default' : 'outline'}
-                      className="h-11 font-bold text-xs"
-                      onClick={() => handleSelectResult('1-bye')}
-                    >
-                      1.0 Pt Bye
-                    </Button>
-                    <Button
-                      variant={baseResult === '1/2-bye' ? 'default' : 'outline'}
-                      className="h-11 font-bold text-xs"
-                      onClick={() => handleSelectResult('1/2-bye')}
-                    >
-                      ½ Pt Bye
-                    </Button>
-                    <Button
-                      variant={baseResult === '0-bye' ? 'default' : 'outline'}
-                      className="h-11 font-bold text-xs"
-                      onClick={() => handleSelectResult('0-bye')}
-                    >
-                      0 Pt Bye
-                    </Button>
+                <div className="space-y-3">
+                  <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Select Bye Points</h4>
+                  <div className="grid grid-cols-3 gap-2.5">
+                    {[
+                      { val: '1-bye', label: '1.0 Pt Bye', desc: 'Full Point' },
+                      { val: '1/2-bye', label: '½ Pt Bye', desc: 'Half Point' },
+                      { val: '0-bye', label: '0 Pt Bye', desc: 'Zero Point' },
+                    ].map((opt) => (
+                      <button
+                        key={opt.val}
+                        type="button"
+                        onClick={() => handleSelectResult(opt.val)}
+                        className={cn(
+                          "flex flex-col items-center justify-center p-3 rounded-xl border font-bold text-xs transition-all shadow-sm",
+                          baseResult === opt.val
+                            ? "bg-indigo-600/20 border-indigo-500 text-indigo-300 ring-1 ring-indigo-500/30"
+                            : "bg-slate-900/30 border-slate-800 text-slate-300 hover:border-slate-700 hover:bg-slate-900/50"
+                        )}
+                      >
+                        <span>{opt.label}</span>
+                        <span className="text-[9px] font-semibold text-slate-400 mt-0.5">{opt.desc}</span>
+                      </button>
+                    ))}
                   </div>
-                </>
+                </div>
               ) : (
-                <>
-                  <h4 className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Match Result</h4>
-                  <div className="grid grid-cols-3 gap-2">
-                    <Button
-                      variant={baseResult === '1-0' ? 'default' : 'outline'}
-                      className="h-11 font-bold text-xs"
-                      onClick={() => handleSelectResult('1-0')}
-                    >
-                      1 - 0 (White Win)
-                    </Button>
-                    <Button
-                      variant={baseResult === '0-1' ? 'default' : 'outline'}
-                      className="h-11 font-bold text-xs"
-                      onClick={() => handleSelectResult('0-1')}
-                    >
-                      0 - 1 (Black Win)
-                    </Button>
-                    <Button
-                      variant={baseResult === '1/2-1/2' ? 'default' : 'outline'}
-                      className="h-11 font-bold text-xs"
-                      onClick={() => handleSelectResult('1/2-1/2')}
-                    >
-                      ½ - ½ (Draw)
-                    </Button>
+                <div className="space-y-4">
+                  {/* Match Result Segment */}
+                  <div className="space-y-2.5">
+                    <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Standard Match Result</h4>
+                    <div className="grid grid-cols-3 gap-2.5">
+                      {[
+                        { val: '1-0', label: '1 - 0', desc: 'White Win', activeClass: 'bg-emerald-600/20 border-emerald-500 text-emerald-400 ring-1 ring-emerald-500/30' },
+                        { val: '1/2-1/2', label: '½ - ½', desc: 'Draw Game', activeClass: 'bg-amber-600/20 border-amber-500 text-amber-400 ring-1 ring-amber-500/30' },
+                        { val: '0-1', label: '0 - 1', desc: 'Black Win', activeClass: 'bg-indigo-600/20 border-indigo-500 text-indigo-400 ring-1 ring-indigo-500/30' },
+                      ].map((opt) => (
+                        <button
+                          key={opt.val}
+                          type="button"
+                          onClick={() => handleSelectResult(opt.val)}
+                          className={cn(
+                            "flex flex-col items-center justify-center p-3 rounded-xl border font-extrabold text-sm transition-all shadow-sm",
+                            baseResult === opt.val
+                              ? opt.activeClass
+                              : "bg-slate-900/30 border-slate-800 text-slate-300 hover:border-slate-700 hover:bg-slate-900/50"
+                          )}
+                        >
+                          <span>{opt.label}</span>
+                          <span className="text-[9px] font-semibold text-slate-400 mt-0.5">{opt.desc}</span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
 
-                  <h4 className="text-[10px] font-black text-muted-foreground uppercase tracking-widest pt-2">Forfeits & Special Results</h4>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button
-                      variant={baseResult === '1F-0F' ? 'default' : 'outline'}
-                      className="h-11 font-bold text-xs"
-                      onClick={() => handleSelectResult('1F-0F')}
-                    >
-                      1F - 0 (White Forfeit)
-                    </Button>
-                    <Button
-                      variant={baseResult === '0F-1F' ? 'default' : 'outline'}
-                      className="h-11 font-bold text-xs"
-                      onClick={() => handleSelectResult('0F-1F')}
-                    >
-                      0 - 1F (Black Forfeit)
-                    </Button>
-                    <Button
-                      variant={baseResult === '0F-0F' ? 'default' : 'outline'}
-                      className="h-11 font-bold text-xs"
-                      onClick={() => handleSelectResult('0F-0F')}
-                    >
-                      0F - 0F (Double Forfeit)
-                    </Button>
-                    <Button
-                      variant={baseResult === '1F-1F' ? 'default' : 'outline'}
-                      className="h-11 font-bold text-xs"
-                      onClick={() => handleSelectResult('1F-1F')}
-                    >
-                      1F - 1F (Forfeit Draw)
-                    </Button>
+                  {/* Forfeits Segment */}
+                  <div className="space-y-2.5 pt-1">
+                    <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Forfeits & Special Scoring</h4>
+                    <div className="grid grid-cols-2 gap-2.5">
+                      {[
+                        { val: '1F-0F', label: '1F - 0', desc: 'White Forfeit Win' },
+                        { val: '0F-1F', label: '0 - 1F', desc: 'Black Forfeit Win' },
+                        { val: '0F-0F', label: '0F - 0F', desc: 'Double Forfeit (No Show)' },
+                        { val: '1F-1F', label: '1F - 1F', desc: 'Forfeit Draw (Mutual)' },
+                      ].map((opt) => (
+                        <button
+                          key={opt.val}
+                          type="button"
+                          onClick={() => handleSelectResult(opt.val)}
+                          className={cn(
+                            "flex items-center justify-between px-4 py-2.5 rounded-xl border font-bold text-xs transition-all shadow-sm text-left",
+                            baseResult === opt.val
+                              ? "bg-rose-955/20 border-rose-500 text-rose-300 ring-1 ring-rose-500/30"
+                              : "bg-slate-900/30 border-slate-800 text-slate-300 hover:border-slate-700 hover:bg-slate-900/50"
+                          )}
+                        >
+                          <div className="flex flex-col">
+                            <span className="font-extrabold">{opt.label}</span>
+                            <span className="text-[9px] font-semibold text-slate-400 mt-0.5">{opt.desc}</span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </>
+                </div>
               )}
 
-              {/* Custom Result Code Field */}
-              <div className="space-y-2 pt-3 border-t border-border mt-4">
-                <h4 className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Custom Result Code</h4>
+              {/* Custom Result Code Input */}
+              <div className="space-y-2.5 pt-4 border-t border-slate-800 mt-4">
+                <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Or Enter Custom Code</h4>
                 <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={customResult}
-                    onChange={(e) => setCustomResult(e.target.value)}
-                    placeholder={isByeMatch ? "e.g. 1/2-bye, 0-bye" : "e.g. 1F-0, 0-1F, 1/2-0"}
-                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                  />
+                  <div className="relative flex-1">
+                    <input
+                      type="text"
+                      value={customResult}
+                      onChange={(e) => setCustomResult(e.target.value)}
+                      placeholder={isByeMatch ? "e.g. 1/2-bye, 0-bye" : "e.g. 1F-0, 0-1F, 1/2-0"}
+                      className="flex h-10 w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-1.5 text-sm shadow-inner transition-colors placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500 text-slate-100"
+                    />
+                  </div>
                   <Button
                     type="button"
-                    size="sm"
-                    className="h-9 px-4 font-bold text-xs uppercase"
-                    onClick={handleApplyCustomResult}
+                    className="h-10 px-5 font-bold text-xs uppercase tracking-wider rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shadow"
+                    onClick={() => handleApplyCustomResult()}
                   >
-                    Apply Code
+                    Apply
                   </Button>
                 </div>
-                <p className="text-[10px] text-muted-foreground mt-1 font-semibold leading-relaxed">
-                  Type any code (e.g. <span className="font-mono bg-muted px-1 rounded text-foreground">1F-0</span> or <span className="font-mono bg-muted px-1 rounded text-foreground">0-1F</span>) and the system will normalize it.
-                </p>
+
+                {/* Clickable Quick Suggestions */}
+                <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                  <span className="text-[9px] text-slate-500 font-bold uppercase mr-1">Quick Codes:</span>
+                  {(isByeMatch ? ['1-bye', '1/2-bye', '0-bye'] : ['1-0', '0-1', '1/2-1/2', '1F-0', '0-1F', '0F-0F']).map((code) => (
+                    <button
+                      key={code}
+                      type="button"
+                      onClick={() => {
+                        setCustomResult(code);
+                        handleApplyCustomResult(code);
+                      }}
+                      className="text-[10px] font-mono bg-slate-900 border border-slate-800 text-indigo-400 hover:text-indigo-300 hover:border-slate-700 px-2 py-0.5 rounded-md transition-all"
+                    >
+                      {code}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {/* Options & Reset */}
-              <div className="flex items-center justify-between pt-4 border-t border-border mt-6">
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="unrated-toggle"
-                    checked={isUnrated}
-                    onChange={handleToggleUnrated}
-                    disabled={!currentResult || currentResult === 'Pending'}
-                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer disabled:opacity-50"
-                  />
+              <div className="flex items-center justify-between pt-4 border-t border-slate-800 mt-6">
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id="unrated-toggle"
+                      checked={isUnrated}
+                      onChange={handleToggleUnrated}
+                      disabled={!currentResult || currentResult === 'Pending'}
+                      className="h-4.5 w-4.5 rounded-lg border-slate-800 bg-slate-950 text-indigo-600 focus:ring-indigo-500 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                    />
+                  </div>
                   <label
                     htmlFor="unrated-toggle"
-                    className="text-xs font-bold text-foreground cursor-pointer select-none disabled:opacity-50"
+                    className="text-xs font-bold text-slate-300 cursor-pointer select-none disabled:opacity-30"
                   >
                     Unrated Match (e.g., unrated)
                   </label>
                 </div>
                 
                 <Button
+                  type="button"
                   variant="ghost"
                   size="sm"
                   onClick={() => handleSelectResult(null)}
                   disabled={!currentResult}
-                  className="text-xs font-bold text-destructive hover:text-destructive hover:bg-destructive/10"
+                  className="text-xs font-extrabold text-rose-400 hover:text-rose-300 hover:bg-rose-950/20 rounded-lg h-8 px-3 transition-colors"
                 >
-                  Reset to Pending
+                  Reset Match
                 </Button>
               </div>
             </div>
           </div>
 
-          <DialogFooter className="p-4 bg-muted/20 border-t border-border flex justify-end items-center px-6">
+          <DialogFooter className="p-4 bg-slate-950 border-t border-slate-800/60 flex justify-end items-center px-6">
             <Button
               variant="outline"
               size="sm"
               onClick={() => onOpenChange(false)}
-              className="h-9 px-6 text-xs font-bold uppercase tracking-wider text-muted-foreground border-border hover:bg-muted"
+              className="h-9 px-6 text-xs font-bold uppercase tracking-wider text-slate-300 border-slate-800 hover:bg-slate-900 hover:text-white rounded-xl transition-all"
             >
               Close
             </Button>
