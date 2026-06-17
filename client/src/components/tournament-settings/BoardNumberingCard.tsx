@@ -8,6 +8,8 @@ export interface BoardNumberingSettings {
   increment?: number;
   gaps?: string; // Storing as a string for easy text area binding
   customSequence?: string; // Storing as a string for easy text area binding
+  prefix?: string;
+  suffix?: string;
 }
 
 interface BoardNumberingCardProps {
@@ -42,6 +44,28 @@ export function BoardNumberingCard({ value, onChange }: BoardNumberingCardProps)
               value={value.increment ?? ""}
               onChange={(e) => onChange({ increment: e.target.value === '' ? undefined : Number(e.target.value) })}
               placeholder="e.g., 1"
+            />
+          </div>
+        </div>
+        <div className="grid gap-6 md:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="bn-prefix">Prefix</Label>
+            <Input
+              id="bn-prefix"
+              type="text"
+              value={value.prefix ?? ""}
+              onChange={(e) => onChange({ prefix: e.target.value })}
+              placeholder="e.g., A- (optional)"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="bn-suffix">Suffix</Label>
+            <Input
+              id="bn-suffix"
+              type="text"
+              value={value.suffix ?? ""}
+              onChange={(e) => onChange({ suffix: e.target.value })}
+              placeholder="e.g., -X (optional)"
             />
           </div>
         </div>

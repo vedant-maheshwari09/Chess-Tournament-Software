@@ -11,7 +11,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Match, Player, Pairing, Tournament } from "@shared/schema";
 import { parseTournamentConfig } from "@/lib/tournament-config";
-import { calculateMatchupScore, type SectionDefinition } from "@shared/tournament-config";
+import { calculateMatchupScore, type SectionDefinition, formatBoardNumber } from "@shared/tournament-config";
 import { HEAD_TO_HEAD_RESULT_OPTIONS, BYE_RESULT_OPTIONS, getPointsForResult } from "@shared/match-results";
 import { MatchManagementDialog } from "./match-management-dialog";
 import { Swords, Info, UserPlus } from "lucide-react";
@@ -795,7 +795,7 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
 
         printWindow.document.write(
           `<tr>
-            <td style="text-align: center;">${match.board ?? ""}</td>
+            <td style="text-align: center;">${formatBoardNumber(match.board, tournamentConfig?.boardNumbering)}</td>
             <td style="text-align: center;">${wRes}</td>
             <td style="text-align: left;">${whiteLabel}</td>
             <td style="text-align: center;">${bRes}</td>
@@ -842,7 +842,7 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
       matches.forEach((match) => {
         rows.push([
           String(round),
-          match.board ? String(match.board) : "",
+          formatBoardNumber(match.board, tournamentConfig?.boardNumbering),
           getPlayerName(match.whitePlayerId),
           match.blackPlayerId ? getPlayerName(match.blackPlayerId) : "Bye",
           match.result ?? "",
@@ -1474,7 +1474,7 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
           hasUnsavedChange ? "bg-amber-50/40 dark:bg-amber-950/10 border-amber-250 dark:border-amber-900" : "border-slate-200 dark:border-slate-800"
         )}>
           <td className="px-3 py-3 text-center border border-slate-200 dark:border-slate-800 font-mono text-sm font-bold text-slate-500 dark:text-slate-400 bg-slate-50/50 dark:bg-slate-900/20 w-14">
-            {isExtra ? "Extra" : match.board}
+            {isExtra ? "Extra" : formatBoardNumber(match.board, tournamentConfig?.boardNumbering)}
           </td>
           <td className="px-2 py-2 border border-slate-200 dark:border-slate-800 text-center bg-slate-50/10 dark:bg-slate-900/5 w-16">
             {whiteResultCell}
@@ -1521,7 +1521,7 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
     return (
       <tr key={match.id} className="group hover:bg-indigo-50/25 dark:hover:bg-indigo-950/15 transition-colors border-b border-slate-200 dark:border-slate-800 last:border-0">
         <td className="px-3 py-3 text-center border border-slate-200 dark:border-slate-800 font-mono text-sm font-bold text-slate-500 dark:text-slate-400 bg-slate-50/50 dark:bg-slate-900/20 w-14">
-          {isExtra ? "Extra" : match.board}
+          {isExtra ? "Extra" : formatBoardNumber(match.board, tournamentConfig?.boardNumbering)}
         </td>
         <td className={cn("px-3 py-2 border border-slate-200 dark:border-slate-800 text-center bg-slate-50/10 dark:bg-slate-900/5 w-16 text-sm font-black select-none", wResClass)}>
           {wRes}

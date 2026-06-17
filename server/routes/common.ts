@@ -1112,6 +1112,8 @@ export type BoardNumberingSettings = {
   increment?: number;
   gaps?: { afterBoard: number; skip: number }[];
   customSequence?: number[];
+  prefix?: string;
+  suffix?: string;
 };
 
 export function generateBoardNumberSequence(

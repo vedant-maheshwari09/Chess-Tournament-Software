@@ -407,6 +407,12 @@ app.get("/api/tournaments/:tournamentId/bye-requests", async (req, res) => {
         return res.status(404).json({ message: "Match not found" });
       }
 
+      if (currentMatch.status === "completed" || currentMatch.result) {
+        return res.status(400).json({
+          message: "Match result has already been reported. Please see the Tournament Director if you need to correct a mistake."
+        });
+      }
+
       const tournament = await storage.getTournament(currentMatch.tournamentId);
       if (!tournament) {
         return res.status(404).json({ message: "Tournament not found" });

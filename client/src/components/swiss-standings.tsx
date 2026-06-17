@@ -356,11 +356,38 @@ export default function SwissStandings({ tournamentId, showExportControls = true
           (pairing) => pairing.playerId === playerId && pairing.isBye && pairing.points !== null && pairing.round <= currentRound
         );
 
+        const getPlayerScoreBeforeRound = (pId: number, roundNum: number): number => {
+          let score = 0;
+          for (let r = 1; r < roundNum; r++) {
+            score += getPlayerScoreInRound(pId, r);
+          }
+          return score;
+        };
+
+        const getPlayerScoreInRound = (pId: number, roundNum: number): number => {
+          const match = playerMatches.find((m) => m.round === roundNum);
+          if (match) {
+            const normalized = normalizeMatchResult(match.result);
+            if (normalized) {
+              const isWhite = match.whitePlayerId === pId;
+              return getPointsForResult(match.result, isWhite ? "white" : "black");
+            }
+            return 0;
+          }
+          const bye = playerByes.find((b) => b.round === roundNum);
+          if (bye) {
+            return bye.points === 1 ? 0.5 : bye.points === 2 ? 1.0 : 0.0;
+          }
+          return 0;
+        };
+
         for (let round = 1; round <= currentRound; round++) {
           const bye = playerByes.find((b) => b.round === round);
           if (bye) {
-            // Treated as draw against oneself -> virtual opponent has my own total points
-            scores.push(myPoints);
+            const s_pr = getPlayerScoreBeforeRound(playerId, round);
+            const s_fpr = bye.points === 1 ? 0.5 : bye.points === 2 ? 1.0 : 0.0;
+            const s_von = s_pr + (1.0 - s_fpr) + 0.5 * (currentRound - round);
+            scores.push(s_von);
             continue;
           }
 
@@ -376,14 +403,21 @@ export default function SwissStandings({ tournamentId, showExportControls = true
               const oppPoints = oppId ? playerPointsMap.get(oppId) ?? 0 : 0;
               scores.push(oppPoints);
             } else if (interpretation.outcome === 'forfeit-win') {
-              // Treated as draw against oneself -> virtual opponent has my own total points
-              scores.push(myPoints);
+              const s_pr = getPlayerScoreBeforeRound(playerId, round);
+              const s_fpr = 1.0;
+              const s_von = s_pr + (1.0 - s_fpr) + 0.5 * (currentRound - round);
+              scores.push(s_von);
             } else if (interpretation.outcome === 'forfeit-loss') {
-              scores.push(0);
+              const s_pr = getPlayerScoreBeforeRound(playerId, round);
+              const s_fpr = 0.0;
+              const s_von = s_pr + (1.0 - s_fpr) + 0.5 * (currentRound - round);
+              scores.push(s_von);
             }
           } else {
-            // Any unplayed/withdrawn round if not explicitly bye
-            scores.push(0);
+            const s_pr = getPlayerScoreBeforeRound(playerId, round);
+            const s_fpr = 0.0;
+            const s_von = s_pr + (1.0 - s_fpr) + 0.5 * (currentRound - round);
+            scores.push(s_von);
           }
         }
         return scores;
@@ -469,7 +503,6 @@ export default function SwissStandings({ tournamentId, showExportControls = true
         },
         "Sonneborn-Berger": (playerId) => {
           let sb = 0;
-          const myPoints = playerPointsMap.get(playerId) ?? 0;
           const playerMatches = matches.filter(
             (m) => m.whitePlayerId === playerId || m.blackPlayerId === playerId
           );
@@ -477,11 +510,38 @@ export default function SwissStandings({ tournamentId, showExportControls = true
             (pairing) => pairing.playerId === playerId && pairing.isBye && pairing.points !== null && pairing.round <= currentRound
           );
 
+          const getPlayerScoreBeforeRound = (pId: number, roundNum: number): number => {
+            let score = 0;
+            for (let r = 1; r < roundNum; r++) {
+              score += getPlayerScoreInRound(pId, r);
+            }
+            return score;
+          };
+
+          const getPlayerScoreInRound = (pId: number, roundNum: number): number => {
+            const match = playerMatches.find((m) => m.round === roundNum);
+            if (match) {
+              const normalized = normalizeMatchResult(match.result);
+              if (normalized) {
+                const isWhite = match.whitePlayerId === pId;
+                return getPointsForResult(match.result, isWhite ? "white" : "black");
+              }
+              return 0;
+            }
+            const bye = playerByes.find((b) => b.round === roundNum);
+            if (bye) {
+              return bye.points === 1 ? 0.5 : bye.points === 2 ? 1.0 : 0.0;
+            }
+            return 0;
+          };
+
           for (let round = 1; round <= currentRound; round++) {
             const bye = playerByes.find((b) => b.round === round);
             if (bye) {
-              // Treated as draw against oneself -> adds 0.5 * myPoints
-              sb += 0.5 * myPoints;
+              const s_pr = getPlayerScoreBeforeRound(playerId, round);
+              const s_fpr = bye.points === 1 ? 0.5 : bye.points === 2 ? 1.0 : 0.0;
+              const s_von = s_pr + (1.0 - s_fpr) + 0.5 * (currentRound - round);
+              sb += 0.5 * s_von;
               continue;
             }
 
@@ -500,8 +560,10 @@ export default function SwissStandings({ tournamentId, showExportControls = true
                 const oppPoints = oppId ? playerPointsMap.get(oppId) ?? 0 : 0;
                 sb += oppPoints * 0.5;
               } else if (interpretation.outcome === 'forfeit-win') {
-                // Treated as draw against oneself -> adds 0.5 * myPoints
-                sb += 0.5 * myPoints;
+                const s_pr = getPlayerScoreBeforeRound(playerId, round);
+                const s_fpr = 1.0;
+                const s_von = s_pr + (1.0 - s_fpr) + 0.5 * (currentRound - round);
+                sb += 0.5 * s_von;
               }
             }
           }
@@ -519,8 +581,12 @@ export default function SwissStandings({ tournamentId, showExportControls = true
           for (let round = 1; round <= currentRound; round++) {
             const bye = playerByes.find((b) => b.round === round);
             if (bye) {
-              // Treated as draw against oneself -> adds 2 points
-              kashdan += 2;
+              const byePoints = bye.points === 1 ? 0.5 : bye.points === 2 ? 1.0 : 0.0;
+              if (byePoints === 1.0) {
+                kashdan += 4;
+              } else if (byePoints === 0.5) {
+                kashdan += 2;
+              }
               continue;
             }
 
@@ -538,8 +604,7 @@ export default function SwissStandings({ tournamentId, showExportControls = true
               } else if (interpretation.outcome === 'L') {
                 kashdan += 1;
               } else if (interpretation.outcome === 'forfeit-win') {
-                // Treated as draw against oneself -> adds 2 points
-                kashdan += 2;
+                kashdan += 4;
               } else if (interpretation.outcome === 'forfeit-loss') {
                 kashdan += 0;
               }
