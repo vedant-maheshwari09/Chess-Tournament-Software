@@ -48,8 +48,8 @@ interface TournamentManagementProps {
 
 export default function TournamentManagement({ tournamentId }: TournamentManagementProps) {
   const [, setLocation] = useLocation();
-  const [, params] = useRoute("/tournaments/:id/manage/:tab");
-  const activeTab = params?.tab || "dashboard";
+  const [, params] = useRoute("/tournaments/:id/manage/:tab*");
+  const activeTab = params?.tab ? params.tab.split("/")[0] : "dashboard";
   const [arenaSubTab, setArenaSubTab] = useState<'lobby' | 'matches'>('lobby');
   const { toast } = useToast();
   const { user } = useAuth();

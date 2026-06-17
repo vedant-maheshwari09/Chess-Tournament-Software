@@ -49,8 +49,8 @@ export default function TournamentView({ tournamentId }: TournamentViewProps) {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const { user } = useAuth();
-  const [match, params] = useRoute("/tournaments/:id/:tab");
-  const tabParam = (params?.tab as TabKey) || "info";
+  const [match, params] = useRoute("/tournaments/:id/:tab*");
+  const tabParam = (params?.tab ? (params.tab as string).split("/")[0] : "info") as TabKey;
 
   const { data: tournament, isLoading: tournamentLoading } = useQuery<Tournament>({
     queryKey: [`/api/tournaments/${tournamentId}`],
