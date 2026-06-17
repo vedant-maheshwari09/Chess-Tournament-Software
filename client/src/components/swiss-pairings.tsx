@@ -389,8 +389,13 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
   const filteredByes = useMemo(() => {
     if (!pairings) return [] as Pairing[];
     const byes = pairings.filter((pairing) => pairing.isBye && pairing.round === currentRound);
-    if (activeSection === "all") return byes;
-    return byes.filter((pairing) => playerSectionMap.get(pairing.playerId)?.id === activeSection);
+    const sectionByes = activeSection === "all" ? byes : byes.filter((pairing) => playerSectionMap.get(pairing.playerId)?.id === activeSection);
+    return [...sectionByes].sort((a, b) => {
+      const aReq = a.isRequested ? 1 : 0;
+      const bReq = b.isRequested ? 1 : 0;
+      if (aReq !== bReq) return aReq - bReq;
+      return (a.playerId || 0) - (b.playerId || 0);
+    });
   }, [pairings, playerSectionMap, activeSection, currentRound]);
 
   const pairingGroups = useMemo(() => {

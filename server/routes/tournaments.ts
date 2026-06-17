@@ -767,7 +767,7 @@ Details:
 - Location: ${newTournament.location || 'TBD'}
 
 You can view and register for the tournament here:
-http://localhost:5010/tournaments/${newTournament.id}
+${process.env.VITE_APP_URL || process.env.RENDER_EXTERNAL_URL || (req.headers.host ? `${req.secure || req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http'}://${req.headers.host}` : 'https://chesstournamentmanager.onrender.com')}/tournaments/${newTournament.id}
 
 Best regards,
 Chess Tournament Manager`

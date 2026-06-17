@@ -548,7 +548,7 @@ class SupabaseStorage implements IStorage {
       throw new Error(`Failed to fetch players with usernames: ${error.message}`);
     }
 
-    return (data || []).map(p => {
+    return (data || []).map((p: any) => {
       const camelPlayer = toCamelCase<Player>(p);
       if ((p as any).users?.username) {
         (camelPlayer as any).username = (p as any).users.username;
