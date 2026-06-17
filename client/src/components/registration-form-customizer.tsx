@@ -285,6 +285,46 @@ const ONE_CLICK_CATEGORIES = [
         isCustom: true
       },
       {
+        id: "uscfMembershipRenewalFee",
+        label: "USCF Membership Renewal Fee ($45)",
+        type: "boolean" as const,
+        description: "Add USCF registration / renewal fee to your tournament entry checkout.",
+        isCustom: true
+      },
+      {
+        id: "tshirtPreorderFee",
+        label: "Pre-order Tournament T-Shirt ($20)",
+        type: "boolean" as const,
+        description: "Includes official cotton event t-shirt (please specify size in preferences).",
+        isCustom: true
+      },
+      {
+        id: "donationPrizeFund",
+        label: "Optional Donation to Prize Fund",
+        type: "select" as const,
+        options: ["No donation", "Donate $10", "Donate $25", "Donate $50", "Donate $100"],
+        placeholder: "Select contribution level...",
+        description: "Help support the scholastic and master prize funds.",
+        isCustom: true
+      },
+      {
+        id: "earlyBirdDiscountCode",
+        label: "Voucher / Promo Code",
+        type: "text" as const,
+        placeholder: "e.g. EARLYBIRD10, CHESSCLUB...",
+        description: "Enter an active promotion or membership discount code.",
+        isCustom: true
+      },
+      {
+        id: "paymentMethodPreference",
+        label: "Preferred Payment Method",
+        type: "select" as const,
+        options: ["Credit / Debit Card (Online)", "Venmo", "Zelle", "PayPal", "Cash / Check On-Site"],
+        placeholder: "Select payment method...",
+        description: "Indicate how you plan to complete checkout to help TDs organize receipts.",
+        isCustom: true
+      },
+      {
         id: "idDocumentVerification",
         label: "ID Document Number",
         type: "text" as const,
@@ -448,6 +488,8 @@ function OptionsManager({ options, onChange }: OptionsManagerProps) {
 export function RegistrationFormCustomizer({ config, onConfigChange, tournamentId, actions }: RegistrationFormCustomizerProps) {
   const { toast } = useToast();
   const [focusedFieldId, setFocusedFieldId] = useState<string | null>(null);
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const importRef = React.useRef<HTMLInputElement>(null);
 
   // Parse or default the registration form configuration
@@ -652,7 +694,12 @@ export function RegistrationFormCustomizer({ config, onConfigChange, tournamentI
     if (field.prebuiltType === "fide_federation") return <Globe className="h-4 w-4 text-slate-500" />;
 
     // Standard columns mapping
-    if (field.id === "uscfId" || field.id === "fideId") return <CreditCard className="h-4 w-4 text-slate-500" />;
+    if (field.id === "uscfId" || field.id === "fideId" || field.id.toLowerCase().includes("payment") || field.id.toLowerCase().includes("fee") || field.id.toLowerCase().includes("donation")) {
+      return <CreditCard className="h-4 w-4 text-slate-500" />;
+    }
+    if (field.id.toLowerCase().includes("tshirt")) {
+      return <Shirt className="h-4 w-4 text-slate-500" />;
+    }
     if (field.id === "byePreference") return <Compass className="h-4 w-4 text-slate-500" />;
     if (field.id === "newsletter") return <Mail className="h-4 w-4 text-slate-500" />;
     if (field.id === "arrivalTime") return <Clock className="h-4 w-4 text-slate-500" />;
@@ -725,7 +772,41 @@ export function RegistrationFormCustomizer({ config, onConfigChange, tournamentI
               return (
                 <div 
                   key={field.id}
-                  className="transition-all duration-200"
+                  draggable={focusedFieldId !== field.id}
+                  onDragStart={(e) => {
+                    setDraggedIndex(idx);
+                    e.dataTransfer.effectAllowed = "move";
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    if (draggedIndex !== null && draggedIndex !== idx) {
+                      setDragOverIndex(idx);
+                    }
+                  }}
+                  onDragEnd={() => {
+                    setDraggedIndex(null);
+                    setDragOverIndex(null);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    if (draggedIndex !== null && draggedIndex !== idx) {
+                      const nextFields = [...formConfig.fields];
+                      const [draggedItem] = nextFields.splice(draggedIndex, 1);
+                      nextFields.splice(idx, 0, draggedItem);
+                      updateFormConfig({ ...formConfig, fields: nextFields });
+                      toast({
+                        title: "Fields Reordered",
+                        description: `Moved "${draggedItem.label}" successfully.`,
+                      });
+                    }
+                    setDraggedIndex(null);
+                    setDragOverIndex(null);
+                  }}
+                  className={`transition-all duration-200 relative ${
+                    draggedIndex === idx ? "opacity-30 scale-[0.98] border-2 border-dashed border-blue-200 rounded-2xl" : ""
+                  } ${
+                    dragOverIndex === idx && draggedIndex !== idx ? "border-t-4 border-t-blue-500 pt-3" : ""
+                  }`}
                 >
                   {isFocused ? (
                     /* EXPANDED ACTIVE STATE CARD */
@@ -994,21 +1075,21 @@ export function RegistrationFormCustomizer({ config, onConfigChange, tournamentI
           </div>
 
           {/* QUICK ADD BUILDER TOOLBAR */}
-          <div className="sticky bottom-6 z-20 mx-auto flex items-center justify-between gap-3 p-2.5 rounded-3xl border border-slate-200/80 bg-white/95 backdrop-blur-md shadow-lg max-w-md animate-in slide-in-from-bottom-5">
-            <div className="flex items-center gap-1.5 w-full justify-around">
-              <div className="flex items-center gap-1.5 px-3 py-1 bg-slate-100 rounded-2xl shrink-0">
-                <Plus className="h-3.5 w-3.5 text-slate-600" />
-                <span className="text-[10px] font-extrabold text-slate-700 tracking-wider uppercase">Custom Field</span>
+          <div className="sticky bottom-6 z-20 mx-auto flex items-center justify-between gap-2.5 p-2.5 rounded-3xl border border-slate-200/80 bg-white/95 backdrop-blur-md shadow-lg max-w-lg animate-in slide-in-from-bottom-5">
+            <div className="flex items-center gap-1.5 w-full justify-between overflow-x-auto no-scrollbar">
+              <div className="flex items-center gap-1.5 px-3 py-1 bg-slate-100 rounded-2xl shrink-0 whitespace-nowrap">
+                <Plus className="h-3.5 w-3.5 text-slate-600 shrink-0" />
+                <span className="text-[10px] font-extrabold text-slate-700 tracking-wider uppercase whitespace-nowrap">Custom Field</span>
               </div>
               
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="h-9 px-2 text-xs text-slate-700 hover:text-blue-600 hover:bg-blue-50/55 rounded-xl flex items-center gap-1.5 transition-all font-bold"
+                className="h-8 px-2 text-xs text-slate-700 hover:text-blue-600 hover:bg-blue-50/55 rounded-xl flex items-center gap-1 transition-all font-bold shrink-0 whitespace-nowrap"
                 onClick={() => addCustomQuestionWithType("text")}
               >
-                <AlignLeft className="h-4 w-4 text-blue-500" />
+                <AlignLeft className="h-3.5 w-3.5 text-blue-500 shrink-0" />
                 <span>Text</span>
               </Button>
               
@@ -1016,10 +1097,10 @@ export function RegistrationFormCustomizer({ config, onConfigChange, tournamentI
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="h-9 px-2 text-xs text-slate-700 hover:text-blue-600 hover:bg-blue-50/55 rounded-xl flex items-center gap-1.5 transition-all font-bold"
+                className="h-8 px-2 text-xs text-slate-700 hover:text-blue-600 hover:bg-blue-50/55 rounded-xl flex items-center gap-1 transition-all font-bold shrink-0 whitespace-nowrap"
                 onClick={() => addCustomQuestionWithType("number")}
               >
-                <Hash className="h-4 w-4 text-blue-500" />
+                <Hash className="h-3.5 w-3.5 text-blue-500 shrink-0" />
                 <span>Number</span>
               </Button>
               
@@ -1027,10 +1108,10 @@ export function RegistrationFormCustomizer({ config, onConfigChange, tournamentI
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="h-9 px-2 text-xs text-slate-700 hover:text-blue-600 hover:bg-blue-50/55 rounded-xl flex items-center gap-1.5 transition-all font-bold"
+                className="h-8 px-2 text-xs text-slate-700 hover:text-blue-600 hover:bg-blue-50/55 rounded-xl flex items-center gap-1 transition-all font-bold shrink-0 whitespace-nowrap"
                 onClick={() => addCustomQuestionWithType("select")}
               >
-                <ListPlus className="h-4 w-4 text-blue-500" />
+                <ListPlus className="h-3.5 w-3.5 text-blue-500 shrink-0" />
                 <span>Dropdown</span>
               </Button>
               
@@ -1038,10 +1119,10 @@ export function RegistrationFormCustomizer({ config, onConfigChange, tournamentI
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="h-9 px-2 text-xs text-slate-700 hover:text-blue-600 hover:bg-blue-50/55 rounded-xl flex items-center gap-1.5 transition-all font-bold"
+                className="h-8 px-2 text-xs text-slate-700 hover:text-blue-600 hover:bg-blue-50/55 rounded-xl flex items-center gap-1 transition-all font-bold shrink-0 whitespace-nowrap"
                 onClick={() => addCustomQuestionWithType("boolean")}
               >
-                <CheckSquare className="h-4 w-4 text-blue-500" />
+                <CheckSquare className="h-3.5 w-3.5 text-blue-500 shrink-0" />
                 <span>Yes/No</span>
               </Button>
             </div>
@@ -1139,7 +1220,7 @@ export function RegistrationFormCustomizer({ config, onConfigChange, tournamentI
                               className={`h-7 px-2 text-[10px] font-bold rounded-lg shrink-0 transition-all ${
                                 isCurrentlyActive 
                                   ? "bg-slate-100 border-slate-200 text-slate-500 hover:bg-slate-150" 
-                                  : "bg-blue-650 hover:bg-blue-700 text-white shadow-sm"
+                                  : "bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
                               }`}
                             >
                               {isCurrentlyActive ? (

@@ -457,12 +457,13 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
     canProcessOnline && (paymentSettings?.requirePaymentOnRegistration || !offlineAllowed),
   );
 
-  const [watchEntryFeeId, watchContribution, watchFirstName, watchLastName, watchEmail] = form.watch([
+  const [watchEntryFeeId, watchContribution, watchFirstName, watchLastName, watchEmail, watchCustomAnswers] = form.watch([
     "entryFeeId",
     "processingContribution",
     "firstName",
     "lastName",
     "email",
+    "customAnswers",
   ]);
 
   const selectedEntryFeeId = (watchEntryFeeId as string) ?? "";
@@ -472,8 +473,8 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
   );
   const processingContributionValue = useMemo(() => parseContribution(watchContribution), [watchContribution]);
   const paymentTotals = useMemo(
-    () => computePaymentTotals(selectedEntryFee, processingContributionValue, paymentSettings),
-    [selectedEntryFee, processingContributionValue, paymentSettings],
+    () => computePaymentTotals(selectedEntryFee, processingContributionValue, paymentSettings, watchCustomAnswers),
+    [selectedEntryFee, processingContributionValue, paymentSettings, watchCustomAnswers],
   );
 
   const groupPaymentTotals = useMemo(() => {
@@ -485,7 +486,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
       const values = entry.values;
       const entryFee = entryFees.find(f => f.id === values.entryFeeId) ?? null;
       const contribution = parseContribution(values.processingContribution);
-      const totals = computePaymentTotals(entryFee, contribution, paymentSettings);
+      const totals = computePaymentTotals(entryFee, contribution, paymentSettings, values.customAnswers);
 
       return {
         subtotal: acc.subtotal + totals.subtotal,
@@ -1760,7 +1761,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
                                 const name = `${values.firstName} ${values.lastName}`.trim() || `Player ${index + 1}`;
                                 const entryFee = entryFees.find((fee) => fee.id === values.entryFeeId) ?? null;
                                 const contribution = parseContribution(values.processingContribution);
-                                const totals = computePaymentTotals(entryFee, contribution, paymentSettings);
+                                const totals = computePaymentTotals(entryFee, contribution, paymentSettings, values.customAnswers);
                                 const isDraft = entry.id !== 'edit-draft';
 
                                 return (
@@ -1836,7 +1837,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
                                   displayDrafts.reduce((sum, entry) => {
                                     const fee = entryFees.find((f) => f.id === entry.values.entryFeeId) ?? null;
                                     const contribution = parseContribution(entry.values.processingContribution);
-                                    const totals = computePaymentTotals(fee, contribution, paymentSettings);
+                                    const totals = computePaymentTotals(fee, contribution, paymentSettings, entry.values.customAnswers);
                                     return sum + totals.total;
                                   }, 0),
                                   groupPaymentTotals.currency
@@ -3233,6 +3234,60 @@ function StepThreeContent({
                 Section: {selectedEntryFee.section}
               </p>
             )}
+            {(() => {
+              const answers = form.watch("customAnswers") ?? {};
+              const hasUscf = answers.uscfMembershipRenewalFee === true || answers.uscfMembershipRenewalFee === "true";
+              const hasTshirt = answers.tshirtPreorderFee === true || answers.tshirtPreorderFee === "true";
+              const donationValue = answers.donationPrizeFund;
+              let donationAmt = 0;
+              if (typeof donationValue === "string") {
+                if (donationValue.includes("$10")) donationAmt = 10;
+                else if (donationValue.includes("$25")) donationAmt = 25;
+                else if (donationValue.includes("$50")) donationAmt = 50;
+                else if (donationValue.includes("$100")) donationAmt = 100;
+              }
+              const discountCode = answers.earlyBirdDiscountCode || answers.voucherCode;
+              let discountAmt = 0;
+              if (typeof discountCode === "string" && discountCode.trim()) {
+                const code = discountCode.trim().toUpperCase();
+                if (code === "EARLYBIRD10" || code === "CHESSCLUB") {
+                  discountAmt = 10;
+                }
+              }
+
+              if (playerDrafts.length <= 1 && (hasUscf || hasTshirt || donationAmt > 0 || discountAmt > 0)) {
+                return (
+                  <div className="border-t border-dashed border-slate-200 pt-3 space-y-2">
+                    <span className="text-[10px] font-extrabold text-slate-400 tracking-wider uppercase">Add-ons & Vouchers</span>
+                    {hasUscf && (
+                      <div className="flex items-center justify-between text-xs text-slate-600 font-medium">
+                        <span>USCF Membership Renewal</span>
+                        <span>{formatCurrency(45, paymentTotals.currency)}</span>
+                      </div>
+                    )}
+                    {hasTshirt && (
+                      <div className="flex items-center justify-between text-xs text-slate-600 font-medium">
+                        <span>Pre-order T-Shirt Add-on</span>
+                        <span>{formatCurrency(20, paymentTotals.currency)}</span>
+                      </div>
+                    )}
+                    {donationAmt > 0 && (
+                      <div className="flex items-center justify-between text-xs text-slate-600 font-medium">
+                        <span>Prize Fund Donation</span>
+                        <span>{formatCurrency(donationAmt, paymentTotals.currency)}</span>
+                      </div>
+                    )}
+                    {discountAmt > 0 && (
+                      <div className="flex items-center justify-between text-xs text-emerald-600 font-bold bg-emerald-50/50 px-2.5 py-1 rounded-xl">
+                        <span>Voucher Discount ({String(discountCode).trim().toUpperCase()})</span>
+                        <span>-{formatCurrency(discountAmt, paymentTotals.currency)}</span>
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+              return null;
+            })()}
             {contributionAllowed ? (
               <div className="flex items-center justify-between border-t border-dashed border-slate-200 pt-3">
                 <label htmlFor="processing-contribution" className="text-sm">
@@ -3767,10 +3822,36 @@ function computePaymentTotals(
   entryFee: EntryFeeRule | null,
   contribution: number,
   paymentSettings: PaymentSettings | null,
+  customAnswers?: Record<string, any>,
 ): PaymentTotals {
   const allowContribution = paymentSettings?.allowProcessingContribution !== false;
   const baseContribution = allowContribution ? contribution : 0;
-  const baseAmount = entryFee?.amount ?? 0;
+
+  // Calculate custom payment addons
+  let addonTotal = 0;
+  if (customAnswers) {
+    const hasUscf = customAnswers.uscfMembershipRenewalFee === true || customAnswers.uscfMembershipRenewalFee === "true";
+    const hasTshirt = customAnswers.tshirtPreorderFee === true || customAnswers.tshirtPreorderFee === "true";
+    const donationValue = customAnswers.donationPrizeFund;
+    let donationAmount = 0;
+    if (typeof donationValue === "string") {
+      if (donationValue.includes("$10")) donationAmount = 10;
+      else if (donationValue.includes("$25")) donationAmount = 25;
+      else if (donationValue.includes("$50")) donationAmount = 50;
+      else if (donationValue.includes("$100")) donationAmount = 100;
+    }
+    const discountCode = customAnswers.earlyBirdDiscountCode || customAnswers.voucherCode;
+    let discountAmount = 0;
+    if (typeof discountCode === "string") {
+      const code = discountCode.trim().toUpperCase();
+      if (code === "EARLYBIRD10" || code === "CHESSCLUB") {
+        discountAmount = 10;
+      }
+    }
+    addonTotal = (hasUscf ? 45 : 0) + (hasTshirt ? 20 : 0) + donationAmount - discountAmount;
+  }
+
+  const baseAmount = Math.max(0, (entryFee?.amount ?? 0) + addonTotal);
   const currency = (entryFee?.currency ?? paymentSettings?.defaultCurrency ?? "USD").toUpperCase();
   const subtotal = Number((baseAmount + baseContribution).toFixed(2));
   const percent = typeof paymentSettings?.processingFeePercent === "number" ? paymentSettings.processingFeePercent : 0;
