@@ -23,7 +23,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { RegistrationStatusCard } from "@/components/registration-status-card";
 import KnockoutBracket from "@/components/knockout-bracket";
-import { cn } from "@/lib/utils";
+import { cn, slugify } from "@/lib/utils";
 import { ArenaLobby, ArenaActiveMatches, ArenaStandings, ArenaTimer } from "@/components/arena-ui";
 import PlayerManager from "@/components/player-manager";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -99,9 +99,9 @@ export default function TournamentView({ tournamentId }: TournamentViewProps) {
 
   React.useEffect(() => {
     if (tabParam !== activeTab) {
-      setLocation(`/tournaments/${tournamentId}/${activeTab}`, { replace: true });
+      setLocation(`/tournaments/${tournament ? slugify(tournament.name) : tournamentId}/${activeTab}`, { replace: true });
     }
-  }, [tabParam, activeTab, tournamentId, setLocation]);
+  }, [tabParam, activeTab, tournamentId, tournament, setLocation]);
 
   const infoHtml = useMemo(() => (config.tournamentPageContent ? renderTournamentPageContent(config.tournamentPageContent) : ""), [config.tournamentPageContent]);
 
@@ -120,7 +120,7 @@ export default function TournamentView({ tournamentId }: TournamentViewProps) {
       });
       return;
     }
-    setLocation(`/tournaments/${tournamentId}/register`);
+    setLocation(`/tournaments/${tournament ? slugify(tournament.name) : tournamentId}/register`);
   };
 
   const handleCopyLink = () => {
@@ -226,7 +226,7 @@ export default function TournamentView({ tournamentId }: TournamentViewProps) {
                   hasRegistration ? (
                     config.registers?.allowEditRegistration && (
                       <Button
-                        onClick={() => setLocation(`/tournaments/${tournamentId}/register?edit=true`)}
+                        onClick={() => setLocation(`/tournaments/${tournament ? slugify(tournament.name) : tournamentId}/register?edit=true`)}
                         variant="outline"
                         className="w-full sm:w-auto rounded-full border-blue-500 text-blue-600 hover:bg-blue-50 font-bold"
                       >
@@ -245,7 +245,7 @@ export default function TournamentView({ tournamentId }: TournamentViewProps) {
                 {canManageTournament && (
                   <Button
                     variant="outline"
-                    onClick={() => setLocation(`/tournaments/${tournamentId}/manage`)}
+                    onClick={() => setLocation(`/tournaments/${tournament ? slugify(tournament.name) : tournamentId}/manage`)}
                     className="rounded-full border-slate-200 font-bold"
                   >
                     <SettingsIcon className="h-4 w-4 mr-2" />
@@ -258,7 +258,7 @@ export default function TournamentView({ tournamentId }: TournamentViewProps) {
         </Card>
 
         {/* Tabs Navigation */}
-        <Tabs value={activeTab} onValueChange={(v) => setLocation(`/tournaments/${tournamentId}/${v}`)} className="w-full">
+        <Tabs value={activeTab} onValueChange={(v) => setLocation(`/tournaments/${tournament ? slugify(tournament.name) : tournamentId}/${v}`)} className="w-full">
           <TabsList className="flex w-full min-h-[48px] h-auto overflow-x-auto no-scrollbar flex-nowrap items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200/60 shadow-sm backdrop-blur-sm">
             {availableTabs.map((tab) => (
               <TabsTrigger

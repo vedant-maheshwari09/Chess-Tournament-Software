@@ -10,6 +10,7 @@ import { useAuth } from "@/hooks/useAuth";
 import type { Tournament } from "@shared/schema";
 import SettingsMenu from "@/components/settings-menu";
 import NotificationBell from "@/components/notification-bell";
+import { slugify } from "@/lib/utils";
 
 
 export default function TournamentDirectorDashboard() {
@@ -77,9 +78,10 @@ export default function TournamentDirectorDashboard() {
 
   const renderActions = (tournament: Tournament) => {
     const actions: ReactNode[] = [];
+    const slug = slugify(tournament.name);
     if (tournament.status === "draft") {
       actions.push(
-        <Link key="manage" href={`/tournaments/${tournament.id}/manage`}>
+        <Link key="manage" href={`/tournaments/${slug}/manage`}>
           <Button variant="secondary" size="sm">
             Manage
           </Button>
@@ -87,7 +89,7 @@ export default function TournamentDirectorDashboard() {
       );
     } else if (tournament.status === "upcoming") {
       actions.push(
-        <Link key="manage" href={`/tournaments/${tournament.id}/manage`}>
+        <Link key="manage" href={`/tournaments/${slug}/manage`}>
           <Button variant="outline" size="sm">
             Manage
           </Button>
@@ -95,12 +97,12 @@ export default function TournamentDirectorDashboard() {
       );
     } else if (tournament.status === "active") {
       actions.push(
-        <Link key="manage" href={`/tournaments/${tournament.id}/manage`}>
+        <Link key="manage" href={`/tournaments/${slug}/manage`}>
           <Button size="sm">Manage</Button>
         </Link>
       );
       actions.push(
-        <Link key="view" href={`/tournaments/${tournament.id}`}>
+        <Link key="view" href={`/tournaments/${slug}`}>
           <Button variant="outline" size="sm">
             View Live
           </Button>
@@ -108,7 +110,7 @@ export default function TournamentDirectorDashboard() {
       );
     } else if (tournament.status === "completed") {
       actions.push(
-        <Link key="view" href={`/tournaments/${tournament.id}/manage`}>
+        <Link key="view" href={`/tournaments/${slug}/manage`}>
           <Button variant="outline" size="sm">
             View Results
           </Button>

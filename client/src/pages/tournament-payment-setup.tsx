@@ -14,6 +14,7 @@ import { parseTournamentConfig, type PaymentProvider, type AccountPaymentSetting
 import type { Tournament } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 import clsx from "clsx";
+import { slugify } from "@/lib/utils";
 
 
 interface TournamentPaymentSetupPageProps {
@@ -114,9 +115,9 @@ export default function TournamentPaymentSetupPage({ tournamentId }: TournamentP
     if (!user) {
       setLocation("/");
     } else if (user.role !== "tournament_director" || (parsedConfig && !isOwner)) {
-      setLocation(`/tournaments/${tournamentId}`);
+      setLocation(`/tournaments/${tournament ? slugify(tournament.name) : tournamentId}`);
     }
-  }, [authLoading, tournamentLoading, user, parsedConfig, isOwner, setLocation, tournamentId]);
+  }, [authLoading, tournamentLoading, user, parsedConfig, isOwner, setLocation, tournamentId, tournament]);
 
   const updateTournamentPayments = useMutation({
     mutationFn: async (payload: Record<string, unknown>) =>
@@ -333,7 +334,7 @@ export default function TournamentPaymentSetupPage({ tournamentId }: TournamentP
               <div className="grid gap-3 sm:grid-cols-3">
                 <Button
                   variant="outline"
-                  onClick={() => setLocation(`/tournaments/${tournamentId}/manage`)}
+                  onClick={() => setLocation(`/tournaments/${tournament ? slugify(tournament.name) : tournamentId}/manage`)}
                   disabled={isBusy}
                 >
                   Cancel

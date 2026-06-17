@@ -409,7 +409,7 @@ export default function SwissStandings({ tournamentId, showExportControls = true
               const s_fpr = 1.0;
               const s_von = s_pr + (1.0 - s_fpr) + 0.5 * (currentRound - round);
               scores.push(s_von);
-            } else if (interpretation.outcome === 'forfeit-loss') {
+            } else if (interpretation.outcome === 'forfeit-loss' || interpretation.outcome === 'double-forfeit') {
               const s_pr = getPlayerScoreBeforeRound(playerId, round);
               const s_fpr = 0.0;
               const s_von = s_pr + (1.0 - s_fpr) + 0.5 * (currentRound - round);
@@ -755,7 +755,16 @@ export default function SwissStandings({ tournamentId, showExportControls = true
           if (!g.opponent) return;
           let oppRating = (isFide ? (g.opponent.fideRating ?? g.opponent.rating) : (g.opponent.uscfRating ?? g.opponent.rating)) || 0;
           if (oppRating === 0) oppRating = 1000; // default unrated opponent is 1000
-          const expected = 1 / (1 + Math.pow(10, (oppRating - preRating) / 400));
+          
+          let expected;
+          if (isFide) {
+            let diff = oppRating - preRating;
+            if (diff > 400) diff = 400;
+            if (diff < -400) diff = -400;
+            expected = 1 / (1 + Math.pow(10, diff / 400));
+          } else {
+            expected = 1 / (1 + Math.pow(10, (oppRating - preRating) / 400));
+          }
           expectedScore += expected;
 
           if (g.result === 'W') {
@@ -765,7 +774,15 @@ export default function SwissStandings({ tournamentId, showExportControls = true
           }
         });
 
-        const K = 32;
+        let K = 32;
+        if (isFide) {
+          K = preRating >= 2400 ? 10 : 20;
+        } else {
+          if (preRating >= 2400) K = 16;
+          else if (preRating >= 2200) K = 24;
+          else K = 32;
+        }
+
         const postRating = preRating + K * (actualScore - expectedScore);
         const rounded = Math.round(postRating);
         return Math.max(100, rounded); // capped at 100 minimum
@@ -1238,7 +1255,9 @@ a:hover { text-decoration: underline; }
     }
 
     const colorPrefix = result.color === 'white' ? 'W' : 'B';
-    const opponentNum = result.opponent?.isActiveTd ? 'TD' : getPlayerPairingNumber(result.opponent.id);
+    const opponentNum = result.opponent?.isActiveTd 
+      ? 'TD' 
+      : (result.opponentPosition && result.opponentPosition > 0 ? result.opponentPosition : getPlayerPairingNumber(result.opponent.id));
 
     if (result.result === 'forfeit-win') {
       return `X ${opponentNum}`;
@@ -1265,7 +1284,9 @@ a:hover { text-decoration: underline; }
     }
 
     const colorPrefix = result.color === 'white' ? 'W' : 'B';
-    const opponentNum = result.opponent?.isActiveTd ? 'TD' : getPlayerPairingNumber(result.opponent.id);
+    const opponentNum = result.opponent?.isActiveTd 
+      ? 'TD' 
+      : (result.opponentPosition && result.opponentPosition > 0 ? result.opponentPosition : getPlayerPairingNumber(result.opponent.id));
 
     if (result.result === 'forfeit-win') {
       return `X ${opponentNum}`;
@@ -1308,7 +1329,9 @@ a:hover { text-decoration: underline; }
     const colorPrefix = result.color === 'white' ? 'W' : 'B';
 
     // Show "TD" instead of position number if opponent is the houseplayer
-    const opponentDisplayText = result.opponent?.isActiveTd ? 'TD' : getPlayerPairingNumber(result.opponent.id);
+    const opponentDisplayText = result.opponent?.isActiveTd 
+      ? 'TD' 
+      : (result.opponentPosition && result.opponentPosition > 0 ? result.opponentPosition : getPlayerPairingNumber(result.opponent.id));
 
     if (result.result === 'forfeit-win') {
       return `X ${opponentDisplayText}`;

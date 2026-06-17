@@ -1680,6 +1680,46 @@ app.post("/api/tournaments/:id/next-round", requireAuth, requireRole('tournament
     }
   });
 
+  // Patch tournament config (e.g. for autosaves)
+  app.patch("/api/tournaments/:id", requireAuth, requireRole('tournament_director'), async (req, res) => {
+    try {
+      const tournamentId = parseInt(req.params.id);
+      const tournament = await storage.getTournament(tournamentId);
+
+      if (!tournament) {
+        return res.status(404).json({ message: "Tournament not found" });
+      }
+
+      if (tournament.createdBy !== req.user!.id && req.user!.role !== 'admin') {
+        return res.status(403).json({ message: "Unauthorized to update this tournament" });
+      }
+
+      const updateData: Partial<Tournament> = {};
+
+      if (req.body.config) {
+        const parsedConfig = typeof req.body.config === 'string' ? JSON.parse(req.body.config) : req.body.config;
+        updateData.roundTimings = parsedConfig;
+        if (parsedConfig.boardNumbering) {
+          updateData.boardNumberingSettings = parsedConfig.boardNumbering;
+        }
+      }
+
+      const otherFields = insertTournamentSchema.partial().safeParse(req.body);
+      if (otherFields.success) {
+        Object.assign(updateData, otherFields.data);
+      }
+
+      const updatedTournament = await storage.updateTournament(tournamentId, updateData);
+      res.json(updatedTournament);
+    } catch (error) {
+      console.error('Tournament patch error:', error);
+      res.status(400).json({
+        message: "Failed to update tournament config via patch",
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
 // Delete tournament
 app.delete("/api/tournaments/:id", requireAuth, requireRole('tournament_director'), requireTournamentAccess, async (req, res) => {
     try {

@@ -18,7 +18,7 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { cn } from "@/lib/utils";
+import { cn, slugify } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -143,7 +143,7 @@ export default function TournamentSettingsPage({ tournamentId, section }: Tourna
 
   useEffect(() => {
     if (tournament && user && user.role === "tournament_director" && tournament.createdBy !== user.id) {
-      setLocation(`/tournaments/${tournamentId}`);
+      setLocation(`/tournaments/${tournament ? slugify(tournament.name) : tournamentId}`);
     }
   }, [tournament, user, tournamentId, setLocation]);
 
@@ -335,9 +335,9 @@ export default function TournamentSettingsPage({ tournamentId, section }: Tourna
   useEffect(() => {
     if (!config) return;
     if (!allowedSections.includes(currentSection)) {
-      setLocation(`/tournaments/${tournamentId}/settings/${allowedSections[0] ?? "registers"}`);
+      setLocation(`/tournaments/${tournament ? slugify(tournament.name) : tournamentId}/settings/${allowedSections[0] ?? "registers"}`);
     }
-  }, [allowedSections, config, currentSection, setLocation, tournamentId]);
+  }, [allowedSections, config, currentSection, setLocation, tournamentId, tournament]);
 
   const unsavedChanges = isDirty || JSON.stringify(config) !== JSON.stringify(baseline);
 
@@ -491,7 +491,7 @@ export default function TournamentSettingsPage({ tournamentId, section }: Tourna
       <div className="mx-auto max-w-6xl space-y-6 p-6">
         <Button
           variant="link"
-          onClick={() => setLocation(`/tournaments/${tournamentId}/manage`)}
+          onClick={() => setLocation(`/tournaments/${tournament ? slugify(tournament.name) : tournamentId}/manage`)}
           className="pl-0 text-slate-500 hover:text-slate-900"
         >
           <ChevronLeft className="mr-1 h-4 w-4" />
@@ -556,7 +556,7 @@ export default function TournamentSettingsPage({ tournamentId, section }: Tourna
                 return (
                   <button
                     key={key}
-                    onClick={() => setLocation(`/tournaments/${tournamentId}/settings/${key}`)}
+                    onClick={() => setLocation(`/tournaments/${tournament ? slugify(tournament.name) : tournamentId}/settings/${key}`)}
                     className={cn(
                       "flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors",
                       isActive

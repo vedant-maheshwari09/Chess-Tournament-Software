@@ -22,7 +22,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { cn } from "@/lib/utils";
+import { cn, slugify } from "@/lib/utils";
 import { apiRequest } from "@/lib/queryClient";
 import SwissPairings from "@/components/swiss-pairings";
 import Standings from "@/components/standings";
@@ -117,7 +117,7 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
   // Redirect non-owners to tournament view
   useEffect(() => {
     if (tournament && user && !isOwner) {
-      setLocation(`/tournaments/${tournamentId}`);
+      setLocation(`/tournaments/${tournament ? slugify(tournament.name) : tournamentId}`);
     }
   }, [tournament, user, isOwner, tournamentId, setLocation]);
 
@@ -129,9 +129,9 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
     }
 
     if (!validTabs.includes(activeTab)) {
-      setLocation(`/tournaments/${tournamentId}/manage/dashboard`, { replace: true });
+      setLocation(`/tournaments/${tournament ? slugify(tournament.name) : tournamentId}/manage/dashboard`, { replace: true });
     }
-  }, [tournament?.format, activeTab, tournamentId, setLocation]);
+  }, [tournament?.format, tournament, activeTab, tournamentId, setLocation]);
 
   // Fetch players
   const { data: players = [] } = useQuery<Player[]>({
@@ -205,7 +205,7 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
 
 
   const selectTab = (value: string) => {
-    setLocation(`/tournaments/${tournamentId}/manage/${value}`);
+    setLocation(`/tournaments/${tournament ? slugify(tournament.name) : tournamentId}/manage/${value}`);
   };
 
   const [upcomingDialogOpen, setUpcomingDialogOpen] = useState(false);
@@ -342,7 +342,7 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
   const canGenerateNextRound = tournament?.status === 'active' && (tournament?.currentRound || 0) > 0;
 
   const handleTabChange = (value: string) => {
-    setLocation(`/tournaments/${tournamentId}/manage/${value}`);
+    setLocation(`/tournaments/${tournament ? slugify(tournament.name) : tournamentId}/manage/${value}`);
   };
 
   return (
@@ -467,7 +467,7 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
                       variant="outline"
                       size="sm"
                       className="h-9 w-full sm:w-auto border-slate-200 text-slate-600 hover:text-slate-900 font-medium shadow-sm"
-                      onClick={() => setLocation(`/tournaments/${tournamentId}/settings`)}
+                      onClick={() => setLocation(`/tournaments/${tournament ? slugify(tournament.name) : tournamentId}/settings`)}
                     >
                       <SettingsIcon className="h-4 w-4 mr-2" />
                       Settings

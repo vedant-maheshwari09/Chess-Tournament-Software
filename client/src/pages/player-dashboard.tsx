@@ -27,6 +27,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { requestFirebaseToken } from "@/lib/firebase";
 import { RegistrationStatusCard } from "@/components/registration-status-card";
 import NotificationBell from "@/components/notification-bell";
+import { slugify } from "@/lib/utils";
 
 type SortKey = "players" | "date" | "state";
 
@@ -388,7 +389,7 @@ export default function PlayerDashboard() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setLocation(`/tournaments/${tournament.id}`)}
+            onClick={() => setLocation(`/tournaments/${slugify(tournament.name)}`)}
             className="inline-flex items-center gap-2"
           >
             <Eye className="h-4 w-4" />

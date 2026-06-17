@@ -28,29 +28,75 @@ import MatchSubmitMobile from "@/pages/match-submit-mobile";
 
 import LandingPage from "@/pages/landing-page";
 import ScrollToTop from "@/components/scroll-to-top";
+import { slugify } from "@/lib/utils";
 
-function TournamentSlugResolver() {
+function TournamentRouteWrapper({
+  idParam,
+  requireDirector = false,
+  children,
+}: {
+  idParam: string;
+  requireDirector?: boolean;
+  children: (id: number) => React.ReactNode;
+}) {
+  const { user } = useAuth();
   const [location, setLocation] = useLocation();
-  
-  const match = location.match(/^\/tournaments\/([^/]+)(.*)$/);
-  if (!match) return null;
-  
-  const slugOrId = match[1];
-  const rest = match[2];
-  
-  if (slugOrId === "new" || /^\d+$/.test(slugOrId)) {
-    return null;
+  const isNumeric = /^\d+$/.test(idParam);
+
+  // Security check: If requireDirector is true and user is not a tournament director, deny access
+  if (requireDirector && user?.role !== 'tournament_director') {
+    return <Redirect to="/dashboard" />;
   }
-  
-  const { data: tournament, error, isLoading } = useQuery<any>({
-    queryKey: [`/api/tournaments/by-name/${slugOrId}`],
-    enabled: !!slugOrId && slugOrId !== "new" && !/^\d+$/.test(slugOrId),
+
+  // If the parameter is "new", it's not a real tournament ID/slug, so do nothing (shouldn't really hit here anyway)
+  if (idParam === "new") {
+    return <>{children(0)}</>;
+  }
+
+  if (isNumeric) {
+    // If it's a numeric ID, fetch the tournament to get its slug and redirect
+    const tournamentId = parseInt(idParam, 10);
+    const { data: tournament, isLoading, error } = useQuery<any>({
+      queryKey: [`/api/tournaments/${tournamentId}`],
+      retry: false,
+    });
+
+    if (isLoading) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-transparent backdrop-blur-md">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+            <p className="mt-4 text-slate-600 font-medium">Redirecting to slugified link...</p>
+          </div>
+        </div>
+      );
+    }
+
+    if (error || !tournament) {
+      return <Redirect to="/not-found" />;
+    }
+
+    // Secondary security check
+    if (requireDirector && tournament.createdBy !== user?.id && user?.role !== 'admin') {
+      return <Redirect to="/dashboard" />;
+    }
+
+    const slug = slugify(tournament.name);
+    // Construct new path replacing the numeric tournament ID with the slug
+    const currentPath = window.location.pathname;
+    const newPath = currentPath.replace(`/tournaments/${idParam}`, `/tournaments/${slug}`);
+    return <Redirect to={newPath} replace />;
+  }
+
+  // If it's a slug, query by-name to resolve the ID
+  const { data: tournament, isLoading, error } = useQuery<any>({
+    queryKey: [`/api/tournaments/by-name/${idParam}`],
     retry: false,
   });
-  
+
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-white/50 backdrop-blur-md">
+      <div className="min-h-screen flex items-center justify-center bg-transparent backdrop-blur-md">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
           <p className="mt-4 text-slate-600 font-medium">Resolving tournament link...</p>
@@ -58,7 +104,7 @@ function TournamentSlugResolver() {
       </div>
     );
   }
-  
+
   if (error || !tournament) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-transparent">
@@ -75,12 +121,13 @@ function TournamentSlugResolver() {
       </div>
     );
   }
-  
-  setTimeout(() => {
-    setLocation(`/tournaments/${tournament.id}${rest || ''}`);
-  }, 0);
-  
-  return null;
+
+  // Security check: check ownership of tournament if requireDirector is true
+  if (requireDirector && tournament.createdBy !== user?.id && user?.role !== 'admin') {
+    return <Redirect to={`/tournaments/${idParam}`} />;
+  }
+
+  return <>{children(tournament.id)}</>;
 }
 
 function AuthenticatedApp() {
@@ -112,7 +159,6 @@ function AuthenticatedApp() {
   return (
     <>
       <AnimatedBackground />
-      <TournamentSlugResolver />
       {!user ? (
         <div className="min-h-screen bg-transparent">
           <Switch>
@@ -152,45 +198,93 @@ function AuthenticatedApp() {
                 <Route path="/dashboard/:tab" component={TournamentDirectorDashboard} />
                 <Route path="/tournaments/new" component={TournamentCreation} />
                 <Route path="/tournaments/:id/manage/:tab">
-                  {(params) => <TournamentManagement tournamentId={parseInt(params.id)} />}
+                  {(params) => (
+                    <TournamentRouteWrapper idParam={params.id} requireDirector>
+                      {(resolvedId) => <TournamentManagement tournamentId={resolvedId} />}
+                    </TournamentRouteWrapper>
+                  )}
                 </Route>
                 <Route path="/tournaments/:id/manage">
-                  {(params) => <Redirect to={`/tournaments/${params.id}/manage/dashboard`} />}
+                  {(params) => (
+                    <TournamentRouteWrapper idParam={params.id} requireDirector>
+                      {(resolvedId) => <Redirect to={`/tournaments/${params.id}/manage/dashboard`} />}
+                    </TournamentRouteWrapper>
+                  )}
                 </Route>
                 <Route path="/tournaments/:id/settings/:section">
-                  {(params) => <TournamentActionsPage tournamentId={parseInt(params.id)} />}
+                  {(params) => (
+                    <TournamentRouteWrapper idParam={params.id} requireDirector>
+                      {(resolvedId) => <TournamentActionsPage tournamentId={resolvedId} />}
+                    </TournamentRouteWrapper>
+                  )}
                 </Route>
                 <Route path="/tournaments/:id/settings">
-                  {(params) => <TournamentActionsPage tournamentId={parseInt(params.id)} />}
+                  {(params) => (
+                    <TournamentRouteWrapper idParam={params.id} requireDirector>
+                      {(resolvedId) => <TournamentActionsPage tournamentId={resolvedId} />}
+                    </TournamentRouteWrapper>
+                  )}
                 </Route>
                 <Route path="/tournaments/:id/reports/uscf">
-                  {(params) => <TournamentReportsPage tournamentId={parseInt(params.id)} type="uscf" />}
+                  {(params) => (
+                    <TournamentRouteWrapper idParam={params.id} requireDirector>
+                      {(resolvedId) => <TournamentReportsPage tournamentId={resolvedId} type="uscf" />}
+                    </TournamentRouteWrapper>
+                  )}
                 </Route>
                 <Route path="/tournaments/:id/reports/fide">
-                  {(params) => <TournamentReportsPage tournamentId={parseInt(params.id)} type="fide" />}
+                  {(params) => (
+                    <TournamentRouteWrapper idParam={params.id} requireDirector>
+                      {(resolvedId) => <TournamentReportsPage tournamentId={resolvedId} type="fide" />}
+                    </TournamentRouteWrapper>
+                  )}
                 </Route>
                 <Route path="/tournaments/:id/players/new">
-                  {(params) => <AddPlayerPage tournamentId={parseInt(params.id)} />}
+                  {(params) => (
+                    <TournamentRouteWrapper idParam={params.id} requireDirector>
+                      {(resolvedId) => <AddPlayerPage tournamentId={resolvedId} />}
+                    </TournamentRouteWrapper>
+                  )}
                 </Route>
                 <Route path="/tournaments/:id/players/:playerId">
                   {(params) => (
-                    <AddPlayerPage
-                      tournamentId={parseInt(params.id)}
-                      playerId={parseInt(params.playerId)}
-                    />
+                    <TournamentRouteWrapper idParam={params.id} requireDirector>
+                      {(resolvedId) => (
+                        <AddPlayerPage
+                          tournamentId={resolvedId}
+                          playerId={parseInt(params.playerId)}
+                        />
+                      )}
+                    </TournamentRouteWrapper>
                   )}
                 </Route>
                 <Route path="/tournaments/:id/register">
-                  {(params) => <TournamentRegistrationFormPage tournamentId={parseInt(params.id)} />}
+                  {(params) => (
+                    <TournamentRouteWrapper idParam={params.id}>
+                      {(resolvedId) => <TournamentRegistrationFormPage tournamentId={resolvedId} />}
+                    </TournamentRouteWrapper>
+                  )}
                 </Route>
                 <Route path="/tournaments/:id/payments/setup">
-                  {(params) => <TournamentPaymentSetupPage tournamentId={parseInt(params.id)} />}
+                  {(params) => (
+                    <TournamentRouteWrapper idParam={params.id} requireDirector>
+                      {(resolvedId) => <TournamentPaymentSetupPage tournamentId={resolvedId} />}
+                    </TournamentRouteWrapper>
+                  )}
                 </Route>
                 <Route path="/tournaments/:id/:tab">
-                  {(params) => <TournamentView tournamentId={parseInt(params.id)} />}
+                  {(params) => (
+                    <TournamentRouteWrapper idParam={params.id}>
+                      {(resolvedId) => <TournamentView tournamentId={resolvedId} />}
+                    </TournamentRouteWrapper>
+                  )}
                 </Route>
                 <Route path="/tournaments/:id">
-                  {(params) => <Redirect to={`/tournaments/${params.id}/info`} />}
+                  {(params) => (
+                    <TournamentRouteWrapper idParam={params.id}>
+                      {(resolvedId) => <Redirect to={`/tournaments/${params.id}/info`} />}
+                    </TournamentRouteWrapper>
+                  )}
                 </Route>
               </>
             ) : (
@@ -203,13 +297,25 @@ function AuthenticatedApp() {
                 </Route>
                 <Route path="/dashboard/:tab" component={PlayerDashboard} />
                 <Route path="/tournaments/:id/register">
-                  {(params) => <TournamentRegistrationFormPage tournamentId={parseInt(params.id)} />}
+                  {(params) => (
+                    <TournamentRouteWrapper idParam={params.id}>
+                      {(resolvedId) => <TournamentRegistrationFormPage tournamentId={resolvedId} />}
+                    </TournamentRouteWrapper>
+                  )}
                 </Route>
                 <Route path="/tournaments/:id/:tab">
-                  {(params) => <TournamentView tournamentId={parseInt(params.id)} />}
+                  {(params) => (
+                    <TournamentRouteWrapper idParam={params.id}>
+                      {(resolvedId) => <TournamentView tournamentId={resolvedId} />}
+                    </TournamentRouteWrapper>
+                  )}
                 </Route>
                 <Route path="/tournaments/:id">
-                  {(params) => <Redirect to={`/tournaments/${params.id}/info`} />}
+                  {(params) => (
+                    <TournamentRouteWrapper idParam={params.id}>
+                      {(resolvedId) => <Redirect to={`/tournaments/${params.id}/info`} />}
+                    </TournamentRouteWrapper>
+                  )}
                 </Route>
               </>
             )}

@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AlertTriangle, ChevronLeft, Mail, Share2, Trash2, Users } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { slugify } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import {
@@ -223,7 +224,7 @@ export function TournamentActionsContent({
     }
 
     const subject = encodeURIComponent(`Tournament Coordination: ${tournament.name}`);
-    const link = typeof window !== "undefined" ? `${window.location.origin}/tournaments/${tournamentId}` : "";
+    const link = typeof window !== "undefined" ? `${window.location.origin}/tournaments/${tournament ? slugify(tournament.name) : tournamentId}` : "";
     const message = shareMessage.trim().length > 0 ? `${shareMessage.trim()}\n\n` : "";
     const body = encodeURIComponent(`${message}Event details: ${link}`);
     const to = encodeURIComponent(recipients.join(","));
@@ -374,7 +375,7 @@ export default function TournamentActionsPage({ tournamentId }: TournamentAction
       return;
     }
     if (!canManageTournament && tournament) {
-      setLocation(`/tournaments/${tournamentId}`);
+      setLocation(`/tournaments/${tournament ? slugify(tournament.name) : tournamentId}`);
     }
   }, [authLoading, canManageTournament, tournament, tournamentId, tournamentLoading, user, setLocation]);
 
@@ -398,7 +399,7 @@ export default function TournamentActionsPage({ tournamentId }: TournamentAction
       <div className="mx-auto max-w-4xl space-y-6 p-6">
         <Button
           variant="link"
-          onClick={() => setLocation(`/tournaments/${tournamentId}/manage`)}
+          onClick={() => setLocation(`/tournaments/${tournament ? slugify(tournament.name) : tournamentId}/manage`)}
           className="pl-0 text-slate-500 hover:text-slate-900"
         >
           <ChevronLeft className="mr-1 h-4 w-4" />

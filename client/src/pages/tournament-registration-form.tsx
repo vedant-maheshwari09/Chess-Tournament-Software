@@ -31,7 +31,7 @@ import {
 } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { cn } from "@/lib/utils";
+import { cn, slugify } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -1074,7 +1074,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
               </p>
               <Button
                 className="mt-6 w-full"
-                onClick={() => setLocation(`/tournaments/${tournamentId}`)}
+                onClick={() => setLocation(`/tournaments/${tournament ? slugify(tournament.name) : tournamentId}`)}
               >
                 <ArrowLeft className="mr-2 h-4 w-4" />
                 Back to Tournament Page
@@ -1099,7 +1099,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
                 variant="ghost"
                 size="sm"
                 className="gap-1.5 text-sm font-medium text-gray-500 hover:text-gray-900"
-                onClick={() => setLocation(`/tournaments/${tournamentId}`)}
+                onClick={() => setLocation(`/tournaments/${slugify(tournament.name)}`)}
               >
                 <ArrowLeft className="h-3.5 w-3.5" />
                 Back to tournament
@@ -1166,7 +1166,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
               <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
                 We&apos;ll notify you once the tournament director processes your registration.
               </div>
-              <Button className="mt-6 w-full" onClick={() => setLocation(`/tournaments/${tournamentId}`)}>Return to tournament page</Button>
+              <Button className="mt-6 w-full" onClick={() => setLocation(`/tournaments/${slugify(tournament.name)}`)}>Return to tournament page</Button>
             </div>
           </div>
         </div>
@@ -1488,7 +1488,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
           <div className="border-b border-gray-100 px-6 py-5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <Link href={`/tournaments/${tournamentId}`}>
+                <Link href={`/tournaments/${slugify(tournament.name)}`}>
                   <button
                     type="button"
                     className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-blue-300 hover:text-blue-600 active:scale-95"
@@ -3082,7 +3082,7 @@ function StepThreeContent({
       const trimmedName = `${firstName ?? ""} ${lastName ?? ""}`.trim() || undefined;
       const returnUrl =
         typeof window !== "undefined"
-          ? `${window.location.origin}/tournaments/${tournamentId}/register?payment=complete`
+          ? `${window.location.origin}/tournaments/${slugify(tournament.name)}/register?payment=complete`
           : undefined;
 
       const result = await stripe.confirmPayment({
