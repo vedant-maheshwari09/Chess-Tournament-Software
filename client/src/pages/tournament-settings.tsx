@@ -517,7 +517,7 @@ export default function TournamentSettingsPage({ tournamentId, section }: Tourna
                 <span>Autosaving...</span>
               </div>
             ) : isDirty ? (
-              <div className="text-sm text-amber-600 font-medium">Unsaved changes...</div>
+              <div className="text-sm text-amber-600 font-medium animate-pulse">Unsaved changes...</div>
             ) : (
               <div className="flex items-center gap-1.5 text-sm text-emerald-600 font-medium">
                 <Check className="h-4 w-4" />

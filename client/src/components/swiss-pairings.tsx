@@ -2274,18 +2274,18 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                       No pairings or byes for this section in Round {currentRound}.
                     </div>
                   ) : (
-                    <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-                        <table className="min-w-full border-collapse font-sans">
-                          <thead className="bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300">
-                            <tr>
-                              <th className="px-3 py-2 text-center text-xs font-bold w-14 border-b border-r border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-sans">Bd</th>
-                              <th className="px-3 py-2 text-center text-xs font-bold w-16 border-b border-r border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-sans">Res</th>
-                              <th className="px-4 py-2 text-left text-xs font-bold border-b border-r border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-sans">White</th>
-                              <th className="px-3 py-2 text-center text-xs font-bold w-16 border-b border-r border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-sans">Res</th>
-                              <th className="px-4 py-2 text-left text-xs font-bold border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-sans">Black</th>
+                    <div className="overflow-x-auto border border-black p-1 bg-white">
+                        <table style={{ borderCollapse: 'collapse', border: '1px solid black', width: '100%', fontFamily: 'Arial, sans-serif', fontSize: '13px', color: '#000', backgroundColor: '#fff' }}>
+                          <thead>
+                            <tr style={{ border: '1px solid black', backgroundColor: '#e8e8e8' }}>
+                              <th style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '13px', textAlign: 'center', width: '56px' }}>Bd</th>
+                              <th style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '13px', textAlign: 'center', width: '64px' }}>Res</th>
+                              <th style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '13px', textAlign: 'left' }}>White</th>
+                              <th style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '13px', textAlign: 'center', width: '64px' }}>Res</th>
+                              <th style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '13px', textAlign: 'left' }}>Black</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                          <tbody>
                             {swissMatches.map((match) => {
                               const whiteName = getPlayerName(match.whitePlayerId);
                               const whiteRating = getPlayerRating(match.whitePlayerId);
@@ -2313,16 +2313,30 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                               const isBlackSelected = match.blackPlayerId ? selectedPlayers.some(p => p.playerId === match.blackPlayerId && p.matchId === match.id) : false;
 
                               return (
-                                <tr key={match.id} className={cn("bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 border-b border-slate-200 dark:border-slate-800 last:border-b-0 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors", isPending && "bg-amber-50/30 dark:bg-amber-950/10")}>
-                                  <td className="px-3 py-3 text-center border-r border-slate-200 dark:border-slate-800 font-sans text-sm font-bold text-slate-500 dark:text-slate-400 bg-slate-50/50 dark:bg-slate-800/20 w-14">
+                                <tr
+                                  key={match.id}
+                                  style={{
+                                    border: '1px solid black',
+                                    backgroundColor: isPending ? '#fff9e6' : '#fff',
+                                    color: '#000'
+                                  }}
+                                >
+                                  <td style={{ border: '1px solid black', padding: '6px 8px', color: '#000', textAlign: 'center', fontWeight: 'bold', fontSize: '13px', width: '56px', backgroundColor: '#f5f5f5' }}>
                                     {match.board}
                                   </td>
                                   <td
-                                    className={cn(
-                                      "px-2 py-2 border-r border-slate-200 dark:border-slate-800 text-center select-none align-middle font-sans font-bold text-sm w-16 text-slate-700 dark:text-slate-300 bg-slate-50/10 dark:bg-slate-900/5 transition-all",
-                                      isEditMode && "cursor-pointer hover:bg-amber-50 dark:hover:bg-amber-950/20",
-                                      isEditMode && whiteClicked && "bg-amber-50 dark:bg-amber-950/20 border-r border-slate-200 dark:border-slate-800 text-amber-900 dark:text-amber-300"
-                                    )}
+                                    style={{
+                                      border: '1px solid black',
+                                      padding: '6px 8px',
+                                      color: whiteClicked ? '#854d0e' : '#000',
+                                      backgroundColor: whiteClicked ? '#fef3c7' : '#fff',
+                                      textAlign: 'center',
+                                      cursor: isEditMode ? 'pointer' : 'default',
+                                      fontWeight: 'bold',
+                                      fontSize: '13px',
+                                      width: '64px',
+                                      userSelect: 'none'
+                                    }}
                                     onClick={() => isEditMode && handleResultCellClick(match.id, 'white')}
                                     onDoubleClick={() => isEditMode && handleResultCellDoubleClick(match.id, 'white')}
                                     title={isEditMode ? "Double-click to set White Win; click both sides once for Draw" : ""}
@@ -2332,11 +2346,15 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                                     </div>
                                   </td>
                                   <td
-                                    className={cn(
-                                      "px-4 py-2 border-r border-slate-200 dark:border-slate-800 select-none text-left bg-transparent transition-all",
-                                      (!isEditMode && isOwner && match.whitePlayerId) && "cursor-pointer hover:bg-blue-50/40 dark:hover:bg-blue-950/10",
-                                      (!isEditMode && isWhiteSelected) && "bg-blue-50 dark:bg-blue-950/30 text-blue-900 dark:text-blue-300 border-r border-slate-200 dark:border-slate-800"
-                                    )}
+                                    style={{
+                                      border: '1px solid black',
+                                      padding: '6px 8px',
+                                      color: isWhiteSelected ? '#1e3a8a' : '#000',
+                                      backgroundColor: isWhiteSelected ? '#dbeafe' : 'transparent',
+                                      textAlign: 'left',
+                                      cursor: (!isEditMode && match.whitePlayerId && isOwner) ? 'pointer' : 'default',
+                                      userSelect: 'none'
+                                    }}
                                     onClick={() => {
                                       if (!isEditMode && match.whitePlayerId && isOwner) {
                                         handlePlayerClick(match.whitePlayerId, match.id, 'white', whiteName);
@@ -2344,16 +2362,23 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                                     }}
                                     title={(!isEditMode && isOwner) ? "Click to select for swap" : ""}
                                   >
-                                    <span className="font-bold text-sm text-slate-800 dark:text-slate-200">
-                                      {whiteName} <span className="font-sans text-xs text-slate-500 dark:text-slate-400 font-normal">({whiteRating} {whitePointsStr})</span>
+                                    <span style={{ fontWeight: 'bold', fontSize: '13px', color: isWhiteSelected ? '#1e3a8a' : '#000' }}>
+                                      {whiteName} <span style={{ fontSize: '11px', color: '#555', fontWeight: 'normal' }}>({whiteRating} {whitePointsStr})</span>
                                     </span>
                                   </td>
                                   <td
-                                    className={cn(
-                                      "px-2 py-2 border-r border-slate-200 dark:border-slate-800 text-center select-none align-middle font-sans font-bold text-sm w-16 text-slate-700 dark:text-slate-300 bg-slate-50/10 dark:bg-slate-900/5 transition-all",
-                                      isEditMode && "cursor-pointer hover:bg-amber-50 dark:hover:bg-amber-950/20",
-                                      isEditMode && blackClicked && "bg-amber-50 dark:bg-amber-950/20 border-r border-slate-200 dark:border-slate-800 text-amber-900 dark:text-amber-300"
-                                    )}
+                                    style={{
+                                      border: '1px solid black',
+                                      padding: '6px 8px',
+                                      color: blackClicked ? '#854d0e' : '#000',
+                                      backgroundColor: blackClicked ? '#fef3c7' : '#fff',
+                                      textAlign: 'center',
+                                      cursor: isEditMode ? 'pointer' : 'default',
+                                      fontWeight: 'bold',
+                                      fontSize: '13px',
+                                      width: '64px',
+                                      userSelect: 'none'
+                                    }}
                                     onClick={() => isEditMode && handleResultCellClick(match.id, 'black')}
                                     onDoubleClick={() => isEditMode && handleResultCellDoubleClick(match.id, 'black')}
                                     title={isEditMode ? "Double-click to set Black Win; click both sides once for Draw" : ""}
@@ -2363,11 +2388,15 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                                     </div>
                                   </td>
                                   <td
-                                    className={cn(
-                                      "px-4 py-2 border-r border-slate-200 dark:border-slate-800 select-none text-left bg-transparent transition-all",
-                                      (!isEditMode && isOwner && match.blackPlayerId) && "cursor-pointer hover:bg-blue-50/40 dark:hover:bg-blue-950/10",
-                                      (!isEditMode && isBlackSelected) && "bg-blue-50 dark:bg-blue-950/30 text-blue-900 dark:text-blue-300 border-r border-slate-200 dark:border-slate-800"
-                                    )}
+                                    style={{
+                                      border: '1px solid black',
+                                      padding: '6px 8px',
+                                      color: isBlackSelected ? '#1e3a8a' : '#000',
+                                      backgroundColor: isBlackSelected ? '#dbeafe' : 'transparent',
+                                      textAlign: 'left',
+                                      cursor: (!isEditMode && match.blackPlayerId && isOwner) ? 'pointer' : 'default',
+                                      userSelect: 'none'
+                                    }}
                                     onClick={() => {
                                       if (!isEditMode && match.blackPlayerId && isOwner) {
                                         handlePlayerClick(match.blackPlayerId, match.id, 'black', blackName);
@@ -2375,8 +2404,8 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                                     }}
                                     title={(!isEditMode && isOwner) ? "Click to select for swap" : ""}
                                   >
-                                    <span className="font-bold text-sm text-slate-800 dark:text-slate-200">
-                                      {blackName} <span className="font-sans text-xs text-slate-500 dark:text-slate-400 font-normal">({blackRating} {blackPointsStr})</span>
+                                    <span style={{ fontWeight: 'bold', fontSize: '13px', color: isBlackSelected ? '#1e3a8a' : '#000' }}>
+                                      {blackName} <span style={{ fontSize: '11px', color: '#555', fontWeight: 'normal' }}>({blackRating} {blackPointsStr})</span>
                                     </span>
                                   </td>
                                 </tr>
@@ -2396,24 +2425,31 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                                 : '';
 
                               return (
-                                <tr key={`bye-${bye.id}`} className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 border-b border-slate-200 dark:border-slate-800 last:border-b-0 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
-                                  <td className="px-3 py-3 text-center border-r border-slate-200 dark:border-slate-800 font-sans text-sm font-bold text-slate-500 dark:text-slate-400 bg-slate-50/50 dark:bg-slate-800/20 w-14">
+                                <tr
+                                  key={`bye-${bye.id}`}
+                                  style={{
+                                    border: '1px solid black',
+                                    backgroundColor: '#fff',
+                                    color: '#000'
+                                  }}
+                                >
+                                  <td style={{ border: '1px solid black', padding: '6px 8px', color: '#000', textAlign: 'center', fontWeight: 'bold', fontSize: '13px', width: '56px', backgroundColor: '#f5f5f5' }}>
                                     
                                   </td>
-                                  <td className="px-2 py-2 border-r border-slate-200 dark:border-slate-800 text-center font-sans font-bold text-sm w-16 text-slate-700 dark:text-slate-300 bg-slate-50/10 dark:bg-slate-900/5">
+                                  <td style={{ border: '1px solid black', padding: '6px 8px', color: '#000', textAlign: 'center', fontWeight: 'bold', fontSize: '13px', width: '64px' }}>
                                     <div className="flex items-center justify-center">
                                       {byePointsDisplay}
                                     </div>
                                   </td>
-                                  <td className="px-4 py-2 border-r border-slate-200 dark:border-slate-800 select-none text-left bg-transparent">
-                                    <span className="font-bold text-sm text-slate-800 dark:text-slate-200">
-                                      {playerName} <span className="font-sans text-xs text-slate-500 dark:text-slate-400 font-normal">({playerRating} {playerPointsStr})</span>
+                                  <td style={{ border: '1px solid black', padding: '6px 8px', color: '#000', textAlign: 'left', fontWeight: 'bold', fontSize: '13px' }}>
+                                    <span>
+                                      {playerName} <span style={{ fontSize: '11px', color: '#555', fontWeight: 'normal' }}>({playerRating} {playerPointsStr})</span>
                                     </span>
                                   </td>
-                                  <td className="px-2 py-2 border-r border-slate-200 dark:border-slate-800 text-center font-sans font-bold text-sm w-16 text-slate-700 dark:text-slate-300 bg-slate-50/10 dark:bg-slate-900/5">
+                                  <td style={{ border: '1px solid black', padding: '6px 8px', color: '#000', textAlign: 'center', fontSize: '13px', width: '64px' }}>
                                     
                                   </td>
-                                  <td className="px-4 py-2 italic text-slate-500 dark:text-slate-400 bg-transparent text-left font-normal text-sm">
+                                  <td style={{ border: '1px solid black', padding: '6px 8px', color: '#555', textAlign: 'left', fontSize: '13px', fontStyle: 'italic' }}>
                                     {bye.isRequested ? 'Requested Bye' : 'Unpaired'}
                                   </td>
                                 </tr>
@@ -2436,18 +2472,18 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                       </h3>
                     </div>
                     {extraMatches.length > 0 ? (
-                      <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-                        <table className="min-w-full border-collapse font-sans">
-                          <thead className="bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300">
-                            <tr>
-                              <th className="px-3 py-2 text-center text-xs font-bold w-14 border-b border-r border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-sans">Bd</th>
-                              <th className="px-3 py-2 text-center text-xs font-bold w-16 border-b border-r border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-sans">Res</th>
-                              <th className="px-4 py-2 text-left text-xs font-bold border-b border-r border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-sans">White</th>
-                              <th className="px-3 py-2 text-center text-xs font-bold w-16 border-b border-r border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-sans">Res</th>
-                              <th className="px-4 py-2 text-left text-xs font-bold border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-sans">Black</th>
+                      <div className="overflow-x-auto border border-black p-1 bg-white">
+                        <table style={{ borderCollapse: 'collapse', border: '1px solid black', width: '100%', fontFamily: 'Arial, sans-serif', fontSize: '13px', color: '#000', backgroundColor: '#fff' }}>
+                          <thead>
+                            <tr style={{ border: '1px solid black', backgroundColor: '#e8e8e8' }}>
+                              <th style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '13px', textAlign: 'center', width: '56px' }}>Bd</th>
+                              <th style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '13px', textAlign: 'center', width: '64px' }}>Res</th>
+                              <th style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '13px', textAlign: 'left' }}>White</th>
+                              <th style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '13px', textAlign: 'center', width: '64px' }}>Res</th>
+                              <th style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '13px', textAlign: 'left' }}>Black</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                          <tbody>
                             {extraMatches.map((match) => {
                               const whiteName = getPlayerName(match.whitePlayerId);
                               const whiteRating = getPlayerRating(match.whitePlayerId);
@@ -2475,16 +2511,30 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                               const isBlackSelected = match.blackPlayerId ? selectedPlayers.some(p => p.playerId === match.blackPlayerId && p.matchId === match.id) : false;
 
                               return (
-                                <tr key={match.id} className={cn("bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 border-b border-slate-200 dark:border-slate-800 last:border-b-0 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors", isPending && "bg-amber-50/30 dark:bg-amber-950/10")}>
-                                  <td className="px-3 py-3 text-center border-r border-slate-200 dark:border-slate-800 font-sans text-sm font-bold text-slate-500 dark:text-slate-400 bg-slate-50/50 dark:bg-slate-800/20 w-14">
+                                <tr
+                                  key={match.id}
+                                  style={{
+                                    border: '1px solid black',
+                                    backgroundColor: isPending ? '#fff9e6' : '#fff',
+                                    color: '#000'
+                                  }}
+                                >
+                                  <td style={{ border: '1px solid black', padding: '6px 8px', color: '#000', textAlign: 'center', fontWeight: 'bold', fontSize: '13px', width: '56px', backgroundColor: '#f5f5f5' }}>
                                     Extra
                                   </td>
                                   <td
-                                    className={cn(
-                                      "px-2 py-2 border-r border-slate-200 dark:border-slate-800 text-center select-none align-middle font-sans font-bold text-sm w-16 text-slate-700 dark:text-slate-300 bg-slate-50/10 dark:bg-slate-900/5 transition-all",
-                                      isEditMode && "cursor-pointer hover:bg-amber-50 dark:hover:bg-amber-950/20",
-                                      isEditMode && whiteClicked && "bg-amber-50 dark:bg-amber-950/20 border-r border-slate-200 dark:border-slate-800 text-amber-900 dark:text-amber-300"
-                                    )}
+                                    style={{
+                                      border: '1px solid black',
+                                      padding: '6px 8px',
+                                      color: whiteClicked ? '#854d0e' : '#000',
+                                      backgroundColor: whiteClicked ? '#fef3c7' : '#fff',
+                                      textAlign: 'center',
+                                      cursor: isEditMode ? 'pointer' : 'default',
+                                      fontWeight: 'bold',
+                                      fontSize: '13px',
+                                      width: '64px',
+                                      userSelect: 'none'
+                                    }}
                                     onClick={() => isEditMode && handleResultCellClick(match.id, 'white')}
                                     onDoubleClick={() => isEditMode && handleResultCellDoubleClick(match.id, 'white')}
                                     title={isEditMode ? "Double-click to set White Win; click both sides once for Draw" : ""}
@@ -2494,11 +2544,15 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                                     </div>
                                   </td>
                                   <td 
-                                    className={cn(
-                                      "px-4 py-2 border-r border-slate-200 dark:border-slate-800 select-none text-left bg-transparent transition-all",
-                                      (!isEditMode && isOwner && match.whitePlayerId) && "cursor-pointer hover:bg-blue-50/40 dark:hover:bg-blue-950/10",
-                                      (!isEditMode && isWhiteSelected) && "bg-blue-50 dark:bg-blue-950/30 text-blue-900 dark:text-blue-300 border-r border-slate-200 dark:border-slate-800"
-                                    )}
+                                    style={{
+                                      border: '1px solid black',
+                                      padding: '6px 8px',
+                                      color: isWhiteSelected ? '#1e3a8a' : '#000',
+                                      backgroundColor: isWhiteSelected ? '#dbeafe' : 'transparent',
+                                      textAlign: 'left',
+                                      cursor: (!isEditMode && match.whitePlayerId && isOwner) ? 'pointer' : 'default',
+                                      userSelect: 'none'
+                                    }}
                                     onClick={() => {
                                       if (!isEditMode && match.whitePlayerId && isOwner) {
                                         handlePlayerClick(match.whitePlayerId, match.id, 'white', whiteName);
@@ -2506,16 +2560,23 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                                     }}
                                     title={(!isEditMode && isOwner) ? "Click to select for swap" : ""}
                                   >
-                                    <span className="font-bold text-sm text-slate-800 dark:text-slate-200">
-                                      {whiteName} <span className="font-sans text-xs text-slate-500 dark:text-slate-400 font-normal">({whiteRating} {whitePointsStr})</span>
+                                    <span style={{ fontWeight: 'bold', fontSize: '13px', color: isWhiteSelected ? '#1e3a8a' : '#000' }}>
+                                      {whiteName} <span style={{ fontSize: '11px', color: '#555', fontWeight: 'normal' }}>({whiteRating} {whitePointsStr})</span>
                                     </span>
                                   </td>
                                   <td
-                                    className={cn(
-                                      "px-2 py-2 border-r border-slate-200 dark:border-slate-800 text-center select-none align-middle font-sans font-bold text-sm w-16 text-slate-700 dark:text-slate-300 bg-slate-50/10 dark:bg-slate-900/5 transition-all",
-                                      isEditMode && "cursor-pointer hover:bg-amber-50 dark:hover:bg-amber-950/20",
-                                      isEditMode && blackClicked && "bg-amber-50 dark:bg-amber-950/20 border-r border-slate-200 dark:border-slate-800 text-amber-900 dark:text-amber-300"
-                                    )}
+                                    style={{
+                                      border: '1px solid black',
+                                      padding: '6px 8px',
+                                      color: blackClicked ? '#854d0e' : '#000',
+                                      backgroundColor: blackClicked ? '#fef3c7' : '#fff',
+                                      textAlign: 'center',
+                                      cursor: isEditMode ? 'pointer' : 'default',
+                                      fontWeight: 'bold',
+                                      fontSize: '13px',
+                                      width: '64px',
+                                      userSelect: 'none'
+                                    }}
                                     onClick={() => isEditMode && handleResultCellClick(match.id, 'black')}
                                     onDoubleClick={() => isEditMode && handleResultCellDoubleClick(match.id, 'black')}
                                     title={isEditMode ? "Double-click to set Black Win; click both sides once for Draw" : ""}
@@ -2525,11 +2586,15 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                                     </div>
                                   </td>
                                   <td 
-                                    className={cn(
-                                      "px-4 py-2 border-r border-slate-200 dark:border-slate-800 select-none text-left bg-transparent transition-all",
-                                      (!isEditMode && isOwner && match.blackPlayerId) && "cursor-pointer hover:bg-blue-50/40 dark:hover:bg-blue-950/10",
-                                      (!isEditMode && isBlackSelected) && "bg-blue-50 dark:bg-blue-950/30 text-blue-900 dark:text-blue-300 border-r border-slate-200 dark:border-slate-800"
-                                    )}
+                                    style={{
+                                      border: '1px solid black',
+                                      padding: '6px 8px',
+                                      color: isBlackSelected ? '#1e3a8a' : '#000',
+                                      backgroundColor: isBlackSelected ? '#dbeafe' : 'transparent',
+                                      textAlign: 'left',
+                                      cursor: (!isEditMode && match.blackPlayerId && isOwner) ? 'pointer' : 'default',
+                                      userSelect: 'none'
+                                    }}
                                     onClick={() => {
                                       if (!isEditMode && match.blackPlayerId && isOwner) {
                                         handlePlayerClick(match.blackPlayerId, match.id, 'black', blackName);
@@ -2537,8 +2602,8 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                                     }}
                                     title={(!isEditMode && isOwner) ? "Click to select for swap" : ""}
                                   >
-                                    <span className="font-bold text-sm text-slate-800 dark:text-slate-200">
-                                      {blackName} <span className="font-sans text-xs text-slate-500 dark:text-slate-400 font-normal">({blackRating} {blackPointsStr})</span>
+                                    <span style={{ fontWeight: 'bold', fontSize: '13px', color: isBlackSelected ? '#1e3a8a' : '#000' }}>
+                                      {blackName} <span style={{ fontSize: '11px', color: '#555', fontWeight: 'normal' }}>({blackRating} {blackPointsStr})</span>
                                     </span>
                                   </td>
                                 </tr>

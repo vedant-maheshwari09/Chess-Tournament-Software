@@ -504,7 +504,7 @@ export function createDefaultConfig(format: Tournament["format"], mode: Tourname
         loss: 0,
       },
       tiebreaksEnabled: true,
-      tiebreaks: [],
+      tiebreaks: ["Points"],
       matchWinConditions: {},
       thirdPlaceMatch: false,
     },

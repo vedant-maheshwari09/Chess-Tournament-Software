@@ -138,8 +138,11 @@ const TIME_CONTROL_OPTIONS = [
 ];
 
 const TIEBREAK_OPTIONS = [
+  { value: "Points", label: "Points" },
   { value: "Modified Median", label: "Modified Median" },
   { value: "Solkoff", label: "Solkoff" },
+  { value: "Buchholz", label: "Buchholz" },
+  { value: "Median", label: "Median" },
   { value: "Cumulative", label: "Cumulative" },
   { value: "Sonneborn-Berger", label: "Sonneborn-Berger" },
   { value: "Kashdan", label: "Kashdan" },
@@ -1956,8 +1959,10 @@ function StepTwo({ format, mode, builderMode, config, onConfigChange, onBack: _o
   const setTiebreaks = (next: string[]) => updateDetails({ tiebreaks: next });
   const addTiebreakRule = () => {
     const fallback = TIEBREAK_OPTIONS.find((option) => !tiebreaks.includes(option.label))?.label ?? "Buchholz";
-    setTiebreaks([...tiebreaks, fallback]);
-    updateDetails({ tiebreaksEnabled: true });
+    updateDetails({
+      tiebreaks: [...tiebreaks, fallback],
+      tiebreaksEnabled: true
+    });
   };
   const updateTiebreakRule = (index: number, value: string) => {
     const next = [...tiebreaks];
@@ -2272,23 +2277,37 @@ function StepTwo({ format, mode, builderMode, config, onConfigChange, onBack: _o
                 </div>
 
                 {config.format === 'swiss' && (
-                  <div className="space-y-4 pt-6 border-t border-slate-100">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="text-base font-semibold text-black">Tiebreaker System</h3>
-                        <p className="text-xs text-slate-500">
-                          Configure tiebreaker systems and their sorting priority order for Swiss standings.
-                        </p>
+                  <div className="space-y-6 pt-6 border-t border-slate-100">
+                    {/* Allow Extra Games Toggle */}
+                    <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/30 px-5 py-4 transition-all hover:bg-slate-50/50">
+                      <div className="space-y-0.5">
+                        <Label htmlFor="details-allow-extra-games" className="text-base font-medium text-black">Allow Extra Games</Label>
+                        <p className="text-xs text-slate-500 font-normal">Allow TDs to schedule rated extra games that are excluded from official standings.</p>
                       </div>
-                      <div className="flex items-center space-x-2">
-                        <Switch
-                          id="tiebreaks-enabled"
-                          checked={config.details.tiebreaksEnabled}
-                          onCheckedChange={toggleTiebreaks}
-                        />
-                        <Label htmlFor="tiebreaks-enabled">Enable Tiebreaks</Label>
-                      </div>
+                      <Switch
+                        id="details-allow-extra-games"
+                        checked={config.registers.allowExtraGames ?? false}
+                        onCheckedChange={(checked) => updateRegisters({ allowExtraGames: checked })}
+                      />
                     </div>
+
+                    <div className="space-y-4 pt-6 border-t border-slate-100/60">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h3 className="text-base font-semibold text-black">Tiebreaker System</h3>
+                          <p className="text-xs text-slate-500">
+                            Configure tiebreaker systems and their sorting priority order for Swiss standings.
+                          </p>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Switch
+                            id="tiebreaks-enabled"
+                            checked={config.details.tiebreaksEnabled ?? false}
+                            onCheckedChange={toggleTiebreaks}
+                          />
+                          <Label htmlFor="tiebreaks-enabled">Enable Tiebreaks</Label>
+                        </div>
+                      </div>
 
                     {config.details.tiebreaksEnabled && (
                       <div className="space-y-3">
@@ -2315,6 +2334,7 @@ function StepTwo({ format, mode, builderMode, config, onConfigChange, onBack: _o
                         </Button>
                       </div>
                     )}
+                    </div>
                   </div>
                 )}
 
@@ -2896,12 +2916,6 @@ function StepTwo({ format, mode, builderMode, config, onConfigChange, onBack: _o
                       />
                 </div>
                 </div>
-
-                {/* Registration Form Customizer */}
-                <RegistrationFormCustomizer
-                  config={config}
-                  onConfigChange={onConfigChange}
-                />
 
                 {/* Page Customization */}
                 <div className="rounded-2xl border bg-white p-6 space-y-8 shadow-sm border-slate-200/60">

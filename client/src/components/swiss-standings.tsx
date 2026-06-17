@@ -422,6 +422,9 @@ export default function SwissStandings({ tournamentId, showExportControls = true
 
       // Define tiebreaker calculators
       const tiebreakCalculators: Record<string, (playerId: number) => number> = {
+        "Points": (playerId) => {
+          return playerPointsMap.get(playerId) ?? 0;
+        },
         "Solkoff": (playerId) => {
           const points = playerPointsMap.get(playerId) ?? 0;
           return getTiebreakOpponentScores(playerId, points).reduce((sum, s) => sum + s, 0);
@@ -1366,37 +1369,37 @@ a:hover { text-decoration: underline; }
             No standings available yet
           </div>
         ) : (
-          <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
-            <table className="w-full border-collapse font-sans">
+          <div className="overflow-x-auto border border-black p-1 bg-white">
+            <table className="w-full border-collapse" style={{ borderCollapse: 'collapse', border: '1px solid black', width: '100%', fontFamily: 'Arial, sans-serif', fontSize: '13px', color: '#000', backgroundColor: '#fff' }}>
               <thead>
-                <tr className="bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300">
-                  <th className="px-3 py-3 text-center text-xs font-bold w-12 border-b border-r border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-sans">
+                <tr style={{ border: '1px solid black', backgroundColor: '#e8e8e8' }}>
+                  <th className="font-sans" style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '13px', textAlign: 'center', width: '48px' }}>
                     #
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-bold border-b border-r border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-sans">
+                  <th className="font-sans" style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '13px', textAlign: 'left' }}>
                     Name/Rating/ID
                   </th>
                   {Array.from({ length: totalRounds }, (_, i) => (
-                    <th key={i} className="px-3 py-3 text-center text-xs font-bold w-16 border-b border-r border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-sans">
+                    <th key={i} className="font-sans" style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '13px', textAlign: 'center', width: '64px' }}>
                       Rd {i + 1}
                     </th>
                   ))}
-                  <th className="px-3 py-3 text-center text-xs font-bold w-20 border-b border-r border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-sans">
+                  <th className="font-sans" style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '13px', textAlign: 'center', width: '80px' }}>
                     Total
                   </th>
                   {activeTiebreakRules.map((rule) => (
-                    <th key={rule} className="px-3 py-3 text-center text-xs font-bold w-20 border-b border-r border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-sans">
+                    <th key={rule} className="font-sans" style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '13px', textAlign: 'center', width: '80px' }}>
                       {rule}
                     </th>
                   ))}
-                  <th className="px-3 py-3 text-center text-xs font-bold w-20 border-b border-r border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-sans">
+                  <th className="font-sans" style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '13px', textAlign: 'center', width: '80px' }}>
                     Est. Post
                   </th>
-                  <th className="px-3 py-3 text-center text-xs font-bold w-20 border-b border-r border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-sans">
+                  <th className="font-sans" style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '13px', textAlign: 'center', width: '80px' }}>
                     Perf.
                   </th>
                   {tournamentConfig?.prizesEnabled && showPrizes && (
-                    <th className="px-4 py-3 text-left text-xs font-bold w-36 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-sans">
+                    <th className="font-sans" style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '13px', textAlign: 'left', width: '144px' }}>
                       Prizes
                     </th>
                   )}
@@ -1419,57 +1422,61 @@ a:hover { text-decoration: underline; }
                     <React.Fragment key={standing.player.id}>
                       {/* Row 1: Bd, Name, Round results, Total Points, Tiebreaks, Est. Post, Perf, Prizes */}
                       <tr
-                        className={cn(
-                          "bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 border-t border-slate-200 dark:border-slate-800 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors",
-                          isWithdrawn ? "opacity-60 line-through" : ""
-                        )}
+                        style={{
+                          border: '1px solid black',
+                          backgroundColor: '#fff',
+                          color: '#000',
+                          opacity: isWithdrawn ? 0.6 : 1,
+                          textDecoration: isWithdrawn ? 'line-through' : 'none'
+                        }}
                       >
-                        <td className="px-3 py-2 text-center font-sans text-sm font-bold border-r border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 bg-slate-50/50 dark:bg-slate-800/20 w-12">
+                        <td style={{ border: '1px solid black', padding: '6px 8px', color: '#000', textAlign: 'center', fontWeight: 'bold', fontSize: '13px', width: '48px' }}>
                           {index + 1}
                         </td>
-                        <td className="px-4 py-2 text-sm font-bold border-r border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200">
-                          <div className="flex items-center gap-1.5">
+                        <td style={{ border: '1px solid black', padding: '6px 8px', color: '#000', textAlign: 'left', fontWeight: 'bold', fontSize: '13px' }}>
+                          <div className="flex items-center gap-1.5" style={{ color: '#000' }}>
                             {isDigitsOnly ? (
                               <a
                                 href={`http://www.uschess.org/msa/MbrDtlMain.php?${uscfId}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 hover:underline transition-colors"
+                                className="font-bold hover:underline transition-colors"
+                                style={{ color: '#000' }}
                               >
                                 {nameStr}
                               </a>
                             ) : (
-                              <span>{nameStr}</span>
+                              <span style={{ color: '#000' }}>{nameStr}</span>
                             )}
                             {standing.player.isActiveTd && (
-                              <span className="text-[10px] text-slate-400 dark:text-slate-500 font-normal ml-1.5">(substitute)</span>
+                              <span style={{ fontSize: '10px', color: '#555', fontWeight: 'normal', marginLeft: '6px' }}>(substitute)</span>
                             )}
                           </div>
                         </td>
                         {standing.roundResults.map((result, roundIdx) => (
-                          <td key={roundIdx} className="px-3 py-2 text-center border-r border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200">
+                          <td key={roundIdx} style={{ border: '1px solid black', padding: '6px 8px', color: '#000', textAlign: 'center', fontSize: '13px' }}>
                             {renderRoundOutcomeBadge(result)}
                           </td>
                         ))}
-                        <td className="px-3 py-2 text-center font-black border-r border-slate-200 dark:border-slate-800 font-sans text-slate-900 dark:text-slate-100 bg-slate-50 dark:bg-slate-800/30">
+                        <td style={{ border: '1px solid black', padding: '6px 8px', color: '#000', textAlign: 'center', fontWeight: '900', fontSize: '13px', backgroundColor: '#f0f0f0' }}>
                           {standing.totalPoints.toFixed(1).replace(/\.0$/, "")}
                         </td>
                         {activeTiebreakRules.map((rule) => {
                           const val = standing.tiebreakValues[rule];
                           return (
-                            <td key={rule} className="px-3 py-2 text-center text-sm font-sans border-r border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400">
+                            <td key={rule} style={{ border: '1px solid black', padding: '6px 8px', color: '#000', textAlign: 'center', fontSize: '13px' }}>
                               {val !== undefined ? val.toFixed(2) : "0.00"}
                             </td>
                           );
                         })}
-                        <td className="px-3 py-2 text-center text-sm font-sans border-r border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400">
+                        <td style={{ border: '1px solid black', padding: '6px 8px', color: '#000', textAlign: 'center', fontSize: '13px' }}>
                           {standing.postRating ?? playerRating}
                         </td>
-                        <td className="px-3 py-2 text-center text-sm font-sans border-r border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400">
+                        <td style={{ border: '1px solid black', padding: '6px 8px', color: '#000', textAlign: 'center', fontSize: '13px' }}>
                           {standing.performanceRating ?? playerRating}
                         </td>
                         {tournamentConfig?.prizesEnabled && showPrizes && (
-                          <td className="px-4 py-2 text-left text-sm border-r border-slate-200 dark:border-slate-800 font-bold text-emerald-600 dark:text-emerald-400 font-sans">
+                          <td style={{ border: '1px solid black', padding: '6px 8px', color: '#000', textAlign: 'left', fontWeight: 'bold', fontSize: '13px' }}>
                             {standing.prizeCategory && standing.prizeCategory !== '---' ? (
                               standing.prizeCategory
                             ) : (
@@ -1481,14 +1488,17 @@ a:hover { text-decoration: underline; }
 
                       {/* Row 2: Empty Bd cell, Rating & Local ID, Cumulative scores per round, empty for total & tiebreaks */}
                       <tr
-                        className={cn(
-                          "bg-slate-50/20 dark:bg-slate-900/10 text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors",
-                          isWithdrawn ? "opacity-60 line-through" : ""
-                        )}
+                        style={{
+                          border: '1px solid black',
+                          backgroundColor: '#f9f9f9',
+                          color: '#555',
+                          opacity: isWithdrawn ? 0.6 : 1,
+                          textDecoration: isWithdrawn ? 'line-through' : 'none'
+                        }}
                       >
-                        <td className="px-3 py-1.5 border-r border-slate-200 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-800/20 text-center">&nbsp;</td>
-                        <td className="px-4 py-1.5 text-xs font-sans border-r border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400">
-                          Rating: <span className="font-semibold text-slate-700 dark:text-slate-300">{playerRating}</span>{uscfId ? ` \u00a0\u00a0 ID: ${uscfId}` : ''}
+                        <td style={{ border: '1px solid black', padding: '4px 8px', color: '#555', textAlign: 'center', fontSize: '11px' }}>&nbsp;</td>
+                        <td style={{ border: '1px solid black', padding: '4px 8px', color: '#555', textAlign: 'left', fontSize: '11px' }}>
+                          Rating: <span style={{ fontWeight: 'bold', color: '#333' }}>{playerRating}</span>{uscfId ? ` \u00a0\u00a0 ID: ${uscfId}` : ''}
                         </td>
                         {standing.roundResults.map((_, roundIndex) => {
                           const cumulative = standing.roundResults
@@ -1496,19 +1506,19 @@ a:hover { text-decoration: underline; }
                             .reduce((sum, entry) => sum + entry.points, 0);
                           const cumulativeText = roundIndex < currentRound ? cumulative.toFixed(1).replace(/\.0$/, ".0") : '';
                           return (
-                            <td key={roundIndex} className="px-3 py-1.5 text-center text-xs font-sans font-medium border-r border-slate-200 dark:border-slate-800 text-slate-400 dark:text-slate-500">
+                            <td key={roundIndex} style={{ border: '1px solid black', padding: '4px 8px', color: '#555', textAlign: 'center', fontSize: '11px', fontWeight: '500' }}>
                               {cumulativeText}
                             </td>
                           );
                         })}
-                        <td className="px-3 py-1.5 border-r border-slate-200 dark:border-slate-800 text-center">&nbsp;</td>
+                        <td style={{ border: '1px solid black', padding: '4px 8px', color: '#555', textAlign: 'center', fontSize: '11px' }}>&nbsp;</td>
                         {activeTiebreakRules.map((rule) => (
-                          <td key={rule} className="px-3 py-1.5 border-r border-slate-200 dark:border-slate-800 text-center">&nbsp;</td>
+                          <td key={rule} style={{ border: '1px solid black', padding: '4px 8px', color: '#555', textAlign: 'center', fontSize: '11px' }}>&nbsp;</td>
                         ))}
-                        <td className="px-3 py-1.5 border-r border-slate-200 dark:border-slate-800 text-center">&nbsp;</td>
-                        <td className="px-3 py-1.5 border-r border-slate-200 dark:border-slate-800 text-center">&nbsp;</td>
+                        <td style={{ border: '1px solid black', padding: '4px 8px', color: '#555', textAlign: 'center', fontSize: '11px' }}>&nbsp;</td>
+                        <td style={{ border: '1px solid black', padding: '4px 8px', color: '#555', textAlign: 'center', fontSize: '11px' }}>&nbsp;</td>
                         {tournamentConfig?.prizesEnabled && showPrizes && (
-                          <td className="px-4 py-1.5 text-left text-xs font-bold text-emerald-600 dark:text-emerald-400 font-sans">
+                          <td style={{ border: '1px solid black', padding: '4px 8px', color: '#27272a', textAlign: 'left', fontSize: '11px', fontWeight: 'bold' }}>
                             {standing.prizeAmount && standing.prizeAmount !== '---' ? (
                               standing.prizeAmount
                             ) : (
