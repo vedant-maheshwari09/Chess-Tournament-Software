@@ -19,6 +19,8 @@ export async function sendEmailVerificationCode(userId: number, email: string, f
     used: false,
   });
 
+  console.log(`[AUTH] Verification code for user ID ${userId} (${email}): ${code}`);
+
   // Send email
   const emailSubject = 'Verify Your Email Address';
   const emailText = `Hello ${firstName},
@@ -53,6 +55,8 @@ export async function sendPasswordResetCode(userId: number, email: string, first
 
   // Create password reset record
   await storage.createPasswordReset(userId, code, expiresAt);
+
+  console.log(`[AUTH] Password reset code for user ID ${userId} (${email}): ${code}`);
 
   // Send email
   const emailSubject = 'Password Reset Code';

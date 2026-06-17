@@ -77,6 +77,8 @@ app.post("/api/auth/register", async (req, res) => {
         expiresAt,
       });
 
+      console.log(`[AUTH] Registration verification code for ${userData.email}: ${verificationCode}`);
+
       // Send verification code in background
       notificationService.sendEmail({
         to: userData.email,
@@ -685,6 +687,8 @@ app.post("/api/auth/resend-verification", async (req, res) => {
           verificationCode: newCode, 
           expiresAt: newExpiresAt 
         });
+
+        console.log(`[AUTH] Resend verification code for pending user ${pendingUser.email}: ${newCode}`);
 
         notificationService.sendEmail({
           to: pendingUser.email,
