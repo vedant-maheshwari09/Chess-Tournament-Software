@@ -71,6 +71,8 @@ interface TournamentBuilderProps {
   tournament?: Tournament;
   onCancel?: () => void;
   onComplete?: (tournament: Tournament) => void;
+  activeSubTab?: string;
+  onSubTabChange?: (tab: string) => void;
 }
 
 const FORMAT_CARDS: Array<{ 
@@ -741,6 +743,8 @@ interface StepTwoProps {
   onSave: () => void;
   saving: boolean;
   tournament?: Tournament;
+  activeSubTab?: string;
+  onSubTabChange?: (tab: string) => void;
 }
 
 interface PaymentsConfigResponse {
@@ -936,7 +940,20 @@ function ArenaSettingsTab({ config, onConfigChange, onSave, saving }: { config: 
   );
 }
 
-function StepTwo({ format, mode, builderMode, config, onConfigChange, onBack: _onBack, onCancel, onSave, saving, tournament }: StepTwoProps) {
+function StepTwo({
+  format,
+  mode,
+  builderMode,
+  config,
+  onConfigChange,
+  onBack: _onBack,
+  onCancel,
+  onSave,
+  saving,
+  tournament,
+  activeSubTab,
+  onSubTabChange,
+}: StepTwoProps) {
   const scheduleTemplateOptions = SCHEDULE_EVENT_OPTIONS;
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -2002,7 +2019,12 @@ function StepTwo({ format, mode, builderMode, config, onConfigChange, onBack: _o
       <div className="grid gap-6 lg:grid-cols-1">
         <Card className="overflow-hidden">
           <CardContent className="p-0">
-            <Tabs defaultValue="basic" className="w-full">
+            <Tabs
+              value={activeSubTab ?? undefined}
+              defaultValue={activeSubTab ? undefined : "basic"}
+              onValueChange={onSubTabChange}
+              className="w-full"
+            >
             <TabsList className="flex w-full min-h-[44px] h-auto flex-nowrap overflow-x-auto no-scrollbar items-center bg-slate-100 p-1 mb-8 rounded-xl border border-slate-200/60 shadow-sm backdrop-blur-sm">
               <TabsTrigger value="basic" className="flex-none md:flex-1 h-full min-h-[36px] data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-black transition-all font-medium rounded-lg px-4 text-xs xl:text-sm">Basic Info</TabsTrigger>
               <TabsTrigger value="details" className="flex-none md:flex-1 h-full min-h-[36px] data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-black transition-all font-medium rounded-lg px-4 text-xs xl:text-sm">Details</TabsTrigger>
@@ -3265,7 +3287,15 @@ function StepTwo({ format, mode, builderMode, config, onConfigChange, onBack: _o
   );
 }
 
-export function TournamentBuilder({ mode, format: initialFormat, tournament, onCancel, onComplete }: TournamentBuilderProps) {
+export function TournamentBuilder({
+  mode,
+  format: initialFormat,
+  tournament,
+  onCancel,
+  onComplete,
+  activeSubTab,
+  onSubTabChange
+}: TournamentBuilderProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [format, setFormat] = useState<Tournament["format"]>(tournament?.format ?? initialFormat);
@@ -3420,6 +3450,8 @@ export function TournamentBuilder({ mode, format: initialFormat, tournament, onC
       onSave={() => mutation.mutate()}
       saving={mutation.isPending}
       tournament={tournament}
+      activeSubTab={activeSubTab}
+      onSubTabChange={onSubTabChange}
     />
   );
 }

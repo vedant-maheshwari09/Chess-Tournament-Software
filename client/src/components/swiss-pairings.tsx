@@ -14,7 +14,7 @@ import { parseTournamentConfig } from "@/lib/tournament-config";
 import { calculateMatchupScore, type SectionDefinition, formatBoardNumber } from "@shared/tournament-config";
 import { HEAD_TO_HEAD_RESULT_OPTIONS, BYE_RESULT_OPTIONS, getPointsForResult } from "@shared/match-results";
 import { MatchManagementDialog } from "./match-management-dialog";
-import { Swords, Info, UserPlus } from "lucide-react";
+import { Swords, Info, UserPlus, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import QRCode from "qrcode";
@@ -1980,6 +1980,7 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                                   <th className="px-4 py-2 text-left text-xs font-bold border-b border-r border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-sans">White</th>
                                   <th className="px-3 py-2 text-center text-xs font-bold w-16 border-b border-r border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-sans">Res</th>
                                   <th className="px-4 py-2 text-left text-xs font-bold border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-sans">Black</th>
+                                  {isOwner && <th className="px-3 py-2 text-center text-xs font-bold w-16 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-sans">Action</th>}
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
@@ -2076,6 +2077,19 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                                           {blackName} <span className="font-sans text-xs text-slate-500 dark:text-slate-400 font-normal">({blackRating} {blackPointsStr})</span>
                                         </span>
                                       </td>
+                                      {isOwner && (
+                                        <td className="px-3 py-2 text-center border-slate-200 dark:border-slate-800 w-16">
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-8 w-8 text-slate-500 hover:text-blue-600 hover:bg-slate-100 dark:hover:bg-slate-800"
+                                            onClick={() => setSelectedMatchForManagement(match)}
+                                            title="Manage Match Results"
+                                          >
+                                            <Settings className="h-4 w-4" />
+                                          </Button>
+                                        </td>
+                                      )}
                                     </tr>
                                   );
                                 })}
@@ -2283,6 +2297,7 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                               <th style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '13px', textAlign: 'left' }}>White</th>
                               <th style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '13px', textAlign: 'center', width: '64px' }}>Res</th>
                               <th style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '13px', textAlign: 'left' }}>Black</th>
+                              {isOwner && <th style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '13px', textAlign: 'center', width: '60px' }}>Action</th>}
                             </tr>
                           </thead>
                           <tbody>
@@ -2408,6 +2423,19 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                                       {blackName} <span style={{ fontSize: '11px', color: '#555', fontWeight: 'normal' }}>({blackRating} {blackPointsStr})</span>
                                     </span>
                                   </td>
+                                  {isOwner && (
+                                    <td style={{ border: '1px solid black', padding: '4px', textAlign: 'center', width: '60px' }}>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8 text-slate-500 hover:text-blue-600 hover:bg-slate-100"
+                                        onClick={() => setSelectedMatchForManagement(match)}
+                                        title="Manage Match Results"
+                                      >
+                                        <Settings className="h-4 w-4" />
+                                      </Button>
+                                    </td>
+                                  )}
                                 </tr>
                               );
                             })}
@@ -2418,11 +2446,13 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                               const playerObj = getPlayerObject(bye.playerId);
                               const playerPoints = getPlayerPoints(bye.playerId, currentRound);
                               const playerPointsStr = formatPointsWithFractions(playerPoints);
-                              const byeResult = (bye as any).result ?? (bye.isRequested ? 'U' : null);
-                              const byePointsRaw = byeResult ? getPointsForResult(byeResult, 'white') : null;
+                              const byePointsRaw = bye.points === 1 ? 0.5 : bye.points === 2 ? 1.0 : bye.points === 0 ? 0.0 : null;
                               const byePointsDisplay = byePointsRaw !== null
                                 ? formatPointsWithFractions(byePointsRaw)
                                 : '';
+                              const byeLabel = bye.isRequested
+                                ? (bye.points === 0 ? 'Requested 0-Point Bye' : bye.points === 2 ? 'Requested 1-Point Bye' : 'Requested 1/2-Point Bye')
+                                : '1-Point Bye';
 
                               return (
                                 <tr
@@ -2450,8 +2480,12 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                                     
                                   </td>
                                   <td style={{ border: '1px solid black', padding: '6px 8px', color: '#555', textAlign: 'left', fontSize: '13px', fontStyle: 'italic' }}>
-                                    {bye.isRequested ? 'Requested Bye' : 'Unpaired'}
+                                    {byeLabel}
                                   </td>
+                                  {isOwner && (
+                                    <td style={{ border: '1px solid black', padding: '6px 8px', width: '60px' }}>
+                                    </td>
+                                  )}
                                 </tr>
                               );
                             })}
@@ -2481,6 +2515,7 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                               <th style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '13px', textAlign: 'left' }}>White</th>
                               <th style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '13px', textAlign: 'center', width: '64px' }}>Res</th>
                               <th style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '13px', textAlign: 'left' }}>Black</th>
+                              {isOwner && <th style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '13px', textAlign: 'center', width: '60px' }}>Action</th>}
                             </tr>
                           </thead>
                           <tbody>
@@ -2606,6 +2641,19 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                                       {blackName} <span style={{ fontSize: '11px', color: '#555', fontWeight: 'normal' }}>({blackRating} {blackPointsStr})</span>
                                     </span>
                                   </td>
+                                  {isOwner && (
+                                    <td style={{ border: '1px solid black', padding: '4px', textAlign: 'center', width: '60px' }}>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8 text-slate-500 hover:text-blue-600 hover:bg-slate-100"
+                                        onClick={() => setSelectedMatchForManagement(match)}
+                                        title="Manage Match Results"
+                                      >
+                                        <Settings className="h-4 w-4" />
+                                      </Button>
+                                    </td>
+                                  )}
                                 </tr>
                               );
                             })}

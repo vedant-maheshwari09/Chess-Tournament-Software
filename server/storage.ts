@@ -682,7 +682,6 @@ class SupabaseStorage implements IStorage {
       amountDue: typeof amountDue === "string" ? amountDue : Number(amountDue ?? 0).toFixed(2),
       amountPaid: typeof amountPaid === "string" ? amountPaid : Number(amountPaid ?? 0).toFixed(2),
       paymentNotes: (registration as AnyRecord).paymentNotes ?? null,
-      createdAt: new Date(),
       updatedAt: new Date(),
     };
     return insertOne<PlayerRegistration>("player_registrations", payload);

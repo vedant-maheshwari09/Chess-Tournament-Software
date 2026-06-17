@@ -197,7 +197,14 @@ function AuthenticatedApp() {
                 </Route>
                 <Route path="/dashboard/:tab" component={TournamentDirectorDashboard} />
                 <Route path="/tournaments/new" component={TournamentCreation} />
-                <Route path="/tournaments/:id/manage/:tab*">
+                <Route path="/tournaments/:id/manage/:tab/*">
+                  {(params) => (
+                    <TournamentRouteWrapper idParam={params.id} requireDirector>
+                      {(resolvedId) => <TournamentManagement tournamentId={resolvedId} />}
+                    </TournamentRouteWrapper>
+                  )}
+                </Route>
+                <Route path="/tournaments/:id/manage/:tab">
                   {(params) => (
                     <TournamentRouteWrapper idParam={params.id} requireDirector>
                       {(resolvedId) => <TournamentManagement tournamentId={resolvedId} />}
@@ -211,7 +218,7 @@ function AuthenticatedApp() {
                     </TournamentRouteWrapper>
                   )}
                 </Route>
-                <Route path="/tournaments/:id/settings/:section*">
+                <Route path="/tournaments/:id/settings/:section">
                   {(params) => (
                     <TournamentRouteWrapper idParam={params.id} requireDirector>
                       {(resolvedId) => <TournamentActionsPage tournamentId={resolvedId} />}
@@ -272,7 +279,14 @@ function AuthenticatedApp() {
                     </TournamentRouteWrapper>
                   )}
                 </Route>
-                <Route path="/tournaments/:id/:tab*">
+                <Route path="/tournaments/:id/:tab/*">
+                  {(params) => (
+                    <TournamentRouteWrapper idParam={params.id}>
+                      {(resolvedId) => <TournamentView tournamentId={resolvedId} />}
+                    </TournamentRouteWrapper>
+                  )}
+                </Route>
+                <Route path="/tournaments/:id/:tab">
                   {(params) => (
                     <TournamentRouteWrapper idParam={params.id}>
                       {(resolvedId) => <TournamentView tournamentId={resolvedId} />}
@@ -303,7 +317,14 @@ function AuthenticatedApp() {
                     </TournamentRouteWrapper>
                   )}
                 </Route>
-                <Route path="/tournaments/:id/:tab*">
+                <Route path="/tournaments/:id/:tab/*">
+                  {(params) => (
+                    <TournamentRouteWrapper idParam={params.id}>
+                      {(resolvedId) => <TournamentView tournamentId={resolvedId} />}
+                    </TournamentRouteWrapper>
+                  )}
+                </Route>
+                <Route path="/tournaments/:id/:tab">
                   {(params) => (
                     <TournamentRouteWrapper idParam={params.id}>
                       {(resolvedId) => <TournamentView tournamentId={resolvedId} />}

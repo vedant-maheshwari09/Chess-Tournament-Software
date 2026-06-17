@@ -48,8 +48,20 @@ interface TournamentManagementProps {
 
 export default function TournamentManagement({ tournamentId }: TournamentManagementProps) {
   const [, setLocation] = useLocation();
-  const [, params] = useRoute("/tournaments/:id/manage/:tab*");
-  const activeTab = params?.tab ? params.tab.split("/")[0] : "dashboard";
+  const [, params] = useRoute("/tournaments/:id/manage/:tab");
+  const [, nestedParams] = useRoute("/tournaments/:id/manage/:tab/*");
+  const activeTab = params?.tab || nestedParams?.tab || "dashboard";
+  const dashboardSubTab = activeTab === "dashboard" ? (nestedParams?.["*"] || "basic") : "basic";
+  const registrationsSubTab = activeTab === "registrations" ? (nestedParams?.["*"] || "list") : "list";
+
+  const handleDashboardSubTabChange = (val: string) => {
+    setLocation(`/tournaments/${tournament ? slugify(tournament.name) : tournamentId}/manage/dashboard/${val}`);
+  };
+
+  const handleRegistrationsSubTabChange = (val: string) => {
+    setLocation(`/tournaments/${tournament ? slugify(tournament.name) : tournamentId}/manage/registrations/${val}`);
+  };
+
   const [arenaSubTab, setArenaSubTab] = useState<'lobby' | 'matches'>('lobby');
   const { toast } = useToast();
   const { user } = useAuth();
@@ -539,6 +551,8 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
               mode="edit"
               format={tournament.format}
               tournament={tournament}
+              activeSubTab={dashboardSubTab}
+              onSubTabChange={handleDashboardSubTabChange}
               onComplete={() => {
                 queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}`] });
               }}
@@ -551,7 +565,7 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
           </TabsContent>
 
           <TabsContent value="registrations" className="mt-6 space-y-6 animate-in fade-in duration-300">
-            <Tabs defaultValue="list" className="w-full">
+            <Tabs value={registrationsSubTab} onValueChange={handleRegistrationsSubTabChange} className="w-full">
               <TabsList className="flex bg-slate-100 p-1 rounded-lg border border-slate-200 w-fit mb-4">
                 <TabsTrigger value="list" className="text-xs font-semibold px-4 py-1.5 rounded-md data-[state=active]:bg-white data-[state=active]:shadow-sm">
                   Current Registrations

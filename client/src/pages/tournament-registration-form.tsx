@@ -2980,6 +2980,10 @@ function StepThreeContent({
 }: StepThreeContentProps) {
   const form = useFormContext<RegistrationFormValues>();
   const { toast } = useToast();
+  const { data: tournament } = useQuery<Tournament>({
+    queryKey: [`/api/tournaments/${tournamentId}`],
+    enabled: Boolean(tournamentId),
+  });
 
   const contributionAllowed = paymentSettings?.allowProcessingContribution !== false;
   const entryFeeId = form.watch("entryFeeId");
@@ -3081,7 +3085,7 @@ function StepThreeContent({
 
       const trimmedName = `${firstName ?? ""} ${lastName ?? ""}`.trim() || undefined;
       const returnUrl =
-        typeof window !== "undefined"
+        typeof window !== "undefined" && tournament
           ? `${window.location.origin}/tournaments/${slugify(tournament.name)}/register?payment=complete`
           : undefined;
 
@@ -3191,7 +3195,7 @@ function StepThreeContent({
     firstName,
     lastName,
     email,
-
+    tournament,
     tournamentId,
   ]);
 

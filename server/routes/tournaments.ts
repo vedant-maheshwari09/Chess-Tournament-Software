@@ -18,7 +18,7 @@ import { parseTournamentConfig, calculateMatchupScore, getMatchFormat, isMatchDe
 import { generateFideTrf16Report } from '../lib/fideTrf';
 import { generateUscfDbfZip } from '../lib/uscfDbf';
 import { lookupFideProfiles, searchFideDirectory } from '../lib/fideDirectory';
-import { Player, Pairing, Match, PlayerRegistration } from "@shared/schema";
+import { Tournament, Player, Pairing, Match, PlayerRegistration } from "@shared/schema";
 import { generateKnockoutPairings, generateDoubleEliminationPairings } from '../knockout';
 
 
@@ -948,7 +948,9 @@ app.post("/api/tournaments/:id/start", requireAuth, requireRole('tournament_dire
           }
           const existingPairings = await storage.getPairingsByTournament(tournamentId);
           for (const p of existingPairings) {
-            await storage.deletePairing(p.id);
+            if (!p.isRequested) {
+              await storage.deletePairing(p.id);
+            }
           }
         } catch (err) {
           console.error(`[StartTournament] Error during cleanup:`, err);
@@ -998,6 +1000,23 @@ app.post("/api/tournaments/:id/start", requireAuth, requireRole('tournament_dire
       }
 
       const updatedTournament = await storage.updateTournament(tournamentId, updateData);
+
+      // Fetch remaining pairings (which will only be the requested byes)
+      const remainingPairings = await storage.getPairingsByTournament(tournamentId);
+      const playerMap = new Map(players.map((p: any) => [p.id, p]));
+
+      // Group pairings by section
+      const pairingsBySection = remainingPairings.reduce((acc: any, pairing: any) => {
+        const player = playerMap.get(pairing.playerId);
+        if (player) {
+          const sectionKey = player.sectionId || 'default';
+          if (!acc[sectionKey]) {
+            acc[sectionKey] = [];
+          }
+          acc[sectionKey].push(pairing);
+        }
+        return acc;
+      }, {} as Record<string, any[]>);
 
       // Group players by section
       const playersBySection = players.reduce((acc: any, player: any) => {
@@ -1086,7 +1105,8 @@ app.post("/api/tournaments/:id/start", requireAuth, requireRole('tournament_dire
           const numSectionMatches = Math.floor(sectionPlayers.length / 2) + (sectionPlayers.length % 2);
           const boardNumbersForSection = allBoardNumbers.slice(boardNumberOffset, boardNumberOffset + numSectionMatches);
           boardNumberOffset += numSectionMatches;
-          await generatePairings(tournament, sectionPlayers, [], [], 1, boardNumbersForSection);
+          const sectionPairings = pairingsBySection[sectionKey] || [];
+          await generatePairings(tournament, sectionPlayers, [], sectionPairings, 1, boardNumbersForSection);
         }
       }
 
@@ -2423,16 +2443,45 @@ app.patch("/api/tournaments/:id/registrations/:registrationId", requireAuth, req
             userId: updatedRegistration.userId,
           };
 
+          let createdOrUpdatedPlayerId: number;
           if (existingPlayer) {
             console.log(`[APPROVAL_LOG] Existing player found (ID: ${existingPlayer.id}), updating instead of creating duplicate.`);
             await storage.updatePlayer(existingPlayer.id, playerUpdatePayload);
+            createdOrUpdatedPlayerId = existingPlayer.id;
           } else {
-            await storage.createPlayer({
+            const created = await storage.createPlayer({
               ...playerUpdatePayload,
               tournamentId,
               firstName,
               lastName,
             });
+            createdOrUpdatedPlayerId = created.id;
+          }
+
+          // Parse byeRounds and insert them as requested byes
+          const byeRounds = updatedRegistration.byeRounds;
+          if (Array.isArray(byeRounds)) {
+            for (const roundStr of byeRounds) {
+              if (typeof roundStr === 'string' || typeof roundStr === 'number') {
+                const match = String(roundStr).match(/\d+/);
+                if (match) {
+                  const roundNum = parseInt(match[0], 10);
+                  
+                  // Let's create the pairing entry for the bye
+                  await storage.createPairing({
+                    tournamentId,
+                    round: roundNum,
+                    playerId: createdOrUpdatedPlayerId,
+                    opponentId: null,
+                    color: null,
+                    points: 1, // 1 maps to 0.5 points (half_point bye)
+                    isBye: true,
+                    byeType: 'half_point',
+                    isRequested: true,
+                  });
+                }
+              }
+            }
           }
         }
       }
@@ -3246,11 +3295,11 @@ app.post("/api/tournaments/:tournamentId/generate-pairings", requireAuth, requir
 
       if (regenerate && currentRound) {
         console.log(`Regenerating Swiss pairings for round ${currentRound} - clearing existing round pairings/matches and subsequent rounds`);
-        const pairingsToDelete = allPairings.filter((p: any) => p.round >= currentRound);
+        const pairingsToDelete = allPairings.filter((p: any) => p.round >= currentRound && !p.isRequested);
         for (const pairing of pairingsToDelete) {
           await storage.deletePairing(pairing.id);
         }
-        filteredPairings = allPairings.filter((p: any) => p.round < currentRound);
+        filteredPairings = allPairings.filter((p: any) => p.round < currentRound || p.isRequested);
 
         const matchesToDelete = allMatches.filter((m: any) => m.round >= currentRound);
         for (const match of matchesToDelete) {
