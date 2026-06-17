@@ -62,15 +62,36 @@ export function normalizeMatchResult(result: string | null | undefined): string 
   if (!result) {
     return null;
   }
-  const trimmed = result.trim();
-  if (!trimmed || trimmed === "Pending") {
+  let clean = result.trim().toUpperCase().replace(/\s+/g, '');
+  if (!clean || clean === "PENDING" || clean === "*") {
     return null;
   }
-  const mapped = LEGACY_RESULT_MAP[trimmed] ?? trimmed;
-  if (mapped.endsWith("U")) {
-    return mapped.slice(0, -1);
+
+  const isUnrated = clean.endsWith("U");
+  if (isUnrated) {
+    clean = clean.slice(0, -1);
   }
-  return mapped;
+
+  let mapped = LEGACY_RESULT_MAP[clean] ?? clean;
+  if (clean === "1-0" || clean === "1-O" || clean === "1F-0" || clean === "1-0F" || clean === "1F-0F") {
+    mapped = clean.includes("F") ? "1F-0F" : "1-0";
+  } else if (clean === "0-1" || clean === "O-1" || clean === "0-1F" || clean === "0F-1" || clean === "0F-1F") {
+    mapped = clean.includes("F") ? "0F-1F" : "0-1";
+  } else if (clean === "1/2-1/2" || clean === "0.5-0.5" || clean === "1/2" || clean === "½" || clean === "½-½" || clean === "DRAW") {
+    mapped = "1/2-1/2";
+  } else if (clean === "0-0" || clean === "0-0F" || clean === "0F-0" || clean === "0F-0F") {
+    mapped = "0F-0F";
+  } else if (clean === "1F-1F" || clean === "1-1F") {
+    mapped = "1F-1F";
+  } else if (clean === "1-BYE" || clean === "BYE" || clean === "1BYE") {
+    mapped = "1-bye";
+  } else if (clean === "1/2-BYE" || clean === "1/2BYE" || clean === "HALF-BYE" || clean === "HALFPOINTBYE" || clean === "0.5-BYE") {
+    mapped = "1/2-bye";
+  } else if (clean === "0-BYE" || clean === "0BYE" || clean === "ZERO-BYE" || clean === "ZEROPOINTBYE") {
+    mapped = "0-bye";
+  }
+
+  return isUnrated ? `${mapped}U` : mapped;
 }
 
 const RESULT_POINTS: Record<string, { white: number; black: number }> = {
@@ -94,7 +115,8 @@ export function getPointsForResult(
   if (!normalized) {
     return 0;
   }
-  const entry = RESULT_POINTS[normalized];
+  const base = normalized.endsWith("U") ? normalized.slice(0, -1) : normalized;
+  const entry = RESULT_POINTS[base];
   if (!entry) {
     return 0;
   }
@@ -113,5 +135,6 @@ export function getResultSummary(
 export function isForfeitResult(result: string | null | undefined): boolean {
   const normalized = normalizeMatchResult(result);
   if (!normalized) return false;
-  return normalized === "1F-0F" || normalized === "0F-1F" || normalized === "1F-1F" || normalized === "0F-0F";
+  const base = normalized.endsWith("U") ? normalized.slice(0, -1) : normalized;
+  return base === "1F-0F" || base === "0F-1F" || base === "1F-1F" || base === "0F-0F";
 }

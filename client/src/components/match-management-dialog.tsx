@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,7 @@ import { ArrowLeftRight } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { calculateMatchupScore, getMatchFormat, parseTournamentConfig } from "@shared/tournament-config";
 import { cn } from "@/lib/utils";
-import { HEAD_TO_HEAD_RESULT_OPTIONS } from "@shared/match-results";
+import { HEAD_TO_HEAD_RESULT_OPTIONS, normalizeMatchResult } from "@shared/match-results";
 
 interface MatchManagementDialogProps {
   match: Match | null;
@@ -40,6 +40,13 @@ export function MatchManagementDialog({
 }: MatchManagementDialogProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  const [customResult, setCustomResult] = useState("");
+  useEffect(() => {
+    if (match) {
+      setCustomResult(match.result || "");
+    }
+  }, [match]);
 
   const addGameMutation = useMutation({
     mutationFn: async () => {
@@ -145,6 +152,276 @@ export function MatchManagementDialog({
   });
 
   if (!match) return null;
+
+  const isKnockout = format === 'knockout';
+
+  if (!isKnockout) {
+    const currentResult = match.result; // '1-0', '1F-0F', '1-0U', etc.
+    const isUnrated = currentResult ? currentResult.endsWith('U') : false;
+    const baseResult = currentResult 
+      ? (isUnrated ? currentResult.slice(0, -1) : currentResult) 
+      : null;
+
+    const whitePlayer = players.find(p => p.id === match.whitePlayerId);
+    const blackPlayer = players.find(p => p.id === match.blackPlayerId);
+    const whiteName = whitePlayer ? `${whitePlayer.firstName} ${whitePlayer.lastName}` : "Bye";
+    const blackName = blackPlayer ? `${blackPlayer.firstName} ${blackPlayer.lastName}` : "Bye";
+    const whiteRating = whitePlayer ? (whitePlayer.uscfRating ?? whitePlayer.rating ?? "unrated") : "unrated";
+    const blackRating = blackPlayer ? (blackPlayer.uscfRating ?? blackPlayer.rating ?? "unrated") : "unrated";
+
+    const isByeMatch = match.isBye || !match.blackPlayerId;
+
+    const handleSelectResult = (baseRes: string | null) => {
+      if (!baseRes) {
+        updateResultMutation.mutate({ matchId: match.id, result: null });
+        setCustomResult("");
+        return;
+      }
+      const finalResult = isUnrated ? `${baseRes}U` : baseRes;
+      updateResultMutation.mutate({ matchId: match.id, result: finalResult });
+      setCustomResult(finalResult);
+    };
+
+    const handleToggleUnrated = () => {
+      if (!currentResult || currentResult === 'Pending') return;
+      let newResult: string;
+      if (isUnrated) {
+        newResult = currentResult.slice(0, -1);
+      } else {
+        newResult = `${currentResult}U`;
+      }
+      updateResultMutation.mutate({ matchId: match.id, result: newResult });
+      setCustomResult(newResult);
+    };
+
+    const handleApplyCustomResult = () => {
+      let normalized = normalizeMatchResult(customResult);
+      if (!normalized) {
+        toast({
+          title: "Invalid Code",
+          description: `"${customResult}" is not a recognized chess result code. Common codes: 1-0, 0-1, 1/2-1/2, 1F-0, 0-1F, 0F-0F, 1-bye, 1/2-bye.`,
+          variant: "destructive"
+        });
+        return;
+      }
+      if (isUnrated && !normalized.endsWith("U")) {
+        normalized = `${normalized}U`;
+      }
+      updateResultMutation.mutate({ matchId: match.id, result: normalized });
+      toast({
+        title: "Result Recorded",
+        description: `Result updated to ${normalized}`
+      });
+    };
+
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-[480px] bg-card border-border text-card-foreground shadow-2xl overflow-hidden p-0 rounded-2xl">
+          <DialogHeader className="p-6 bg-muted/20 border-b border-border">
+            <DialogTitle className="text-xl font-black tracking-tight flex items-center justify-between">
+              <span>{isByeMatch ? `Bye Details — Round ${match.round}` : `Board ${match.board} — Round ${match.round}`}</span>
+              <Badge variant="outline" className="text-[10px] font-bold uppercase tracking-wider bg-primary/5 border-primary/20 text-primary">
+                {format === 'roundrobin' ? 'Round Robin' : 'Swiss System'}
+              </Badge>
+            </DialogTitle>
+            <DialogDescription className="text-muted-foreground font-medium mt-1">
+              {isByeMatch ? "Record the point value for this player's bye." : "Select the outcome or enter a custom result code."}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="p-6 space-y-6">
+            {/* Player Info Card */}
+            {isByeMatch ? (
+              <div className="p-4 rounded-xl bg-muted/30 border border-border flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary font-bold text-sm">
+                  BYE
+                </div>
+                <div>
+                  <div className="text-sm font-bold text-foreground">{whiteName}</div>
+                  <div className="text-[10px] text-muted-foreground font-semibold mt-0.5">Rating: {whiteRating} • Assigned a Bye</div>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between p-4 rounded-xl bg-muted/30 border border-border">
+                <div className="flex-1 text-left">
+                  <div className="flex items-center gap-2">
+                    <span className="w-3.5 h-3.5 rounded bg-foreground border border-border inline-block shadow-sm"></span>
+                    <span className="text-sm font-bold truncate max-w-[150px]" title={whiteName}>{whiteName}</span>
+                  </div>
+                  <div className="text-[10px] text-muted-foreground mt-1 font-semibold">White • Rating: {whiteRating}</div>
+                </div>
+                <span className="text-[10px] font-black text-muted-foreground/40 px-3 uppercase">vs</span>
+                <div className="flex-1 text-right">
+                  <div className="flex items-center gap-2 justify-end">
+                    <span className="text-sm font-bold truncate max-w-[150px]" title={blackName}>{blackName}</span>
+                    <span className="w-3.5 h-3.5 rounded bg-background border border-border inline-block shadow-sm"></span>
+                  </div>
+                  <div className="text-[10px] text-muted-foreground mt-1 font-semibold">Black • Rating: {blackRating}</div>
+                </div>
+              </div>
+            )}
+
+            {/* Selection Options */}
+            <div className="space-y-4">
+              {isByeMatch ? (
+                <>
+                  <h4 className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Select Bye Points</h4>
+                  <div className="grid grid-cols-3 gap-2">
+                    <Button
+                      variant={baseResult === '1-bye' ? 'default' : 'outline'}
+                      className="h-11 font-bold text-xs"
+                      onClick={() => handleSelectResult('1-bye')}
+                    >
+                      1.0 Pt Bye
+                    </Button>
+                    <Button
+                      variant={baseResult === '1/2-bye' ? 'default' : 'outline'}
+                      className="h-11 font-bold text-xs"
+                      onClick={() => handleSelectResult('1/2-bye')}
+                    >
+                      ½ Pt Bye
+                    </Button>
+                    <Button
+                      variant={baseResult === '0-bye' ? 'default' : 'outline'}
+                      className="h-11 font-bold text-xs"
+                      onClick={() => handleSelectResult('0-bye')}
+                    >
+                      0 Pt Bye
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <h4 className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Match Result</h4>
+                  <div className="grid grid-cols-3 gap-2">
+                    <Button
+                      variant={baseResult === '1-0' ? 'default' : 'outline'}
+                      className="h-11 font-bold text-xs"
+                      onClick={() => handleSelectResult('1-0')}
+                    >
+                      1 - 0 (White Win)
+                    </Button>
+                    <Button
+                      variant={baseResult === '0-1' ? 'default' : 'outline'}
+                      className="h-11 font-bold text-xs"
+                      onClick={() => handleSelectResult('0-1')}
+                    >
+                      0 - 1 (Black Win)
+                    </Button>
+                    <Button
+                      variant={baseResult === '1/2-1/2' ? 'default' : 'outline'}
+                      className="h-11 font-bold text-xs"
+                      onClick={() => handleSelectResult('1/2-1/2')}
+                    >
+                      ½ - ½ (Draw)
+                    </Button>
+                  </div>
+
+                  <h4 className="text-[10px] font-black text-muted-foreground uppercase tracking-widest pt-2">Forfeits & Special Results</h4>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      variant={baseResult === '1F-0F' ? 'default' : 'outline'}
+                      className="h-11 font-bold text-xs"
+                      onClick={() => handleSelectResult('1F-0F')}
+                    >
+                      1F - 0 (White Forfeit)
+                    </Button>
+                    <Button
+                      variant={baseResult === '0F-1F' ? 'default' : 'outline'}
+                      className="h-11 font-bold text-xs"
+                      onClick={() => handleSelectResult('0F-1F')}
+                    >
+                      0 - 1F (Black Forfeit)
+                    </Button>
+                    <Button
+                      variant={baseResult === '0F-0F' ? 'default' : 'outline'}
+                      className="h-11 font-bold text-xs"
+                      onClick={() => handleSelectResult('0F-0F')}
+                    >
+                      0F - 0F (Double Forfeit)
+                    </Button>
+                    <Button
+                      variant={baseResult === '1F-1F' ? 'default' : 'outline'}
+                      className="h-11 font-bold text-xs"
+                      onClick={() => handleSelectResult('1F-1F')}
+                    >
+                      1F - 1F (Forfeit Draw)
+                    </Button>
+                  </div>
+                </>
+              )}
+
+              {/* Custom Result Code Field */}
+              <div className="space-y-2 pt-3 border-t border-border mt-4">
+                <h4 className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Custom Result Code</h4>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={customResult}
+                    onChange={(e) => setCustomResult(e.target.value)}
+                    placeholder={isByeMatch ? "e.g. 1/2-bye, 0-bye" : "e.g. 1F-0, 0-1F, 1/2-0"}
+                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="h-9 px-4 font-bold text-xs uppercase"
+                    onClick={handleApplyCustomResult}
+                  >
+                    Apply Code
+                  </Button>
+                </div>
+                <p className="text-[10px] text-muted-foreground mt-1 font-semibold leading-relaxed">
+                  Type any code (e.g. <span className="font-mono bg-muted px-1 rounded text-foreground">1F-0</span> or <span className="font-mono bg-muted px-1 rounded text-foreground">0-1F</span>) and the system will normalize it.
+                </p>
+              </div>
+
+              {/* Options & Reset */}
+              <div className="flex items-center justify-between pt-4 border-t border-border mt-6">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="unrated-toggle"
+                    checked={isUnrated}
+                    onChange={handleToggleUnrated}
+                    disabled={!currentResult || currentResult === 'Pending'}
+                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer disabled:opacity-50"
+                  />
+                  <label
+                    htmlFor="unrated-toggle"
+                    className="text-xs font-bold text-foreground cursor-pointer select-none disabled:opacity-50"
+                  >
+                    Unrated Match (e.g., unrated)
+                  </label>
+                </div>
+                
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleSelectResult(null)}
+                  disabled={!currentResult}
+                  className="text-xs font-bold text-destructive hover:text-destructive hover:bg-destructive/10"
+                >
+                  Reset to Pending
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="p-4 bg-muted/20 border-t border-border flex justify-end items-center px-6">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onOpenChange(false)}
+              className="h-9 px-6 text-xs font-bold uppercase tracking-wider text-muted-foreground border-border hover:bg-muted"
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   const seriesGames = allMatches
     .filter(m =>

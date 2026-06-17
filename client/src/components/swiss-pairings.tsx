@@ -263,7 +263,7 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
 
   const swissMatches = useMemo(() => {
     if (tournament?.format !== 'swiss') return [] as Match[];
-    return [...filteredMatches].filter(m => !m.isExtraGame).sort((a, b) => (a.board || 0) - (b.board || 0));
+    return [...filteredMatches].filter(m => !m.isExtraGame && !m.isBye).sort((a, b) => (a.board || 0) - (b.board || 0));
   }, [filteredMatches, tournament?.format]);
 
   const extraMatches = useMemo(() => {

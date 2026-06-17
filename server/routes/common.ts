@@ -1039,8 +1039,16 @@ export async function generateSwissPairings(
 
       let byesReceived = 0;
       for (const pairing of existingPairings) {
-        if (pairing.round < round && pairing.playerId === player.id && pairing.isBye && !pairing.isRequested) {
-          if (pairing.points === 2 || pairing.points === null) {
+        if (pairing.round < round && pairing.playerId === player.id && pairing.isBye) {
+          byesReceived++;
+        }
+      }
+      for (const m of playerMatches) {
+        if (m.round < round && m.status === 'completed') {
+          const isWhite = m.whitePlayerId === player.id;
+          if (m.result === '1F-0F' && isWhite) {
+            byesReceived++;
+          } else if (m.result === '0F-1F' && !isWhite) {
             byesReceived++;
           }
         }
