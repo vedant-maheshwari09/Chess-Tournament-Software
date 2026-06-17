@@ -3989,4 +3989,221 @@ app.post("/api/tournaments/:tournamentId/generate-pairings", requireAuth, requir
       }
     }
   );
+
+  // Export full JSON backup of tournament
+  app.get(
+    "/api/tournaments/:id/backup",
+    requireAuth,
+    requireTournamentAccess,
+    async (req, res) => {
+      try {
+        const id = parseInt(req.params.id);
+        const { tournamentHistory: histTable } = await import('@shared/schema');
+        const [tournament, playersList, matchesList, pairingsList, historyList] = await Promise.all([
+          storage.getTournament(id),
+          storage.getPlayersByTournament(id),
+          storage.getMatchesByTournament(id),
+          storage.getPairingsByTournament(id),
+          db.select().from(histTable).where(eq(histTable.tournamentId, id)),
+        ]);
+
+        if (!tournament) {
+          return res.status(404).json({ message: "Tournament not found" });
+        }
+
+        res.json({
+          version: "1.0",
+          exportedAt: new Date().toISOString(),
+          tournament,
+          players: playersList,
+          matches: matchesList,
+          pairings: pairingsList,
+          history: historyList,
+        });
+      } catch (error: any) {
+        console.error("Backup export error:", error);
+        res.status(500).json({ message: "Failed to generate JSON backup: " + error.message });
+      }
+    }
+  );
+
+  // Restore full JSON backup of tournament
+  app.post(
+    "/api/tournaments/:id/restore",
+    requireAuth,
+    requireTournamentAccess,
+    async (req, res) => {
+      try {
+        const id = parseInt(req.params.id);
+        const backupData = req.body;
+        const { pairings: pairingsTable, matches: matchesTable, players: playersTable, tournaments: tournamentsTable, tournamentHistory: histTable } = await import('@shared/schema');
+
+        if (!backupData || !backupData.tournament || !Array.isArray(backupData.players)) {
+          return res.status(400).json({ message: "Invalid backup data format" });
+        }
+
+        const dbTournament = await storage.getTournament(id);
+        if (!dbTournament) {
+          return res.status(404).json({ message: "Tournament not found" });
+        }
+
+        // Perform transactional restore
+        await db.transaction(async (tx) => {
+          // 1. Delete existing records for this tournament
+          await tx.delete(pairingsTable).where(eq(pairingsTable.tournamentId, id));
+          await tx.delete(matchesTable).where(eq(matchesTable.tournamentId, id));
+          await tx.delete(playersTable).where(eq(playersTable.tournamentId, id));
+          await tx.delete(histTable).where(eq(histTable.tournamentId, id));
+
+          // 2. Restore players
+          if (backupData.players.length > 0) {
+            const playerInserts = backupData.players.map((p: any) => ({
+              id: p.id,
+              tournamentId: id,
+              userId: p.userId,
+              firstName: p.firstName,
+              lastName: p.lastName,
+              rating: p.rating,
+              uscfRating: p.uscfRating,
+              fideRating: p.fideRating,
+              federation: p.federation,
+              seed: p.seed,
+              halfPointByesUsed: p.halfPointByesUsed,
+              fullPointByesReceived: p.fullPointByesReceived,
+              forfeitWinsReceived: p.forfeitWinsReceived,
+              isActiveTd: p.isActiveTd,
+              sectionId: p.sectionId,
+              sectionName: p.sectionName,
+              status: p.status,
+              email: p.email,
+              club: p.club,
+              title: p.title,
+              birthdate: p.birthdate,
+              sex: p.sex,
+              localId: p.localId,
+              ratingLocal: p.ratingLocal,
+              ratingRapid: p.ratingRapid,
+              ratingBlitz: p.ratingBlitz,
+            }));
+            await tx.insert(playersTable).values(playerInserts);
+          }
+
+          // 3. Restore matches
+          if (backupData.matches && backupData.matches.length > 0) {
+            const matchInserts = backupData.matches.map((m: any) => ({
+              id: m.id,
+              tournamentId: id,
+              round: m.round,
+              board: m.board,
+              whitePlayerId: m.whitePlayerId,
+              blackPlayerId: m.blackPlayerId,
+              result: m.result,
+              status: m.status,
+              isBye: m.isBye,
+              whitePoints: m.whitePoints,
+              blackPoints: m.blackPoints,
+              gameNumber: m.gameNumber,
+              bracketType: m.bracketType,
+              sectionId: m.sectionId,
+              gameType: m.gameType,
+              winnerId: m.winnerId,
+              isExtraGame: m.isExtraGame,
+            }));
+            await tx.insert(matchesTable).values(matchInserts);
+          }
+
+          // 4. Restore pairings
+          if (backupData.pairings && backupData.pairings.length > 0) {
+            const pairingInserts = backupData.pairings.map((p: any) => ({
+              id: p.id,
+              tournamentId: id,
+              round: p.round,
+              playerId: p.playerId,
+              opponentId: p.opponentId,
+              color: p.color,
+              points: p.points,
+              isBye: p.isBye,
+              byeType: p.byeType,
+              isRequested: p.isRequested,
+            }));
+            await tx.insert(pairingsTable).values(pairingInserts);
+          }
+
+          // 5. Restore history
+          if (backupData.history && backupData.history.length > 0) {
+            const historyInserts = backupData.history.map((h: any) => ({
+              id: h.id,
+              tournamentId: id,
+              action: h.action,
+              description: h.description,
+              changedBy: h.changedBy,
+              previousState: h.previousState,
+              newState: h.newState,
+              round: h.round,
+              matchId: h.matchId,
+              playerId: h.playerId,
+              canRevert: h.canRevert,
+              createdAt: h.createdAt ? new Date(h.createdAt) : new Date(),
+            }));
+            await tx.insert(histTable).values(historyInserts);
+          }
+
+          // 6. Update tournament metadata
+          await tx.update(tournamentsTable)
+            .set({
+              name: backupData.tournament.name,
+              format: backupData.tournament.format,
+              status: backupData.tournament.status,
+              rounds: backupData.tournament.rounds,
+              timeControl: backupData.tournament.timeControl,
+              currentRound: backupData.tournament.currentRound,
+              isDoubleRoundRobin: backupData.tournament.isDoubleRoundRobin,
+              playerCount: backupData.tournament.playerCount,
+              useQuickSetup: backupData.tournament.useQuickSetup,
+              tiebreakOrder: backupData.tournament.tiebreakOrder,
+              location: backupData.tournament.location,
+              directorEmail: backupData.tournament.directorEmail,
+              roundTimings: backupData.tournament.roundTimings,
+              publishOnCalendar: backupData.tournament.publishOnCalendar,
+              allowOnlineRegistration: backupData.tournament.allowOnlineRegistration,
+              enablePairingPredictor: backupData.tournament.enablePairingPredictor,
+              chessResultsUrl: backupData.tournament.chessResultsUrl,
+              boardNumberingSettings: backupData.tournament.boardNumberingSettings,
+              seedingMethod: backupData.tournament.seedingMethod,
+              seedingSource: backupData.tournament.seedingSource,
+              matchWinConditions: backupData.tournament.matchWinConditions,
+              knockoutMatchFormat: backupData.tournament.knockoutMatchFormat,
+              primaryRatingSystem: backupData.tournament.primaryRatingSystem,
+              isDoubleElimination: backupData.tournament.isDoubleElimination,
+              arenaDuration: backupData.tournament.arenaDuration,
+              arenaStartTime: backupData.tournament.arenaStartTime ? new Date(backupData.tournament.arenaStartTime) : null,
+              arenaScoringConfig: backupData.tournament.arenaScoringConfig,
+              arenaEndStrategy: backupData.tournament.arenaEndStrategy,
+              arenaPairingMode: backupData.tournament.arenaPairingMode,
+              arenaCutoffMinutes: backupData.tournament.arenaCutoffMinutes,
+              arenaCountdownSeconds: backupData.tournament.arenaCountdownSeconds,
+              arenaPrePairBeforeStart: backupData.tournament.arenaPrePairBeforeStart,
+              startDate: backupData.tournament.startDate ? new Date(backupData.tournament.startDate) : null,
+              endDate: backupData.tournament.endDate ? new Date(backupData.tournament.endDate) : null,
+              updatedAt: new Date()
+            })
+            .where(eq(tournamentsTable.id, id));
+        });
+
+        // Audit log in history table
+        await storage.createHistoryEntry({
+          tournamentId: id,
+          action: "restore_backup",
+          description: `Tournament state successfully restored from JSON backup file`,
+          changedBy: req.user!.id,
+          canRevert: false,
+        });
+
+        res.json({ message: "Tournament restored successfully" });
+      } catch (error: any) {
+        console.error("Backup restore error:", error);
+        res.status(500).json({ message: "Failed to restore JSON backup: " + error.message });
+      }
+    }
+  );
 }

@@ -53,7 +53,7 @@ import {
   type TemplateSectionKey,
   type TournamentTemplateSnapshot,
 } from "@/lib/tournament-templates";
-import { Upload, Check, ChevronRight, Settings, X, ChevronUp, ChevronDown, Plus, CreditCard, ExternalLink, Trophy, Users, Calculator, Link, QrCode, Printer, Copy, Clock, Zap, Paperclip, Loader2, Trash2, Eye, EyeOff, FileDown, FileUp } from "lucide-react";
+import { Upload, Check, ChevronRight, Settings, X, ChevronUp, ChevronDown, Plus, CreditCard, ExternalLink, Trophy, Users, Calculator, Link, QrCode, Printer, Copy, Clock, Zap, Paperclip, Loader2, Trash2, Eye, EyeOff, FileDown, FileUp, Wifi, WifiOff } from "lucide-react";
 import qrcode from "qrcode";
 import TournamentPagePanel from "@/components/tournament-page-panel";
 import { RegistrationFormCustomizer } from "@/components/registration-form-customizer";
@@ -958,6 +958,87 @@ function StepTwo({
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const prizeImportInputRef = useRef<HTMLInputElement | null>(null);
+  const [isOnline, setIsOnline] = useState(typeof window !== "undefined" ? window.navigator.onLine : true);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
+
+  const handleExportBackup = async () => {
+    if (!tournamentId) return;
+    try {
+      const token = localStorage.getItem("auth_token");
+      const headers: Record<string, string> = {};
+      if (token) headers.Authorization = `Bearer ${token}`;
+
+      const res = await fetch(`/api/tournaments/${tournamentId}/backup`, { headers });
+      if (!res.ok) throw new Error("Failed to export backup");
+      const data = await res.json();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `tournament-${tournament?.name || "backup"}-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      toast({ title: "Backup Exported", description: "Tournament data downloaded successfully." });
+    } catch (err: any) {
+      toast({ title: "Export Failed", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const handleImportBackup = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!tournamentId) return;
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const backupData = JSON.parse(event.target?.result as string);
+        if (!backupData.tournament || !backupData.players) {
+          throw new Error("Invalid tournament backup JSON format.");
+        }
+
+        const confirmRestore = window.confirm("Warning: Importing this backup will overwrite all current players, matches, pairings, and history. Do you want to proceed?");
+        if (!confirmRestore) return;
+
+        const token = localStorage.getItem("auth_token");
+        const headers: Record<string, string> = { "Content-Type": "application/json" };
+        if (token) headers.Authorization = `Bearer ${token}`;
+
+        const res = await fetch(`/api/tournaments/${tournamentId}/restore`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(backupData)
+        });
+
+        if (!res.ok) {
+          const errText = await res.text();
+          throw new Error(errText || "Failed to restore backup");
+        }
+
+        toast({ title: "Restore Successful", description: "Tournament state successfully restored." });
+        queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}`] });
+        queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/matches`] });
+        queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/pairings`] });
+        window.location.reload();
+      } catch (err: any) {
+        toast({ title: "Restore Failed", description: err.message, variant: "destructive" });
+      }
+    };
+    reader.readAsText(file);
+  };
   const sections = config.sections ?? [];
   const prizes = config.prizes ?? [];
   const tournamentId = tournament?.id;
@@ -2738,6 +2819,82 @@ function StepTwo({
 
 
               <TabsContent value="options" className="bg-slate-50/30 p-8 space-y-8">
+                {/* Offline Resilience & Data Backups */}
+                <div className="rounded-2xl border bg-white p-6 space-y-4 shadow-sm border-slate-200/60">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <div className="space-y-0.5">
+                      <h3 className="text-base font-semibold text-black flex items-center gap-2">
+                        Offline Resilience & Backups
+                      </h3>
+                      <p className="text-xs text-slate-500 font-normal">
+                        Export snapshots of the tournament to run/revert offline, or restore them.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {isOnline ? (
+                        <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/30 flex items-center gap-1.5 px-2.5 py-1 rounded-full font-semibold text-xs">
+                          <Wifi className="h-3.5 w-3.5" />
+                          Online
+                        </Badge>
+                      ) : (
+                        <Badge className="bg-rose-500/10 text-rose-600 border-rose-500/30 flex items-center gap-1.5 px-2.5 py-1 rounded-full font-semibold text-xs animate-pulse">
+                          <WifiOff className="h-3.5 w-3.5" />
+                          Offline Mode
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="p-4 rounded-xl border border-slate-100 bg-slate-50/50 space-y-3 flex flex-col justify-between">
+                      <div className="space-y-1">
+                        <Label className="text-sm font-bold text-black flex items-center gap-1.5">
+                          <FileDown className="h-4 w-4 text-blue-500" /> Export JSON Snapshot
+                        </Label>
+                        <p className="text-xs text-slate-500 leading-relaxed">
+                          Download a complete backup of this tournament (players, matches, pairings, and history) as a JSON file. Use this as a snapshot at any point.
+                        </p>
+                      </div>
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        className="w-full h-10 gap-2 border-slate-200 bg-white font-semibold text-xs tracking-wider uppercase hover:bg-slate-50"
+                        onClick={handleExportBackup}
+                      >
+                        Download Backup (.json)
+                      </Button>
+                    </div>
+
+                    <div className="p-4 rounded-xl border border-slate-100 bg-slate-50/50 space-y-3 flex flex-col justify-between">
+                      <div className="space-y-1">
+                        <Label className="text-sm font-bold text-black flex items-center gap-1.5">
+                          <Upload className="h-4 w-4 text-indigo-500" /> Restore JSON Snapshot
+                        </Label>
+                        <p className="text-xs text-slate-500 leading-relaxed">
+                          Restore the entire tournament state from a locally saved JSON file. Warning: this replaces all current pairings and scores with the snapshot.
+                        </p>
+                      </div>
+                      <div className="relative w-full">
+                        <input
+                          type="file"
+                          id="restore-upload"
+                          accept=".json"
+                          className="hidden"
+                          onChange={handleImportBackup}
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="w-full h-10 gap-2 border-slate-200 bg-white font-semibold text-xs tracking-wider uppercase hover:bg-slate-50"
+                          onClick={() => document.getElementById("restore-upload")?.click()}
+                        >
+                          Upload & Restore File
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 {/* Public Access Protocol */}
                 <div className="rounded-2xl border bg-white p-6 space-y-4 shadow-sm border-slate-200/60">
                   <div className="flex items-center gap-2 mb-2">
