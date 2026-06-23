@@ -972,7 +972,7 @@ export default function MessagesDashboard() {
                           {/* Hover Actions (Reactions + Copy + Edit + Delete + Pin) */}
                           {!msg.isDeleted && !isEditing && (
                             <div className={`flex items-center gap-1.5 opacity-0 group-hover/bubble:opacity-100 transition-all duration-200 absolute -top-[44px] ${isMe ? "right-0" : "left-0"} z-50 bg-background/95 backdrop-blur-md dark:bg-slate-900/95 border border-slate-200/80 dark:border-slate-800/80 shadow-lg rounded-full px-2.5 py-1 whitespace-nowrap`}>
-                              {/* Quick Reaction Emojis — use native emoji chars (crisp at any size) */}
+                              {/* Quick Reaction Emojis — use official texting emoji images (Apple Style) */}
                               <div className="flex items-center gap-1">
                                 {quickEmojis.map(emoji => {
                                   const hasReacted = msg.reactions?.some((r: any) => r.userId === user?.id && r.emoji === emoji);
@@ -980,11 +980,19 @@ export default function MessagesDashboard() {
                                     <button
                                       key={emoji}
                                       title={emoji}
-                                      className={`hover:scale-125 transition-transform p-0.5 rounded-full text-lg leading-none ${hasReacted ? "bg-primary/20" : ""}`}
+                                      className={`hover:scale-125 transition-transform p-1 rounded-full ${hasReacted ? "bg-primary/20 ring-1 ring-primary/45" : "hover:bg-muted/70"}`}
                                       onClick={() => handleToggleReaction(msg.id, emoji, hasReacted)}
                                       type="button"
                                     >
-                                      {emoji}
+                                      {emojiMap[emoji] ? (
+                                        <img 
+                                          src={emojiMap[emoji]} 
+                                          alt={emoji} 
+                                          className="h-5 w-5 object-contain"
+                                        />
+                                      ) : (
+                                        <span className="text-lg leading-none">{emoji}</span>
+                                      )}
                                     </button>
                                   );
                                 })}
@@ -1137,10 +1145,18 @@ export default function MessagesDashboard() {
                                         key={emoji}
                                         title={`Reacted by: ${tooltipText}`}
                                         onClick={() => handleToggleReaction(msg.id, emoji, hasReacted)}
-                                        className={`flex items-center gap-0.5 hover:bg-muted/50 px-0.5 rounded-full transition-all ${hasReacted ? "ring-1 ring-primary/40" : ""}`}
+                                        className={`flex items-center gap-1 hover:bg-muted/65 px-1 py-0.5 rounded-full transition-all ${hasReacted ? "ring-1 ring-primary/35 bg-primary/5" : ""}`}
                                         type="button"
                                       >
-                                        <span className="text-sm leading-none">{emoji}</span>
+                                        {emojiMap[emoji] ? (
+                                          <img 
+                                            src={emojiMap[emoji]} 
+                                            alt={emoji} 
+                                            className="h-4 w-4 object-contain"
+                                          />
+                                        ) : (
+                                          <span className="text-sm leading-none">{emoji}</span>
+                                        )}
                                         {list.length >= 1 && <span className="text-[9px] font-bold text-muted-foreground ml-0.5">{list.length}</span>}
                                       </button>
                                     );

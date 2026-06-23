@@ -8,6 +8,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AlertTriangle, ChevronLeft, Mail, Share2, Trash2, Users } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useAuth } from "@/hooks/useAuth";
 import { slugify } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -45,6 +55,7 @@ export function TournamentActionsContent({
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const [deleting, setDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [shareEmails, setShareEmails] = useState("");
   const [shareMessage, setShareMessage] = useState("");
   const [templateSelections, setTemplateSelections] = useState<TemplateSectionKey[]>(() =>
@@ -190,10 +201,6 @@ export function TournamentActionsContent({
   };
 
   const handleDelete = async () => {
-    if (!window.confirm("Are you sure you want to delete this tournament? This action cannot be undone.")) {
-      return;
-    }
-
     try {
       setDeleting(true);
       await apiRequest(`/api/tournaments/${tournamentId}`, {
@@ -209,6 +216,7 @@ export function TournamentActionsContent({
       });
     } finally {
       setDeleting(false);
+      setShowDeleteConfirm(false);
     }
   };
 
@@ -344,11 +352,38 @@ export function TournamentActionsContent({
               This will remove the tournament, its players, pairings, and history. This action cannot be undone.
             </p>
           </div>
-          <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
+          <Button variant="destructive" onClick={() => setShowDeleteConfirm(true)} disabled={deleting}>
             {deleting ? "Deleting..." : "Delete tournament"}
           </Button>
         </CardContent>
       </Card>
+
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              Delete Tournament?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this tournament? This will remove the tournament, its players, pairings, and history. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                handleDelete();
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleting}
+            >
+              {deleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
