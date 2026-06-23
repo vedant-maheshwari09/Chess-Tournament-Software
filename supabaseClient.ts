@@ -163,11 +163,8 @@ class PostgresQueryBuilder {
 
 let fallbackLogged = false;
 export function getSupabaseClient() {
-  if (supabase) {
-    return supabase;
-  }
   if (!fallbackLogged) {
-    console.log("ℹ️ getSupabaseClient: falling back to direct Postgres pool client shim");
+    console.log("ℹ️ getSupabaseClient: using direct Postgres pool client shim");
     fallbackLogged = true;
   }
   return {
