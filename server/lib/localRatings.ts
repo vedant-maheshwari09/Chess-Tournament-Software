@@ -11,6 +11,7 @@ const DEFAULT_ROOT_CANDIDATES = Array.from(
     [
       process.env.RATINGS_DATA_ROOT?.trim() ?? undefined,
       process.cwd(),
+      path.resolve(process.cwd(), "dist"),
       path.resolve(process.cwd(), ".."),
       MODULE_DIR,
       path.resolve(MODULE_DIR, ".."),
@@ -35,7 +36,10 @@ function resolveDataPath(relativePath: string, envKey?: string) {
     }
   }
 
-  const fallbackRoot = DEFAULT_ROOT_CANDIDATES[0] ?? process.cwd();
+  const distPath = path.resolve(process.cwd(), "dist");
+  const fallbackRoot = existsSync(distPath)
+    ? distPath
+    : (DEFAULT_ROOT_CANDIDATES[0] ?? process.cwd());
   return path.resolve(fallbackRoot, relativePath);
 }
 
@@ -43,6 +47,10 @@ const USCF_BLITZ_FILE = "GDB2510T.TXT";
 const USCF_QUICK_FILE = "GDQ2510T.TXT";
 const FIDE_FILE = "players_list-fide-oct-2025.txt";
 const DB_PATH = resolveDataPath("ratings_cache.sqlite", "RATINGS_CACHE_DB_FILE");
+
+const FALLBACK_BLITZ_URL = "https://www.dropbox.com/scl/fo/xn3nhh02v84s59kyu8vrc/AAebWUc3XHc2rthvEpf_mxk/GDB2510T.TXT?rlkey=n759qued6usclg7qqrm16163c&dl=1";
+const FALLBACK_QUICK_URL = "https://www.dropbox.com/scl/fo/xn3nhh02v84s59kyu8vrc/AOdXoydHK6BEyoY4PxZME_E/GDQ2510T.TXT?rlkey=n759qued6usclg7qqrm16163c&dl=1";
+const FALLBACK_FIDE_URL = "https://www.dropbox.com/scl/fo/xn3nhh02v84s59kyu8vrc/APaSiTcLdUmspGzGQMZuFMU/players_list-fide-oct-2025.txt?rlkey=n759qued6usclg7qqrm16163c&dl=1";
 
 let db: Database.Database | null = null;
 let initPromise: Promise<void> | null = null;
@@ -136,15 +144,15 @@ async function downloadFile(url: string, dest: string, redirects = 5): Promise<v
 
 export async function ensureDataFiles(): Promise<void> {
   const filesToVerify = [
-    { name: USCF_BLITZ_FILE, envUrl: "USCF_BLITZ_URL" },
-    { name: USCF_QUICK_FILE, envUrl: "USCF_QUICK_URL" },
-    { name: FIDE_FILE, envUrl: "FIDE_PLAYER_LIST_URL" },
+    { name: USCF_BLITZ_FILE, envUrl: "USCF_BLITZ_URL", fallback: FALLBACK_BLITZ_URL },
+    { name: USCF_QUICK_FILE, envUrl: "USCF_QUICK_URL", fallback: FALLBACK_QUICK_URL },
+    { name: FIDE_FILE, envUrl: "FIDE_PLAYER_LIST_URL", fallback: FALLBACK_FIDE_URL },
   ];
 
   for (const item of filesToVerify) {
     const filePath = path.resolve(process.cwd(), item.name);
     if (!existsSync(filePath)) {
-      const url = process.env[item.envUrl];
+      const url = process.env[item.envUrl] || item.fallback;
       if (url) {
         try {
           await downloadFile(url, filePath);
@@ -160,16 +168,58 @@ export async function ensureDataFiles(): Promise<void> {
   }
 }
 
+function isDbValid(): boolean {
+  if (!existsSync(DB_PATH)) return false;
+  try {
+    const checkDb = new Database(DB_PATH, { readonly: true });
+    
+    // Check if the tables exist
+    const tables = checkDb.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('meta', 'uscf', 'fide')").all() as any[];
+    if (tables.length < 3) {
+      checkDb.close();
+      return false;
+    }
+    
+    // Check if we have meta keys
+    const metaUscf = checkDb.prepare("SELECT value FROM meta WHERE key = 'uscf_mtime'").get() as { value: string } | undefined;
+    const metaFide = checkDb.prepare("SELECT value FROM meta WHERE key = 'fide_mtime'").get() as { value: string } | undefined;
+    
+    if (!metaUscf?.value || !metaFide?.value) {
+      checkDb.close();
+      return false;
+    }
+    
+    // Check if there are actually records in the tables
+    const uscfCount = checkDb.prepare("SELECT count(*) as count FROM uscf").get() as { count: number };
+    const fideCount = checkDb.prepare("SELECT count(*) as count FROM fide").get() as { count: number };
+    
+    checkDb.close();
+    
+    return uscfCount.count > 0 && fideCount.count > 0;
+  } catch (err) {
+    return false;
+  }
+}
+
 export async function preloadRatingData() {
   if (!initPromise) {
     initPromise = (async () => {
-    try {
-      await ensureDataFiles();
-      await initializeDb();
-      log("Rating data preloaded successfully.", "system");
-    } catch (err) {
-      log(`Failed to preload rating data: ${err instanceof Error ? err.message : String(err)}`, "system");
-    }
+      try {
+        if (isDbValid()) {
+          log("Existing valid ratings database cache found. Skipping download and rebuild.", "system");
+          db = new Database(DB_PATH);
+          db.pragma('journal_mode = WAL');
+          db.pragma('synchronous = NORMAL');
+          return;
+        }
+        
+        log("No valid ratings database cache found. Starting download and database rebuild...", "system");
+        await ensureDataFiles();
+        await initializeDb();
+        log("Rating data preloaded successfully.", "system");
+      } catch (err) {
+        log(`Failed to preload rating data: ${err instanceof Error ? err.message : String(err)}`, "system");
+      }
     })();
   }
   return initPromise;
@@ -284,6 +334,12 @@ async function buildUscfIndex() {
 
   await streamUSCFFileIntoDb(blitzPath, "blitz");
   await streamUSCFFileIntoDb(quickPath, "quick");
+
+  log("Building USCF FTS index in bulk...", "ratings");
+  db!.exec('BEGIN TRANSACTION');
+  db!.exec('INSERT INTO uscf_idx (rowid, search_vector) SELECT rowid, search_vector FROM uscf');
+  db!.exec('COMMIT');
+  log("USCF FTS index build complete.", "ratings");
 }
 
 async function streamUSCFFileIntoDb(filePath: string, type: "blitz" | "quick") {
@@ -315,8 +371,6 @@ async function streamUSCFFileIntoDb(filePath: string, type: "blitz" | "quick") {
       normalized_last_first = excluded.normalized_last_first
   `);
 
-  const insertFts = db!.prepare(`INSERT OR REPLACE INTO uscf_idx (rowid, search_vector) VALUES (?, ?)`);
-
   db!.exec('BEGIN TRANSACTION');
   let count = 0;
   for await (const rawLine of reader) {
@@ -342,7 +396,7 @@ async function streamUSCFFileIntoDb(filePath: string, type: "blitz" | "quick") {
     const quickValue = type === "quick" ? (record.extraRating?.value || ratingValue) : null;
     const quickRaw = type === "quick" ? (record.extraRating?.raw || ratingRaw) : null;
 
-    const info = upsert.run(
+    upsert.run(
       record.id, record.name, record.state || null, record.expiration || null,
       ratingValue, ratingRaw,
       quickValue, quickRaw,
@@ -350,11 +404,6 @@ async function streamUSCFFileIntoDb(filePath: string, type: "blitz" | "quick") {
       searchVector, normalizedFullName, normalizedLastFirst,
       type, type, type, type, type, type
     );
-
-    // Update FTS index
-    if (info.changes > 0) {
-      insertFts.run(info.lastInsertRowid, searchVector);
-    }
 
     count++;
     if (count % 5000 === 0) {
@@ -388,8 +437,6 @@ async function buildFideIndex() {
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
-  const insertFts = db!.prepare(`INSERT INTO fide_idx (rowid, search_vector) VALUES (?, ?)`);
-
   const reader = readline.createInterface({
     input: createReadStream(FIDE_FILE),
     crlfDelay: Infinity,
@@ -418,17 +465,13 @@ async function buildFideIndex() {
 
     const searchVector = Array.from(tokenSet).join(" ");
 
-    const info = insert.run(
+    insert.run(
       parsed.id, parsed.name, parsed.federation || null, parsed.sex || null, parsed.title || null,
       parsed.rating?.value || null, parsed.rating?.raw || null,
       parsed.rapidRating?.value || null, parsed.rapidRating?.raw || null,
       parsed.blitzRating?.value || null, parsed.blitzRating?.raw || null,
       parsed.birthYear || null, searchVector, normalizedFullName, normalizedLastFirst
     );
-
-    if (info.changes > 0) {
-      insertFts.run(info.lastInsertRowid, searchVector);
-    }
 
     count++;
     if (count % 5000 === 0) {
@@ -442,6 +485,11 @@ async function buildFideIndex() {
   if (count === 0) {
     throw new Error(`No records processed for FIDE file`);
   }
+  
+  log("Building FIDE FTS index in bulk...", "ratings");
+  db!.exec('BEGIN TRANSACTION');
+  db!.exec('INSERT INTO fide_idx (rowid, search_vector) SELECT rowid, search_vector FROM fide');
+  db!.exec('COMMIT');
   log(`Finished FIDE indexing. ${count} records processed.`, "ratings");
 }
 

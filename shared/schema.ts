@@ -518,12 +518,32 @@ export const chatMessages = pgTable("chat_messages", {
   content: text("content").notNull(),
   isDeleted: boolean("is_deleted").default(false),
   isEdited: boolean("is_edited").default(false),
+  isPinned: boolean("is_pinned").default(false).notNull(),
+  attachmentUrl: text("attachment_url"),
+  attachmentType: text("attachment_type"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const blocks = pgTable("blocks", {
+  id: serial("id").primaryKey(),
+  blockerId: integer("blocker_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  blockedId: integer("blocked_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const messageReactions = pgTable("message_reactions", {
+  id: serial("id").primaryKey(),
+  messageId: integer("message_id").references(() => chatMessages.id, { onDelete: "cascade" }).notNull(),
+  userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  emoji: text("emoji").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 export const insertChatThreadSchema = createInsertSchema(chatThreads).omit({ id: true, createdAt: true });
 export const insertChatParticipantSchema = createInsertSchema(chatParticipants).omit({ id: true, joinedAt: true, lastReadAt: true });
 export const insertChatMessageSchema = createInsertSchema(chatMessages).omit({ id: true, createdAt: true });
+export const insertBlockSchema = createInsertSchema(blocks).omit({ id: true, createdAt: true });
+export const insertMessageReactionSchema = createInsertSchema(messageReactions).omit({ id: true, createdAt: true });
 
 export type ChatThread = typeof chatThreads.$inferSelect;
 export type InsertChatThread = z.infer<typeof insertChatThreadSchema>;
@@ -531,4 +551,8 @@ export type ChatParticipant = typeof chatParticipants.$inferSelect;
 export type InsertChatParticipant = z.infer<typeof insertChatParticipantSchema>;
 export type ChatMessage = typeof chatMessages.$inferSelect;
 export type InsertChatMessage = z.infer<typeof insertChatMessageSchema>;
+export type Block = typeof blocks.$inferSelect;
+export type InsertBlock = z.infer<typeof insertBlockSchema>;
+export type MessageReaction = typeof messageReactions.$inferSelect;
+export type InsertMessageReaction = z.infer<typeof insertMessageReactionSchema>;
 

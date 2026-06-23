@@ -38,14 +38,58 @@ if (!process.env.GEMINI_API_KEY) {
     }
   }
 }
+import helmet from "helmet";
+import { rateLimit } from "express-rate-limit";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { preloadRatingData } from "./lib/localRatings";
 import { bootstrapArenaPairing } from "./lib/arenaPairing";
 
 const app = express();
+
+// Trust proxy for rate limiting behind reverse proxies (Cloudflare, Heroku, etc.)
+app.set("trust proxy", 1);
+
+// Configure Helmet for secure headers and strict Content Security Policy
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://js.stripe.com"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
+        imgSrc: ["'self'", "data:", "blob:", "https://*.stripe.com", "https://js.stripe.com"],
+        connectSrc: [
+          "'self'",
+          "ws:",
+          "wss:",
+          "https://api.stripe.com",
+          "https://*.stripe.com",
+          "https://generativelanguage.googleapis.com",
+        ],
+        frameSrc: ["'self'", "https://js.stripe.com"],
+        objectSrc: ["'none'"],
+        upgradeInsecureRequests: [],
+      },
+    },
+    crossOriginEmbedderPolicy: false,
+  })
+);
+
+// Apply rate limiting to all /api routes
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  limit: 200, // Limit each IP to 200 requests per 15 minutes
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: { message: "Too many requests from this IP, please try again after 15 minutes." },
+});
+app.use("/api", limiter);
+
 app.use(
   express.json({
+    limit: "1mb",
     verify: (req: Request, _res, buf) => {
       if ((req.originalUrl ?? "").startsWith("/api/payments/stripe-webhook")) {
         (req as any).rawBody = Buffer.from(buf);

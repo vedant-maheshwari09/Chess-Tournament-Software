@@ -20,6 +20,7 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { slugify } from "@/lib/utils";
 import {
   parseTournamentConfig,
   buildTournamentPayload,
@@ -356,7 +357,7 @@ export default function TournamentReportsPage({ tournamentId, type }: Tournament
         <div className="flex items-center justify-between">
           <Button
             variant="ghost"
-            onClick={() => setLocation(`/tournaments/${tournamentId}/manage`)}
+            onClick={() => setLocation(`/tournaments/${tournament ? slugify(tournament.name) : tournamentId}/manage`)}
             className="pl-0 text-slate-500 hover:text-slate-900"
           >
             <ChevronLeft className="mr-1 h-4 w-4" />

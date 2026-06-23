@@ -16,6 +16,18 @@ import { lookupFideProfiles, searchFideDirectory } from '../lib/fideDirectory';
 import { Player, Pairing, Match, PlayerRegistration } from "@shared/schema";
 
 
+function slugify(text: string): string {
+  return text
+    .toString()
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, '-')           // Replace spaces with -
+    .replace(/[^\w\-]+/g, '')       // Remove all non-word chars
+    .replace(/\-\-+/g, '-')         // Replace multiple - with single -
+    .replace(/^-+/, '')             // Trim - from start of text
+    .replace(/-+$/, '');            // Trim - from end of text
+}
+
 export function applyPaymentsRoutes(app: Express) {
 // Player registration routes
 app.get("/api/tournaments/:id/payments/config", requireAuth, async (req, res) => {
@@ -307,6 +319,8 @@ app.post("/api/payments/stripe-webhook", async (req: Request, res: Response) => 
           };
           const latestCharge = intentWithCharges.charges?.data?.[0];
 
+          const tournament = await storage.getTournament(registrations[0].tournamentId);
+
           await Promise.all(registrations.map(async (registration) => {
             const fallbackAmountMinorUnits = Math.round(Number(String(registration.amountDue ?? "0")) * 100);
             const amountTotal = Number(
@@ -315,7 +329,7 @@ app.post("/api/payments/stripe-webhook", async (req: Request, res: Response) => 
             const notes =
               intent.last_payment_error?.message ?? intent.cancellation_reason ?? registration.paymentNotes ?? null;
 
-            return storage.updatePlayerRegistration(registration.id, {
+            const updatedRegistration = await storage.updatePlayerRegistration(registration.id, {
               paymentStatus: mappedStatus,
               amountPaid: amountReceived.toFixed(2),
               amountDue: amountTotal.toFixed(2),
@@ -327,6 +341,82 @@ app.post("/api/payments/stripe-webhook", async (req: Request, res: Response) => 
                 ? new Date((latestCharge?.created ?? Math.floor(Date.now() / 1000)) * 1000)
                 : null,
             });
+
+            // Trigger Notifications
+            try {
+              const playerUser = await storage.getUserById(registration.userId);
+              const tourneyName = tournament?.name || "Tournament";
+              const tourneySlug = tournament ? slugify(tournament.name) : "";
+
+              if (mappedStatus === "paid") {
+                // In-app notifications
+                await storage.createNotification({
+                  userId: registration.userId,
+                  title: "Payment Succeeded",
+                  message: `Your payment of ${currency} ${amountReceived.toFixed(2)} for tournament "${tourneyName}" succeeded.`,
+                  type: "payment",
+                  meta: { registrationId: registration.id, tournamentId: tournament?.id }
+                });
+
+                if (tournament) {
+                  await storage.createNotification({
+                    userId: tournament.createdBy,
+                    title: "New Payment Received",
+                    message: `A payment of ${currency} ${amountReceived.toFixed(2)} was received for "${tourneyName}" from ${playerUser?.firstName || ""} ${playerUser?.lastName || ""}.`,
+                    type: "payment",
+                    meta: { registrationId: registration.id, tournamentId: tournament.id }
+                  });
+                }
+
+                // Web Push notifications
+                await notificationService.sendWebPushNotificationToUser(
+                  registration.userId,
+                  "Payment Succeeded",
+                  `Your payment of ${currency} ${amountReceived.toFixed(2)} for tournament "${tourneyName}" has been processed successfully.`,
+                  `/tournaments/${tourneySlug}`
+                );
+
+                if (tournament) {
+                  await notificationService.sendWebPushNotificationToUser(
+                    tournament.createdBy,
+                    "New Payment Received",
+                    `Received ${currency} ${amountReceived.toFixed(2)} from ${playerUser?.firstName || ""} ${playerUser?.lastName || ""} for "${tourneyName}".`,
+                    `/tournaments/${tourneySlug}`
+                  );
+                }
+
+                // Email notifications
+                if (playerUser?.email) {
+                  await notificationService.sendEmail({
+                    to: playerUser.email,
+                    subject: `Payment Confirmed: ${tourneyName}`,
+                    text: `Hi ${playerUser.firstName || ""},\n\nWe have received your payment of ${currency} ${amountReceived.toFixed(2)} for "${tourneyName}".\n\nYour registration is now confirmed.\n\nBest regards,\nChess Tournament Manager`,
+                    html: `<p>Hi ${playerUser.firstName || ""},</p><p>We have received your payment of <strong>${currency} ${amountReceived.toFixed(2)}</strong> for <strong>${tourneyName}</strong>.</p><p>Your registration is now confirmed.</p><p>Best regards,<br>Chess Tournament Manager</p>`
+                  });
+                }
+              } else if (mappedStatus === "failed") {
+                // In-app notifications
+                await storage.createNotification({
+                  userId: registration.userId,
+                  title: "Payment Failed",
+                  message: `Your payment for tournament "${tourneyName}" failed. Please check your payment method and try again.`,
+                  type: "payment",
+                  meta: { registrationId: registration.id, tournamentId: tournament?.id }
+                });
+
+                // Web Push notifications
+                await notificationService.sendWebPushNotificationToUser(
+                  registration.userId,
+                  "Payment Failed",
+                  `Your payment for tournament "${tourneyName}" failed.`,
+                  `/tournaments/${tourneySlug}`
+                );
+              }
+            } catch (err) {
+              console.error("Failed to send Stripe webhook notifications:", err);
+            }
+
+            return updatedRegistration;
           }));
         }
       }

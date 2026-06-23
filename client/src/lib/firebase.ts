@@ -66,7 +66,7 @@ export const requestFirebaseToken = async () => {
     }
   } catch (err) {
     console.error('An error occurred while retrieving FCM token:', err);
-    throw err; // Throw so we can catch the specific error message in the UI
+    return null;
   }
 };
 

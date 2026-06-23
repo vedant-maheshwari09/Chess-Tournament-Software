@@ -2,39 +2,28 @@ import React, { useEffect, useMemo, useState, useRef } from "react";
 import type { ComponentType } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useRoute, Link } from "wouter";
-import {
-  Trophy, Users, Eye, Medal, Info, Calculator, PauseCircle, Star,
-  Loader2, MessageCircle, SlidersHorizontal, X, ChevronUp, ChevronDown,
-  ChevronsUpDown, CalendarDays, CheckSquare, Square,
-} from "lucide-react";
+import { Trophy, Users, Eye, Medal, Info, Calculator, PauseCircle, Star, Loader2, MessageCircle, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import SettingsMenu from "@/components/settings-menu";
 
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import type { Tournament, Player, PlayerRegistration as PlayerRegistrationType, TournamentStar } from "@shared/schema";
-import Standings from "@/components/standings";
-import SwissStandings from "@/components/swiss-standings";
-import SwissPairings from "@/components/swiss-pairings";
-import RoundRobinCrosstable from "@/components/round-robin-crosstable";
-import KnockoutBracket from "@/components/knockout-bracket";
-import PairingPredictor from "@/components/pairing-predictor";
-import PlayerRegistration from "@/components/player-registration";
-import TournamentByes from "@/components/tournament-byes";
 import { parseTournamentConfig } from "@/lib/tournament-config";
 import { apiRequest } from "@/lib/queryClient";
 import { requestFirebaseToken } from "@/lib/firebase";
-import { RegistrationStatusCard } from "@/components/registration-status-card";
 import NotificationBell from "@/components/notification-bell";
+import { slugify } from "@/lib/utils";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-type SortKey = "players" | "date" | "state" | "name" | "sections";
-type SortDir = "asc" | "desc";
+type SortKey = "date" | "players" | "subscribers" | "state" | "name" | "format" | "rounds";
+
 type DetailTabKey = "pairings" | "standings" | "byes" | "predictor" | "info";
 type FormatFilter = "swiss" | "roundrobin" | "knockout" | "arena";
 
@@ -55,312 +44,10 @@ interface SectionData {
   empty: string;
 }
 
-interface FilterState {
-  formats: FormatFilter[];
-  minPlayers: number | null;
-  maxPlayers: number | null;
-  startAfter: string;
-  startBefore: string;
-  showStarredOnly: boolean;
-  searchText: string;
-}
-
-const DEFAULT_FILTERS: FilterState = {
-  formats: [],
-  minPlayers: null,
-  maxPlayers: null,
-  startAfter: "",
-  startBefore: "",
-  showStarredOnly: false,
-  searchText: "",
-};
-
-const DETAIL_TAB_META: Array<{ key: DetailTabKey; label: string; icon: ComponentType<{ className?: string }> }> = [
-  { key: "pairings", label: "Pairings", icon: Users },
-  { key: "standings", label: "Standings", icon: Medal },
-  { key: "byes", label: "Byes", icon: PauseCircle },
-  { key: "predictor", label: "Pairing Predictor", icon: Calculator },
-  { key: "info", label: "Info", icon: Info },
-];
-
-const FORMAT_OPTIONS: { value: FormatFilter; label: string }[] = [
-  { value: "swiss", label: "Swiss System" },
-  { value: "roundrobin", label: "Round Robin" },
-  { value: "knockout", label: "Knockout" },
-  { value: "arena", label: "Arena" },
-];
-
-// ─── Helper Components ────────────────────────────────────────────────────────
-function MultiCheckbox({
-  options,
-  value,
-  onChange,
-}: {
-  options: { value: string; label: string }[];
-  value: string[];
-  onChange: (newVal: string[]) => void;
-}) {
-  const toggle = (v: string) => {
-    if (value.includes(v)) onChange(value.filter((x) => x !== v));
-    else onChange([...value, v]);
-  };
-  return (
-    <div className="flex flex-col gap-1.5">
-      {options.map((opt) => {
-        const checked = value.includes(opt.value);
-        return (
-          <button
-            key={opt.value}
-            type="button"
-            onClick={() => toggle(opt.value)}
-            className="flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-left hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-          >
-            {checked ? (
-              <CheckSquare className="h-4 w-4 text-blue-600 shrink-0" />
-            ) : (
-              <Square className="h-4 w-4 text-slate-400 shrink-0" />
-            )}
-            <span className={checked ? "text-slate-900 dark:text-slate-100 font-medium" : "text-slate-600 dark:text-slate-400"}>
-              {opt.label}
-            </span>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-function FilterPanel({
-  filters,
-  setFilters,
-  activeCount,
-  onReset,
-  isOpen,
-  onClose,
-}: {
-  filters: FilterState;
-  setFilters: React.Dispatch<React.SetStateAction<FilterState>>;
-  activeCount: number;
-  onReset: () => void;
-  isOpen: boolean;
-  onClose: () => void;
-}) {
-  const panelRef = useRef<HTMLDivElement>(null);
-
-  // Close on outside click
-  useEffect(() => {
-    if (!isOpen) return;
-    const handler = (e: MouseEvent) => {
-      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
-        onClose();
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [isOpen, onClose]);
-
-  if (!isOpen) return null;
-
-  return (
-    <>
-      {/* Backdrop */}
-      <div className="fixed inset-0 z-40 bg-black/20 backdrop-blur-[1px]" />
-
-      {/* Panel */}
-      <div
-        ref={panelRef}
-        className="fixed right-0 top-0 bottom-0 z-50 w-80 bg-white dark:bg-slate-900 shadow-2xl border-l border-slate-200 dark:border-slate-700 flex flex-col animate-in slide-in-from-right duration-200"
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-700">
-          <div className="flex items-center gap-2">
-            <SlidersHorizontal className="h-4 w-4 text-slate-500" />
-            <span className="font-semibold text-slate-900 dark:text-slate-100">Filters & Sort</span>
-            {activeCount > 0 && (
-              <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-blue-600 text-white text-[10px] font-bold">
-                {activeCount}
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            {activeCount > 0 && (
-              <button
-                onClick={onReset}
-                className="text-xs text-blue-600 hover:text-blue-700 font-medium"
-              >
-                Reset all
-              </button>
-            )}
-            <button
-              onClick={onClose}
-              className="rounded-full p-1 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-            >
-              <X className="h-4 w-4 text-slate-500" />
-            </button>
-          </div>
-        </div>
-
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-6">
-
-          {/* Search */}
-          <div className="space-y-2">
-            <Label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Search</Label>
-            <Input
-              placeholder="Tournament name..."
-              value={filters.searchText}
-              onChange={(e) => setFilters((f) => ({ ...f, searchText: e.target.value }))}
-              className="h-8 text-sm"
-            />
-          </div>
-
-          {/* Format */}
-          <div className="space-y-2">
-            <Label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Format</Label>
-            <MultiCheckbox
-              options={FORMAT_OPTIONS}
-              value={filters.formats}
-              onChange={(v) => setFilters((f) => ({ ...f, formats: v as FormatFilter[] }))}
-            />
-          </div>
-
-          {/* Players range */}
-          <div className="space-y-2">
-            <Label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Player Count</Label>
-            <div className="flex items-center gap-2">
-              <Input
-                type="number"
-                min={0}
-                placeholder="Min"
-                value={filters.minPlayers ?? ""}
-                onChange={(e) =>
-                  setFilters((f) => ({
-                    ...f,
-                    minPlayers: e.target.value !== "" ? parseInt(e.target.value) : null,
-                  }))
-                }
-                className="h-8 text-sm w-full"
-              />
-              <span className="text-slate-400 text-sm shrink-0">–</span>
-              <Input
-                type="number"
-                min={0}
-                placeholder="Max"
-                value={filters.maxPlayers ?? ""}
-                onChange={(e) =>
-                  setFilters((f) => ({
-                    ...f,
-                    maxPlayers: e.target.value !== "" ? parseInt(e.target.value) : null,
-                  }))
-                }
-                className="h-8 text-sm w-full"
-              />
-            </div>
-          </div>
-
-          {/* Date range */}
-          <div className="space-y-2">
-            <Label className="text-xs font-semibold uppercase tracking-wide text-slate-500 flex items-center gap-1">
-              <CalendarDays className="h-3 w-3" /> Start Date Range
-            </Label>
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-400 w-10 shrink-0">From</span>
-                <Input
-                  type="date"
-                  value={filters.startAfter}
-                  onChange={(e) => setFilters((f) => ({ ...f, startAfter: e.target.value }))}
-                  className="h-8 text-sm flex-1"
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-400 w-10 shrink-0">To</span>
-                <Input
-                  type="date"
-                  value={filters.startBefore}
-                  onChange={(e) => setFilters((f) => ({ ...f, startBefore: e.target.value }))}
-                  className="h-8 text-sm flex-1"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Starred only */}
-          <div className="space-y-2">
-            <Label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Favorites</Label>
-            <button
-              type="button"
-              onClick={() => setFilters((f) => ({ ...f, showStarredOnly: !f.showStarredOnly }))}
-              className="flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-left hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors w-full"
-            >
-              {filters.showStarredOnly ? (
-                <CheckSquare className="h-4 w-4 text-blue-600 shrink-0" />
-              ) : (
-                <Square className="h-4 w-4 text-slate-400 shrink-0" />
-              )}
-              <span className={filters.showStarredOnly ? "text-slate-900 dark:text-slate-100 font-medium" : "text-slate-600 dark:text-slate-400"}>
-                Show starred only
-              </span>
-            </button>
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="px-5 py-4 border-t border-slate-200 dark:border-slate-700">
-          <Button onClick={onClose} className="w-full" size="sm">
-            Apply Filters
-          </Button>
-        </div>
-      </div>
-    </>
-  );
-}
-
-// ─── Sortable Column Header ────────────────────────────────────────────────────
-function SortHeader({
-  label,
-  colKey,
-  sortKey,
-  sortDir,
-  onSort,
-  className = "",
-}: {
-  label: string;
-  colKey: SortKey;
-  sortKey: SortKey;
-  sortDir: SortDir;
-  onSort: (k: SortKey) => void;
-  className?: string;
-}) {
-  const active = sortKey === colKey;
-  return (
-    <th
-      className={`px-4 py-3 cursor-pointer select-none hover:bg-slate-100 dark:hover:bg-slate-700/60 transition-colors ${className}`}
-      onClick={() => onSort(colKey)}
-    >
-      <span className="flex items-center gap-1 justify-center">
-        {label}
-        {active ? (
-          sortDir === "asc" ? (
-            <ChevronUp className="h-3 w-3 text-blue-600" />
-          ) : (
-            <ChevronDown className="h-3 w-3 text-blue-600" />
-          )
-        ) : (
-          <ChevronsUpDown className="h-3 w-3 text-slate-300 dark:text-slate-600" />
-        )}
-      </span>
-    </th>
-  );
-}
-
-// ─── Main Component ────────────────────────────────────────────────────────────
 export default function PlayerDashboard() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [selectedTournament, setSelectedTournament] = useState<Tournament | null>(null);
-  const [detailTab, setDetailTab] = useState<DetailTabKey>("pairings");
-  const [location, setLocation] = useLocation();
+  const [, setLocation] = useLocation();
   const [, dashboardParams] = useRoute("/dashboard/:tab");
   const activeTab = dashboardParams?.tab ?? "ongoing";
   const queryClient = useQueryClient();
@@ -425,6 +112,13 @@ export default function PlayerDashboard() {
   const { data: myRegistrations = [] } = useQuery<PlayerRegistrationType[]>({
     queryKey: ["/api/my-registrations"],
   });
+
+  const { data: followingList = [] } = useQuery<any[]>({
+    queryKey: ["/api/follows/following"],
+    enabled: isPlayer,
+  });
+
+  const followingIds = useMemo(() => new Set(followingList.map((f) => f.id)), [followingList]);
 
   const starredIds = useMemo(() => new Set(starredEntries.map((entry) => entry.tournamentId)), [starredEntries]);
 
@@ -498,6 +192,27 @@ export default function PlayerDashboard() {
     return map;
   }, [myRegistrations]);
 
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterFormat, setFilterFormat] = useState("all");
+  const [filterState, setFilterState] = useState("all");
+  const [filterMinSubscribers, setFilterMinSubscribers] = useState("0");
+  const [filterOnlyFavorites, setFilterOnlyFavorites] = useState(false);
+  const [filterOnlyFollowing, setFilterOnlyFollowing] = useState(false);
+  const [sortKey, setSortKey] = useState<SortKey>("date");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
+
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (searchQuery) count++;
+    if (filterFormat !== "all") count++;
+    if (filterState !== "all") count++;
+    if (filterMinSubscribers !== "0") count++;
+    if (filterOnlyFavorites) count++;
+    if (filterOnlyFollowing) count++;
+    return count;
+  }, [searchQuery, filterFormat, filterState, filterMinSubscribers, filterOnlyFavorites, filterOnlyFollowing]);
+
   const { data: statsData = [], isLoading: statsLoading } = useQuery<TournamentRow[]>({
     queryKey: ["tournament-stats", tournaments.map((t) => t.id)],
     enabled: tournaments.length > 0,
@@ -541,86 +256,139 @@ export default function PlayerDashboard() {
     });
   }, [statsData, tournaments]);
 
-  // Apply filters
-  const filteredRows = useMemo(() => {
-    return statsRows.filter((entry) => {
-      const t = entry.tournament;
-      if (filters.formats.length > 0 && !filters.formats.includes(t.format as FormatFilter)) return false;
-      if (filters.minPlayers !== null && entry.playersCount < filters.minPlayers) return false;
-      if (filters.maxPlayers !== null && entry.playersCount > filters.maxPlayers) return false;
-      if (filters.startAfter && entry.startDate) {
-        const after = new Date(filters.startAfter);
-        if (entry.startDate < after) return false;
+  const uniqueStates = useMemo(() => {
+    const states = new Set<string>();
+    statsRows.forEach((row) => {
+      if (row.state && row.state !== "N/A") {
+        states.add(row.state);
       }
-      if (filters.startBefore && entry.startDate) {
-        const before = new Date(filters.startBefore);
-        if (entry.startDate > before) return false;
-      }
-      if (filters.showStarredOnly && !starredIds.has(t.id)) return false;
-      if (filters.searchText.trim()) {
-        const q = filters.searchText.trim().toLowerCase();
-        if (!t.name.toLowerCase().includes(q)) return false;
-      }
-      return true;
     });
-  }, [statsRows, filters, starredIds]);
+    return Array.from(states).sort();
+  }, [statsRows]);
 
-  const sectionsRaw = useMemo(() => ({
-    past: filteredRows.filter((e) => e.tournament.status === "completed"),
-    upcoming: filteredRows.filter((e) => e.tournament.status === "upcoming"),
-    ongoing: filteredRows.filter((e) => e.tournament.status === "active"),
-  }), [filteredRows]);
-
-  const comparator = useMemo(() => {
-    return (a: TournamentRow, b: TournamentRow) => {
-      if (isPlayer) {
-        const aStar = starredIds.has(a.tournament.id);
-        const bStar = starredIds.has(b.tournament.id);
-        if (aStar !== bStar) return aStar ? -1 : 1;
-      }
-      let cmp = 0;
-      switch (sortKey) {
-        case "players": cmp = b.playersCount - a.playersCount; break;
-        case "state":   cmp = (a.state || "").localeCompare(b.state || ""); break;
-        case "name":    cmp = a.tournament.name.localeCompare(b.tournament.name); break;
-        case "sections": cmp = (a.sectionsCount ?? -1) - (b.sectionsCount ?? -1); break;
-        case "date":
-        default: {
-          const aTime = a.startDate ? a.startDate.getTime() : Number.POSITIVE_INFINITY;
-          const bTime = b.startDate ? b.startDate.getTime() : Number.POSITIVE_INFINITY;
-          cmp = aTime - bTime;
+  const filteredAndSortedRows = useMemo(() => {
+    return statsRows
+      .filter((row) => {
+        // Search Query (name / location)
+        if (searchQuery) {
+          const q = searchQuery.toLowerCase();
+          const nameMatch = (row.tournament.name || "").toLowerCase().includes(q);
+          const locMatch = (row.tournament.location || "").toLowerCase().includes(q);
+          if (!nameMatch && !locMatch) return false;
         }
-      }
-      return sortDir === "asc" ? cmp : -cmp;
-    };
-  }, [sortKey, sortDir, isPlayer, starredIds]);
 
-  const sectionsData = useMemo<SectionData[]>(
-    () => [
+        // Format
+        if (filterFormat !== "all" && row.tournament.format !== filterFormat) {
+          return false;
+        }
+
+        // State
+        if (filterState !== "all" && row.state !== filterState) {
+          return false;
+        }
+
+        // Min Subscribers
+        const minSubs = parseInt(filterMinSubscribers, 10);
+        const creatorSubs = (row.tournament as any).creatorSubscribers ?? 0;
+        if (creatorSubs < minSubs) {
+          return false;
+        }
+
+        // Only Favorites
+        if (filterOnlyFavorites && !starredIds.has(row.tournament.id)) {
+          return false;
+        }
+
+        // Only Following
+        if (filterOnlyFollowing && !followingIds.has(row.tournament.createdBy)) {
+          return false;
+        }
+
+        return true;
+      })
+      .sort((a, b) => {
+        let comparison = 0;
+        switch (sortKey) {
+          case "name":
+            comparison = (a.tournament.name || "").localeCompare(b.tournament.name || "");
+            break;
+          case "format":
+            comparison = (a.tournament.format || "").localeCompare(b.tournament.format || "");
+            break;
+          case "rounds": {
+            const aRounds = a.tournament.rounds ?? 0;
+            const bRounds = b.tournament.rounds ?? 0;
+            comparison = aRounds - bRounds;
+            break;
+          }
+          case "players":
+            comparison = a.playersCount - b.playersCount;
+            break;
+          case "subscribers": {
+            const aSubs = (a.tournament as any).creatorSubscribers ?? 0;
+            const bSubs = (b.tournament as any).creatorSubscribers ?? 0;
+            comparison = aSubs - bSubs;
+            break;
+          }
+          case "state":
+            comparison = (a.state || "").localeCompare(b.state || "");
+            break;
+          case "date":
+          default: {
+            const aTime = a.startDate ? a.startDate.getTime() : Number.POSITIVE_INFINITY;
+            const bTime = b.startDate ? b.startDate.getTime() : Number.POSITIVE_INFINITY;
+            comparison = aTime - bTime;
+            break;
+          }
+        }
+
+        // Apply sort direction
+        if (sortDirection === "desc") {
+          comparison = -comparison;
+        }
+
+        // Secondary sorting by favorites
+        if (comparison === 0 && isPlayer) {
+          const aStar = starredIds.has(a.tournament.id);
+          const bStar = starredIds.has(b.tournament.id);
+          if (aStar !== bStar) {
+            return aStar ? -1 : 1;
+          }
+        }
+
+        return comparison;
+      });
+  }, [statsRows, searchQuery, filterFormat, filterState, filterMinSubscribers, filterOnlyFavorites, filterOnlyFollowing, sortKey, sortDirection, starredIds, followingIds, isPlayer]);
+
+  const sectionsData = useMemo<SectionData[]>(() => {
+    const ongoing = filteredAndSortedRows.filter((entry) => entry.tournament.status === "active");
+    const upcoming = filteredAndSortedRows.filter((entry) => entry.tournament.status === "upcoming");
+    const past = filteredAndSortedRows.filter((entry) => entry.tournament.status === "completed");
+
+    return [
       {
         key: "ongoing",
         label: "Ongoing Tournaments",
         description: "Live events happening right now.",
-        items: [...sectionsRaw.ongoing].sort(comparator),
-        empty: "No tournaments are currently live.",
+        items: ongoing,
+        empty: "No tournaments match the active filters.",
       },
       {
         key: "upcoming",
         label: "Upcoming Tournaments",
         description: "Events that are scheduled to start soon.",
-        items: [...sectionsRaw.upcoming].sort(comparator),
-        empty: "No upcoming tournaments are available right now.",
+        items: upcoming,
+        empty: "No upcoming tournaments match the active filters.",
       },
       {
         key: "past",
         label: "Past Tournaments",
         description: "Completed events you can revisit.",
-        items: [...sectionsRaw.past].sort(comparator),
-        empty: "You haven't viewed any completed tournaments yet.",
+        items: past,
+        empty: "No past tournaments match the active filters.",
       },
-    ],
-    [sectionsRaw, comparator]
-  );
+    ];
+  }, [filteredAndSortedRows]);
 
   const getFormatName = (format: string) => {
     switch (format) {
@@ -629,16 +397,6 @@ export default function PlayerDashboard() {
       case "knockout": return "Knockout";
       case "arena": return "Arena";
       default: return format;
-    }
-  };
-
-  const getFormatColor = (format: string) => {
-    switch (format) {
-      case "swiss": return "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300";
-      case "roundrobin": return "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300";
-      case "knockout": return "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300";
-      case "arena": return "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300";
-      default: return "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300";
     }
   };
 
@@ -695,18 +453,17 @@ export default function PlayerDashboard() {
         <td className="px-4 py-3.5 text-center align-middle text-sm font-medium text-slate-700 dark:text-slate-300">
           {playersCount}
         </td>
-        <td className="px-4 py-3.5 text-center align-middle text-sm text-slate-600 dark:text-slate-400 whitespace-nowrap">
-          {formatDateRange(startDate, endDate)}
+        <td className="px-4 py-4 text-center align-middle text-sm text-slate-700 dark:text-slate-300">
+          {(tournament as any).creatorSubscribers ?? 0}
         </td>
-        <td className="px-4 py-3.5 text-center align-middle text-sm text-slate-600 dark:text-slate-400">
-          {sectionsCount ?? "—"}
-        </td>
-        <td className="px-4 py-3.5 align-middle text-center">
+        <td className="px-4 py-4 text-center align-middle text-sm text-slate-700 dark:text-slate-300">{formatDateRange(startDate, endDate)}</td>
+        <td className="px-4 py-4 text-center align-middle text-sm text-slate-700 dark:text-slate-300">{sectionsCount ?? "—"}</td>
+        <td className="px-4 py-4 align-middle text-center">
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setLocation(`/tournaments/${tournament.id}`)}
-            className="h-7 text-xs px-3 inline-flex items-center gap-1.5"
+            onClick={() => setLocation(`/tournaments/${slugify(tournament.name)}`)}
+            className="inline-flex items-center gap-2"
           >
             <Eye className="h-3 w-3" /> View
           </Button>
@@ -731,28 +488,30 @@ export default function PlayerDashboard() {
                 {activeFilterCount > 0 ? "Try adjusting your filters." : section.empty}
               </p>
             </div>
-          </div>
-        ) : (
-          <div className="overflow-x-auto -mx-6 px-6">
-            <table className="min-w-[900px] w-full border-collapse">
-              <thead className="bg-slate-50 dark:bg-slate-800/50">
-                <tr className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                  <th className="px-4 py-2.5 text-center w-10">★</th>
-                  <SortHeader label="Name" colKey="name" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="text-left" />
-                  <SortHeader label="State" colKey="state" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="text-center" />
-                  <SortHeader label="Players" colKey="players" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="text-center" />
-                  <SortHeader label="Dates" colKey="date" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="text-center" />
-                  <SortHeader label="Sections" colKey="sections" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="text-center" />
-                  <th className="px-4 py-2.5 text-center">View</th>
-                </tr>
-              </thead>
-              <tbody>{section.items.map((entry) => renderTournamentRow(entry))}</tbody>
-            </table>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-[960px] w-full border-collapse overflow-hidden rounded-xl">
+                <thead className="bg-slate-50 dark:bg-slate-800/50">
+                  <tr className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    <th className="px-4 py-3 text-center">Favorite</th>
+                    <th className="px-4 py-3 text-left">Tournament Name</th>
+                    <th className="px-4 py-3 text-center">State</th>
+                    <th className="px-4 py-3 text-center">Players</th>
+                    <th className="px-4 py-3 text-center">Organizer Subscribers</th>
+                    <th className="px-4 py-3 text-center">Start Date – End Date</th>
+                    <th className="px-4 py-3 text-center">Sections</th>
+                    <th className="px-4 py-3 text-center">View</th>
+                  </tr>
+                </thead>
+                <tbody>{section.items.map((entry) => renderTournamentRow(entry))}</tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    );
+  };
+
 
   if (isLoading || statsLoading) {
     return (
@@ -809,47 +568,177 @@ export default function PlayerDashboard() {
             )}
           </Button>
 
-          {/* Active filter chips */}
-          {filters.formats.length > 0 && (
-            <Badge variant="secondary" className="gap-1 text-xs cursor-pointer" onClick={() => setFilters(f => ({ ...f, formats: [] }))}>
-              Format: {filters.formats.map(getFormatName).join(", ")}
-              <X className="h-3 w-3" />
-            </Badge>
-          )}
-          {(filters.minPlayers !== null || filters.maxPlayers !== null) && (
-            <Badge variant="secondary" className="gap-1 text-xs cursor-pointer" onClick={() => setFilters(f => ({ ...f, minPlayers: null, maxPlayers: null }))}>
-              Players: {filters.minPlayers ?? "0"}–{filters.maxPlayers ?? "∞"}
-              <X className="h-3 w-3" />
-            </Badge>
-          )}
-          {(filters.startAfter || filters.startBefore) && (
-            <Badge variant="secondary" className="gap-1 text-xs cursor-pointer" onClick={() => setFilters(f => ({ ...f, startAfter: "", startBefore: "" }))}>
-              <CalendarDays className="h-3 w-3" />
-              {filters.startAfter || "…"} – {filters.startBefore || "…"}
-              <X className="h-3 w-3" />
-            </Badge>
-          )}
-          {filters.showStarredOnly && (
-            <Badge variant="secondary" className="gap-1 text-xs cursor-pointer" onClick={() => setFilters(f => ({ ...f, showStarredOnly: false }))}>
-              <Star className="h-3 w-3" /> Starred only
-              <X className="h-3 w-3" />
-            </Badge>
-          )}
-          {filters.searchText.trim() && (
-            <Badge variant="secondary" className="gap-1 text-xs cursor-pointer" onClick={() => setFilters(f => ({ ...f, searchText: "" }))}>
-              "{filters.searchText.trim()}"
-              <X className="h-3 w-3" />
-            </Badge>
-          )}
-          {activeFilterCount > 0 && (
-            <button
-              className="text-xs text-slate-400 hover:text-slate-600 underline-offset-2 hover:underline"
-              onClick={() => setFilters(DEFAULT_FILTERS)}
-            >
-              Clear all
-            </button>
-          )}
-        </div>
+        {tournaments.length > 0 ? (
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-3 mb-6 shadow-sm space-y-3">
+            {/* Top Bar: Always Visible */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="relative w-full sm:w-72">
+                <Input
+                  placeholder="Search name or location..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="h-9 pr-8 text-sm rounded-lg"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery("")}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
+                {/* Sort selector (always visible) */}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-slate-500 hidden md:inline">Sort:</span>
+                  <Select value={sortKey} onValueChange={(val) => setSortKey(val as any)}>
+                    <SelectTrigger className="h-9 text-xs w-32 rounded-lg">
+                      <SelectValue placeholder="Sort by" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="date">Start Date</SelectItem>
+                      <SelectItem value="players">Players Count</SelectItem>
+                      <SelectItem value="subscribers">Subscribers</SelectItem>
+                      <SelectItem value="state">State</SelectItem>
+                      <SelectItem value="name">Name</SelectItem>
+                      <SelectItem value="format">Format</SelectItem>
+                      <SelectItem value="rounds">Rounds</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setSortDirection(prev => prev === "asc" ? "desc" : "asc")}
+                    className="h-9 w-9 rounded-lg border border-slate-200 dark:border-slate-800"
+                  >
+                    <span className="text-xs font-bold">{sortDirection === "asc" ? "↑" : "↓"}</span>
+                  </Button>
+                </div>
+
+                {/* Advanced Filters Toggle */}
+                <Button
+                  variant={isFiltersOpen ? "secondary" : "outline"}
+                  size="sm"
+                  onClick={() => setIsFiltersOpen(!isFiltersOpen)}
+                  className="h-9 gap-2 rounded-lg text-xs"
+                >
+                  <SlidersHorizontal className="h-3.5 w-3.5" />
+                  <span>Filters</span>
+                  {activeFiltersCount > 0 && (
+                    <Badge className="ml-0.5 px-1.5 py-0.5 text-[10px] font-semibold bg-indigo-100 text-indigo-800 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-300">
+                      {activeFiltersCount}
+                    </Badge>
+                  )}
+                  <span className="text-[10px] text-slate-400">
+                    {isFiltersOpen ? "▲" : "▼"}
+                  </span>
+                </Button>
+
+                {activeFiltersCount > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setSearchQuery("");
+                      setFilterFormat("all");
+                      setFilterState("all");
+                      setFilterMinSubscribers("0");
+                      setFilterOnlyFavorites(false);
+                      setFilterOnlyFollowing(false);
+                    }}
+                    className="text-xs text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/20 h-9 px-2.5 rounded-lg"
+                  >
+                    Clear All
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {/* Collapsible Panel */}
+            {isFiltersOpen && (
+              <div className="pt-3 border-t border-slate-100 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-3 gap-4 animate-in fade-in slide-in-from-top-2 duration-200">
+                {/* Format Filter */}
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-medium text-slate-500">Format</Label>
+                  <Select value={filterFormat} onValueChange={setFilterFormat}>
+                    <SelectTrigger className="h-8.5 text-xs rounded-lg">
+                      <SelectValue placeholder="All Formats" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Formats</SelectItem>
+                      <SelectItem value="swiss">Swiss System</SelectItem>
+                      <SelectItem value="roundrobin">Round Robin</SelectItem>
+                      <SelectItem value="knockout">Knockout</SelectItem>
+                      <SelectItem value="arena">Arena Mode</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* State Filter */}
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-medium text-slate-500">State</Label>
+                  <Select value={filterState} onValueChange={setFilterState}>
+                    <SelectTrigger className="h-8.5 text-xs rounded-lg">
+                      <SelectValue placeholder="All States" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All States</SelectItem>
+                      {uniqueStates.map((st) => (
+                        <SelectItem key={st} value={st}>{st}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Min Subscribers Filter */}
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-medium text-slate-500">Min Organizer Followers</Label>
+                  <Select value={filterMinSubscribers} onValueChange={setFilterMinSubscribers}>
+                    <SelectTrigger className="h-8.5 text-xs rounded-lg">
+                      <SelectValue placeholder="Any amount" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="0">Any amount</SelectItem>
+                      <SelectItem value="1">1+ follower</SelectItem>
+                      <SelectItem value="5">5+ followers</SelectItem>
+                      <SelectItem value="10">10+ followers</SelectItem>
+                      <SelectItem value="25">25+ followers</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Switches Row */}
+                <div className="sm:col-span-3 flex flex-wrap items-center gap-6 pt-1">
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      id="favorites-filter"
+                      checked={filterOnlyFavorites}
+                      onCheckedChange={setFilterOnlyFavorites}
+                      className="scale-90"
+                    />
+                    <Label htmlFor="favorites-filter" className="text-xs font-medium cursor-pointer text-slate-700 dark:text-slate-300">
+                      Only Favorites
+                    </Label>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      id="following-filter"
+                      checked={filterOnlyFollowing}
+                      onCheckedChange={setFilterOnlyFollowing}
+                      className="scale-90"
+                    />
+                    <Label htmlFor="following-filter" className="text-xs font-medium cursor-pointer text-slate-700 dark:text-slate-300">
+                      Only Followed Organizers
+                    </Label>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : null}
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={(tab) => setLocation(`/dashboard/${tab}`)} className="w-full">

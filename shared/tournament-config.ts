@@ -42,6 +42,7 @@ export interface RegistersConfig {
   registrationDeadlineDate?: string | null;
   registrationDeadlineTime?: string | null;
   allowExtraGames?: boolean;
+  chatEnabled?: boolean;
 }
 
 export interface FideRegistrationData {
@@ -414,6 +415,8 @@ export interface BoardNumberingSettings {
   increment?: number;
   gaps?: string;
   customSequence?: string;
+  prefix?: string;
+  suffix?: string;
 }
 
 export function normalizeCityState(value: string): string {
@@ -546,6 +549,7 @@ export function createDefaultConfig(format: Tournament["format"], mode: Tourname
       thirdPlaceMatch: false,
       pushNotifications: true,
       allowExtraGames: false,
+      chatEnabled: false,
     },
     fide: {
       prizeFund: "",
@@ -617,6 +621,8 @@ export function createDefaultConfig(format: Tournament["format"], mode: Tourname
       increment: 1,
       gaps: '',
       customSequence: '',
+      prefix: '',
+      suffix: '',
     },
     seedingMethod: "fide_world_cup",
     seedingSource: "rating",
@@ -1307,6 +1313,8 @@ export function buildTournamentPayload(
       increment: serialized.boardNumbering.increment,
       gaps: parseGaps(serialized.boardNumbering.gaps),
       customSequence: parseCustomSequence(serialized.boardNumbering.customSequence),
+      prefix: serialized.boardNumbering.prefix,
+      suffix: serialized.boardNumbering.suffix,
     },
     location: serialized.basic.city,
     isDoubleElimination: serialized.registers.isDoubleElimination,
@@ -1518,4 +1526,17 @@ export function formatTournamentDateRange(start: string | Date | null | undefine
   } else {
     return `${format(startDate, "MMMM d, yyyy")} - ${format(endDate, "MMMM d, yyyy")}`;
   }
+}
+
+/**
+ * Formats a board number with custom prefix and suffix if configured
+ */
+export function formatBoardNumber(
+  board: number | null | undefined,
+  settings: BoardNumberingSettings | null | undefined
+): string {
+  if (board === null || board === undefined) return "";
+  const prefix = settings?.prefix ?? "";
+  const suffix = settings?.suffix ?? "";
+  return `${prefix}${board}${suffix}`;
 }

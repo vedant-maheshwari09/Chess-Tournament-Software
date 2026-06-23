@@ -70,6 +70,10 @@ function toSnakeCase<T>(input: T): any {
 }
 
 function toCamelCase<T>(input: any): T {
+  if (input instanceof Date) {
+    return input as any;
+  }
+
   if (Array.isArray(input)) {
     return input.map((item) => toCamelCase(item)) as T;
   }
@@ -548,7 +552,7 @@ class SupabaseStorage implements IStorage {
       throw new Error(`Failed to fetch players with usernames: ${error.message}`);
     }
 
-    return (data || []).map(p => {
+    return (data || []).map((p: any) => {
       const camelPlayer = toCamelCase<Player>(p);
       if ((p as any).users?.username) {
         (camelPlayer as any).username = (p as any).users.username;
@@ -682,7 +686,6 @@ class SupabaseStorage implements IStorage {
       amountDue: typeof amountDue === "string" ? amountDue : Number(amountDue ?? 0).toFixed(2),
       amountPaid: typeof amountPaid === "string" ? amountPaid : Number(amountPaid ?? 0).toFixed(2),
       paymentNotes: (registration as AnyRecord).paymentNotes ?? null,
-      createdAt: new Date(),
       updatedAt: new Date(),
     };
     return insertOne<PlayerRegistration>("player_registrations", payload);

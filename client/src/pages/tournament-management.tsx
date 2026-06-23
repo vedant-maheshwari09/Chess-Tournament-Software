@@ -22,7 +22,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { cn } from "@/lib/utils";
+import { cn, slugify } from "@/lib/utils";
 import { apiRequest } from "@/lib/queryClient";
 import SwissPairings from "@/components/swiss-pairings";
 import Standings from "@/components/standings";
@@ -49,7 +49,19 @@ interface TournamentManagementProps {
 export default function TournamentManagement({ tournamentId }: TournamentManagementProps) {
   const [, setLocation] = useLocation();
   const [, params] = useRoute("/tournaments/:id/manage/:tab");
-  const activeTab = params?.tab || "dashboard";
+  const [, nestedParams] = useRoute("/tournaments/:id/manage/:tab/*");
+  const activeTab = params?.tab || nestedParams?.tab || "dashboard";
+  const dashboardSubTab = activeTab === "dashboard" ? (nestedParams?.["*"] || "basic") : "basic";
+  const registrationsSubTab = activeTab === "registrations" ? (nestedParams?.["*"] || "list") : "list";
+
+  const handleDashboardSubTabChange = (val: string) => {
+    setLocation(`/tournaments/${tournament ? slugify(tournament.name) : tournamentId}/manage/dashboard/${val}`);
+  };
+
+  const handleRegistrationsSubTabChange = (val: string) => {
+    setLocation(`/tournaments/${tournament ? slugify(tournament.name) : tournamentId}/manage/registrations/${val}`);
+  };
+
   const [arenaSubTab, setArenaSubTab] = useState<'lobby' | 'matches'>('lobby');
   const { toast } = useToast();
   const { user } = useAuth();
@@ -117,7 +129,7 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
   // Redirect non-owners to tournament view
   useEffect(() => {
     if (tournament && user && !isOwner) {
-      setLocation(`/tournaments/${tournamentId}`);
+      setLocation(`/tournaments/${tournament ? slugify(tournament.name) : tournamentId}`);
     }
   }, [tournament, user, isOwner, tournamentId, setLocation]);
 
@@ -129,9 +141,9 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
     }
 
     if (!validTabs.includes(activeTab)) {
-      setLocation(`/tournaments/${tournamentId}/manage/dashboard`, { replace: true });
+      setLocation(`/tournaments/${tournament ? slugify(tournament.name) : tournamentId}/manage/dashboard`, { replace: true });
     }
-  }, [tournament?.format, activeTab, tournamentId, setLocation]);
+  }, [tournament?.format, tournament, activeTab, tournamentId, setLocation]);
 
   // Fetch players
   const { data: players = [] } = useQuery<Player[]>({
@@ -205,7 +217,7 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
 
 
   const selectTab = (value: string) => {
-    setLocation(`/tournaments/${tournamentId}/manage/${value}`);
+    setLocation(`/tournaments/${tournament ? slugify(tournament.name) : tournamentId}/manage/${value}`);
   };
 
   const [upcomingDialogOpen, setUpcomingDialogOpen] = useState(false);
@@ -342,7 +354,7 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
   const canGenerateNextRound = tournament?.status === 'active' && (tournament?.currentRound || 0) > 0;
 
   const handleTabChange = (value: string) => {
-    setLocation(`/tournaments/${tournamentId}/manage/${value}`);
+    setLocation(`/tournaments/${tournament ? slugify(tournament.name) : tournamentId}/manage/${value}`);
   };
 
   return (
@@ -467,7 +479,7 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
                       variant="outline"
                       size="sm"
                       className="h-9 w-full sm:w-auto border-slate-200 text-slate-600 hover:text-slate-900 font-medium shadow-sm"
-                      onClick={() => setLocation(`/tournaments/${tournamentId}/settings`)}
+                      onClick={() => setLocation(`/tournaments/${tournament ? slugify(tournament.name) : tournamentId}/settings`)}
                     >
                       <SettingsIcon className="h-4 w-4 mr-2" />
                       Settings
@@ -539,6 +551,8 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
               mode="edit"
               format={tournament.format}
               tournament={tournament}
+              activeSubTab={dashboardSubTab}
+              onSubTabChange={handleDashboardSubTabChange}
               onComplete={() => {
                 queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}`] });
               }}
@@ -551,7 +565,7 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
           </TabsContent>
 
           <TabsContent value="registrations" className="mt-6 space-y-6 animate-in fade-in duration-300">
-            <Tabs defaultValue="list" className="w-full">
+            <Tabs value={registrationsSubTab} onValueChange={handleRegistrationsSubTabChange} className="w-full">
               <TabsList className="flex bg-slate-100 p-1 rounded-lg border border-slate-200 w-fit mb-4">
                 <TabsTrigger value="list" className="text-xs font-semibold px-4 py-1.5 rounded-md data-[state=active]:bg-white data-[state=active]:shadow-sm">
                   Current Registrations

@@ -16,7 +16,8 @@ A modern, full-stack platform designed for chess organizers, tournament director
 The platform supports four primary tournament formats, each with specialized pairing and scoring logic:
 
 #### **1. Swiss System (Standard & Professional)**
-- **Pairing Engine**: Implements a professional Swiss pairing algorithm that adheres to USCF and FIDE principles.
+- **Pairing Engine**: Implements a professional Swiss pairing algorithm adhering strictly to USCF and FIDE principles.
+- **USCF-Compliant Pairing Heuristics**: Dynamically implements Rule 3 (equal color allocation), Rule 6 (alternation/strength balancing), Rule 7 (color equalization look-back), and Rule 8 (chronological lookup for equalizing color assignment) with an exhaustive depth-first search (DFS) backtracking solver for flawless pairing generation.
 - **Round Logic**: Sorts players by rating and splits the field into upper and lower halves. The top of the upper half is paired against the top of the lower half (Seeded Pairing).
 - **Subsequent Rounds**: Groups players by tournament points (score groups). Within each group, the "Upper vs Lower" method is applied while strictly avoiding repeat pairings.
 - **Color Balancing**: Ensures no player receives the same color more than twice in a row, maintaining a `colorDelta` near zero for all participants.
@@ -67,12 +68,17 @@ An in-browser simulation engine for Swiss tournaments:
 - All results can be edited at any time, including setting them back to **Pending** to clear an incorrect entry.
 - Result history and audit log with revert support.
 
-#### **Bye Result Options**
-For any bye match (odd-player-out), the tournament director can select from:
-- **1-point bye** — full point awarded (default for last-minute byes)
-- **½-point bye** — half point, used for requested half-point byes
-- **0-point bye** — zero points, for zero-point byes or forfeits
-- All standard head-to-head results (forfeit wins, double forfeit, etc.) are also available for bye matches
+#### **Advanced Match Results & Forfeits**
+- **Comprehensive Match Scoring Configurations**: Full support for standard, forfeit, and unrated results with precise tournament points and tiebreak handling:
+  - **Standard Wins/Losses/Draws**: 1-0, 0-1, or ½-½.
+  - **Forfeit Win / Forfeit Loss**: (1-0F, 0-1F) — Awards full tournament point to the winner, 0 points to the loser; neither game is rated.
+  - **Double Forfeit**: (0F-0F) — Awards 0 points to both players; unrated.
+  - **Unrated Results**: (1-0 U, 0-1 U, ½-½ U) — Awards standard tournament points but marks the game as unrated for USCF/FIDE calculations.
+- **Bye Result Options**: For any bye match (odd-player-out), the tournament director can select from:
+  - **1-point bye** — full point awarded (default for last-minute byes)
+  - **½-point bye** — half point, used for requested half-point byes
+  - **0-point bye** — zero points, for zero-point byes or forfeits
+  - All standard head-to-head results (forfeit wins, double forfeit, etc.) are also available for bye matches.
 
 #### **Player Roster Templates (Import from Previous Tournament)**
 - In **Settings → Players**, tournament directors can select any past tournament they own.
@@ -100,9 +106,20 @@ For any bye match (odd-player-out), the tournament director can select from:
 ### Player Experience
 
 - **Public Registration Form**: A styled, branded form matching the tournament dashboard's indigo theme. Supports single and batch registrations, with optional USCF/FIDE ID lookup.
-- **Live Standings**: Real-time standings updated after each result is entered, with tiebreaks displayed.
+- **Live Standings & Progress Tracking**: Real-time standings updated after each result is entered, with tiebreaks displayed. Features **Standing Progress Indicators (`GIP#`)** indicating ongoing games on specific boards (e.g., `GIP1` for Game In Progress on board 1).
+- **Spectator QR Code Dialog**: Accessible directly from any tournament dashboard, allowing organizers to quickly generate custom spectator QR codes using `<QRCodeCanvas>` in a responsive glassmorphism modal with full asset download functionality.
+- **Friendly Case-Insensitive Slug Routing**: Easily share clean, customized links like `/tournaments/spring-open-2026` rather than database numeric IDs in the browser address bar. A robust `TournamentRouteWrapper` interceptor seamlessly maps slugs and numeric IDs dynamically on the client, redirecting user address bars to the premium slug format while keeping data references completely intact.
+- **Strict Role & Ownership Security**: Implements dual-layered authorization guards so that Player accounts cannot access Tournament Director (TD) dashboards or management pages. Access control is enforced both route-by-route and dynamic owner-ID validation, redirecting unauthorized users to secure public paths.
 - **My Matches**: Players can view their own round-by-round pairings and results after logging in.
 - **Notifications**: In-app and push notifications for result updates, pairing announcements, and match invitations.
+
+---
+
+### Enterprise-grade Security & Performance
+
+- **HTTP Header Hardening**: Fully secured using `helmet` configured with a strict Content Security Policy (CSP) allowing only self-hosted static files and safe third-party sources (e.g., Stripe, Google Fonts, Gemini API).
+- **API Rate Limiting**: Employs `express-rate-limit` restricting client requests to 200 per 15 minutes per IP address on all `/api` endpoints, complete with proxy trust capabilities (`trust proxy` enabled).
+- **Body Flooding Protection**: Restricts the Express JSON body parser to `1MB` payloads to mitigate potential Denial-of-Service (DoS) vectors.
 
 ---
 

@@ -26,6 +26,18 @@ import { lookupFideProfiles, searchFideDirectory } from '../lib/fideDirectory';
 import { Player, Pairing, Match, PlayerRegistration } from "@shared/schema";
 
 
+function slugify(text: string): string {
+  return text
+    .toString()
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, '-')           // Replace spaces with -
+    .replace(/[^\w\-]+/g, '')       // Remove all non-word chars
+    .replace(/\-\-+/g, '-')         // Replace multiple - with single -
+    .replace(/^-+/, '')             // Trim - from start of text
+    .replace(/-+$/, '');            // Trim - from end of text
+}
+
 export function applyPairingsRoutes(app: Express) {
 // Match routes
 app.get("/api/tournaments/:tournamentId/matches", async (req, res) => {
@@ -53,49 +65,59 @@ app.post("/api/tournaments/:tournamentId/matches", requireAuth, requireRole('tou
 
       // Notify players
       try {
-        const [whitePlayer, blackPlayer] = await Promise.all([
-          newMatch.whitePlayerId ? storage.getPlayer(newMatch.whitePlayerId) : null,
-          newMatch.blackPlayerId ? storage.getPlayer(newMatch.blackPlayerId) : null,
-        ]);
-        const whiteName = whitePlayer ? `${whitePlayer.firstName} ${whitePlayer.lastName}` : 'TBD';
-        const blackName = blackPlayer ? `${blackPlayer.firstName} ${blackPlayer.lastName}` : 'TBD';
+        const whitePlayer = await storage.getPlayer(newMatch.whitePlayerId!);
+        const blackPlayer = newMatch.blackPlayerId ? await storage.getPlayer(newMatch.blackPlayerId) : null;
+        const tournament = await storage.getTournament(tournamentId);
+        const tourneyName = tournament?.name || "Tournament";
+        const tourneySlug = tournament ? slugify(tournament.name) : "";
 
-        const notifyPlayer = async (player: typeof whitePlayer, opponentName: string) => {
-          if (!player?.userId) return;
-          const userPrefs = await storage.getUserById(player.userId) as any;
-          const wantsPairings = userPrefs?.notifyPairings ?? true;
-          const wantsEmail   = userPrefs?.notifyEmail   ?? true;
+        const sendManualMatchNotification = async (playerObj: any, opponentName: string, color: string) => {
+          if (!playerObj || !playerObj.userId) return;
+
+          const title = "New Match Created";
+          const message = `Round ${newMatch.round}: A match has been manually created for you against ${opponentName} on Board ${newMatch.board}.`;
 
           // In-app notification
-          if (wantsPairings) {
-            await storage.createNotification({
-              userId: player.userId,
-              title: "New Match Created",
-              message: `Round ${newMatch.round}: You have been paired against ${opponentName} on Board ${newMatch.board}.`,
-              type: "pairing",
-              meta: { matchId: newMatch.id, tournamentId }
-            });
+          await storage.createNotification({
+            userId: playerObj.userId,
+            title,
+            message,
+            type: "pairing",
+            meta: { matchId: newMatch.id, tournamentId }
+          });
 
-            // Web Push
+          // Fetch user preferences
+          const userObj = await storage.getUserById(playerObj.userId);
+          if (!userObj) return;
+
+          if (userObj.notifyPairings ?? true) {
+            // Web Push notification
             await notificationService.sendWebPushNotificationToUser(
-              player.userId,
-              "New Match Created",
-              `Round ${newMatch.round}: vs ${opponentName} — Board ${newMatch.board}`,
-            ).catch((err: any) => console.error("WebPush error:", err));
-          }
+              playerObj.userId,
+              title,
+              message,
+              `/tournaments/${tourneySlug}`
+            ).catch(err => console.error("Web Push error:", err));
 
-          // Email
-          if (wantsEmail && userPrefs?.email) {
-            await notificationService.sendEmail({
-              to: userPrefs.email,
-              subject: `New Match — Round ${newMatch.round}`,
-              text: `Hi ${player.firstName},\n\nA match has been created for you in Round ${newMatch.round}:\n\nYou vs ${opponentName} on Board ${newMatch.board}.\n\nGood luck!\n\nChess Tournament Manager`,
-            }).catch((err: any) => console.error("Email error:", err));
+            // Email notification
+            if ((userObj.notifyEmail ?? true) && userObj.email) {
+              await notificationService.sendEmail({
+                to: userObj.email,
+                subject: `New Match Assigned: ${tourneyName}`,
+                text: `Hi ${playerObj.firstName},\n\n${message}\n\nBest regards,\nChess Tournament Manager`
+              }).catch(err => console.error("Email error:", err));
+            }
           }
         };
 
-        await notifyPlayer(whitePlayer, blackName);
-        await notifyPlayer(blackPlayer, whiteName);
+        if (newMatch.whitePlayerId && whitePlayer) {
+          const blackName = blackPlayer ? `${blackPlayer.firstName} ${blackPlayer.lastName}` : "Bye";
+          await sendManualMatchNotification(whitePlayer, blackName, "white");
+        }
+        if (newMatch.blackPlayerId && blackPlayer) {
+          const whiteName = whitePlayer ? `${whitePlayer.firstName} ${whitePlayer.lastName}` : "Unknown";
+          await sendManualMatchNotification(blackPlayer, whiteName, "black");
+        }
       } catch (notifErr) {
         console.error("Error creating manual match notification:", notifErr);
       }
@@ -431,7 +453,9 @@ app.get("/api/tournaments/:tournamentId/bye-requests", async (req, res) => {
       }
 
       if (currentMatch.status === "completed" || currentMatch.result) {
-        return res.status(400).json({ message: "Match already completed. Please see Tournament Director to make changes." });
+        return res.status(400).json({
+          message: "Match result has already been reported. Please see the Tournament Director if you need to correct a mistake."
+        });
       }
 
       const tournament = await storage.getTournament(currentMatch.tournamentId);
@@ -505,15 +529,9 @@ app.get("/api/tournaments/:tournamentId/bye-requests", async (req, res) => {
         // Send notifications
         try {
           const resultText = updatedMatch.result === '1-0' ? 'White won' : updatedMatch.result === '0-1' ? 'Black won' : updatedMatch.result === '1/2-1/2' ? 'Draw' : updatedMatch.result;
+          const tourneySlug = tournament ? slugify(tournament.name) : "";
 
-          const notifyResultPlayer = async (player: typeof whitePlayerName, opponentName: string) => {
-            if (!player?.userId) return;
-            const userPrefs = await storage.getUserById(player.userId) as any;
-            const wantsPairings = userPrefs?.notifyPairings ?? true;
-
-            if (!wantsPairings) return;
-
-            // In-app
+          if (whitePlayerName?.userId) {
             await storage.createNotification({
               userId: player.userId,
               title: "Match Result Updated",
@@ -522,18 +540,35 @@ app.get("/api/tournaments/:tournamentId/bye-requests", async (req, res) => {
               meta: { matchId: currentMatch.id, tournamentId: currentMatch.tournamentId }
             });
 
-            // Web Push
-            await notificationService.sendWebPushNotificationToUser(
-              player.userId,
-              "Match Result Updated",
-              `Round ${currentMatch.round} vs ${opponentName}: ${resultText}`,
-            ).catch((err: any) => console.error("Result WebPush error:", err));
-          };
+            const uObj = await storage.getUserById(whitePlayerName.userId);
+            if (uObj && (uObj.notifyPairings ?? true)) {
+              await notificationService.sendWebPushNotificationToUser(
+                whitePlayerName.userId,
+                "Match Result Updated",
+                `The result for your Round ${currentMatch.round} match has been recorded: ${resultText}.`,
+                `/tournaments/${tourneySlug}`
+              ).catch(err => console.error("Push error:", err));
+            }
+          }
+          if (blackPlayerName?.userId) {
+            await storage.createNotification({
+              userId: blackPlayerName.userId,
+              title: "Match Result Updated",
+              message: `The result for your Round ${currentMatch.round} match against ${whitePlayerName ? `${whitePlayerName.firstName} ${whitePlayerName.lastName}` : 'Bye'} has been recorded: ${resultText}.`,
+              type: "result_update",
+              meta: { matchId: currentMatch.id, tournamentId: currentMatch.tournamentId }
+            });
 
-          const whiteName = whitePlayerName ? `${whitePlayerName.firstName} ${whitePlayerName.lastName}` : 'Bye';
-          const blackName = blackPlayerName ? `${blackPlayerName.firstName} ${blackPlayerName.lastName}` : 'Bye';
-          await notifyResultPlayer(whitePlayerName, blackName);
-          await notifyResultPlayer(blackPlayerName, whiteName);
+            const uObj = await storage.getUserById(blackPlayerName.userId);
+            if (uObj && (uObj.notifyPairings ?? true)) {
+              await notificationService.sendWebPushNotificationToUser(
+                blackPlayerName.userId,
+                "Match Result Updated",
+                `The result for your Round ${currentMatch.round} match has been recorded: ${resultText}.`,
+                `/tournaments/${tourneySlug}`
+              ).catch(err => console.error("Push error:", err));
+            }
+          }
         } catch (notifyErr) {
           console.error("Public result notify error:", notifyErr);
         }

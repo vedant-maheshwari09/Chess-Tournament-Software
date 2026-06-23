@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation, useRoute } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Trophy, Users, Settings as SettingsIcon, Clock as ClockIcon, Info, Share2, Facebook, Twitter, Mail, Award, Link, Swords, Pencil, Plus } from "lucide-react";
+import { ArrowLeft, Trophy, Users, Settings as SettingsIcon, Clock as ClockIcon, Info, Share2, Facebook, Twitter, Mail, Award, Link, Swords, Pencil, Plus, Loader2 } from "lucide-react";
 import SwissStandings from "@/components/swiss-standings";
 import SwissPairings from "@/components/swiss-pairings";
 import RoundRobinCrosstable from "@/components/round-robin-crosstable";
@@ -18,12 +18,13 @@ import {
 } from "@/lib/tournament-config";
 import { renderTournamentPageContent } from "@/lib/tournament-page";
 import TournamentCountdown from "@/components/tournament-countdown";
-import type { Tournament, Player, PlayerRegistration } from "@shared/schema";
+import type { Tournament, Player, PlayerRegistration, User } from "@shared/schema";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { RegistrationStatusCard } from "@/components/registration-status-card";
 import KnockoutBracket from "@/components/knockout-bracket";
-import { cn } from "@/lib/utils";
+import { cn, slugify } from "@/lib/utils";
+import { apiRequest } from "@/lib/queryClient";
 import { ArenaLobby, ArenaActiveMatches, ArenaStandings, ArenaTimer } from "@/components/arena-ui";
 import PlayerManager from "@/components/player-manager";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -49,8 +50,9 @@ export default function TournamentView({ tournamentId }: TournamentViewProps) {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const { user } = useAuth();
-  const [match, params] = useRoute("/tournaments/:id/:tab");
-  const tabParam = (params?.tab as TabKey) || "info";
+  const [, params] = useRoute("/tournaments/:id/:tab");
+  const [, nestedParams] = useRoute("/tournaments/:id/:tab/*");
+  const tabParam = ((params?.tab || nestedParams?.tab) as TabKey) || "info";
 
   const { data: tournament, isLoading: tournamentLoading } = useQuery<Tournament>({
     queryKey: [`/api/tournaments/${tournamentId}`],
@@ -63,6 +65,60 @@ export default function TournamentView({ tournamentId }: TournamentViewProps) {
   const { data: registrations } = useQuery<PlayerRegistration[]>({
     queryKey: ["/api/my-registrations"],
     enabled: !!user,
+  });
+
+  const { data: director } = useQuery<User>({
+    queryKey: [`/api/users/${tournament?.createdBy}`],
+    enabled: !!tournament?.createdBy,
+  });
+
+  const { data: followStatus, refetch: refetchFollowStatus } = useQuery<{ following: boolean }>({
+    queryKey: [`/api/follows/status/${tournament?.createdBy}`],
+    enabled: !!user && !!tournament?.createdBy,
+  });
+
+  const followMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest(`/api/follows/${tournament?.createdBy}`, {
+        method: "POST",
+      });
+    },
+    onSuccess: () => {
+      refetchFollowStatus();
+      toast({
+        title: "Subscribed!",
+        description: `You are now subscribed to ${director?.organizationName || `${director?.firstName} ${director?.lastName}`}.`,
+      });
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Failed to subscribe",
+        description: err.message || "An unexpected error occurred.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const unfollowMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest(`/api/follows/${tournament?.createdBy}`, {
+        method: "DELETE",
+      });
+    },
+    onSuccess: () => {
+      refetchFollowStatus();
+      toast({
+        title: "Unsubscribed",
+        description: `You have unsubscribed from ${director?.organizationName || `${director?.firstName} ${director?.lastName}`}.`,
+      });
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Failed to unsubscribe",
+        description: err.message || "An unexpected error occurred.",
+        variant: "destructive",
+      });
+    },
   });
 
   const myRegistrations = useMemo(() =>
@@ -99,9 +155,9 @@ export default function TournamentView({ tournamentId }: TournamentViewProps) {
 
   React.useEffect(() => {
     if (tabParam !== activeTab) {
-      setLocation(`/tournaments/${tournamentId}/${activeTab}`, { replace: true });
+      setLocation(`/tournaments/${tournament ? slugify(tournament.name) : tournamentId}/${activeTab}`, { replace: true });
     }
-  }, [tabParam, activeTab, tournamentId, setLocation]);
+  }, [tabParam, activeTab, tournamentId, tournament, setLocation]);
 
   const infoHtml = useMemo(() => (config.tournamentPageContent ? renderTournamentPageContent(config.tournamentPageContent) : ""), [config.tournamentPageContent]);
 
@@ -120,7 +176,7 @@ export default function TournamentView({ tournamentId }: TournamentViewProps) {
       });
       return;
     }
-    setLocation(`/tournaments/${tournamentId}/register`);
+    setLocation(`/tournaments/${tournament ? slugify(tournament.name) : tournamentId}/register`);
   };
 
   const handleCopyLink = () => {
@@ -204,6 +260,39 @@ export default function TournamentView({ tournamentId }: TournamentViewProps) {
                   <span className="flex items-center gap-1.5"><ClockIcon className="h-4 w-4" /> {dateRange}</span>
                   <span className="flex items-center gap-1.5"><Trophy className="h-4 w-4" /> {allPlayers.length} Players</span>
                 </div>
+                {director && (
+                  <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 mt-3 text-sm text-slate-600 dark:text-slate-300">
+                    <span className="font-semibold text-slate-500">Organized by:</span>
+                    <Link href={`/directors/${director.id}`} className="hover:text-indigo-600 dark:hover:text-indigo-400 underline decoration-dotted transition-colors">
+                      {director.organizationName || `${director.firstName} ${director.lastName}`}
+                    </Link>
+                    {user && user.id !== director.id && user.role === 'player' && (
+                      <Button
+                        size="sm"
+                        variant={followStatus?.following ? "secondary" : "outline"}
+                        className={cn(
+                          "ml-2 h-7 px-3 py-1 rounded-full text-xs font-semibold",
+                          followStatus?.following 
+                            ? "bg-slate-200 hover:bg-slate-300 text-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 border-none" 
+                            : "border-indigo-200 hover:border-indigo-300 text-indigo-600 hover:bg-indigo-50/50"
+                        )}
+                        onClick={() => {
+                          if (followStatus?.following) {
+                            unfollowMutation.mutate();
+                          } else {
+                            followMutation.mutate();
+                          }
+                        }}
+                        disabled={followMutation.isPending || unfollowMutation.isPending}
+                      >
+                        {followMutation.isPending || unfollowMutation.isPending ? (
+                          <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                        ) : null}
+                        {followStatus?.following ? "Subscribed" : "Subscribe"}
+                      </Button>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
@@ -226,7 +315,7 @@ export default function TournamentView({ tournamentId }: TournamentViewProps) {
                   hasRegistration ? (
                     config.registers?.allowEditRegistration && (
                       <Button
-                        onClick={() => setLocation(`/tournaments/${tournamentId}/register?edit=true`)}
+                        onClick={() => setLocation(`/tournaments/${tournament ? slugify(tournament.name) : tournamentId}/register?edit=true`)}
                         variant="outline"
                         className="w-full sm:w-auto rounded-full border-blue-500 text-blue-600 hover:bg-blue-50 font-bold"
                       >
@@ -245,7 +334,7 @@ export default function TournamentView({ tournamentId }: TournamentViewProps) {
                 {canManageTournament && (
                   <Button
                     variant="outline"
-                    onClick={() => setLocation(`/tournaments/${tournamentId}/manage`)}
+                    onClick={() => setLocation(`/tournaments/${tournament ? slugify(tournament.name) : tournamentId}/manage`)}
                     className="rounded-full border-slate-200 font-bold"
                   >
                     <SettingsIcon className="h-4 w-4 mr-2" />
@@ -258,7 +347,7 @@ export default function TournamentView({ tournamentId }: TournamentViewProps) {
         </Card>
 
         {/* Tabs Navigation */}
-        <Tabs value={activeTab} onValueChange={(v) => setLocation(`/tournaments/${tournamentId}/${v}`)} className="w-full">
+        <Tabs value={activeTab} onValueChange={(v) => setLocation(`/tournaments/${tournament ? slugify(tournament.name) : tournamentId}/${v}`)} className="w-full">
           <TabsList className="flex w-full min-h-[48px] h-auto overflow-x-auto no-scrollbar flex-nowrap items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200/60 shadow-sm backdrop-blur-sm">
             {availableTabs.map((tab) => (
               <TabsTrigger

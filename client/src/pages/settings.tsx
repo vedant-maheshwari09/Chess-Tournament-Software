@@ -25,11 +25,11 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Separator } from "@/components/ui/separator";
-import { LogOut, Trash2, ArrowLeft, SlidersHorizontal, User2, Mail, Smartphone, Bell, Trophy, Users, Loader2, Check, BadgeCheck } from "lucide-react";
+import { LogOut, Trash2, ArrowLeft, SlidersHorizontal, User2, Mail, Smartphone, Bell, Trophy, Users, Loader2, Check, BadgeCheck, MessageSquare } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { subscribeToPushNotifications } from "@/lib/push";
+import { subscribeToPushNotifications, unsubscribeFromPushNotifications, getPushSubscriptionStatus } from "@/lib/push";
 import { UscfVerificationCard } from "@/components/uscf-verification-card";
 import { FideVerificationCard } from "@/components/fide-verification-card";
 
@@ -48,23 +48,108 @@ export default function SettingsPage() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
+  // Chat customizability states (syncs to/from localStorage)
+  const [chatPlayChime, setChatPlayChime] = useState<boolean>(() => localStorage.getItem("chat_play_chime") !== "false");
+  const [chatEnterToSend, setChatEnterToSend] = useState<boolean>(() => localStorage.getItem("chat_enter_to_send") !== "false");
+  const [chatMuteGeneral, setChatMuteGeneral] = useState<boolean>(() => localStorage.getItem("chat_mute_general") === "true");
+  const [chatMuteAnnouncements, setChatMuteAnnouncements] = useState<boolean>(() => localStorage.getItem("chat_mute_announcements") === "true");
+  const [chatDensity, setChatDensity] = useState<"cozy" | "compact">(() => (localStorage.getItem("chat_density") as "cozy" | "compact") || "cozy");
+
+  const handleToggleChatPlayChime = (checked: boolean) => {
+    setChatPlayChime(checked);
+    localStorage.setItem("chat_play_chime", String(checked));
+    toast({ title: checked ? "Chat sound chimes enabled" : "Chat sound chimes disabled" });
+  };
+
+  const handleToggleChatEnterToSend = (checked: boolean) => {
+    setChatEnterToSend(checked);
+    localStorage.setItem("chat_enter_to_send", String(checked));
+    toast({ title: checked ? "Enter key will send messages" : "Enter key will insert a newline" });
+  };
+
+  const handleToggleChatMuteGeneral = (checked: boolean) => {
+    setChatMuteGeneral(checked);
+    localStorage.setItem("chat_mute_general", String(checked));
+    toast({ title: checked ? "General chat muted" : "General chat unmuted" });
+  };
+
+  const handleToggleChatMuteAnnouncements = (checked: boolean) => {
+    setChatMuteAnnouncements(checked);
+    localStorage.setItem("chat_mute_announcements", String(checked));
+    toast({ title: checked ? "Announcements chat muted" : "Announcements chat unmuted" });
+  };
+
+  const handleChatDensityChange = (value: string) => {
+    setChatDensity(value as "cozy" | "compact");
+    localStorage.setItem("chat_density", value);
+    toast({ title: `Chat density set to ${value}` });
+  };
+
   // Profile Edit States
   const [firstName, setFirstName] = useState(user?.firstName ?? "");
   const [lastName, setLastName] = useState(user?.lastName ?? "");
   const [organizationName, setOrganizationName] = useState(user?.organizationName ?? "");
   const [profilePicture, setProfilePicture] = useState(user?.profilePicture ?? "");
 
+  const updatePreferencesMutation = useMutation({
+    mutationFn: async (preferences: {
+      notifyEmail?: boolean;
+      notifyPairings?: boolean;
+      notifyRegistration?: boolean;
+      notifyTournamentStatus?: boolean;
+    }) => {
+      return apiRequest("/api/auth/preferences", {
+        method: "PATCH",
+        body: JSON.stringify(preferences),
+      });
+    },
+    onSuccess: (updatedUser: any) => {
+      queryClient.setQueryData(["/api/auth/me"], updatedUser);
+    },
+    onError: (error: any) => {
+      if (user) {
+        setNotifyEmail(user.notifyEmail ?? true);
+        setNotifyPairings(user.notifyPairings ?? true);
+        setNotifyRegistration(user.notifyRegistration ?? true);
+        setNotifyTournamentStatus(user.notifyTournamentStatus ?? true);
+      }
+      toast({
+        title: "Update failed",
+        description: error?.message ?? "Unable to save preferences.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleTogglePreference = (key: "email" | "pairings" | "registration" | "tournamentStatus", checked: boolean) => {
+    if (key === "email") {
+      setNotifyEmail(checked);
+      updatePreferencesMutation.mutate({ notifyEmail: checked });
+    } else if (key === "pairings") {
+      setNotifyPairings(checked);
+      updatePreferencesMutation.mutate({ notifyPairings: checked });
+    } else if (key === "registration") {
+      setNotifyRegistration(checked);
+      updatePreferencesMutation.mutate({ notifyRegistration: checked });
+    } else if (key === "tournamentStatus") {
+      setNotifyTournamentStatus(checked);
+      updatePreferencesMutation.mutate({ notifyTournamentStatus: checked });
+    }
+  };
+
   useEffect(() => {
-    setNotifyEmail(user?.notifyEmail ?? true);
-    setNotifyPairings(user?.notifyPairings ?? true);
-    setNotifyRegistration(user?.notifyRegistration ?? true);
-    setNotifyTournamentStatus(user?.notifyTournamentStatus ?? true);
+    if (!updatePreferencesMutation.isPending) {
+      setNotifyEmail(user?.notifyEmail ?? true);
+      setNotifyPairings(user?.notifyPairings ?? true);
+      setNotifyRegistration(user?.notifyRegistration ?? true);
+      setNotifyTournamentStatus(user?.notifyTournamentStatus ?? true);
+    }
 
     setFirstName(user?.firstName ?? "");
     setLastName(user?.lastName ?? "");
     setOrganizationName(user?.organizationName ?? "");
     setProfilePicture(user?.profilePicture ?? "");
-  }, [user]);
+  }, [user, updatePreferencesMutation.isPending]);
 
   const updateProfileMutation = useMutation({
     mutationFn: async (body: { firstName?: string; lastName?: string; organizationName?: string; profilePicture?: string }) => {
@@ -94,15 +179,10 @@ export default function SettingsPage() {
     formData.append("avatar", file);
 
     try {
-      const res = await fetch("/api/auth/profile/upload-picture", {
+      const data = await apiRequest("/api/auth/profile/upload-picture", {
         method: "POST",
         body: formData,
       });
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.message || "Failed to upload image.");
-      }
-      const data = await res.json();
       setProfilePicture(data.profilePicture);
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
       toast({ title: "Profile picture updated" });
@@ -122,23 +202,6 @@ export default function SettingsPage() {
       organizationName: user?.role === 'tournament_director' ? organizationName : undefined
     });
   };
-
-  // Auto-save preferences when they change
-  useEffect(() => {
-    if (!user) return;
-    if (
-      notifyEmail !== user.notifyEmail ||
-      notifyPairings !== user.notifyPairings ||
-      notifyRegistration !== user.notifyRegistration ||
-      notifyTournamentStatus !== user.notifyTournamentStatus
-    ) {
-      const timer = setTimeout(() => {
-        updatePreferencesMutation.mutate();
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [notifyEmail, notifyPairings, notifyRegistration, notifyTournamentStatus, user]);
-
 
   const logoutMutation = useMutation({
     mutationFn: async () => {
@@ -170,32 +233,6 @@ export default function SettingsPage() {
       toast({
         title: "Delete account failed",
         description: error?.message ?? "Unable to remove account.",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const updatePreferencesMutation = useMutation({
-    mutationFn: async () => {
-      const body = {
-
-        notifyEmail,
-        notifyPairings,
-        notifyRegistration,
-        notifyTournamentStatus,
-      };
-      return apiRequest("/api/auth/preferences", {
-        method: "PATCH",
-        body: JSON.stringify(body),
-      });
-    },
-    onSuccess: (updatedUser: any) => {
-      queryClient.setQueryData(["/api/auth/me"], updatedUser);
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Update failed",
-        description: error?.message ?? "Unable to save preferences.",
         variant: "destructive",
       });
     },
@@ -247,35 +284,46 @@ export default function SettingsPage() {
   const [isPushEnabling, setIsPushEnabling] = useState(false);
 
   useEffect(() => {
-    if (typeof window !== "undefined" && "Notification" in window) {
-      setIsPushEnabled(Notification.permission === "granted");
-    }
+    getPushSubscriptionStatus().then((status) => {
+      setIsPushEnabled(status);
+    });
   }, []);
 
-  const handleEnablePush = async () => {
+  const handleTogglePush = async (checked: boolean) => {
     if (isPushEnabling) return;
     setIsPushEnabling(true);
 
     try {
-      const success = await subscribeToPushNotifications();
-      if (success) {
-        setIsPushEnabled(true);
-        toast({ 
-          title: "Push notifications enabled",
-          description: "You will now receive real-time alerts on this device."
-        });
+      if (checked) {
+        const success = await subscribeToPushNotifications();
+        if (success) {
+          setIsPushEnabled(true);
+          toast({ 
+            title: "Push notifications enabled",
+            description: "You will now receive real-time alerts on this device."
+          });
+        } else {
+          toast({
+            title: "Setup incomplete",
+            description: "Push notifications were blocked or failed to initialize. Please check your browser permissions.",
+            variant: "destructive",
+          });
+        }
       } else {
-        toast({
-          title: "Setup incomplete",
-          description: "Push notifications were blocked or failed to initialize.",
-          variant: "destructive",
-        });
+        const success = await unsubscribeFromPushNotifications();
+        if (success) {
+          setIsPushEnabled(false);
+          toast({ 
+            title: "Push notifications disabled",
+            description: "You will no longer receive alerts on this device."
+          });
+        }
       }
     } catch (err: any) {
-      console.error("Error setting up push:", err);
+      console.error("Error toggling push notifications:", err);
       toast({
-        title: "Push Setup Failed",
-        description: err.message || "An unexpected error occurred while setting up push notifications.",
+        title: "Push toggle failed",
+        description: err.message || "An unexpected error occurred.",
         variant: "destructive",
       });
     } finally {
@@ -373,6 +421,16 @@ export default function SettingsPage() {
                   value={lastName}
                   onChange={(e) => setLastName(e.target.value)}
                   placeholder="Last Name"
+                />
+              </div>
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="email-input">Email Address</Label>
+                <Input 
+                  id="email-input"
+                  value={user?.email ?? ""}
+                  readOnly
+                  placeholder="Email Address"
+                  className="bg-slate-50 dark:bg-slate-900 border-slate-200 text-slate-700 dark:text-slate-200 cursor-default font-normal"
                 />
               </div>
               {user?.role === 'tournament_director' && (
@@ -494,7 +552,7 @@ export default function SettingsPage() {
                       <p className="text-xs text-muted-foreground">Pairings, official receipts, and results.</p>
                     </div>
                   </div>
-                  <Switch checked={notifyEmail} onCheckedChange={setNotifyEmail} />
+                  <Switch checked={notifyEmail} onCheckedChange={(checked) => handleTogglePreference("email", checked)} />
                 </div>
                 
                 <div className="flex items-center justify-between rounded-lg border bg-card p-4 transition-colors hover:bg-accent/5">
@@ -507,15 +565,14 @@ export default function SettingsPage() {
                       <p className="text-xs text-muted-foreground">Real-time alerts on this device.</p>
                     </div>
                   </div>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="h-8 text-xs"
-                    onClick={handleEnablePush}
-                    disabled={isPushEnabling || isPushEnabled}
-                  >
-                    {isPushEnabling ? "Connecting..." : isPushEnabled ? "Enabled" : "Enable"}
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    {isPushEnabling && <Loader2 className="h-4 w-4 animate-spin text-indigo-500" />}
+                    <Switch 
+                      checked={isPushEnabled} 
+                      onCheckedChange={handleTogglePush}
+                      disabled={isPushEnabling}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -531,11 +588,17 @@ export default function SettingsPage() {
                       <Users className="h-4 w-4 text-blue-500" />
                     </div>
                     <div>
-                      <Label className="text-sm font-medium">Registrations & Status</Label>
-                      <p className="text-xs text-muted-foreground">Get notified when you register or when a director approves your entry.</p>
+                      <Label className="text-sm font-medium">
+                        {user?.role === 'tournament_director' ? "New Player Registrations" : "Registrations & Status"}
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        {user?.role === 'tournament_director'
+                          ? "Get notified when new players register for your tournaments or submit entries."
+                          : "Get notified when you register or when a director approves your entry."}
+                      </p>
                     </div>
                   </div>
-                  <Switch checked={notifyRegistration} onCheckedChange={setNotifyRegistration} />
+                  <Switch checked={notifyRegistration} onCheckedChange={(checked) => handleTogglePreference("registration", checked)} />
                 </div>
 
                 <div className="flex items-center justify-between p-2">
@@ -544,11 +607,17 @@ export default function SettingsPage() {
                       <Trophy className="h-4 w-4 text-orange-500" />
                     </div>
                     <div>
-                      <Label className="text-sm font-medium">Match Pairings & Round Results</Label>
-                      <p className="text-xs text-muted-foreground">Get notified immediately when your next match is ready.</p>
+                      <Label className="text-sm font-medium">
+                        {user?.role === 'tournament_director' ? "Match & Round Submissions" : "Match Pairings & Round Results"}
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        {user?.role === 'tournament_director'
+                          ? "Get notified when players submit match results or when rounds are completed."
+                          : "Get notified immediately when your next match is ready."}
+                      </p>
                     </div>
                   </div>
-                  <Switch checked={notifyPairings} onCheckedChange={setNotifyPairings} />
+                  <Switch checked={notifyPairings} onCheckedChange={(checked) => handleTogglePreference("pairings", checked)} />
                 </div>
 
                 <div className="flex items-center justify-between p-2">
@@ -557,11 +626,17 @@ export default function SettingsPage() {
                       <Bell className="h-4 w-4 text-purple-500" />
                     </div>
                     <div>
-                      <Label className="text-sm font-medium">Tournament Announcements</Label>
-                      <p className="text-xs text-muted-foreground">General updates, start times, and important organizer messages.</p>
+                      <Label className="text-sm font-medium">
+                        {user?.role === 'tournament_director' ? "Tournament Status Updates" : "Tournament Announcements"}
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        {user?.role === 'tournament_director'
+                          ? "Receive notifications about your tournament status changes and system updates."
+                          : "General updates, start times, and important organizer messages."}
+                      </p>
                     </div>
                   </div>
-                  <Switch checked={notifyTournamentStatus} onCheckedChange={setNotifyTournamentStatus} />
+                  <Switch checked={notifyTournamentStatus} onCheckedChange={(checked) => handleTogglePreference("tournamentStatus", checked)} />
                 </div>
               </div>
             </div>
@@ -569,16 +644,90 @@ export default function SettingsPage() {
               {updatePreferencesMutation.isPending ? (
                 <div className="flex items-center gap-2 text-slate-400 font-medium">
                   <Loader2 className="h-4 w-4 animate-spin text-indigo-500" />
-                  <span>Autosaving preferences...</span>
+                  <span>Saving preferences...</span>
                 </div>
-              ) : (notifyEmail !== user?.notifyEmail || notifyPairings !== user?.notifyPairings || notifyRegistration !== user?.notifyRegistration || notifyTournamentStatus !== user?.notifyTournamentStatus) ? (
-                <div className="text-amber-600 font-medium">Unsaved changes...</div>
               ) : (
                 <div className="flex items-center gap-1.5 text-emerald-600 font-medium">
                   <Check className="h-4 w-4" />
                   <span>Preferences saved</span>
                 </div>
               )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Chat Settings Card */}
+        <Card>
+          <CardHeader className="flex flex-row items-center gap-3">
+            <MessageSquare className="h-5 w-5 text-primary" />
+            <div>
+              <CardTitle>Chat Flow & Notifications</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Customize your messaging interface and chat notification preferences.
+              </p>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Chat Behavior</h3>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="flex items-center justify-between rounded-lg border bg-card p-4 transition-colors hover:bg-accent/5">
+                  <div>
+                    <Label className="text-sm font-bold">Sound Chimes</Label>
+                    <p className="text-xs text-muted-foreground">Play a tone for incoming direct and channel messages.</p>
+                  </div>
+                  <Switch checked={chatPlayChime} onCheckedChange={handleToggleChatPlayChime} />
+                </div>
+
+                <div className="flex items-center justify-between rounded-lg border bg-card p-4 transition-colors hover:bg-accent/5">
+                  <div>
+                    <Label className="text-sm font-bold">Press Enter to Send</Label>
+                    <p className="text-xs text-muted-foreground">Pressing Enter sends the message, Shift+Enter starts a new line.</p>
+                  </div>
+                  <Switch checked={chatEnterToSend} onCheckedChange={handleToggleChatEnterToSend} />
+                </div>
+              </div>
+            </div>
+
+            <Separator />
+
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Channel Muting</h3>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="flex items-center justify-between rounded-lg border bg-card p-4 transition-colors hover:bg-accent/5">
+                  <div>
+                    <Label className="text-sm font-bold">Mute General Channels</Label>
+                    <p className="text-xs text-muted-foreground">Silence unread badges and notifications for general chat rooms.</p>
+                  </div>
+                  <Switch checked={chatMuteGeneral} onCheckedChange={handleToggleChatMuteGeneral} />
+                </div>
+
+                <div className="flex items-center justify-between rounded-lg border bg-card p-4 transition-colors hover:bg-accent/5">
+                  <div>
+                    <Label className="text-sm font-bold">Mute Announcement Channels</Label>
+                    <p className="text-xs text-muted-foreground">Silence unread badges and notifications for announcements.</p>
+                  </div>
+                  <Switch checked={chatMuteAnnouncements} onCheckedChange={handleToggleChatMuteAnnouncements} />
+                </div>
+              </div>
+            </div>
+
+            <Separator />
+
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-2">
+              <div>
+                <Label className="text-sm font-bold">Display Density</Label>
+                <p className="text-xs text-muted-foreground">Adjust the text padding and avatar sizing in the message view.</p>
+              </div>
+              <Select value={chatDensity} onValueChange={handleChatDensityChange}>
+                <SelectTrigger className="w-full sm:w-40">
+                  <SelectValue placeholder="Select Density" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cozy">Cozy (Spaced)</SelectItem>
+                  <SelectItem value="compact">Compact (Dense)</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </CardContent>
         </Card>

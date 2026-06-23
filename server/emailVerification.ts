@@ -19,6 +19,8 @@ export async function sendEmailVerificationCode(userId: number, email: string, f
     used: false,
   });
 
+  console.log(`[AUTH] Verification code for user ID ${userId} (${email}): ${code}`);
+
   // Send email
   const emailSubject = 'Verify Your Email Address';
   const emailText = `Hello ${firstName},
@@ -34,10 +36,12 @@ If you didn't create this account, please ignore this email.
 Best regards,
 Chess Tournament Manager`;
 
-  await notificationService.sendEmail({
+  notificationService.sendEmail({
     to: email,
     subject: emailSubject,
     text: emailText,
+  }).catch(err => {
+    console.error(`[email] Failed to send verification email to ${email} in background:`, err);
   });
 
   return code;
@@ -54,6 +58,8 @@ export async function sendPasswordResetCode(userId: number, email: string, first
   // Create password reset record
   await storage.createPasswordReset(userId, code, expiresAt);
 
+  console.log(`[AUTH] Password reset code for user ID ${userId} (${email}): ${code}`);
+
   // Send email
   const emailSubject = 'Password Reset Code';
   const emailText = `Hello ${firstName},
@@ -69,10 +75,12 @@ If you didn't request a password reset, please ignore this email. Your password 
 Best regards,
 Chess Tournament Manager`;
 
-  await notificationService.sendEmail({
+  notificationService.sendEmail({
     to: email,
     subject: emailSubject,
     text: emailText,
+  }).catch(err => {
+    console.error(`[email] Failed to send password reset email to ${email} in background:`, err);
   });
 
   return code;

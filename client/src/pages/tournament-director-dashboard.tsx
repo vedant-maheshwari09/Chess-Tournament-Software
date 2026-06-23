@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Plus, Trophy, Users, MessageCircle } from "lucide-react";
+import { Plus, Trophy, Users, MessageCircle, User2, Mail } from "lucide-react";
 import { Link, useLocation, useRoute } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +10,7 @@ import { useAuth } from "@/hooks/useAuth";
 import type { Tournament } from "@shared/schema";
 import SettingsMenu from "@/components/settings-menu";
 import NotificationBell from "@/components/notification-bell";
+import { slugify } from "@/lib/utils";
 
 
 export default function TournamentDirectorDashboard() {
@@ -77,9 +78,10 @@ export default function TournamentDirectorDashboard() {
 
   const renderActions = (tournament: Tournament) => {
     const actions: ReactNode[] = [];
+    const slug = slugify(tournament.name);
     if (tournament.status === "draft") {
       actions.push(
-        <Link key="manage" href={`/tournaments/${tournament.id}/manage`}>
+        <Link key="manage" href={`/tournaments/${slug}/manage`}>
           <Button variant="secondary" size="sm">
             Manage
           </Button>
@@ -87,7 +89,7 @@ export default function TournamentDirectorDashboard() {
       );
     } else if (tournament.status === "upcoming") {
       actions.push(
-        <Link key="manage" href={`/tournaments/${tournament.id}/manage`}>
+        <Link key="manage" href={`/tournaments/${slug}/manage`}>
           <Button variant="outline" size="sm">
             Manage
           </Button>
@@ -95,12 +97,12 @@ export default function TournamentDirectorDashboard() {
       );
     } else if (tournament.status === "active") {
       actions.push(
-        <Link key="manage" href={`/tournaments/${tournament.id}/manage`}>
+        <Link key="manage" href={`/tournaments/${slug}/manage`}>
           <Button size="sm">Manage</Button>
         </Link>
       );
       actions.push(
-        <Link key="view" href={`/tournaments/${tournament.id}`}>
+        <Link key="view" href={`/tournaments/${slug}`}>
           <Button variant="outline" size="sm">
             View Live
           </Button>
@@ -108,7 +110,7 @@ export default function TournamentDirectorDashboard() {
       );
     } else if (tournament.status === "completed") {
       actions.push(
-        <Link key="view" href={`/tournaments/${tournament.id}/manage`}>
+        <Link key="view" href={`/tournaments/${slug}/manage`}>
           <Button variant="outline" size="sm">
             View Results
           </Button>
@@ -226,6 +228,12 @@ export default function TournamentDirectorDashboard() {
               </p>
             </div>
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center md:justify-end gap-3 w-full md:w-auto">
+              <Link href="/subscribers">
+                <Button variant="outline" className="flex items-center gap-2 whitespace-nowrap bg-white dark:bg-gray-800 shadow-md">
+                  <Users className="h-4 w-4 text-indigo-500" />
+                  Subscribers
+                </Button>
+              </Link>
               <div className="flex items-center justify-center gap-2 sm:gap-4 pb-1 sm:pb-0">
                 <Link href="/messages">
                   <Button variant="ghost" size="icon" className="rounded-full">

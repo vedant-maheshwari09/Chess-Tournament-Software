@@ -49,11 +49,17 @@ export async function subscribeToPushNotifications(): Promise<boolean> {
     }
 
     // Send subscription to server
+    const token = localStorage.getItem("auth_token");
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
     const res = await fetch('/api/notifications/subscribe', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers,
       body: JSON.stringify(subscription),
     });
 
@@ -80,17 +86,37 @@ export async function unsubscribeFromPushNotifications(): Promise<boolean> {
     if (subscription) {
       await subscription.unsubscribe();
       
+      const token = localStorage.getItem("auth_token");
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+
       await fetch('/api/notifications/unsubscribe', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({ endpoint: subscription.endpoint }),
       });
     }
     return true;
   } catch (error) {
     console.error('Error unsubscribing from push notifications:', error);
+    return false;
+  }
+}
+
+export async function getPushSubscriptionStatus(): Promise<boolean> {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    return false;
+  }
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    const subscription = await registration.pushManager.getSubscription();
+    return !!subscription;
+  } catch (error) {
+    console.error('Error getting subscription status:', error);
     return false;
   }
 }
