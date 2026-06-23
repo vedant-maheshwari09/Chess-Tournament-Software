@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Plus, Trophy, Users, MessageCircle } from "lucide-react";
+import { Plus, Trophy, Users, MessageCircle, User2, Mail } from "lucide-react";
 import { Link, useLocation, useRoute } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -23,7 +23,11 @@ export default function TournamentDirectorDashboard() {
     queryKey: ["/api/my-tournaments"],
   });
 
-  const validTabs = ["past", "live", "upcoming", "drafts"];
+  const { data: followers = [] } = useQuery<any[]>({
+    queryKey: ["/api/follows/followers"],
+  });
+
+  const validTabs = ["past", "live", "upcoming", "drafts", "subscribers"];
   React.useEffect(() => {
     if (!validTabs.includes(activeTab)) {
       setLocation("/dashboard/drafts", { replace: true });
@@ -166,6 +170,48 @@ export default function TournamentDirectorDashboard() {
     );
   };
 
+  const renderSubscribers = () => {
+    if (followers.length === 0) {
+      return (
+        <div className="flex flex-col items-center justify-center gap-4 py-12 text-center text-slate-500">
+          <Users className="h-12 w-12 mx-auto text-slate-200" />
+          <div className="space-y-2">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">No subscribers yet</h3>
+            <p className="text-gray-650 dark:text-gray-400">Players who subscribe to your profile will appear here.</p>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {followers.map((subscriber: any) => (
+          <Card key={subscriber.id} className="hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/50">
+            <CardContent className="flex items-center gap-4 p-5">
+              <div className="relative w-12 h-12 rounded-full overflow-hidden border border-slate-100 dark:border-slate-850 flex items-center justify-center bg-indigo-50/50 shrink-0">
+                {subscriber.profilePicture ? (
+                  <img src={subscriber.profilePicture} alt={`${subscriber.firstName} ${subscriber.lastName}`} className="w-full h-full object-cover" />
+                ) : (
+                  <User2 className="w-6 h-6 text-indigo-300" />
+                )}
+              </div>
+              <div className="space-y-0.5 overflow-hidden">
+                <h4 className="font-semibold text-sm truncate text-slate-900 dark:text-white">
+                  {subscriber.firstName} {subscriber.lastName}
+                </h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400 truncate">@{subscriber.username}</p>
+                <p className="text-xs text-slate-450 dark:text-slate-500 truncate flex items-center gap-1.5 mt-1">
+                  <Mail className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                  <span className="truncate">{subscriber.email}</span>
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    );
+  };
+
   const sections = [
     {
       key: "past",
@@ -262,6 +308,13 @@ export default function TournamentDirectorDashboard() {
                 <span className="text-xs text-slate-500 leading-tight">{section.items.length} tournament{section.items.length === 1 ? "" : "s"}</span>
               </TabsTrigger>
             ))}
+            <TabsTrigger
+              value="subscribers"
+              className="flex-none md:flex-1 flex h-full min-w-[140px] flex-col items-center justify-center gap-1 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-center text-sm font-medium text-slate-600 shadow-sm transition whitespace-nowrap data-[state=active]:border-indigo-200 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-900"
+            >
+              <span className="leading-tight">Subscribers</span>
+              <span className="text-xs text-slate-500 leading-tight">{followers.length} player{followers.length === 1 ? "" : "s"}</span>
+            </TabsTrigger>
           </TabsList>
 
           {sections.map((section) => (
@@ -277,6 +330,18 @@ export default function TournamentDirectorDashboard() {
               </Card>
             </TabsContent>
           ))}
+
+          <TabsContent value="subscribers" className="mt-10 space-y-8">
+            <Card>
+              <CardHeader>
+                <CardTitle>Subscribers</CardTitle>
+                <CardDescription>Players who have subscribed to your updates.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {renderSubscribers()}
+              </CardContent>
+            </Card>
+          </TabsContent>
         </Tabs>
       </div>
     </div>
