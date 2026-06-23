@@ -36,10 +36,12 @@ If you didn't create this account, please ignore this email.
 Best regards,
 Chess Tournament Manager`;
 
-  await notificationService.sendEmail({
+  notificationService.sendEmail({
     to: email,
     subject: emailSubject,
     text: emailText,
+  }).catch(err => {
+    console.error(`[email] Failed to send verification email to ${email} in background:`, err);
   });
 
   return code;
@@ -73,10 +75,12 @@ If you didn't request a password reset, please ignore this email. Your password 
 Best regards,
 Chess Tournament Manager`;
 
-  await notificationService.sendEmail({
+  notificationService.sendEmail({
     to: email,
     subject: emailSubject,
     text: emailText,
+  }).catch(err => {
+    console.error(`[email] Failed to send password reset email to ${email} in background:`, err);
   });
 
   return code;

@@ -29,13 +29,15 @@ class NotificationService {
   private resendEnabled = false;
 
   constructor() {
-    const user = process.env.NOTIFY_EMAIL_USER ?? process.env.GMAIL_USER;
-    const pass = process.env.NOTIFY_EMAIL_PASSWORD ?? process.env.GMAIL_APP_PASSWORD;
-    const from = process.env.NOTIFY_FROM_EMAIL ?? user ?? "noreply@example.com";
+    const cleanEnv = (val?: string) => val?.trim().replace(/^"(.*)"$/, '$1');
+
+    const user = cleanEnv(process.env.NOTIFY_EMAIL_USER ?? process.env.GMAIL_USER);
+    const pass = cleanEnv(process.env.NOTIFY_EMAIL_PASSWORD ?? process.env.GMAIL_APP_PASSWORD);
+    const from = cleanEnv(process.env.NOTIFY_FROM_EMAIL) ?? user ?? "noreply@example.com";
     
     this.fromAddress = from;
 
-    const resendKey = process.env.RESEND_API_KEY;
+    const resendKey = cleanEnv(process.env.RESEND_API_KEY);
     if (resendKey) {
       try {
         this.resend = new Resend(resendKey);

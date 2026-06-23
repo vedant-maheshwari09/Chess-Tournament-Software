@@ -11,7 +11,7 @@ type PoolConfig = pg.PoolConfig;
 
 function readEnv(name: string): string | undefined {
   const value = process.env[name];
-  return value && value.trim().length > 0 ? value : undefined;
+  return value && value.trim().length > 0 ? value.trim().replace(/^"(.*)"$/, '$1') : undefined;
 }
 
 function extractProjectRef(supabaseUrl: string): string | undefined {
