@@ -11,6 +11,7 @@ const DEFAULT_ROOT_CANDIDATES = Array.from(
     [
       process.env.RATINGS_DATA_ROOT?.trim() ?? undefined,
       process.cwd(),
+      path.resolve(process.cwd(), "dist"),
       path.resolve(process.cwd(), ".."),
       MODULE_DIR,
       path.resolve(MODULE_DIR, ".."),
@@ -35,7 +36,10 @@ function resolveDataPath(relativePath: string, envKey?: string) {
     }
   }
 
-  const fallbackRoot = DEFAULT_ROOT_CANDIDATES[0] ?? process.cwd();
+  const distPath = path.resolve(process.cwd(), "dist");
+  const fallbackRoot = existsSync(distPath)
+    ? distPath
+    : (DEFAULT_ROOT_CANDIDATES[0] ?? process.cwd());
   return path.resolve(fallbackRoot, relativePath);
 }
 

@@ -87,5 +87,13 @@ function resolveSsl(connectionString: string): PoolConfig["ssl"] {
 const connectionString = resolveConnectionString();
 const ssl = resolveSsl(connectionString);
 
+if (connectionString.includes(".supabase.co") && !connectionString.includes(".pooler.supabase.com") && !connectionString.includes("localhost")) {
+  console.warn("⚠️  WARNING: Direct Supabase database URL detected (.supabase.co).");
+  console.warn("   Supabase direct connections are IPv6-only. On IPv4-only environments like Render free tier,");
+  console.warn("   this will cause ENETUNREACH errors or extremely slow connection times (10s+ delay).");
+  console.warn("   💡 ACTION REQUIRED: Please change your DATABASE_URL in your Render Dashboard to use");
+  console.warn("   the Supabase Transaction Pooler URL (port 6543, e.g., xxx.pooler.supabase.com).");
+}
+
 export const pool = new Pool({ connectionString, ssl });
 export const db = drizzle(pool, { schema });
