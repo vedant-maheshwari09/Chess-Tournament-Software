@@ -253,6 +253,7 @@ export const applyMessagesRoutes = (app: express.Express) => {
           participantFirstName: users.firstName,
           participantLastName: users.lastName,
           participantOrgName: users.organizationName,
+          participantRole: users.role,
         })
         .from(chatThreads)
         .leftJoin(tournaments, eq(tournaments.id, chatThreads.tournamentId))
@@ -272,6 +273,7 @@ export const applyMessagesRoutes = (app: express.Express) => {
             .from(chatMessages)
             .where(and(
                eq(chatMessages.threadId, t.id),
+               ne(chatMessages.senderId, userId),
                sql`${chatMessages.createdAt} > ${lastReadAt}`
             ));
 
@@ -292,6 +294,7 @@ export const applyMessagesRoutes = (app: express.Express) => {
             id: t.participantId,
             username: t.participantName,
             displayName: dispName,
+            role: t.participantRole,
           });
         }
       }
@@ -387,6 +390,19 @@ export const applyMessagesRoutes = (app: express.Express) => {
     } catch (err) {
       console.error("Fetch messages error:", err);
       res.status(500).json({ message: "Failed to fetch messages" });
+    }
+  });
+
+  // Mark thread as read
+  router.post("/threads/:threadId/read", async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      const threadId = parseInt(req.params.threadId);
+      await updateLastReadAt(threadId, userId);
+      res.json({ success: true });
+    } catch (err) {
+      console.error("Read thread error:", err);
+      res.status(500).json({ message: "Failed to mark thread as read" });
     }
   });
 

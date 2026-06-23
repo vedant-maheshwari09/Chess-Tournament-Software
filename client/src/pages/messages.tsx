@@ -36,12 +36,26 @@ export default function MessagesDashboard() {
   const [editMessageText, setEditMessageText] = useState("");
   const [copiedMessageId, setCopiedMessageId] = useState<number | null>(null);
   const [isMuted, setIsMuted] = useState<Record<number, boolean>>({});
+  const [isMembersDialogOpen, setIsMembersDialogOpen] = useState(false);
+
+  // Custom 3D Glossy Emojis mapping
+  const emojiMap: Record<string, string> = {
+    "👍": "/emojis/like.png",
+    "❤️": "/emojis/love.png",
+    "🔥": "/emojis/fire.png",
+    "😂": "/emojis/laugh.png",
+    "😮": "/emojis/surprise.png",
+    "😢": "/emojis/sad.png"
+  };
 
   // Chat Customization States
   const [playChimeEnabled, setPlayChimeEnabled] = useState(() => localStorage.getItem("chat_play_chime") !== "false");
   const [enterToSend, setEnterToSend] = useState(() => localStorage.getItem("chat_enter_to_send") !== "false");
   const [muteGeneral, setMuteGeneral] = useState(() => localStorage.getItem("chat_mute_general") === "true");
   const [muteAnnouncements, setMuteAnnouncements] = useState(() => localStorage.getItem("chat_mute_announcements") === "true");
+  const [muteDMs, setMuteDMs] = useState(() => localStorage.getItem("chat_mute_dms") === "true");
+  const [desktopNotifications, setDesktopNotifications] = useState(() => localStorage.getItem("chat_desktop_notifications") === "true");
+  const [showUnreadBadges, setShowUnreadBadges] = useState(() => localStorage.getItem("chat_show_unread_badges") !== "false");
   const [density, setDensity] = useState<"cozy" | "compact">(() => (localStorage.getItem("chat_density") as "cozy" | "compact") || "cozy");
 
   const playChime = () => {
@@ -72,11 +86,52 @@ export default function MessagesDashboard() {
     }
   };
 
-  const shouldShowUnread = (channelName: string, unreadCount: number) => {
-    if (unreadCount <= 0) return false;
-    if (channelName === "announcements" && muteAnnouncements) return false;
-    if (channelName === "general" && muteGeneral) return false;
+  const shouldShowUnread = (thread: any) => {
+    if (!showUnreadBadges) return false;
+    if (thread.unreadCount <= 0) return false;
+    if (isMuted[thread.id]) return false;
+    if (thread.tournamentId) {
+      if (thread.name === "announcements" && muteAnnouncements) return false;
+      if (thread.name === "general" && muteGeneral) return false;
+    } else {
+      if (muteDMs) return false;
+    }
     return true;
+  };
+
+  const requestDesktopNotifications = async (enabled: boolean) => {
+    if (enabled) {
+      if (!("Notification" in window)) {
+        toast({
+          title: "Not Supported",
+          description: "Desktop notifications are not supported by this browser.",
+          variant: "destructive"
+        });
+        setDesktopNotifications(false);
+        localStorage.setItem("chat_desktop_notifications", "false");
+        return;
+      }
+      const permission = await Notification.requestPermission();
+      if (permission === "granted") {
+        setDesktopNotifications(true);
+        localStorage.setItem("chat_desktop_notifications", "true");
+        toast({
+          title: "Notifications Enabled",
+          description: "You will now receive desktop notifications for new messages."
+        });
+      } else {
+        setDesktopNotifications(false);
+        localStorage.setItem("chat_desktop_notifications", "false");
+        toast({
+          title: "Permission Denied",
+          description: "Please check your browser notification permissions.",
+          variant: "destructive"
+        });
+      }
+    } else {
+      setDesktopNotifications(false);
+      localStorage.setItem("chat_desktop_notifications", "false");
+    }
   };
 
   // Search & Attachments
@@ -305,11 +360,43 @@ export default function MessagesDashboard() {
         const data = JSON.parse(event.data);
         if (data.type === "new_message") {
           queryClient.invalidateQueries({ queryKey: ["/api/messages/threads", data.message.threadId, "messages", searchQuery] });
-          queryClient.invalidateQueries({ queryKey: ["/api/messages/threads"] });
-          if (data.message.senderId !== user?.id) {
-            const playChimeVal = localStorage.getItem("chat_play_chime") !== "false";
-            if (playChimeVal) {
-              playChime();
+          
+          const isSenderMe = data.message.senderId === user?.id;
+          const isCurrentThreadActive = data.message.threadId === activeThreadId;
+
+          if (isCurrentThreadActive) {
+            apiRequest(`/api/messages/threads/${data.message.threadId}/read`, { method: "POST" })
+              .then(() => {
+                queryClient.invalidateQueries({ queryKey: ["/api/messages/threads"] });
+              })
+              .catch((err) => console.error("Error marking thread read:", err));
+          } else {
+            queryClient.invalidateQueries({ queryKey: ["/api/messages/threads"] });
+          }
+
+          if (!isSenderMe && !isCurrentThreadActive) {
+            const threadMuted = isMuted[data.message.threadId];
+            const threadObj = threads?.find((t: any) => t.id === data.message.threadId);
+            
+            let isCategoryMuted = false;
+            if (threadObj) {
+              if (threadObj.tournamentId) {
+                if (threadObj.name === "announcements" && muteAnnouncements) isCategoryMuted = true;
+                if (threadObj.name === "general" && muteGeneral) isCategoryMuted = true;
+              } else {
+                if (muteDMs) isCategoryMuted = true;
+              }
+            }
+
+            if (!threadMuted && !isCategoryMuted) {
+              if (playChimeEnabled) {
+                playChime();
+              }
+              if (desktopNotifications && "Notification" in window && Notification.permission === "granted") {
+                new Notification(`New message in ${threadObj?.name || 'Direct Message'}`, {
+                  body: `${data.message.senderDisplayName}: ${data.message.content}`,
+                });
+              }
             }
           }
         } else if (data.type === "message_deleted") {
@@ -354,7 +441,18 @@ export default function MessagesDashboard() {
       eventSource.close();
       Object.values(typingTimeoutRef.current).forEach(clearTimeout);
     };
-  }, [queryClient, searchQuery]);
+  }, [queryClient, searchQuery, threads, playChimeEnabled, desktopNotifications, muteAnnouncements, muteGeneral, muteDMs, isMuted, activeThreadId]);
+
+  // Mark active thread as read
+  useEffect(() => {
+    if (activeThreadId) {
+      apiRequest(`/api/messages/threads/${activeThreadId}/read`, { method: "POST" })
+        .then(() => {
+          queryClient.invalidateQueries({ queryKey: ["/api/messages/threads"] });
+        })
+        .catch((err) => console.error("Error marking thread read on activate:", err));
+    }
+  }, [activeThreadId, queryClient]);
 
   // Auto scroll
   useEffect(() => {
@@ -408,7 +506,7 @@ export default function MessagesDashboard() {
                           >
                             <Hash className="h-3.5 w-3.5" />
                             <span className="truncate">{channel.name}</span>
-                             {shouldShowUnread(channel.name, channel.unreadCount) && activeThreadId !== channel.id && (
+                             {shouldShowUnread(channel) && activeThreadId !== channel.id && (
                                <span className="ml-auto w-1.5 h-1.5 bg-indigo-500 rounded-full shrink-0"></span>
                              )}
                           </button>
@@ -445,19 +543,22 @@ export default function MessagesDashboard() {
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1 overflow-hidden">
-                        <div className={`font-semibold text-xs truncate ${thread.unreadCount > 0 && activeThreadId !== thread.id ? "text-foreground font-bold" : "text-foreground/80"}`}>
+                        <div className={`font-semibold text-xs truncate ${shouldShowUnread(thread) && activeThreadId !== thread.id ? "text-foreground font-bold" : "text-foreground/80"}`}>
                           {threadName}
                         </div>
                         <div className="text-[10px] text-muted-foreground truncate">
                           {(typingUsers[thread.id]?.length || 0) > 0 ? (
                             <span className="text-primary italic">Typing...</span>
-                          ) : thread.unreadCount > 0 && activeThreadId !== thread.id ? (
+                          ) : shouldShowUnread(thread) && activeThreadId !== thread.id ? (
                             <span className="font-semibold text-primary">{thread.unreadCount} new messages</span>
                           ) : (
                             "Direct message"
                           )}
                         </div>
                       </div>
+                      {shouldShowUnread(thread) && activeThreadId !== thread.id && (
+                        <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full shrink-0 ml-1"></span>
+                      )}
                     </button>
                   );
                 })}
@@ -550,14 +651,14 @@ export default function MessagesDashboard() {
                       <Settings className="h-4 w-4 text-slate-500" />
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="max-w-sm border-border/50 shadow-lg">
+                  <DialogContent className="max-w-md border-border/50 shadow-lg">
                     <DialogHeader>
                       <DialogTitle className="flex items-center gap-2 font-bold">
                         <Settings className="h-5 w-5 text-indigo-500" />
                         Chat Settings
                       </DialogTitle>
                     </DialogHeader>
-                    <div className="space-y-4 py-3">
+                    <div className="space-y-4 py-3 text-sans">
                       <div className="flex items-center justify-between">
                         <div className="space-y-0.5">
                           <Label className="text-sm font-semibold">Sound Chimes</Label>
@@ -588,8 +689,33 @@ export default function MessagesDashboard() {
 
                       <div className="flex items-center justify-between">
                         <div className="space-y-0.5">
+                          <Label className="text-sm font-semibold">Desktop Notifications</Label>
+                          <p className="text-xs text-muted-foreground">Receive browser popups for new messages.</p>
+                        </div>
+                        <Switch 
+                          checked={desktopNotifications} 
+                          onCheckedChange={requestDesktopNotifications} 
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-0.5">
+                          <Label className="text-sm font-semibold">Show Badges in Sidebar</Label>
+                          <p className="text-xs text-muted-foreground">Toggle visibility of unread notification dots.</p>
+                        </div>
+                        <Switch 
+                          checked={showUnreadBadges} 
+                          onCheckedChange={(checked) => {
+                            setShowUnreadBadges(checked);
+                            localStorage.setItem("chat_show_unread_badges", String(checked));
+                          }} 
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between border-t pt-3">
+                        <div className="space-y-0.5">
                           <Label className="text-sm font-semibold">Mute General Chat</Label>
-                          <p className="text-xs text-muted-foreground">Silence unread badges for general channels.</p>
+                          <p className="text-xs text-muted-foreground">Silence unread status for general channels.</p>
                         </div>
                         <Switch 
                           checked={muteGeneral} 
@@ -603,13 +729,27 @@ export default function MessagesDashboard() {
                       <div className="flex items-center justify-between">
                         <div className="space-y-0.5">
                           <Label className="text-sm font-semibold">Mute Announcements</Label>
-                          <p className="text-xs text-muted-foreground">Silence unread badges for announcements.</p>
+                          <p className="text-xs text-muted-foreground">Silence unread status for announcements.</p>
                         </div>
                         <Switch 
                           checked={muteAnnouncements} 
                           onCheckedChange={(checked) => {
                             setMuteAnnouncements(checked);
                             localStorage.setItem("chat_mute_announcements", String(checked));
+                          }} 
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-0.5">
+                          <Label className="text-sm font-semibold">Mute All Direct Messages</Label>
+                          <p className="text-xs text-muted-foreground">Silence unread status for individual DMs.</p>
+                        </div>
+                        <Switch 
+                          checked={muteDMs} 
+                          onCheckedChange={(checked) => {
+                            setMuteDMs(checked);
+                            localStorage.setItem("chat_mute_dms", String(checked));
                           }} 
                         />
                       </div>
@@ -647,13 +787,7 @@ export default function MessagesDashboard() {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-48">
-                    <DropdownMenuItem onClick={() => {
-                      const names = activeThread?.participants?.map((p: any) => p.displayName).join(", ") || "None";
-                      toast({
-                        title: "Chat Members",
-                        description: names,
-                      });
-                    }}>
+                    <DropdownMenuItem onClick={() => setIsMembersDialogOpen(true)}>
                       <Info className="mr-2 h-4 w-4 text-slate-500" />
                       <span>View Members</span>
                     </DropdownMenuItem>
@@ -733,21 +867,23 @@ export default function MessagesDashboard() {
                   const isEditing = editingMessageId === msg.id;
 
                   return (
-                    <div key={msg.id} className={`flex ${density === "compact" ? "gap-1.5" : "gap-3"} group ${isMe ? "ml-auto flex-row-reverse" : "mr-auto"}`}>
-                      <div className="w-8 shrink-0 flex flex-col justify-end">
-                        {showAvatar && !isMe && (
-                          <Avatar className={density === "compact" ? "h-6 w-6 mb-0.5" : "h-8 w-8 mb-1"}>
-                            <AvatarFallback className={`${density === "compact" ? "text-[10px]" : "text-xs"} bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold`}>
-                              {msg.senderDisplayName?.slice(0, 2).toUpperCase() || '?'}
-                            </AvatarFallback>
-                          </Avatar>
-                        )}
-                      </div>
+                    <div key={msg.id} className={`flex ${density === "compact" ? "gap-1.5" : "gap-3"} group ${isMe ? "ml-auto" : "mr-auto"}`}>
+                      {!isMe && (
+                        <div className="w-8 shrink-0 flex flex-col justify-end">
+                          {showAvatar && (
+                            <Avatar className={density === "compact" ? "h-6 w-6 mb-0.5" : "h-8 w-8 mb-1"}>
+                              <AvatarFallback className={`${density === "compact" ? "text-[10px]" : "text-xs"} bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold`}>
+                                {msg.senderDisplayName?.slice(0, 2).toUpperCase() || '?'}
+                              </AvatarFallback>
+                            </Avatar>
+                          )}
+                        </div>
+                      )}
                       
-                      <div className={`flex flex-col ${density === "compact" ? "gap-0.5" : "gap-1"} max-w-[75%] ${isMe ? "items-end" : "items-start"}`}>
+                      <div className={`flex flex-col ${density === "compact" ? "gap-0.5" : "gap-1"} max-w-[80%] ${isMe ? "items-end" : "items-start"}`}>
                         {showAvatar && (
                           <div className={`flex items-center gap-2 ${density === "compact" ? "mb-0.5" : "mb-1"}`}>
-                            <span className="text-xs font-semibold text-foreground/80">{isMe ? "You" : msg.senderDisplayName}</span>
+                            {!isMe && <span className="text-xs font-semibold text-foreground/80">{msg.senderDisplayName}</span>}
                             <span className="text-[10px] text-muted-foreground flex items-center gap-1">
                               {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                               {msg.isEdited && <span className="text-[9px] text-muted-foreground/60 italic">(edited)</span>}
@@ -759,72 +895,80 @@ export default function MessagesDashboard() {
                         <div className="flex items-center gap-2 group relative">
                           {/* Hover Actions (Reactions + Copy + Edit + Delete + Pin) */}
                           {!msg.isDeleted && !isEditing && (
-                            <div className={`flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all duration-200 absolute ${isMe ? "right-[100%] mr-2.5" : "left-[100%] ml-2.5"} z-20`}>
-                              {/* Quick Reaction Bar */}
-                              <div className="flex items-center bg-background dark:bg-slate-900 border border-border/50 rounded-full px-2 py-0.5 shadow-sm gap-1">
+                            <div className={`flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all duration-200 absolute -top-[42px] ${isMe ? "right-0" : "left-0"} z-20 bg-background/95 backdrop-blur-md dark:bg-slate-900/95 border border-slate-200/80 dark:border-slate-800/80 shadow-lg rounded-full px-2.5 py-1`}>
+                              {/* Quick Reaction Emojis */}
+                              <div className="flex items-center gap-1">
                                 {quickEmojis.map(emoji => {
                                   const hasReacted = msg.reactions?.some((r: any) => r.userId === user?.id && r.emoji === emoji);
                                   return (
                                     <button
                                       key={emoji}
-                                      className={`hover:scale-125 transition-transform text-sm px-0.5 ${hasReacted ? "opacity-40" : "opacity-100"}`}
+                                      className={`hover:scale-125 transition-transform p-0.5 rounded-full ${hasReacted ? "bg-primary/20" : ""}`}
                                       onClick={() => handleToggleReaction(msg.id, emoji, hasReacted)}
+                                      type="button"
                                     >
-                                      {emoji}
+                                      <img src={emojiMap[emoji]} alt={emoji} className="h-5 w-5 object-contain" />
                                     </button>
                                   );
                                 })}
                               </div>
 
-                              {/* Copy Clip Option */}
-                              <Button 
-                                variant="ghost" 
-                                size="icon" 
-                                className="h-6 w-6 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-full"
-                                onClick={() => handleCopyMessage(msg.id, msg.content)}
-                              >
-                                {copiedMessageId === msg.id ? (
-                                  <Check className="h-3.5 w-3.5 text-green-500" />
-                                ) : (
-                                  <Copy className="h-3.5 w-3.5" />
-                                )}
-                              </Button>
-                              
-                              {/* Pin Message Toggle */}
-                              <Button 
-                                variant="ghost" 
-                                size="icon" 
-                                className={`h-6 w-6 rounded-full ${msg.isPinned ? "text-indigo-500 hover:text-indigo-600 bg-indigo-50" : "text-muted-foreground hover:text-foreground hover:bg-muted/50"}`}
-                                onClick={() => togglePinMutation.mutate({ messageId: msg.id, isPinned: msg.isPinned })}
-                                disabled={togglePinMutation.isPending}
-                              >
-                                <Pin className="h-3.5 w-3.5" />
-                              </Button>
+                              <div className="w-[1px] h-4 bg-slate-200 dark:bg-slate-800 mx-1" />
 
-                              {isMe && (
-                                <>
-                                  <Button 
-                                    variant="ghost" 
-                                    size="icon" 
-                                    className="h-6 w-6 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-full"
-                                    onClick={() => {
-                                      setEditingMessageId(msg.id);
-                                      setEditMessageText(msg.content);
-                                    }}
-                                  >
-                                    <Pencil className="h-3.5 w-3.5" />
-                                  </Button>
-                                  <Button 
-                                    variant="ghost" 
-                                    size="icon" 
-                                    className="h-6 w-6 text-destructive hover:text-destructive hover:bg-destructive/10 rounded-full"
-                                    onClick={() => deleteMessageMutation.mutate(msg.id)}
-                                    disabled={deleteMessageMutation.isPending}
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                  </Button>
-                                </>
-                              )}
+                              {/* Action buttons */}
+                              <div className="flex items-center gap-0.5">
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  className="h-6 w-6 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-full"
+                                  onClick={() => handleCopyMessage(msg.id, msg.content)}
+                                  type="button"
+                                >
+                                  {copiedMessageId === msg.id ? (
+                                    <Check className="h-3.5 w-3.5 text-green-500" />
+                                  ) : (
+                                    <Copy className="h-3.5 w-3.5" />
+                                  )}
+                                </Button>
+                                
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  className={`h-6 w-6 rounded-full ${msg.isPinned ? "text-indigo-500 hover:text-indigo-600 bg-indigo-50 dark:bg-slate-800" : "text-muted-foreground hover:text-foreground hover:bg-muted/50"}`}
+                                  onClick={() => togglePinMutation.mutate({ messageId: msg.id, isPinned: msg.isPinned })}
+                                  disabled={togglePinMutation.isPending}
+                                  type="button"
+                                >
+                                  <Pin className="h-3.5 w-3.5" />
+                                </Button>
+
+                                {isMe && (
+                                  <>
+                                    <Button 
+                                      variant="ghost" 
+                                      size="icon" 
+                                      className="h-6 w-6 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-full"
+                                      onClick={() => {
+                                        setEditingMessageId(msg.id);
+                                        setEditMessageText(msg.content);
+                                      }}
+                                      type="button"
+                                    >
+                                      <Pencil className="h-3.5 w-3.5" />
+                                    </Button>
+                                    <Button 
+                                      variant="ghost" 
+                                      size="icon" 
+                                      className="h-6 w-6 text-destructive hover:text-destructive hover:bg-destructive/10 rounded-full"
+                                      onClick={() => deleteMessageMutation.mutate(msg.id)}
+                                      disabled={deleteMessageMutation.isPending}
+                                      type="button"
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </>
+                                )}
+                              </div>
                             </div>
                           )}
                           
@@ -863,13 +1007,14 @@ export default function MessagesDashboard() {
                               </div>
                             </div>
                           ) : (
-                            <div className="space-y-1">
+                            <div className="space-y-1 relative">
                               {/* Message bubble */}
                               <div className={`${density === "compact" ? "px-3 py-1 text-xs leading-normal" : "px-4 py-2.5 shadow-sm text-sm leading-relaxed"}
-                                ${msg.isDeleted ? "bg-muted/50 text-muted-foreground italic rounded-2xl border border-dashed border-border" 
-                                : isMe 
-                                  ? "bg-primary text-primary-foreground rounded-2xl rounded-tr-sm" 
-                                  : "bg-background border border-border/50 text-foreground rounded-2xl rounded-tl-sm"}`}>
+                                ${msg.isDeleted 
+                                  ? "bg-muted/50 text-muted-foreground italic rounded-2xl border border-dashed border-border" 
+                                  : isMe 
+                                    ? "bg-blue-600 text-white rounded-2xl rounded-tr-sm" 
+                                    : "bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-2xl rounded-tl-sm border border-slate-200/40 dark:border-slate-800/40"}`}>
                                 {msg.isDeleted ? "This message was deleted." : msg.content}
                                 
                                 {/* Message attachment display */}
@@ -887,7 +1032,7 @@ export default function MessagesDashboard() {
                                         className={`flex items-center gap-2 p-2 rounded-lg border text-xs mt-1.5 font-medium transition-all ${
                                           isMe 
                                             ? "bg-white/10 hover:bg-white/15 border-white/10 text-white" 
-                                            : "bg-slate-50 hover:bg-slate-100 dark:bg-slate-900 border-slate-200/50 text-indigo-600 dark:text-indigo-400"
+                                            : "bg-slate-50 hover:bg-slate-100 dark:bg-slate-900 border-slate-200/50 text-indigo-650 dark:text-indigo-400"
                                         }`}
                                       >
                                         <FileIcon className="h-4 w-4 shrink-0" />
@@ -900,7 +1045,7 @@ export default function MessagesDashboard() {
                               
                               {/* Reactions tally display */}
                               {msg.reactions && msg.reactions.length > 0 && !msg.isDeleted && (
-                                <div className={`flex flex-wrap gap-1 ${density === "compact" ? "mt-1" : "mt-1.5"} ${isMe ? "justify-end" : "justify-start"}`}>
+                                <div className={`absolute -top-3 ${isMe ? "left-3" : "right-3"} flex items-center gap-0.5 bg-background dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-full px-1.5 py-0.5 shadow-md z-10 hover:scale-105 transition-all`}>
                                   {Object.entries(
                                     msg.reactions.reduce((acc: any, r: any) => {
                                       if (!acc[r.emoji]) acc[r.emoji] = [];
@@ -914,16 +1059,13 @@ export default function MessagesDashboard() {
                                     return (
                                       <button
                                         key={emoji}
-                                        title={tooltipText}
+                                        title={`${emoji} reacted by: ${tooltipText}`}
                                         onClick={() => handleToggleReaction(msg.id, emoji, hasReacted)}
-                                        className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] border transition-all ${
-                                          hasReacted 
-                                            ? "bg-indigo-50 border-indigo-200 dark:bg-indigo-950/40 dark:border-indigo-900/50 text-indigo-600 dark:text-indigo-400 font-semibold" 
-                                            : "bg-background border-border/50 text-muted-foreground hover:border-border"
-                                        }`}
+                                        className={`flex items-center gap-0.5 hover:bg-muted/50 px-1 rounded-full text-[10px] transition-all`}
+                                        type="button"
                                       >
-                                        <span>{emoji}</span>
-                                        <span>{list.length}</span>
+                                        <img src={emojiMap[emoji]} alt={emoji} className="h-4 w-4 object-contain" />
+                                        {list.length > 1 && <span className="text-[9px] font-bold text-muted-foreground">{list.length}</span>}
                                       </button>
                                     );
                                   })}
@@ -1061,6 +1203,53 @@ export default function MessagesDashboard() {
           </div>
         )}
       </Card>
+
+      {/* Members Dialog */}
+      <Dialog open={isMembersDialogOpen} onOpenChange={setIsMembersDialogOpen}>
+        <DialogContent className="max-w-md border-border/50 shadow-lg bg-card text-sans">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 font-bold text-lg">
+              <Info className="h-5 w-5 text-indigo-500" />
+              Chat Members
+            </DialogTitle>
+          </DialogHeader>
+          <ScrollArea className="max-h-[60vh] pr-2 mt-4">
+            <div className="space-y-3">
+              {activeThread?.participants?.map((participant: any) => {
+                const isUserMe = participant.id === user?.id;
+                const roleLabel = participant.role === "tournament_director" ? "Tournament Director" : "Player";
+                const isTD = participant.role === "tournament_director";
+
+                return (
+                  <div key={participant.id} className="flex items-center justify-between p-2 rounded-xl hover:bg-muted/40 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-9 w-9 shadow-sm shrink-0">
+                        <AvatarFallback className="bg-indigo-50 text-indigo-700 dark:bg-slate-800 dark:text-indigo-400 text-xs font-semibold">
+                          {participant.displayName?.slice(0, 2).toUpperCase() || '?'}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex flex-col">
+                        <span className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+                          {participant.displayName}
+                          {isUserMe && <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-500 px-1.5 py-0.5 rounded font-normal">(You)</span>}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground">@{participant.username}</span>
+                      </div>
+                    </div>
+                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                      isTD 
+                        ? "bg-indigo-50 text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-400" 
+                        : "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400"
+                    }`}>
+                      {roleLabel}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
