@@ -348,7 +348,6 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
       if (!isEditing && mode === "stay") {
         const nextForm = createEmptyForm(primarySection);
         setFormState(nextForm);
-        setCombinedNameInput("");
         setSearchInputs({ term: "", lastName: "", firstName: "", id: "" });
         setDebouncedSearchInputs({ term: "", lastName: "", firstName: "", id: "" });
         setActiveTab("basic");
@@ -455,7 +454,6 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
       ratingRapid: editingPlayer.ratingRapid != null ? String(editingPlayer.ratingRapid) : prev.ratingRapid,
       ratingBlitz: editingPlayer.ratingBlitz != null ? String(editingPlayer.ratingBlitz) : prev.ratingBlitz,
     }));
-    setCombinedNameInput([editingPlayer.lastName, editingPlayer.firstName].filter(Boolean).join(", "));
     setEditInitialized(true);
   }, [
     isEditing,
@@ -569,7 +567,6 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
       return next;
     });
     markDirty();
-    setCombinedNameInput([cleanedLast, cleanedFirst].filter(Boolean).join(", "));
     setActiveTab("basic");
   };
 
