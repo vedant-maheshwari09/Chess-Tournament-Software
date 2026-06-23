@@ -6,12 +6,21 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Send, Hash, Loader2, Trash2, Pencil } from "lucide-react";
+import { Send, Hash, Loader2, Trash2, Pencil, Copy, Check, MoreVertical, Info, BellOff } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { NewChatDialog } from "@/components/chat/new-chat-dialog";
+import { useToast } from "@/hooks/use-toast";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 
 export default function MessagesDashboard() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const queryClient = useQueryClient();
   const [activeThreadId, setActiveThreadId] = useState<number | null>(null);
   const [messageText, setMessageText] = useState("");
@@ -20,6 +29,20 @@ export default function MessagesDashboard() {
   const typingTimeoutRef = useRef<Record<string, NodeJS.Timeout>>({});
   const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
   const [editMessageText, setEditMessageText] = useState("");
+  const [copiedMessageId, setCopiedMessageId] = useState<number | null>(null);
+  const [isMuted, setIsMuted] = useState<Record<number, boolean>>({});
+
+  const handleCopyMessage = (msgId: number, content: string) => {
+    navigator.clipboard.writeText(content);
+    setCopiedMessageId(msgId);
+    toast({
+      title: "Copied to clipboard",
+      description: "Message content has been copied.",
+    });
+    setTimeout(() => {
+      setCopiedMessageId(null);
+    }, 2000);
+  };
 
   const { data: threads, isLoading: threadsLoading } = useQuery({
     queryKey: ["/api/messages/threads"],
@@ -215,12 +238,69 @@ export default function MessagesDashboard() {
       <Card className="flex-1 flex flex-col overflow-hidden border-border/50 shadow-sm relative bg-card/50">
         {activeThreadId ? (
           <>
-            <div className="p-4 border-b bg-background/95 backdrop-blur z-10 shadow-sm">
+            <div className="p-4 border-b bg-background/95 backdrop-blur z-10 shadow-sm flex items-center justify-between">
               <h2 className="font-semibold text-lg flex items-center gap-2">
                 {threads?.find((t: any) => t.id === activeThreadId)?.name || 
                  threads?.find((t: any) => t.id === activeThreadId)?.participants?.map((p: any) => p.username).filter((u: string) => u !== user?.username).join(", ") || 
                  "Direct Message"}
               </h2>
+              
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full">
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem onClick={() => {
+                    const activeThread = threads?.find((t: any) => t.id === activeThreadId);
+                    const names = activeThread?.participants?.map((p: any) => p.username).join(", ") || "None";
+                    toast({
+                      title: "Chat Members",
+                      description: names,
+                    });
+                  }}>
+                    <Info className="mr-2 h-4 w-4 text-slate-500" />
+                    <span>View Members</span>
+                  </DropdownMenuItem>
+                  
+                  <DropdownMenuItem onClick={() => {
+                    navigator.clipboard.writeText(String(activeThreadId));
+                    toast({
+                      title: "Chat ID Copied",
+                      description: `ID: ${activeThreadId}`,
+                    });
+                  }}>
+                    <Copy className="mr-2 h-4 w-4 text-slate-500" />
+                    <span>Copy Chat ID</span>
+                  </DropdownMenuItem>
+
+                  <DropdownMenuItem onClick={() => {
+                    setIsMuted(prev => ({ ...prev, [activeThreadId]: !prev[activeThreadId] }));
+                    toast({
+                      title: isMuted[activeThreadId] ? "Notifications Unmuted" : "Notifications Muted",
+                      description: isMuted[activeThreadId] 
+                        ? "You will now receive notifications for this chat." 
+                        : "You will no longer receive sounds or badges for this chat.",
+                    });
+                  }}>
+                    <BellOff className="mr-2 h-4 w-4 text-slate-500" />
+                    <span>{isMuted[activeThreadId] ? "Unmute Chat" : "Mute Chat"}</span>
+                  </DropdownMenuItem>
+
+                  <DropdownMenuSeparator />
+
+                  <DropdownMenuItem onClick={() => {
+                    toast({
+                      title: "Feature coming soon",
+                      description: "Clearing history is not available yet.",
+                    });
+                  }} className="text-destructive focus:text-destructive">
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    <span>Clear History</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
             
             <div className="flex-1 overflow-y-auto p-4 space-y-4" ref={scrollRef}>
@@ -256,28 +336,45 @@ export default function MessagesDashboard() {
                       )}
                       
                       <div className="flex items-center gap-2 group relative">
-                        {isMe && !msg.isDeleted && !isEditing && (
-                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity absolute right-[100%] mr-2">
+                        {!msg.isDeleted && !isEditing && (
+                          <div className={`flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity absolute ${isMe ? "right-[100%] mr-2" : "left-[100%] ml-2"}`}>
                             <Button 
                               variant="ghost" 
                               size="icon" 
                               className="h-6 w-6 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-full"
-                              onClick={() => {
-                                setEditingMessageId(msg.id);
-                                setEditMessageText(msg.content);
-                              }}
+                              onClick={() => handleCopyMessage(msg.id, msg.content)}
                             >
-                              <Pencil className="h-3.5 w-3.5" />
+                              {copiedMessageId === msg.id ? (
+                                <Check className="h-3.5 w-3.5 text-green-500" />
+                              ) : (
+                                <Copy className="h-3.5 w-3.5" />
+                              )}
                             </Button>
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              className="h-6 w-6 text-destructive hover:text-destructive hover:bg-destructive/10 rounded-full"
-                              onClick={() => deleteMessageMutation.mutate(msg.id)}
-                              disabled={deleteMessageMutation.isPending}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
+                            
+                            {isMe && (
+                              <>
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  className="h-6 w-6 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-full"
+                                  onClick={() => {
+                                    setEditingMessageId(msg.id);
+                                    setEditMessageText(msg.content);
+                                  }}
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  className="h-6 w-6 text-destructive hover:text-destructive hover:bg-destructive/10 rounded-full"
+                                  onClick={() => deleteMessageMutation.mutate(msg.id)}
+                                  disabled={deleteMessageMutation.isPending}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </>
+                            )}
                           </div>
                         )}
                         
@@ -344,9 +441,9 @@ export default function MessagesDashboard() {
                     </AvatarFallback>
                   </Avatar>
                   <div className="bg-background border border-border/50 text-foreground px-4 py-3 rounded-2xl rounded-tl-sm shadow-sm flex gap-1 items-center">
-                    <span className="w-1.5 h-1.5 bg-muted-foreground rounded-full animate-bounce [animation-delay:-0.3s]"></span>
-                    <span className="w-1.5 h-1.5 bg-muted-foreground rounded-full animate-bounce [animation-delay:-0.15s]"></span>
-                    <span className="w-1.5 h-1.5 bg-muted-foreground rounded-full animate-bounce"></span>
+                    <span className="w-1.5 h-1.5 bg-slate-500 dark:bg-slate-400 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+                    <span className="w-1.5 h-1.5 bg-slate-500 dark:bg-slate-400 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+                    <span className="w-1.5 h-1.5 bg-slate-500 dark:bg-slate-400 rounded-full animate-bounce"></span>
                   </div>
                 </div>
               )}
