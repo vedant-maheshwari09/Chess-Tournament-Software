@@ -29,7 +29,7 @@ import { LogOut, Trash2, ArrowLeft, SlidersHorizontal, User2, Mail, Smartphone, 
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { subscribeToPushNotifications } from "@/lib/push";
+import { subscribeToPushNotifications, unsubscribeFromPushNotifications } from "@/lib/push";
 import { UscfVerificationCard } from "@/components/uscf-verification-card";
 import { FideVerificationCard } from "@/components/fide-verification-card";
 
@@ -252,30 +252,41 @@ export default function SettingsPage() {
     }
   }, []);
 
-  const handleEnablePush = async () => {
+  const handleTogglePush = async (checked: boolean) => {
     if (isPushEnabling) return;
     setIsPushEnabling(true);
 
     try {
-      const success = await subscribeToPushNotifications();
-      if (success) {
-        setIsPushEnabled(true);
-        toast({ 
-          title: "Push notifications enabled",
-          description: "You will now receive real-time alerts on this device."
-        });
+      if (checked) {
+        const success = await subscribeToPushNotifications();
+        if (success) {
+          setIsPushEnabled(true);
+          toast({ 
+            title: "Push notifications enabled",
+            description: "You will now receive real-time alerts on this device."
+          });
+        } else {
+          toast({
+            title: "Setup incomplete",
+            description: "Push notifications were blocked or failed to initialize. Please check your browser permissions.",
+            variant: "destructive",
+          });
+        }
       } else {
-        toast({
-          title: "Setup incomplete",
-          description: "Push notifications were blocked or failed to initialize.",
-          variant: "destructive",
-        });
+        const success = await unsubscribeFromPushNotifications();
+        if (success) {
+          setIsPushEnabled(false);
+          toast({ 
+            title: "Push notifications disabled",
+            description: "You will no longer receive alerts on this device."
+          });
+        }
       }
     } catch (err: any) {
-      console.error("Error setting up push:", err);
+      console.error("Error toggling push notifications:", err);
       toast({
-        title: "Push Setup Failed",
-        description: err.message || "An unexpected error occurred while setting up push notifications.",
+        title: "Push toggle failed",
+        description: err.message || "An unexpected error occurred.",
         variant: "destructive",
       });
     } finally {
@@ -518,15 +529,14 @@ export default function SettingsPage() {
                       <p className="text-xs text-muted-foreground">Real-time alerts on this device.</p>
                     </div>
                   </div>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="h-8 text-xs"
-                    onClick={handleEnablePush}
-                    disabled={isPushEnabling || isPushEnabled}
-                  >
-                    {isPushEnabling ? "Connecting..." : isPushEnabled ? "Enabled" : "Enable"}
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    {isPushEnabling && <Loader2 className="h-4 w-4 animate-spin text-indigo-500" />}
+                    <Switch 
+                      checked={isPushEnabled} 
+                      onCheckedChange={handleTogglePush}
+                      disabled={isPushEnabling}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
