@@ -42,6 +42,7 @@ export interface RegistersConfig {
   registrationDeadlineDate?: string | null;
   registrationDeadlineTime?: string | null;
   allowExtraGames?: boolean;
+  chatEnabled?: boolean;
 }
 
 export interface FideRegistrationData {
@@ -548,6 +549,7 @@ export function createDefaultConfig(format: Tournament["format"], mode: Tourname
       thirdPlaceMatch: false,
       pushNotifications: true,
       allowExtraGames: false,
+      chatEnabled: false,
     },
     fide: {
       prizeFund: "",

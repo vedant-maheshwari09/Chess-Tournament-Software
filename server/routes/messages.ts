@@ -146,6 +146,29 @@ export const applyMessagesRoutes = (app: express.Express) => {
     return ids;
   };
 
+  const updateLastReadAt = async (threadId: number, userId: number) => {
+    const [existingPart] = await db
+      .select()
+      .from(chatParticipants)
+      .where(and(eq(chatParticipants.threadId, threadId), eq(chatParticipants.userId, userId)))
+      .limit(1);
+
+    if (existingPart) {
+      await db
+        .update(chatParticipants)
+        .set({ lastReadAt: new Date() })
+        .where(eq(chatParticipants.id, existingPart.id));
+    } else {
+      await db
+        .insert(chatParticipants)
+        .values({
+          threadId,
+          userId,
+          lastReadAt: new Date(),
+        });
+    }
+  };
+
   // Get user's threads (DMs + Tournament Server Channels)
   router.get("/threads", async (req, res) => {
     try {
@@ -153,7 +176,12 @@ export const applyMessagesRoutes = (app: express.Express) => {
 
       // 1. Get tournaments related to the user (as creator or player)
       const tdTournaments = await db
-        .select({ id: tournaments.id, name: tournaments.name })
+        .select({
+          id: tournaments.id,
+          name: tournaments.name,
+          roundTimings: tournaments.roundTimings,
+          createdBy: tournaments.createdBy
+        })
         .from(tournaments)
         .where(eq(tournaments.createdBy, userId));
 
@@ -165,15 +193,26 @@ export const applyMessagesRoutes = (app: express.Express) => {
       const registeredIds = playerRegs.map((r) => r.tournamentId);
       const playerTournaments = registeredIds.length > 0
         ? await db
-            .select({ id: tournaments.id, name: tournaments.name })
+            .select({
+              id: tournaments.id,
+              name: tournaments.name,
+              roundTimings: tournaments.roundTimings,
+              createdBy: tournaments.createdBy
+            })
             .from(tournaments)
             .where(inArray(tournaments.id, registeredIds))
         : [];
 
       const allTournaments = [...tdTournaments, ...playerTournaments];
 
+      // Filter tournaments where chat is enabled
+      const chatEnabledTournaments = allTournaments.filter((tourney) => {
+        const config = tourney.roundTimings as any;
+        return config?.registers?.chatEnabled === true;
+      });
+
       // Ensure threads exist for these tournaments
-      for (const tourney of allTournaments) {
+      for (const tourney of chatEnabledTournaments) {
         await ensureTournamentChannels(tourney.id);
       }
 
@@ -186,7 +225,7 @@ export const applyMessagesRoutes = (app: express.Express) => {
       const directThreadIds = participants.map((p) => p.threadId);
 
       // 3. Fetch tournament threads
-      const tourneyIds = allTournaments.map((t) => t.id);
+      const tourneyIds = chatEnabledTournaments.map((t) => t.id);
       const tourneyThreadIds: number[] = [];
       if (tourneyIds.length > 0) {
         const tThreads = await db
@@ -341,11 +380,8 @@ export const applyMessagesRoutes = (app: express.Express) => {
         });
       }
 
-      // Update lastReadAt for direct chat participants
-      await db
-        .update(chatParticipants)
-        .set({ lastReadAt: new Date() })
-        .where(and(eq(chatParticipants.threadId, threadId), eq(chatParticipants.userId, userId)));
+      // Update lastReadAt for this participant
+      await updateLastReadAt(threadId, userId);
 
       res.json(messagesWithReactions);
     } catch (err) {
@@ -458,6 +494,9 @@ export const applyMessagesRoutes = (app: express.Express) => {
         attachmentUrl: attachmentUrl || null,
         attachmentType: attachmentType || null,
       }).returning();
+
+      // Update sender's lastReadAt
+      await updateLastReadAt(threadId, userId);
 
       // Fetch sender info for display name
       const [sender] = await db

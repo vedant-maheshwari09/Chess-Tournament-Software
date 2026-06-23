@@ -11,6 +11,7 @@ interface GeneralSettingsCardProps {
     enablePairingPredictor: boolean;
     isDoubleElimination: boolean;
     allowExtraGames?: boolean;
+    chatEnabled?: boolean;
   };
   format?: string;
   onChange: (update: Partial<GeneralSettingsCardProps['value']>) => void;
@@ -93,6 +94,19 @@ export function GeneralSettingsCard({ value, onChange, format }: GeneralSettings
             />
           </div>
         )}
+        <div className="flex items-center justify-between">
+          <div className="space-y-0.5">
+            <Label htmlFor="chatEnabled">Enable Chatroom Channels</Label>
+            <p className="text-sm text-muted-foreground">
+              Create #announcements and #general chat rooms for this tournament
+            </p>
+          </div>
+          <Switch
+            id="chatEnabled"
+            checked={value.chatEnabled ?? false}
+            onCheckedChange={(checked) => onChange({ chatEnabled: checked })}
+          />
+        </div>
       </CardContent>
     </Card>
   );

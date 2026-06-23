@@ -85,6 +85,7 @@ export default function MessagesDashboard() {
   const [attachment, setAttachment] = useState<{ url: string; type: "image" | "file"; name: string } | null>(null);
   const [uploadingFile, setUploadingFile] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const quickEmojis = ["👍", "❤️", "🔥", "😂", "😮", "😢"];
 
@@ -175,6 +176,9 @@ export default function MessagesDashboard() {
     onSuccess: () => {
       setMessageText("");
       setAttachment(null);
+      if (textareaRef.current) {
+        textareaRef.current.style.height = "44px";
+      }
       queryClient.invalidateQueries({ queryKey: ["/api/messages/threads", activeThreadId, "messages", searchQuery] });
       // Clear typing indicator
       apiRequest("/api/messages/typing", {
@@ -1004,10 +1008,13 @@ export default function MessagesDashboard() {
                   </Button>
 
                   <textarea
+                    ref={textareaRef}
                     placeholder="Type a message..."
                     value={messageText}
                     onChange={(e) => {
                       setMessageText(e.target.value);
+                      e.target.style.height = "auto";
+                      e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
                       if (activeThreadId) {
                         apiRequest("/api/messages/typing", {
                           method: "POST",
@@ -1028,7 +1035,7 @@ export default function MessagesDashboard() {
                     }}
                     disabled={sendMessageMutation.isPending}
                     rows={1}
-                    className="flex-grow rounded-2xl bg-muted/50 border-transparent focus:outline-none focus-visible:ring-1 focus:bg-background pr-12 pl-4 py-3 text-sm shadow-sm resize-none h-[44px] leading-relaxed max-h-[120px]"
+                    className="flex-grow rounded-2xl bg-muted/50 border-transparent focus:outline-none focus-visible:ring-1 focus:bg-background pr-12 pl-4 py-3 text-sm shadow-sm resize-none h-[44px] leading-relaxed max-h-[120px] overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
                   />
                   <Button 
                     type="submit" 
