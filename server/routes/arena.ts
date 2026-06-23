@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { storage } from "../storage";
 import { requireAuth, requireRole, requireTournamentAccess } from "../auth";
+import { notificationService } from "../notifications";
 import { z } from "zod";
 import { pairPool, startAutoPairingLoop, stopAutoPairingLoop } from "../lib/arenaPairing";
 
@@ -270,6 +271,11 @@ export function applyArenaRoutes(app: Router) {
           type: "pairing",
           meta: { matchId: match.id, tournamentId }
         });
+        await notificationService.sendWebPushNotificationToUser(
+          whitePlayer.userId,
+          "Match Started!",
+          `You have been paired against ${blackPlayer?.firstName} ${blackPlayer?.lastName}. You are playing White.`
+        ).catch(err => console.error("Arena push error:", err));
       }
 
       if (blackPlayer?.userId) {
@@ -280,6 +286,11 @@ export function applyArenaRoutes(app: Router) {
           type: "pairing",
           meta: { matchId: match.id, tournamentId }
         });
+        await notificationService.sendWebPushNotificationToUser(
+          blackPlayer.userId,
+          "Match Started!",
+          `You have been paired against ${whitePlayer?.firstName} ${whitePlayer?.lastName}. You are playing Black.`
+        ).catch(err => console.error("Arena push error:", err));
       }
 
       res.status(201).json(match);

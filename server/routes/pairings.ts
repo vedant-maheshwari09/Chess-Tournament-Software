@@ -26,6 +26,18 @@ import { lookupFideProfiles, searchFideDirectory } from '../lib/fideDirectory';
 import { Player, Pairing, Match, PlayerRegistration } from "@shared/schema";
 
 
+function slugify(text: string): string {
+  return text
+    .toString()
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, '-')           // Replace spaces with -
+    .replace(/[^\w\-]+/g, '')       // Remove all non-word chars
+    .replace(/\-\-+/g, '-')         // Replace multiple - with single -
+    .replace(/^-+/, '')             // Trim - from start of text
+    .replace(/-+$/, '');            // Trim - from end of text
+}
+
 export function applyPairingsRoutes(app: Express) {
 // Match routes
 app.get("/api/tournaments/:tournamentId/matches", async (req, res) => {
@@ -55,24 +67,56 @@ app.post("/api/tournaments/:tournamentId/matches", requireAuth, requireRole('tou
       try {
         const whitePlayer = await storage.getPlayer(newMatch.whitePlayerId!);
         const blackPlayer = newMatch.blackPlayerId ? await storage.getPlayer(newMatch.blackPlayerId) : null;
-        
-        if (whitePlayer?.userId) {
+        const tournament = await storage.getTournament(tournamentId);
+        const tourneyName = tournament?.name || "Tournament";
+        const tourneySlug = tournament ? slugify(tournament.name) : "";
+
+        const sendManualMatchNotification = async (playerObj: any, opponentName: string, color: string) => {
+          if (!playerObj || !playerObj.userId) return;
+
+          const title = "New Match Created";
+          const message = `Round ${newMatch.round}: A match has been manually created for you against ${opponentName} on Board ${newMatch.board}.`;
+
+          // In-app notification
           await storage.createNotification({
-            userId: whitePlayer.userId,
-            title: "New Match Created",
-            message: `Round ${newMatch.round}: A match has been manually created for you on Board ${newMatch.board}.`,
+            userId: playerObj.userId,
+            title,
+            message,
             type: "pairing",
             meta: { matchId: newMatch.id, tournamentId }
           });
+
+          // Fetch user preferences
+          const userObj = await storage.getUserById(playerObj.userId);
+          if (!userObj) return;
+
+          if (userObj.notifyPairings ?? true) {
+            // Web Push notification
+            await notificationService.sendWebPushNotificationToUser(
+              playerObj.userId,
+              title,
+              message,
+              `/tournaments/${tourneySlug}`
+            ).catch(err => console.error("Web Push error:", err));
+
+            // Email notification
+            if ((userObj.notifyEmail ?? true) && userObj.email) {
+              await notificationService.sendEmail({
+                to: userObj.email,
+                subject: `New Match Assigned: ${tourneyName}`,
+                text: `Hi ${playerObj.firstName},\n\n${message}\n\nBest regards,\nChess Tournament Manager`
+              }).catch(err => console.error("Email error:", err));
+            }
+          }
+        };
+
+        if (newMatch.whitePlayerId && whitePlayer) {
+          const blackName = blackPlayer ? `${blackPlayer.firstName} ${blackPlayer.lastName}` : "Bye";
+          await sendManualMatchNotification(whitePlayer, blackName, "white");
         }
-        if (blackPlayer?.userId) {
-          await storage.createNotification({
-            userId: blackPlayer.userId,
-            title: "New Match Created",
-            message: `Round ${newMatch.round}: A match has been manually created for you on Board ${newMatch.board}.`,
-            type: "pairing",
-            meta: { matchId: newMatch.id, tournamentId }
-          });
+        if (newMatch.blackPlayerId && blackPlayer) {
+          const whiteName = whitePlayer ? `${whitePlayer.firstName} ${whitePlayer.lastName}` : "Unknown";
+          await sendManualMatchNotification(blackPlayer, whiteName, "black");
         }
       } catch (notifErr) {
         console.error("Error creating manual match notification:", notifErr);
@@ -484,7 +528,8 @@ app.get("/api/tournaments/:tournamentId/bye-requests", async (req, res) => {
         // Send notifications
         try {
           const resultText = updatedMatch.result === '1-0' ? 'White won' : updatedMatch.result === '0-1' ? 'Black won' : updatedMatch.result === '1/2-1/2' ? 'Draw' : updatedMatch.result;
-          
+          const tourneySlug = tournament ? slugify(tournament.name) : "";
+
           if (whitePlayerName?.userId) {
             await storage.createNotification({
               userId: whitePlayerName.userId,
@@ -493,6 +538,16 @@ app.get("/api/tournaments/:tournamentId/bye-requests", async (req, res) => {
               type: "result_update",
               meta: { matchId: currentMatch.id, tournamentId: currentMatch.tournamentId }
             });
+
+            const uObj = await storage.getUserById(whitePlayerName.userId);
+            if (uObj && (uObj.notifyPairings ?? true)) {
+              await notificationService.sendWebPushNotificationToUser(
+                whitePlayerName.userId,
+                "Match Result Updated",
+                `The result for your Round ${currentMatch.round} match has been recorded: ${resultText}.`,
+                `/tournaments/${tourneySlug}`
+              ).catch(err => console.error("Push error:", err));
+            }
           }
           if (blackPlayerName?.userId) {
             await storage.createNotification({
@@ -502,6 +557,16 @@ app.get("/api/tournaments/:tournamentId/bye-requests", async (req, res) => {
               type: "result_update",
               meta: { matchId: currentMatch.id, tournamentId: currentMatch.tournamentId }
             });
+
+            const uObj = await storage.getUserById(blackPlayerName.userId);
+            if (uObj && (uObj.notifyPairings ?? true)) {
+              await notificationService.sendWebPushNotificationToUser(
+                blackPlayerName.userId,
+                "Match Result Updated",
+                `The result for your Round ${currentMatch.round} match has been recorded: ${resultText}.`,
+                `/tournaments/${tourneySlug}`
+              ).catch(err => console.error("Push error:", err));
+            }
           }
         } catch (notifyErr) {
           console.error("Public result notify error:", notifyErr);

@@ -2,9 +2,22 @@ import type { Express, Request, Response } from "express";
 import { db } from '../../db';
 import { storage } from '../../storage';
 import { requireAuth, requireRole, requireTournamentAccess } from '../../auth';
+import { notificationService } from '../../notifications';
 import { matches, Match } from '@shared/schema';
 import { calculateMatchupScore, getMatchFormat, isMatchDecided, parseTournamentConfig } from "@shared/tournament-config";
 import { advanceKnockoutWinner, spawnNextMatchupGame } from "../common";
+
+function slugify(text: string): string {
+  return text
+    .toString()
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, '-')           // Replace spaces with -
+    .replace(/[^\w\-]+/g, '')       // Remove all non-word chars
+    .replace(/\-\-+/g, '-')         // Replace multiple - with single -
+    .replace(/^-+/, '')             // Trim - from start of text
+    .replace(/-+$/, '');            // Trim - from end of text
+}
 
 export function applyMatchesRoutes(app: Express) {
   app.post(
@@ -236,7 +249,9 @@ export function applyMatchesRoutes(app: Express) {
 
         try {
           const resultText = updatedMatch.result === '1-0' ? 'White won' : updatedMatch.result === '0-1' ? 'Black won' : updatedMatch.result === '1/2-1/2' ? 'Draw' : updatedMatch.result;
-          
+          const tournament = await storage.getTournament(currentMatch.tournamentId);
+          const tourneySlug = tournament ? slugify(tournament.name) : "";
+
           if (whitePlayerName?.userId) {
             await storage.createNotification({
               userId: whitePlayerName.userId,
@@ -245,6 +260,16 @@ export function applyMatchesRoutes(app: Express) {
               type: "result_update",
               meta: { matchId: currentMatch.id, tournamentId: currentMatch.tournamentId }
             });
+
+            const uObj = await storage.getUserById(whitePlayerName.userId);
+            if (uObj && (uObj.notifyPairings ?? true)) {
+              await notificationService.sendWebPushNotificationToUser(
+                whitePlayerName.userId,
+                "Match Result Updated",
+                `The result for your Round ${currentMatch.round} match has been recorded: ${resultText}.`,
+                `/tournaments/${tourneySlug}`
+              ).catch(err => console.error("Push error:", err));
+            }
           }
           if (blackPlayerName?.userId) {
             await storage.createNotification({
@@ -254,6 +279,16 @@ export function applyMatchesRoutes(app: Express) {
               type: "result_update",
               meta: { matchId: currentMatch.id, tournamentId: currentMatch.tournamentId }
             });
+
+            const uObj = await storage.getUserById(blackPlayerName.userId);
+            if (uObj && (uObj.notifyPairings ?? true)) {
+              await notificationService.sendWebPushNotificationToUser(
+                blackPlayerName.userId,
+                "Match Result Updated",
+                `The result for your Round ${currentMatch.round} match has been recorded: ${resultText}.`,
+                `/tournaments/${tourneySlug}`
+              ).catch(err => console.error("Push error:", err));
+            }
           }
         } catch (notifyErr) {
           console.error(`[ERROR] Post-update notification failed:`, notifyErr);

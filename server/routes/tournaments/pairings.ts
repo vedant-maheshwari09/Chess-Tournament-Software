@@ -15,6 +15,72 @@ import {
   BoardNumberingSettings
 } from "../common";
 
+async function notifyRoundPairings(tournamentId: number, round: number) {
+  try {
+    const tournament = await storage.getTournament(tournamentId);
+    if (!tournament) return;
+
+    const players = await storage.getPlayersByTournament(tournamentId);
+    if (players.length === 0) return;
+
+    const playerMap = new Map(players.map(p => [p.id, p]));
+    const userIds = Array.from(new Set(players.map(p => p.userId).filter(Boolean))) as number[];
+    const usersList = await storage.listUsersByIds(userIds);
+    const userMap = new Map(usersList.map(u => [u.id, u]));
+
+    const matches = await storage.getMatchesByRound(tournamentId, round);
+    const pairings = await storage.getPairingsByRound(tournamentId, round);
+
+    const sendRealNotification = async (userId: number, title: string, message: string, preferenceKey: 'notifyPairings' | 'notifyTournamentStatus') => {
+      const userObj = userMap.get(userId) as any;
+      if (!userObj || !(userObj[preferenceKey] ?? true)) return;
+
+      // In-app notification
+      await storage.createNotification({
+        userId,
+        title,
+        message,
+        type: preferenceKey === 'notifyPairings' ? 'pairing' : 'tournament_status',
+        meta: { tournamentId }
+      }).catch(err => console.error("Failed to create in-app notification:", err));
+
+      // Email notification
+      if ((userObj.notifyEmail ?? true) && userObj.email) {
+        await notificationService.sendEmail({ to: userObj.email, subject: title, text: message }).catch((err: any) => console.error(`Failed to send email to ${userObj.email}:`, err));
+      }
+
+      // Web Push notification
+      await notificationService.sendWebPushNotificationToUser(userId, title, message).catch((err: any) => console.error(`Failed to send push to ${userObj.username}:`, err));
+    };
+
+    for (const pairing of pairings) {
+      const player = playerMap.get(pairing.playerId);
+      if (!player || !player.userId) continue;
+
+      const title = `Round ${round} Pairings`;
+
+      if (pairing.isBye) {
+        const message = `Round ${round}: You have a bye for this round.`;
+        await sendRealNotification(player.userId, title, message, 'notifyPairings');
+      } else {
+        const opponent = playerMap.get(pairing.opponentId!);
+        const opponentName = opponent ? `${opponent.firstName} ${opponent.lastName}` : "Unknown";
+        const color = pairing.color || "white";
+        
+        const match = matches.find(m => 
+          (m.whitePlayerId === player.id && m.blackPlayerId === opponent?.id) || 
+          (m.blackPlayerId === player.id && m.whitePlayerId === opponent?.id)
+        );
+        const boardText = match ? ` on Board ${match.board}` : "";
+        const message = `Round ${round}: You are playing ${color === 'white' ? 'White' : 'Black'} against ${opponentName}${boardText}.`;
+        await sendRealNotification(player.userId, title, message, 'notifyPairings');
+      }
+    }
+  } catch (error) {
+    console.error("Failed to run notifyRoundPairings:", error);
+  }
+}
+
 export function applyPairingsRoutes(app: Express) {
   // Generate Knockout Bracket
   app.post("/api/tournaments/:id/generate-knockout", requireAuth, requireRole('tournament_director'), requireTournamentAccess, async (req, res) => {
@@ -254,6 +320,9 @@ export function applyPairingsRoutes(app: Express) {
               currentRound: 1
           });
 
+          // Trigger round 1 pairings notifications
+          await notifyRoundPairings(tournamentId, 1);
+
           res.json({ 
               message: "Knockout bracket generated successfully",
               rounds: finalRoundsCount,
@@ -371,6 +440,9 @@ export function applyPairingsRoutes(app: Express) {
           await generatePairings(tournament, activePlayers, sectionMatches, sectionPairings, nextRound, boardNumbersForSection);
         }
       }
+
+      // Trigger notifications for the next round's pairings
+      await notifyRoundPairings(tournamentId, nextRound);
 
       res.json(updatedTournament);
     } catch (error) {
@@ -827,6 +899,9 @@ export function applyPairingsRoutes(app: Express) {
           canRevert: true
         });
       }
+
+      // Trigger notifications for the generated round's pairings
+      await notifyRoundPairings(tournamentId, currentRound);
 
       finalResults.message = `Pairings generated for round ${currentRound}.`;
       res.json(finalResults);

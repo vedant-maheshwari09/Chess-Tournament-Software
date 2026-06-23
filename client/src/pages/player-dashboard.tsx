@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import SettingsMenu from "@/components/settings-menu";
 
 import { useAuth } from "@/hooks/useAuth";
@@ -187,6 +188,18 @@ export default function PlayerDashboard() {
   const [filterOnlyFollowing, setFilterOnlyFollowing] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>("date");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
+
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (searchQuery) count++;
+    if (filterFormat !== "all") count++;
+    if (filterState !== "all") count++;
+    if (filterMinSubscribers !== "0") count++;
+    if (filterOnlyFavorites) count++;
+    if (filterOnlyFollowing) count++;
+    return count;
+  }, [searchQuery, filterFormat, filterState, filterMinSubscribers, filterOnlyFavorites, filterOnlyFollowing]);
 
   const { data: statsData = [], isLoading: statsLoading } = useQuery<TournamentRow[]>({
     queryKey: ["tournament-stats", tournaments.map((tournament) => tournament.id)],
@@ -548,148 +561,174 @@ export default function PlayerDashboard() {
         {/* My Registrations Status section removed - now in Notification Bell */}
 
         {tournaments.length > 0 ? (
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 mb-6 shadow-sm space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div className="flex items-center gap-2">
-                <SlidersHorizontal className="h-5 w-5 text-indigo-500" />
-                <h3 className="font-semibold text-slate-900 dark:text-white">Filter & Sort Tournaments</h3>
-              </div>
-              {(searchQuery || filterFormat !== "all" || filterState !== "all" || filterMinSubscribers !== "0" || filterOnlyFavorites || filterOnlyFollowing) && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setSearchQuery("");
-                    setFilterFormat("all");
-                    setFilterState("all");
-                    setFilterMinSubscribers("0");
-                    setFilterOnlyFavorites(false);
-                    setFilterOnlyFollowing(false);
-                  }}
-                  className="text-xs text-indigo-600 hover:text-indigo-700 h-8 px-2.5 rounded-lg"
-                >
-                  Reset Filters
-                </Button>
-              )}
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-              {/* Search Input */}
-              <div className="space-y-1.5">
-                <Label className="text-xs text-slate-500">Search</Label>
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-3 mb-6 shadow-sm space-y-3">
+            {/* Top Bar: Always Visible */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="relative w-full sm:w-72">
                 <Input
-                  placeholder="Name or location..."
+                  placeholder="Search name or location..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="h-9 text-sm rounded-lg"
+                  className="h-9 pr-8 text-sm rounded-lg"
                 />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery("")}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
+                  >
+                    ×
+                  </button>
+                )}
               </div>
 
-              {/* Format Filter */}
-              <div className="space-y-1.5">
-                <Label className="text-xs text-slate-500">Format</Label>
-                <Select value={filterFormat} onValueChange={setFilterFormat}>
-                  <SelectTrigger className="h-9 text-sm rounded-lg">
-                    <SelectValue placeholder="All Formats" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Formats</SelectItem>
-                    <SelectItem value="swiss">Swiss System</SelectItem>
-                    <SelectItem value="roundrobin">Round Robin</SelectItem>
-                    <SelectItem value="knockout">Knockout</SelectItem>
-                    <SelectItem value="arena">Arena Mode</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* State Filter */}
-              <div className="space-y-1.5">
-                <Label className="text-xs text-slate-500">State</Label>
-                <Select value={filterState} onValueChange={setFilterState}>
-                  <SelectTrigger className="h-9 text-sm rounded-lg">
-                    <SelectValue placeholder="All States" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All States</SelectItem>
-                    {uniqueStates.map((st) => (
-                      <SelectItem key={st} value={st}>{st}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Min Subscribers Filter */}
-              <div className="space-y-1.5">
-                <Label className="text-xs text-slate-500">Min Organizer Subscribers</Label>
-                <Select value={filterMinSubscribers} onValueChange={setFilterMinSubscribers}>
-                  <SelectTrigger className="h-9 text-sm rounded-lg">
-                    <SelectValue placeholder="Any amount" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="0">Any amount</SelectItem>
-                    <SelectItem value="1">1+ subscriber</SelectItem>
-                    <SelectItem value="5">5+ subscribers</SelectItem>
-                    <SelectItem value="10">10+ subscribers</SelectItem>
-                    <SelectItem value="25">25+ subscribers</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center justify-between gap-4 pt-2 border-t border-slate-100 dark:border-slate-800">
-              <div className="flex flex-wrap items-center gap-6">
-                <div className="flex items-center gap-2">
-                  <Switch
-                    id="favorites-filter"
-                    checked={filterOnlyFavorites}
-                    onCheckedChange={setFilterOnlyFavorites}
-                    className="scale-90"
-                  />
-                  <Label htmlFor="favorites-filter" className="text-xs font-medium cursor-pointer text-slate-700 dark:text-slate-300">
-                    Only Favorites
-                  </Label>
+              <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
+                {/* Sort selector (always visible) */}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-slate-500 hidden md:inline">Sort:</span>
+                  <Select value={sortKey} onValueChange={(val) => setSortKey(val as any)}>
+                    <SelectTrigger className="h-9 text-xs w-32 rounded-lg">
+                      <SelectValue placeholder="Sort by" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="date">Start Date</SelectItem>
+                      <SelectItem value="players">Players Count</SelectItem>
+                      <SelectItem value="subscribers">Subscribers</SelectItem>
+                      <SelectItem value="state">State</SelectItem>
+                      <SelectItem value="name">Name</SelectItem>
+                      <SelectItem value="format">Format</SelectItem>
+                      <SelectItem value="rounds">Rounds</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setSortDirection(prev => prev === "asc" ? "desc" : "asc")}
+                    className="h-9 w-9 rounded-lg border border-slate-200 dark:border-slate-800"
+                  >
+                    <span className="text-xs font-bold">{sortDirection === "asc" ? "↑" : "↓"}</span>
+                  </Button>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <Switch
-                    id="following-filter"
-                    checked={filterOnlyFollowing}
-                    onCheckedChange={setFilterOnlyFollowing}
-                    className="scale-90"
-                  />
-                  <Label htmlFor="following-filter" className="text-xs font-medium cursor-pointer text-slate-700 dark:text-slate-300">
-                    Only Followed Organizers
-                  </Label>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Label className="text-xs text-slate-500 shrink-0">Sort by:</Label>
-                <Select value={sortKey} onValueChange={(val) => setSortKey(val as any)}>
-                  <SelectTrigger className="h-8 text-xs w-36 rounded-lg">
-                    <SelectValue placeholder="Sort by" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="date">Start Date</SelectItem>
-                    <SelectItem value="players">Players Count</SelectItem>
-                    <SelectItem value="subscribers">Subscribers</SelectItem>
-                    <SelectItem value="state">State</SelectItem>
-                    <SelectItem value="name">Name</SelectItem>
-                    <SelectItem value="format">Format</SelectItem>
-                    <SelectItem value="rounds">Rounds</SelectItem>
-                  </SelectContent>
-                </Select>
-
+                {/* Advanced Filters Toggle */}
                 <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setSortDirection(prev => prev === "asc" ? "desc" : "asc")}
-                  className="h-8 w-8 rounded-lg"
+                  variant={isFiltersOpen ? "secondary" : "outline"}
+                  size="sm"
+                  onClick={() => setIsFiltersOpen(!isFiltersOpen)}
+                  className="h-9 gap-2 rounded-lg text-xs"
                 >
-                  <span className="text-xs">{sortDirection === "asc" ? "↑" : "↓"}</span>
+                  <SlidersHorizontal className="h-3.5 w-3.5" />
+                  <span>Filters</span>
+                  {activeFiltersCount > 0 && (
+                    <Badge className="ml-0.5 px-1.5 py-0.5 text-[10px] font-semibold bg-indigo-100 text-indigo-800 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-300">
+                      {activeFiltersCount}
+                    </Badge>
+                  )}
+                  <span className="text-[10px] text-slate-400">
+                    {isFiltersOpen ? "▲" : "▼"}
+                  </span>
                 </Button>
+
+                {activeFiltersCount > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setSearchQuery("");
+                      setFilterFormat("all");
+                      setFilterState("all");
+                      setFilterMinSubscribers("0");
+                      setFilterOnlyFavorites(false);
+                      setFilterOnlyFollowing(false);
+                    }}
+                    className="text-xs text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/20 h-9 px-2.5 rounded-lg"
+                  >
+                    Clear All
+                  </Button>
+                )}
               </div>
             </div>
+
+            {/* Collapsible Panel */}
+            {isFiltersOpen && (
+              <div className="pt-3 border-t border-slate-100 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-3 gap-4 animate-in fade-in slide-in-from-top-2 duration-200">
+                {/* Format Filter */}
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-medium text-slate-500">Format</Label>
+                  <Select value={filterFormat} onValueChange={setFilterFormat}>
+                    <SelectTrigger className="h-8.5 text-xs rounded-lg">
+                      <SelectValue placeholder="All Formats" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Formats</SelectItem>
+                      <SelectItem value="swiss">Swiss System</SelectItem>
+                      <SelectItem value="roundrobin">Round Robin</SelectItem>
+                      <SelectItem value="knockout">Knockout</SelectItem>
+                      <SelectItem value="arena">Arena Mode</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* State Filter */}
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-medium text-slate-500">State</Label>
+                  <Select value={filterState} onValueChange={setFilterState}>
+                    <SelectTrigger className="h-8.5 text-xs rounded-lg">
+                      <SelectValue placeholder="All States" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All States</SelectItem>
+                      {uniqueStates.map((st) => (
+                        <SelectItem key={st} value={st}>{st}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Min Subscribers Filter */}
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-medium text-slate-500">Min Organizer Followers</Label>
+                  <Select value={filterMinSubscribers} onValueChange={setFilterMinSubscribers}>
+                    <SelectTrigger className="h-8.5 text-xs rounded-lg">
+                      <SelectValue placeholder="Any amount" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="0">Any amount</SelectItem>
+                      <SelectItem value="1">1+ follower</SelectItem>
+                      <SelectItem value="5">5+ followers</SelectItem>
+                      <SelectItem value="10">10+ followers</SelectItem>
+                      <SelectItem value="25">25+ followers</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Switches Row */}
+                <div className="sm:col-span-3 flex flex-wrap items-center gap-6 pt-1">
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      id="favorites-filter"
+                      checked={filterOnlyFavorites}
+                      onCheckedChange={setFilterOnlyFavorites}
+                      className="scale-90"
+                    />
+                    <Label htmlFor="favorites-filter" className="text-xs font-medium cursor-pointer text-slate-700 dark:text-slate-300">
+                      Only Favorites
+                    </Label>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      id="following-filter"
+                      checked={filterOnlyFollowing}
+                      onCheckedChange={setFilterOnlyFollowing}
+                      className="scale-90"
+                    />
+                    <Label htmlFor="following-filter" className="text-xs font-medium cursor-pointer text-slate-700 dark:text-slate-300">
+                      Only Followed Organizers
+                    </Label>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         ) : null}
 
