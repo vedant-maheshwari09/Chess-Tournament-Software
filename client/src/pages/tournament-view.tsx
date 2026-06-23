@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation, useRoute } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Trophy, Users, Settings as SettingsIcon, Clock as ClockIcon, Info, Share2, Facebook, Twitter, Mail, Award, Link, Swords, Pencil, Plus } from "lucide-react";
+import { ArrowLeft, Trophy, Users, Settings as SettingsIcon, Clock as ClockIcon, Info, Share2, Facebook, Twitter, Mail, Award, Link, Swords, Pencil, Plus, Loader2 } from "lucide-react";
 import SwissStandings from "@/components/swiss-standings";
 import SwissPairings from "@/components/swiss-pairings";
 import RoundRobinCrosstable from "@/components/round-robin-crosstable";
@@ -18,12 +18,13 @@ import {
 } from "@/lib/tournament-config";
 import { renderTournamentPageContent } from "@/lib/tournament-page";
 import TournamentCountdown from "@/components/tournament-countdown";
-import type { Tournament, Player, PlayerRegistration } from "@shared/schema";
+import type { Tournament, Player, PlayerRegistration, User } from "@shared/schema";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { RegistrationStatusCard } from "@/components/registration-status-card";
 import KnockoutBracket from "@/components/knockout-bracket";
 import { cn, slugify } from "@/lib/utils";
+import { apiRequest } from "@/lib/queryClient";
 import { ArenaLobby, ArenaActiveMatches, ArenaStandings, ArenaTimer } from "@/components/arena-ui";
 import PlayerManager from "@/components/player-manager";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -64,6 +65,60 @@ export default function TournamentView({ tournamentId }: TournamentViewProps) {
   const { data: registrations } = useQuery<PlayerRegistration[]>({
     queryKey: ["/api/my-registrations"],
     enabled: !!user,
+  });
+
+  const { data: director } = useQuery<User>({
+    queryKey: [`/api/users/${tournament?.createdBy}`],
+    enabled: !!tournament?.createdBy,
+  });
+
+  const { data: followStatus, refetch: refetchFollowStatus } = useQuery<{ following: boolean }>({
+    queryKey: [`/api/follows/status/${tournament?.createdBy}`],
+    enabled: !!user && !!tournament?.createdBy,
+  });
+
+  const followMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest(`/api/follows/${tournament?.createdBy}`, {
+        method: "POST",
+      });
+    },
+    onSuccess: () => {
+      refetchFollowStatus();
+      toast({
+        title: "Subscribed!",
+        description: `You are now subscribed to ${director?.organizationName || `${director?.firstName} ${director?.lastName}`}.`,
+      });
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Failed to subscribe",
+        description: err.message || "An unexpected error occurred.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const unfollowMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest(`/api/follows/${tournament?.createdBy}`, {
+        method: "DELETE",
+      });
+    },
+    onSuccess: () => {
+      refetchFollowStatus();
+      toast({
+        title: "Unsubscribed",
+        description: `You have unsubscribed from ${director?.organizationName || `${director?.firstName} ${director?.lastName}`}.`,
+      });
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Failed to unsubscribe",
+        description: err.message || "An unexpected error occurred.",
+        variant: "destructive",
+      });
+    },
   });
 
   const myRegistrations = useMemo(() =>
@@ -205,6 +260,37 @@ export default function TournamentView({ tournamentId }: TournamentViewProps) {
                   <span className="flex items-center gap-1.5"><ClockIcon className="h-4 w-4" /> {dateRange}</span>
                   <span className="flex items-center gap-1.5"><Trophy className="h-4 w-4" /> {allPlayers.length} Players</span>
                 </div>
+                {director && (
+                  <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 mt-3 text-sm text-slate-600 dark:text-slate-300">
+                    <span className="font-semibold text-slate-500">Organized by:</span>
+                    <span>{director.organizationName || `${director.firstName} ${director.lastName}`}</span>
+                    {user && user.id !== director.id && user.role === 'player' && (
+                      <Button
+                        size="sm"
+                        variant={followStatus?.following ? "secondary" : "outline"}
+                        className={cn(
+                          "ml-2 h-7 px-3 py-1 rounded-full text-xs font-semibold",
+                          followStatus?.following 
+                            ? "bg-slate-200 hover:bg-slate-300 text-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 border-none" 
+                            : "border-indigo-200 hover:border-indigo-300 text-indigo-600 hover:bg-indigo-50/50"
+                        )}
+                        onClick={() => {
+                          if (followStatus?.following) {
+                            unfollowMutation.mutate();
+                          } else {
+                            followMutation.mutate();
+                          }
+                        }}
+                        disabled={followMutation.isPending || unfollowMutation.isPending}
+                      >
+                        {followMutation.isPending || unfollowMutation.isPending ? (
+                          <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                        ) : null}
+                        {followStatus?.following ? "Subscribed" : "Subscribe"}
+                      </Button>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">

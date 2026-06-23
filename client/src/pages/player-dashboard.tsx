@@ -29,7 +29,7 @@ import { RegistrationStatusCard } from "@/components/registration-status-card";
 import NotificationBell from "@/components/notification-bell";
 import { slugify } from "@/lib/utils";
 
-type SortKey = "players" | "date" | "state";
+type SortKey = "players" | "date" | "state" | "name" | "format" | "rounds";
 
 type DetailTabKey = "pairings" | "standings" | "byes" | "predictor" | "info";
 
@@ -253,7 +253,37 @@ export default function PlayerDashboard() {
 
   const comparator = useMemo(() => {
     return (a: TournamentRow, b: TournamentRow) => {
-      if (isPlayer) {
+      let comparison = 0;
+
+      switch (sortKey) {
+        case "name":
+          comparison = (a.tournament.name || "").localeCompare(b.tournament.name || "");
+          break;
+        case "format":
+          comparison = (a.tournament.format || "").localeCompare(b.tournament.format || "");
+          break;
+        case "rounds": {
+          const aRounds = a.tournament.rounds ?? 0;
+          const bRounds = b.tournament.rounds ?? 0;
+          comparison = bRounds - aRounds;
+          break;
+        }
+        case "players":
+          comparison = b.playersCount - a.playersCount;
+          break;
+        case "state":
+          comparison = (a.state || "").localeCompare(b.state || "");
+          break;
+        case "date":
+        default: {
+          const aTime = a.startDate ? a.startDate.getTime() : Number.POSITIVE_INFINITY;
+          const bTime = b.startDate ? b.startDate.getTime() : Number.POSITIVE_INFINITY;
+          comparison = aTime - bTime;
+          break;
+        }
+      }
+
+      if (comparison === 0 && isPlayer) {
         const aStar = starredIds.has(a.tournament.id);
         const bStar = starredIds.has(b.tournament.id);
         if (aStar !== bStar) {
@@ -261,18 +291,7 @@ export default function PlayerDashboard() {
         }
       }
 
-      switch (sortKey) {
-        case "players":
-          return b.playersCount - a.playersCount;
-        case "state":
-          return (a.state || "").localeCompare(b.state || "");
-        case "date":
-        default: {
-          const aTime = a.startDate ? a.startDate.getTime() : Number.POSITIVE_INFINITY;
-          const bTime = b.startDate ? b.startDate.getTime() : Number.POSITIVE_INFINITY;
-          return aTime - bTime;
-        }
-      }
+      return comparison;
     };
   }, [sortKey, isPlayer, starredIds]);
 
@@ -493,6 +512,9 @@ export default function PlayerDashboard() {
                 <SelectItem value="date">Start Date</SelectItem>
                 <SelectItem value="players">Players</SelectItem>
                 <SelectItem value="state">State</SelectItem>
+                <SelectItem value="name">Tournament Name</SelectItem>
+                <SelectItem value="format">Format</SelectItem>
+                <SelectItem value="rounds">Rounds</SelectItem>
               </SelectContent>
             </Select>
           </div>

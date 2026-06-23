@@ -54,17 +54,65 @@ export default function SettingsPage() {
   const [organizationName, setOrganizationName] = useState(user?.organizationName ?? "");
   const [profilePicture, setProfilePicture] = useState(user?.profilePicture ?? "");
 
+  const updatePreferencesMutation = useMutation({
+    mutationFn: async (preferences: {
+      notifyEmail?: boolean;
+      notifyPairings?: boolean;
+      notifyRegistration?: boolean;
+      notifyTournamentStatus?: boolean;
+    }) => {
+      return apiRequest("/api/auth/preferences", {
+        method: "PATCH",
+        body: JSON.stringify(preferences),
+      });
+    },
+    onSuccess: (updatedUser: any) => {
+      queryClient.setQueryData(["/api/auth/me"], updatedUser);
+    },
+    onError: (error: any) => {
+      if (user) {
+        setNotifyEmail(user.notifyEmail ?? true);
+        setNotifyPairings(user.notifyPairings ?? true);
+        setNotifyRegistration(user.notifyRegistration ?? true);
+        setNotifyTournamentStatus(user.notifyTournamentStatus ?? true);
+      }
+      toast({
+        title: "Update failed",
+        description: error?.message ?? "Unable to save preferences.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleTogglePreference = (key: "email" | "pairings" | "registration" | "tournamentStatus", checked: boolean) => {
+    if (key === "email") {
+      setNotifyEmail(checked);
+      updatePreferencesMutation.mutate({ notifyEmail: checked });
+    } else if (key === "pairings") {
+      setNotifyPairings(checked);
+      updatePreferencesMutation.mutate({ notifyPairings: checked });
+    } else if (key === "registration") {
+      setNotifyRegistration(checked);
+      updatePreferencesMutation.mutate({ notifyRegistration: checked });
+    } else if (key === "tournamentStatus") {
+      setNotifyTournamentStatus(checked);
+      updatePreferencesMutation.mutate({ notifyTournamentStatus: checked });
+    }
+  };
+
   useEffect(() => {
-    setNotifyEmail(user?.notifyEmail ?? true);
-    setNotifyPairings(user?.notifyPairings ?? true);
-    setNotifyRegistration(user?.notifyRegistration ?? true);
-    setNotifyTournamentStatus(user?.notifyTournamentStatus ?? true);
+    if (!updatePreferencesMutation.isPending) {
+      setNotifyEmail(user?.notifyEmail ?? true);
+      setNotifyPairings(user?.notifyPairings ?? true);
+      setNotifyRegistration(user?.notifyRegistration ?? true);
+      setNotifyTournamentStatus(user?.notifyTournamentStatus ?? true);
+    }
 
     setFirstName(user?.firstName ?? "");
     setLastName(user?.lastName ?? "");
     setOrganizationName(user?.organizationName ?? "");
     setProfilePicture(user?.profilePicture ?? "");
-  }, [user]);
+  }, [user, updatePreferencesMutation.isPending]);
 
   const updateProfileMutation = useMutation({
     mutationFn: async (body: { firstName?: string; lastName?: string; organizationName?: string; profilePicture?: string }) => {
@@ -123,23 +171,6 @@ export default function SettingsPage() {
     });
   };
 
-  // Auto-save preferences when they change
-  useEffect(() => {
-    if (!user) return;
-    if (
-      notifyEmail !== user.notifyEmail ||
-      notifyPairings !== user.notifyPairings ||
-      notifyRegistration !== user.notifyRegistration ||
-      notifyTournamentStatus !== user.notifyTournamentStatus
-    ) {
-      const timer = setTimeout(() => {
-        updatePreferencesMutation.mutate();
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [notifyEmail, notifyPairings, notifyRegistration, notifyTournamentStatus, user]);
-
-
   const logoutMutation = useMutation({
     mutationFn: async () => {
       await logout();
@@ -170,32 +201,6 @@ export default function SettingsPage() {
       toast({
         title: "Delete account failed",
         description: error?.message ?? "Unable to remove account.",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const updatePreferencesMutation = useMutation({
-    mutationFn: async () => {
-      const body = {
-
-        notifyEmail,
-        notifyPairings,
-        notifyRegistration,
-        notifyTournamentStatus,
-      };
-      return apiRequest("/api/auth/preferences", {
-        method: "PATCH",
-        body: JSON.stringify(body),
-      });
-    },
-    onSuccess: (updatedUser: any) => {
-      queryClient.setQueryData(["/api/auth/me"], updatedUser);
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Update failed",
-        description: error?.message ?? "Unable to save preferences.",
         variant: "destructive",
       });
     },
@@ -391,10 +396,9 @@ export default function SettingsPage() {
                 <Input 
                   id="email-input"
                   value={user?.email ?? ""}
-                  disabled
                   readOnly
                   placeholder="Email Address"
-                  className="bg-slate-50 dark:bg-slate-900 border-slate-200 text-slate-500 cursor-not-allowed"
+                  className="bg-slate-50 dark:bg-slate-900 border-slate-200 text-slate-700 dark:text-slate-200 cursor-default font-normal"
                 />
               </div>
               {user?.role === 'tournament_director' && (
@@ -516,7 +520,7 @@ export default function SettingsPage() {
                       <p className="text-xs text-muted-foreground">Pairings, official receipts, and results.</p>
                     </div>
                   </div>
-                  <Switch checked={notifyEmail} onCheckedChange={setNotifyEmail} />
+                  <Switch checked={notifyEmail} onCheckedChange={(checked) => handleTogglePreference("email", checked)} />
                 </div>
                 
                 <div className="flex items-center justify-between rounded-lg border bg-card p-4 transition-colors hover:bg-accent/5">
@@ -552,11 +556,17 @@ export default function SettingsPage() {
                       <Users className="h-4 w-4 text-blue-500" />
                     </div>
                     <div>
-                      <Label className="text-sm font-medium">Registrations & Status</Label>
-                      <p className="text-xs text-muted-foreground">Get notified when you register or when a director approves your entry.</p>
+                      <Label className="text-sm font-medium">
+                        {user?.role === 'tournament_director' ? "New Player Registrations" : "Registrations & Status"}
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        {user?.role === 'tournament_director'
+                          ? "Get notified when new players register for your tournaments or submit entries."
+                          : "Get notified when you register or when a director approves your entry."}
+                      </p>
                     </div>
                   </div>
-                  <Switch checked={notifyRegistration} onCheckedChange={setNotifyRegistration} />
+                  <Switch checked={notifyRegistration} onCheckedChange={(checked) => handleTogglePreference("registration", checked)} />
                 </div>
 
                 <div className="flex items-center justify-between p-2">
@@ -565,11 +575,17 @@ export default function SettingsPage() {
                       <Trophy className="h-4 w-4 text-orange-500" />
                     </div>
                     <div>
-                      <Label className="text-sm font-medium">Match Pairings & Round Results</Label>
-                      <p className="text-xs text-muted-foreground">Get notified immediately when your next match is ready.</p>
+                      <Label className="text-sm font-medium">
+                        {user?.role === 'tournament_director' ? "Match & Round Submissions" : "Match Pairings & Round Results"}
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        {user?.role === 'tournament_director'
+                          ? "Get notified when players submit match results or when rounds are completed."
+                          : "Get notified immediately when your next match is ready."}
+                      </p>
                     </div>
                   </div>
-                  <Switch checked={notifyPairings} onCheckedChange={setNotifyPairings} />
+                  <Switch checked={notifyPairings} onCheckedChange={(checked) => handleTogglePreference("pairings", checked)} />
                 </div>
 
                 <div className="flex items-center justify-between p-2">
@@ -578,11 +594,17 @@ export default function SettingsPage() {
                       <Bell className="h-4 w-4 text-purple-500" />
                     </div>
                     <div>
-                      <Label className="text-sm font-medium">Tournament Announcements</Label>
-                      <p className="text-xs text-muted-foreground">General updates, start times, and important organizer messages.</p>
+                      <Label className="text-sm font-medium">
+                        {user?.role === 'tournament_director' ? "Tournament Status Updates" : "Tournament Announcements"}
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        {user?.role === 'tournament_director'
+                          ? "Receive notifications about your tournament status changes and system updates."
+                          : "General updates, start times, and important organizer messages."}
+                      </p>
                     </div>
                   </div>
-                  <Switch checked={notifyTournamentStatus} onCheckedChange={setNotifyTournamentStatus} />
+                  <Switch checked={notifyTournamentStatus} onCheckedChange={(checked) => handleTogglePreference("tournamentStatus", checked)} />
                 </div>
               </div>
             </div>
@@ -590,10 +612,8 @@ export default function SettingsPage() {
               {updatePreferencesMutation.isPending ? (
                 <div className="flex items-center gap-2 text-slate-400 font-medium">
                   <Loader2 className="h-4 w-4 animate-spin text-indigo-500" />
-                  <span>Autosaving preferences...</span>
+                  <span>Saving preferences...</span>
                 </div>
-              ) : (notifyEmail !== user?.notifyEmail || notifyPairings !== user?.notifyPairings || notifyRegistration !== user?.notifyRegistration || notifyTournamentStatus !== user?.notifyTournamentStatus) ? (
-                <div className="text-amber-600 font-medium">Unsaved changes...</div>
               ) : (
                 <div className="flex items-center gap-1.5 text-emerald-600 font-medium">
                   <Check className="h-4 w-4" />
