@@ -1,6 +1,6 @@
-import { insertTournamentSchema, insertPlayerSchema, follows, users, matches } from '@shared/schema';
+import { insertTournamentSchema, insertPlayerSchema, follows, users, matches, blocks } from '@shared/schema';
 import { db } from '../db';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { updateWebhookScheduler, testWebhookConnection, syncWebhook } from '../services/webhookSync';
 import type { Express, Request, Response } from "express";
 import { z } from "zod";
@@ -1809,6 +1809,18 @@ app.post("/api/tournaments/:id/register-batch", requireAuth, async (req, res) =>
       }
 
       const config = parseTournamentConfig(tournament);
+
+      // Check if user is blocked by the tournament director
+      const blockExists = await db.select()
+        .from(blocks)
+        .where(and(eq(blocks.blockerId, tournament.createdBy), eq(blocks.blockedId, user.id)))
+        .limit(1);
+
+      if (blockExists.length > 0) {
+        console.warn(`[BATCH_REG] Registration blocked: User ${user.id} is blocked by director ${tournament.createdBy}`);
+        return res.status(403).json({ error: "Your account has been blocked by the tournament director." });
+      }
+
       if (!config.registers.allowPlayerToJoin) {
         return res.status(403).json({ error: "Player registration is not allowed for this tournament" });
       }
@@ -2026,6 +2038,17 @@ app.post("/api/tournaments/:id/register", requireAuth, async (req, res) => {
 
       const config = parseTournamentConfig(tournament);
       console.log(`[REG_FLOW] Processing single registration for tournament ${tournamentId} (User: ${user.id})`);
+
+      // Check if user is blocked by the tournament director
+      const blockExists = await db.select()
+        .from(blocks)
+        .where(and(eq(blocks.blockerId, tournament.createdBy), eq(blocks.blockedId, user.id)))
+        .limit(1);
+
+      if (blockExists.length > 0) {
+        console.warn(`[REG_FLOW] Registration blocked: User ${user.id} is blocked by director ${tournament.createdBy}`);
+        return res.status(403).json({ error: "Your account has been blocked by the tournament director." });
+      }
 
       if (!config.registers.allowPlayerToJoin) {
         console.warn(`[REG_FLOW] Registration blocked: Joined disabled in config for tournament ${tournamentId}`);

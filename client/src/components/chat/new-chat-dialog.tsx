@@ -18,7 +18,7 @@ export function NewChatDialog({ onChatCreated }: { onChatCreated: (threadId: num
   const [activeTab, setActiveTab] = useState<"dm" | "group">("dm");
   const [search, setSearch] = useState("");
   const [groupName, setGroupName] = useState("");
-  const [selectedUsers, setSelectedUsers] = useState<Array<{ id: number; username: string }>>([]);
+  const [selectedUsers, setSelectedUsers] = useState<Array<{ id: number; username: string; displayName?: string }>>([]);
   const queryClient = useQueryClient();
 
   const { data: myTournaments } = useQuery<any[]>({
@@ -31,7 +31,8 @@ export function NewChatDialog({ onChatCreated }: { onChatCreated: (threadId: num
       const followers = await apiRequest("/api/follows/followers");
       const usersList = followers.map((f: any) => ({
         id: f.id,
-        username: f.username
+        username: f.username,
+        displayName: `${f.firstName || ""} ${f.lastName || ""}`.trim() || f.username
       }));
       setSelectedUsers((prev) => {
         const existingIds = new Set(prev.map(u => u.id));
@@ -52,10 +53,15 @@ export function NewChatDialog({ onChatCreated }: { onChatCreated: (threadId: num
   const fetchEntrants = async (tournamentId: number) => {
     try {
       const players = await apiRequest(`/api/tournaments/${tournamentId}/players`);
-      const usersList = players.filter((p: any) => p.userId).map((p: any) => ({
-        id: p.userId,
-        username: p.username || `${p.firstName} ${p.lastName}`
-      }));
+      const usersList = players.filter((p: any) => p.userId).map((p: any) => {
+        const username = p.username || `${p.firstName || ""} ${p.lastName || ""}`.trim();
+        const displayName = p.organizationName || `${p.firstName || ""} ${p.lastName || ""}`.trim() || p.username;
+        return {
+          id: p.userId,
+          username,
+          displayName,
+        };
+      });
       setSelectedUsers((prev) => {
         const existingIds = new Set(prev.map(u => u.id));
         const next = [...prev];
@@ -119,7 +125,7 @@ export function NewChatDialog({ onChatCreated }: { onChatCreated: (threadId: num
     },
   });
 
-  const toggleUserSelection = (user: { id: number; username: string }) => {
+  const toggleUserSelection = (user: { id: number; username: string; displayName?: string }) => {
     if (selectedUsers.some((u) => u.id === user.id)) {
       setSelectedUsers(selectedUsers.filter((u) => u.id !== user.id));
     } else {
@@ -194,18 +200,16 @@ export function NewChatDialog({ onChatCreated }: { onChatCreated: (threadId: num
                     >
                       <Avatar className="h-9 w-9 shadow-sm border border-border/30">
                         <AvatarFallback className="bg-primary/5 text-primary text-xs font-bold">
-                          {u.username.substring(0, 2).toUpperCase()}
+                          {(u.displayName || u.username).substring(0, 2).toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1 overflow-hidden">
                         <p className="text-sm font-semibold leading-none truncate group-hover:text-primary transition-colors">
-                          {u.username}
+                          {u.displayName || u.username}
                         </p>
-                        {(u.firstName || u.lastName) && (
-                          <p className="text-xs text-muted-foreground mt-1 truncate">
-                            {u.firstName} {u.lastName}
-                          </p>
-                        )}
+                        <p className="text-xs text-muted-foreground mt-1 truncate">
+                          @{u.username}
+                        </p>
                       </div>
                     </button>
                   ))}
@@ -265,7 +269,7 @@ export function NewChatDialog({ onChatCreated }: { onChatCreated: (threadId: num
               <div className="flex flex-wrap gap-1.5 p-2 rounded-xl bg-muted/40 border border-border/30 max-h-[85px] overflow-y-auto">
                 {selectedUsers.map((u) => (
                   <Badge key={u.id} variant="secondary" className="pl-2.5 pr-1 py-1 rounded-lg flex items-center gap-1.5 text-xs font-medium bg-background border border-border/50">
-                    {u.username}
+                    {u.displayName || u.username}
                     <button
                       onClick={() => toggleUserSelection(u)}
                       className="rounded-full hover:bg-muted p-0.5 transition-colors text-muted-foreground hover:text-foreground"
@@ -300,23 +304,21 @@ export function NewChatDialog({ onChatCreated }: { onChatCreated: (threadId: num
                       <button
                         key={u.id}
                         type="button"
-                        onClick={() => toggleUserSelection({ id: u.id, username: u.username })}
+                        onClick={() => toggleUserSelection({ id: u.id, username: u.username, displayName: u.displayName })}
                         className={`flex items-center gap-3 p-2 rounded-xl transition-all text-left w-full group ${isSelected ? "bg-primary/5 hover:bg-primary/10" : "hover:bg-accent"}`}
                       >
                         <Avatar className="h-8 w-8 shadow-sm">
                           <AvatarFallback className="bg-primary/5 text-primary text-xs font-bold">
-                            {u.username.substring(0, 2).toUpperCase()}
+                            {(u.displayName || u.username).substring(0, 2).toUpperCase()}
                           </AvatarFallback>
                         </Avatar>
                         <div className="flex-1 overflow-hidden">
                           <p className="text-sm font-semibold leading-none truncate group-hover:text-primary transition-colors">
-                            {u.username}
+                            {u.displayName || u.username}
                           </p>
-                          {(u.firstName || u.lastName) && (
-                            <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                              {u.firstName} {u.lastName}
-                            </p>
-                          )}
+                          <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                            @{u.username}
+                          </p>
                         </div>
                         <div className={`h-4 w-4 rounded border flex items-center justify-center mr-1 transition-all ${isSelected ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/30"}`}>
                           {isSelected && <Plus className="h-3 w-3 stroke-[3]" />}

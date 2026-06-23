@@ -142,15 +142,10 @@ export default function SettingsPage() {
     formData.append("avatar", file);
 
     try {
-      const res = await fetch("/api/auth/profile/upload-picture", {
+      const data = await apiRequest("/api/auth/profile/upload-picture", {
         method: "POST",
         body: formData,
       });
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.message || "Failed to upload image.");
-      }
-      const data = await res.json();
       setProfilePicture(data.profilePicture);
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
       toast({ title: "Profile picture updated" });

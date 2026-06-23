@@ -16,6 +16,7 @@ import TournamentView from "@/pages/tournament-view";
 import NotFound from "@/pages/not-found";
 import SettingsPage from "@/pages/settings";
 import DirectorProfilePage from "@/pages/director-profile";
+import SubscribersModerationPage from "@/pages/subscribers";
 import AddPlayerPage from "@/pages/add-player";
 import TournamentSettingsPage from "@/pages/tournament-settings";
 import TournamentActionsPage from "@/pages/tournament-actions";
@@ -197,6 +198,7 @@ function AuthenticatedApp() {
                   <Redirect to="/dashboard/drafts" />
                 </Route>
                 <Route path="/dashboard/:tab" component={TournamentDirectorDashboard} />
+                <Route path="/subscribers" component={SubscribersModerationPage} />
                 <Route path="/directors/:id">
                   {(params) => <DirectorProfilePage directorId={parseInt(params.id)} />}
                 </Route>
