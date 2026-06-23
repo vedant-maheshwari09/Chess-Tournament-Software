@@ -228,6 +228,12 @@ export default function TournamentDirectorDashboard() {
               </p>
             </div>
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center md:justify-end gap-3 w-full md:w-auto">
+              <Link href="/subscribers">
+                <Button variant="outline" className="flex items-center gap-2 whitespace-nowrap bg-white dark:bg-gray-800 shadow-md">
+                  <Users className="h-4 w-4 text-indigo-500" />
+                  Subscribers
+                </Button>
+              </Link>
               <div className="flex items-center justify-center gap-2 sm:gap-4 pb-1 sm:pb-0">
                 <Link href="/messages">
                   <Button variant="ghost" size="icon" className="rounded-full">
@@ -237,12 +243,6 @@ export default function TournamentDirectorDashboard() {
                 <NotificationBell />
                 <SettingsMenu />
               </div>
-              <Link href="/subscribers">
-                <Button variant="outline" className="flex items-center gap-2 whitespace-nowrap bg-white dark:bg-gray-800 shadow-md">
-                  <Users className="h-4 w-4 text-indigo-500" />
-                  Subscribers & Moderation
-                </Button>
-              </Link>
               <Link href="/tournaments/new">
                 <Button className="flex items-center gap-2 whitespace-nowrap">
                   <Plus className="h-4 w-4" />

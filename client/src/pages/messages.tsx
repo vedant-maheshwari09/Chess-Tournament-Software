@@ -918,7 +918,7 @@ export default function MessagesDashboard() {
                   const isEditing = editingMessageId === msg.id;
 
                   return (
-                    <div key={msg.id} className={`flex ${density === "compact" ? "gap-1.5" : "gap-3"} group/row ${isMe ? "ml-auto" : "mr-auto"} overflow-visible`}>
+                    <div key={msg.id} className={`flex w-full ${isMe ? "justify-end" : "justify-start"} ${density === "compact" ? "gap-1.5" : "gap-3"} group/row overflow-visible`}>
                       {!isMe && (
                         <div className="w-8 shrink-0 flex flex-col justify-end overflow-visible">
                           {showAvatar && (
