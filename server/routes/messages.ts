@@ -429,6 +429,37 @@ export const applyMessagesRoutes = (app: express.Express) => {
             return res.status(403).json({ message: "Players can only create individual chats with tournament directors." });
           }
         }
+
+        // --- Deduplication: find an existing non-group DM between these two users ---
+        if (otherId) {
+          // Find all non-group threads where current user is a participant
+          const myThreadRows = await db
+            .select({ threadId: chatParticipants.threadId })
+            .from(chatParticipants)
+            .innerJoin(chatThreads, eq(chatParticipants.threadId, chatThreads.id))
+            .where(and(eq(chatParticipants.userId, userId), eq(chatThreads.isGroup, false)));
+
+          const myThreadIds = myThreadRows.map(r => r.threadId);
+
+          if (myThreadIds.length > 0) {
+            // Find one of those threads where the other user is also a participant
+            const [existingParticipant] = await db
+              .select({ threadId: chatParticipants.threadId })
+              .from(chatParticipants)
+              .where(and(eq(chatParticipants.userId, otherId), inArray(chatParticipants.threadId, myThreadIds)))
+              .limit(1);
+
+            if (existingParticipant) {
+              // Return the existing thread
+              const [existingThread] = await db.select().from(chatThreads).where(eq(chatThreads.id, existingParticipant.threadId)).limit(1);
+              if (existingThread) {
+                const existingParticipants = await db.select({ userId: chatParticipants.userId }).from(chatParticipants).where(eq(chatParticipants.threadId, existingThread.id));
+                return res.json({ ...existingThread, participants: existingParticipants.map(p => ({ id: p.userId })) });
+              }
+            }
+          }
+        }
+        // --- End deduplication ---
       }
 
       const allParticipants = Array.from(new Set([...participantIds, userId]));

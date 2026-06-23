@@ -89,10 +89,14 @@ export default function SubscribersModerationPage() {
         body: JSON.stringify({ participantIds: [userId] }),
       });
     },
-    onSuccess: async (data) => {
-      const thread = await data.json();
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/messages/threads"] });
-      setLocation(`/messages`);
+      // Navigate to messages page — the thread ID is in data.id
+      if (data?.id) {
+        setLocation(`/messages?threadId=${data.id}`);
+      } else {
+        setLocation(`/messages`);
+      }
     },
     onError: (err: any) => {
       toast({

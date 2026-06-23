@@ -94,12 +94,11 @@ export function NewChatDialog({ onChatCreated }: { onChatCreated: (threadId: num
         body: JSON.stringify({ participantIds: [userId] }),
       });
     },
-    onSuccess: async (data) => {
-      const thread = await data.json();
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/messages/threads"] });
       setOpen(false);
       setSearch("");
-      onChatCreated(thread.id);
+      if (data?.id) onChatCreated(data.id);
     },
   });
 
@@ -114,14 +113,13 @@ export function NewChatDialog({ onChatCreated }: { onChatCreated: (threadId: num
         }),
       });
     },
-    onSuccess: async (data) => {
-      const thread = await data.json();
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/messages/threads"] });
       setOpen(false);
       setGroupName("");
       setSelectedUsers([]);
       setSearch("");
-      onChatCreated(thread.id);
+      if (data?.id) onChatCreated(data.id);
     },
   });
 

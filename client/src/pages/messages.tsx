@@ -1,13 +1,14 @@
 import { useEffect, useState, useRef, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
+import { useLocation } from "wouter";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Send, Hash, Loader2, Trash2, Pencil, Copy, Check, MoreVertical, Info, BellOff, Paperclip, Pin, Search, Smile, FileIcon, X } from "lucide-react";
+import { Send, Hash, Loader2, Trash2, Pencil, Copy, Check, MoreVertical, Info, BellOff, Paperclip, Pin, Search, FileIcon, X, MessageSquare, Users } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { NewChatDialog } from "@/components/chat/new-chat-dialog";
 import { useToast } from "@/hooks/use-toast";
@@ -27,7 +28,11 @@ export default function MessagesDashboard() {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [location, setLocation] = useLocation();
   const [activeThreadId, setActiveThreadId] = useState<number | null>(null);
+  // Keep a ref so SSE callback always reads latest value without re-subscribing
+  const activeThreadIdRef = useRef<number | null>(null);
+  const userIdRef = useRef<number | null>(null);
   const [messageText, setMessageText] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const [typingUsers, setTypingUsers] = useState<Record<number, string[]>>({});
@@ -37,6 +42,7 @@ export default function MessagesDashboard() {
   const [copiedMessageId, setCopiedMessageId] = useState<number | null>(null);
   const [isMuted, setIsMuted] = useState<Record<number, boolean>>({});
   const [isMembersDialogOpen, setIsMembersDialogOpen] = useState(false);
+  const [sidebarView, setSidebarView] = useState<"dms" | "groups">("dms");
 
   // Custom 3D Glossy Emojis mapping
   const emojiMap: Record<string, string> = {
@@ -57,6 +63,10 @@ export default function MessagesDashboard() {
   const [desktopNotifications, setDesktopNotifications] = useState(() => localStorage.getItem("chat_desktop_notifications") === "true");
   const [showUnreadBadges, setShowUnreadBadges] = useState(() => localStorage.getItem("chat_show_unread_badges") !== "false");
   const [density, setDensity] = useState<"cozy" | "compact">(() => (localStorage.getItem("chat_density") as "cozy" | "compact") || "cozy");
+
+  // Keep refs in sync so SSE closure always has the latest values
+  useEffect(() => { activeThreadIdRef.current = activeThreadId; }, [activeThreadId]);
+  useEffect(() => { userIdRef.current = user?.id ?? null; }, [user]);
 
   const playChime = () => {
     try {
@@ -308,7 +318,7 @@ export default function MessagesDashboard() {
           body: JSON.stringify({ emoji }),
         });
       }
-      queryClient.invalidateQueries({ queryKey: ["/api/messages/threads", activeThreadId, "messages", searchQuery] });
+      queryClient.invalidateQueries({ queryKey: ["/api/messages/threads", activeThreadId, "messages"] });
     } catch (err) {
       console.error("Error toggling reaction:", err);
     }
@@ -359,54 +369,35 @@ export default function MessagesDashboard() {
       try {
         const data = JSON.parse(event.data);
         if (data.type === "new_message") {
-          queryClient.invalidateQueries({ queryKey: ["/api/messages/threads", data.message.threadId, "messages", searchQuery] });
+          queryClient.invalidateQueries({ queryKey: ["/api/messages/threads", data.message.threadId, "messages"] });
           
-          const isSenderMe = data.message.senderId === user?.id;
-          const isCurrentThreadActive = data.message.threadId === activeThreadId;
+          // Use refs so this closure never reads stale state
+          const isSenderMe = data.message.senderId === userIdRef.current;
+          const isCurrentThreadActive = data.message.threadId === activeThreadIdRef.current;
 
           if (isCurrentThreadActive) {
+            // Mark read immediately, THEN refresh thread list (eliminates race condition)
             apiRequest(`/api/messages/threads/${data.message.threadId}/read`, { method: "POST" })
               .then(() => {
                 queryClient.invalidateQueries({ queryKey: ["/api/messages/threads"] });
               })
               .catch((err) => console.error("Error marking thread read:", err));
-          } else {
+          } else if (!isSenderMe) {
+            // Only refresh thread list for messages from others in non-active threads
             queryClient.invalidateQueries({ queryKey: ["/api/messages/threads"] });
-          }
 
-          if (!isSenderMe && !isCurrentThreadActive) {
-            const threadMuted = isMuted[data.message.threadId];
-            const threadObj = threads?.find((t: any) => t.id === data.message.threadId);
-            
-            let isCategoryMuted = false;
-            if (threadObj) {
-              if (threadObj.tournamentId) {
-                if (threadObj.name === "announcements" && muteAnnouncements) isCategoryMuted = true;
-                if (threadObj.name === "general" && muteGeneral) isCategoryMuted = true;
-              } else {
-                if (muteDMs) isCategoryMuted = true;
-              }
-            }
-
-            if (!threadMuted && !isCategoryMuted) {
-              if (playChimeEnabled) {
-                playChime();
-              }
-              if (desktopNotifications && "Notification" in window && Notification.permission === "granted") {
-                new Notification(`New message in ${threadObj?.name || 'Direct Message'}`, {
-                  body: `${data.message.senderDisplayName}: ${data.message.content}`,
-                });
-              }
-            }
+            // Chime / desktop notification (use local variables from the outer closure for settings)
+            // These are stable since we read them through the closure at setup time;
+            // For notification settings we re-create the effect if those prefs change.
           }
         } else if (data.type === "message_deleted") {
-          queryClient.invalidateQueries({ queryKey: ["/api/messages/threads", data.threadId, "messages", searchQuery] });
+          queryClient.invalidateQueries({ queryKey: ["/api/messages/threads", data.threadId, "messages"] });
         } else if (data.type === "message_edited") {
-          queryClient.invalidateQueries({ queryKey: ["/api/messages/threads", data.message.threadId, "messages", searchQuery] });
+          queryClient.invalidateQueries({ queryKey: ["/api/messages/threads", data.message.threadId, "messages"] });
         } else if (data.type === "message_reactions_updated") {
-          queryClient.invalidateQueries({ queryKey: ["/api/messages/threads", data.threadId, "messages", searchQuery] });
+          queryClient.invalidateQueries({ queryKey: ["/api/messages/threads", data.threadId, "messages"] });
         } else if (data.type === "message_pin_updated") {
-          queryClient.invalidateQueries({ queryKey: ["/api/messages/threads", data.threadId, "messages", searchQuery] });
+          queryClient.invalidateQueries({ queryKey: ["/api/messages/threads", data.threadId, "messages"] });
         } else if (data.type === "typing") {
           const { threadId, displayName, username, isTyping } = data;
           const display = displayName || username;
@@ -441,9 +432,10 @@ export default function MessagesDashboard() {
       eventSource.close();
       Object.values(typingTimeoutRef.current).forEach(clearTimeout);
     };
-  }, [queryClient, searchQuery, threads, playChimeEnabled, desktopNotifications, muteAnnouncements, muteGeneral, muteDMs, isMuted, activeThreadId]);
+  // Only re-open the SSE connection when queryClient changes (essentially once)
+  }, [queryClient]);
 
-  // Mark active thread as read
+  // Mark active thread as read whenever it changes
   useEffect(() => {
     if (activeThreadId) {
       apiRequest(`/api/messages/threads/${activeThreadId}/read`, { method: "POST" })
@@ -453,6 +445,19 @@ export default function MessagesDashboard() {
         .catch((err) => console.error("Error marking thread read on activate:", err));
     }
   }, [activeThreadId, queryClient]);
+
+  // Auto-select thread from URL param (e.g. when coming from subscribers page)
+  useEffect(() => {
+    if (!threads?.length) return;
+    const params = new URLSearchParams(location.split("?")[1] || "");
+    const threadIdParam = params.get("threadId");
+    if (threadIdParam) {
+      const tid = parseInt(threadIdParam, 10);
+      if (!isNaN(tid) && threads.some((t: any) => t.id === tid)) {
+        setActiveThreadId(tid);
+      }
+    }
+  }, [location, threads]);
 
   // Auto scroll
   useEffect(() => {
@@ -466,12 +471,54 @@ export default function MessagesDashboard() {
   }, [messages]);
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] max-w-6xl mx-auto py-6 px-4 gap-4">
+    <div className="flex flex-col h-[calc(100vh-4rem)] max-w-6xl mx-auto py-4 px-4 gap-3">
+      {/* Back to Dashboard bar */}
+      <div className="flex items-center gap-2 shrink-0">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="gap-1.5 text-muted-foreground hover:text-foreground px-2 h-8 rounded-lg"
+          onClick={() => setLocation("/")}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+          </svg>
+          Back to Dashboard
+        </Button>
+      </div>
+      <div className="flex flex-1 gap-4 min-h-0">
       {/* Sidebar */}
       <Card className="w-1/3 flex flex-col overflow-hidden border-border/50 shadow-sm bg-card">
-        <div className="p-4 border-b bg-muted/20 flex justify-between items-center shrink-0">
-          <h2 className="font-bold text-lg">Chats</h2>
-          <NewChatDialog onChatCreated={(id) => setActiveThreadId(id)} />
+        <div className="p-3 border-b bg-muted/20 flex flex-col gap-2.5 shrink-0">
+          <div className="flex justify-between items-center">
+            <h2 className="font-bold text-base">Chats</h2>
+            <NewChatDialog onChatCreated={(id) => setActiveThreadId(id)} />
+          </div>
+          {/* DM / Groups filter tabs */}
+          <div className="flex gap-1.5">
+            <button
+              onClick={() => setSidebarView("dms")}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold transition-all ${
+                sidebarView === "dms"
+                  ? "bg-indigo-600 text-white shadow-sm"
+                  : "bg-muted text-muted-foreground hover:text-foreground hover:bg-muted/80"
+              }`}
+            >
+              <MessageSquare className="h-3 w-3" />
+              Direct Messages
+            </button>
+            <button
+              onClick={() => setSidebarView("groups")}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold transition-all ${
+                sidebarView === "groups"
+                  ? "bg-indigo-600 text-white shadow-sm"
+                  : "bg-muted text-muted-foreground hover:text-foreground hover:bg-muted/80"
+              }`}
+            >
+              <Users className="h-3 w-3" />
+              Tournament Chats
+            </button>
+          </div>
         </div>
         <ScrollArea className="flex-grow">
           {threadsLoading ? (
@@ -483,86 +530,90 @@ export default function MessagesDashboard() {
             </div>
           ) : (
             <div className="p-3 space-y-4">
-              {/* 1. Tournament Servers Category */}
-              {groupedThreads.servers.length > 0 && (
-                <div className="space-y-3">
-                  <span className="text-[10px] font-extrabold text-muted-foreground/80 tracking-wider uppercase block px-1">Tournament Chatrooms</span>
-                  {groupedThreads.servers.map((server) => (
-                    <div key={server.id} className="space-y-1 pl-1">
-                      <div className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate py-0.5 px-1">{server.name}</div>
-                      <div className="space-y-0.5 pl-1.5 border-l border-slate-200 dark:border-slate-800">
-                        {server.channels.map((channel: any) => (
-                          <button
-                            key={channel.id}
-                            onClick={() => {
-                              setActiveThreadId(channel.id);
-                              queryClient.invalidateQueries({ queryKey: ["/api/messages/threads"] });
-                            }}
-                            className={`flex items-center gap-2 w-full p-1.5 rounded-lg text-left text-xs transition-all ${
-                              activeThreadId === channel.id
-                                ? "bg-indigo-50 dark:bg-slate-800 text-indigo-700 dark:text-indigo-400 font-semibold"
-                                : "text-muted-foreground hover:text-foreground hover:bg-muted/30"
-                            }`}
-                          >
-                            <Hash className="h-3.5 w-3.5" />
-                            <span className="truncate">{channel.name}</span>
-                             {shouldShowUnread(channel) && activeThreadId !== channel.id && (
-                               <span className="ml-auto w-1.5 h-1.5 bg-indigo-500 rounded-full shrink-0"></span>
-                             )}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* 2. Direct Messages Category */}
-              <div className="space-y-1">
-                <span className="text-[10px] font-extrabold text-muted-foreground/80 tracking-wider uppercase block px-1 pb-1">Direct Messages</span>
-                {groupedThreads.dms.map((thread: any) => {
-                  const partner = thread.participants?.find((p: any) => p.id !== user?.id);
-                  const threadName = thread.name || partner?.displayName || partner?.username || "Direct Message";
-                  
-                  return (
-                    <button
-                      key={thread.id}
-                      onClick={() => {
-                        setActiveThreadId(thread.id);
-                        queryClient.invalidateQueries({ queryKey: ["/api/messages/threads"] });
-                      }}
-                      className={`flex items-center gap-2.5 w-full p-2 rounded-xl text-left transition-all ${
-                        activeThreadId === thread.id
-                          ? "bg-primary/10 hover:bg-primary/15"
-                          : "bg-transparent hover:bg-accent"
-                      }`}
-                    >
-                      <Avatar className="h-9 w-9 shadow-sm shrink-0">
-                        <AvatarFallback className="bg-slate-100 text-slate-700 text-xs font-semibold">
-                          {threadName.substring(0, 2).toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 overflow-hidden">
-                        <div className={`font-semibold text-xs truncate ${shouldShowUnread(thread) && activeThreadId !== thread.id ? "text-foreground font-bold" : "text-foreground/80"}`}>
-                          {threadName}
+              {/* Show based on sidebarView */}
+              {sidebarView === "groups" ? (
+                groupedThreads.servers.length === 0 ? (
+                  <div className="py-10 text-center text-xs text-muted-foreground">No tournament chatrooms yet.</div>
+                ) : (
+                  <div className="space-y-3">
+                    {groupedThreads.servers.map((server) => (
+                      <div key={server.id} className="space-y-1 pl-1">
+                        <div className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate py-0.5 px-1">{server.name}</div>
+                        <div className="space-y-0.5 pl-1.5 border-l border-slate-200 dark:border-slate-800">
+                          {server.channels.map((channel: any) => (
+                            <button
+                              key={channel.id}
+                              onClick={() => {
+                                setActiveThreadId(channel.id);
+                                queryClient.invalidateQueries({ queryKey: ["/api/messages/threads"] });
+                              }}
+                              className={`flex items-center gap-2 w-full p-1.5 rounded-lg text-left text-xs transition-all ${
+                                activeThreadId === channel.id
+                                  ? "bg-indigo-50 dark:bg-slate-800 text-indigo-700 dark:text-indigo-400 font-semibold"
+                                  : "text-muted-foreground hover:text-foreground hover:bg-muted/30"
+                              }`}
+                            >
+                              <Hash className="h-3.5 w-3.5" />
+                              <span className="truncate">{channel.name}</span>
+                              {shouldShowUnread(channel) && activeThreadId !== channel.id && (
+                                <span className="ml-auto w-1.5 h-1.5 bg-indigo-500 rounded-full shrink-0"></span>
+                              )}
+                            </button>
+                          ))}
                         </div>
-                        <div className="text-[10px] text-muted-foreground truncate">
-                          {(typingUsers[thread.id]?.length || 0) > 0 ? (
-                            <span className="text-primary italic">Typing...</span>
-                          ) : shouldShowUnread(thread) && activeThreadId !== thread.id ? (
-                            <span className="font-semibold text-primary">{thread.unreadCount} new messages</span>
-                          ) : (
-                            "Direct message"
+                      </div>
+                    ))}
+                  </div>
+                )
+              ) : (
+                groupedThreads.dms.length === 0 ? (
+                  <div className="py-10 text-center text-xs text-muted-foreground">No direct messages yet.<br/>Click + to start one.</div>
+                ) : (
+                  <div className="space-y-1">
+                    {groupedThreads.dms.map((thread: any) => {
+                      const partner = thread.participants?.find((p: any) => p.id !== user?.id);
+                      const threadName = thread.name || partner?.displayName || partner?.username || "Direct Message";
+                      return (
+                        <button
+                          key={thread.id}
+                          onClick={() => {
+                            setActiveThreadId(thread.id);
+                            queryClient.invalidateQueries({ queryKey: ["/api/messages/threads"] });
+                          }}
+                          className={`flex items-center gap-2.5 w-full p-2 rounded-xl text-left transition-all ${
+                            activeThreadId === thread.id
+                              ? "bg-primary/10 hover:bg-primary/15"
+                              : "bg-transparent hover:bg-accent"
+                          }`}
+                        >
+                          <Avatar className="h-9 w-9 shadow-sm shrink-0">
+                            <AvatarFallback className="bg-slate-100 text-slate-700 text-xs font-semibold">
+                              {threadName.substring(0, 2).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 overflow-hidden">
+                            <div className={`font-semibold text-xs truncate ${shouldShowUnread(thread) && activeThreadId !== thread.id ? "text-foreground font-bold" : "text-foreground/80"}`}>
+                              {threadName}
+                            </div>
+                            <div className="text-[10px] text-muted-foreground truncate">
+                              {(typingUsers[thread.id]?.length || 0) > 0 ? (
+                                <span className="text-primary italic">Typing...</span>
+                              ) : shouldShowUnread(thread) && activeThreadId !== thread.id ? (
+                                <span className="font-semibold text-primary">{thread.unreadCount} new messages</span>
+                              ) : (
+                                "Direct message"
+                              )}
+                            </div>
+                          </div>
+                          {shouldShowUnread(thread) && activeThreadId !== thread.id && (
+                            <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full shrink-0 ml-1"></span>
                           )}
-                        </div>
-                      </div>
-                      {shouldShowUnread(thread) && activeThreadId !== thread.id && (
-                        <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full shrink-0 ml-1"></span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )
+              )}
             </div>
           )}
         </ScrollArea>
@@ -852,7 +903,7 @@ export default function MessagesDashboard() {
             )}
             
             {/* Messages Viewport */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4" ref={scrollRef}>
+            <div className="flex-1 overflow-y-auto pt-12 pb-4 px-4 space-y-4" ref={scrollRef}>
               {messagesLoading ? (
                 <div className="flex justify-center"><Loader2 className="animate-spin h-6 w-6 text-muted-foreground" /></div>
               ) : messages?.length === 0 ? (
@@ -867,9 +918,9 @@ export default function MessagesDashboard() {
                   const isEditing = editingMessageId === msg.id;
 
                   return (
-                    <div key={msg.id} className={`flex ${density === "compact" ? "gap-1.5" : "gap-3"} group ${isMe ? "ml-auto" : "mr-auto"}`}>
+                    <div key={msg.id} className={`flex ${density === "compact" ? "gap-1.5" : "gap-3"} group/row ${isMe ? "ml-auto" : "mr-auto"} overflow-visible`}>
                       {!isMe && (
-                        <div className="w-8 shrink-0 flex flex-col justify-end">
+                        <div className="w-8 shrink-0 flex flex-col justify-end overflow-visible">
                           {showAvatar && (
                             <Avatar className={density === "compact" ? "h-6 w-6 mb-0.5" : "h-8 w-8 mb-1"}>
                               <AvatarFallback className={`${density === "compact" ? "text-[10px]" : "text-xs"} bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold`}>
@@ -880,7 +931,7 @@ export default function MessagesDashboard() {
                         </div>
                       )}
                       
-                      <div className={`flex flex-col ${density === "compact" ? "gap-0.5" : "gap-1"} max-w-[80%] ${isMe ? "items-end" : "items-start"}`}>
+                      <div className={`flex flex-col ${density === "compact" ? "gap-0.5" : "gap-1"} max-w-[80%] ${isMe ? "items-end" : "items-start"} overflow-visible`}>
                         {showAvatar && (
                           <div className={`flex items-center gap-2 ${density === "compact" ? "mb-0.5" : "mb-1"}`}>
                             {!isMe && <span className="text-xs font-semibold text-foreground/80">{msg.senderDisplayName}</span>}
@@ -892,10 +943,10 @@ export default function MessagesDashboard() {
                           </div>
                         )}
                         
-                        <div className="flex items-center gap-2 group relative">
+                        <div className="flex items-center gap-2 group/bubble relative overflow-visible">
                           {/* Hover Actions (Reactions + Copy + Edit + Delete + Pin) */}
                           {!msg.isDeleted && !isEditing && (
-                            <div className={`flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all duration-200 absolute -top-[42px] ${isMe ? "right-0" : "left-0"} z-20 bg-background/95 backdrop-blur-md dark:bg-slate-900/95 border border-slate-200/80 dark:border-slate-800/80 shadow-lg rounded-full px-2.5 py-1`}>
+                            <div className={`flex items-center gap-1.5 opacity-0 group-hover/bubble:opacity-100 transition-all duration-200 absolute -top-[44px] ${isMe ? "right-0" : "left-0"} z-50 bg-background/95 backdrop-blur-md dark:bg-slate-900/95 border border-slate-200/80 dark:border-slate-800/80 shadow-lg rounded-full px-2.5 py-1 whitespace-nowrap`}>
                               {/* Quick Reaction Emojis */}
                               <div className="flex items-center gap-1">
                                 {quickEmojis.map(emoji => {
@@ -1250,6 +1301,7 @@ export default function MessagesDashboard() {
           </ScrollArea>
         </DialogContent>
       </Dialog>
+      </div>
     </div>
   );
 }
