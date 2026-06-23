@@ -693,26 +693,39 @@ app.post("/api/tournaments", requireAuth, requireRole('tournament_director'), as
         const followerList = await db.select({
           id: users.id,
           email: users.email,
-          notifyEmail: users.notifyEmail
+          notifyEmail: users.notifyEmail,
+          notifyTournamentStatus: users.notifyTournamentStatus,
         })
         .from(follows)
         .innerJoin(users, eq(follows.followerId, users.id))
         .where(eq(follows.followingId, user.id));
 
         const organizationOrName = user.organizationName || `${user.firstName} ${user.lastName}`;
+        const appBaseUrl = process.env.APP_URL || 'https://chesstournamentmanager.onrender.com';
         for (const follower of followerList) {
-          // Send in-app notification
-          await storage.createNotification({
-            userId: follower.id,
-            title: "New Tournament",
-            message: `${organizationOrName} has created a new tournament: "${newTournament.name}".`,
-            type: "info",
-            meta: { tournamentId: newTournament.id },
-            read: false,
-          }).catch((err: any) => console.error("In-app notification failed:", err));
+          const wantsTournamentStatus = follower.notifyTournamentStatus ?? true;
 
-          // Optionally send email
-          if (follower.notifyEmail && follower.email) {
+          // Send in-app notification (respects notifyTournamentStatus)
+          if (wantsTournamentStatus) {
+            await storage.createNotification({
+              userId: follower.id,
+              title: "New Tournament",
+              message: `${organizationOrName} has created a new tournament: "${newTournament.name}".`,
+              type: "info",
+              meta: { tournamentId: newTournament.id },
+              read: false,
+            }).catch((err: any) => console.error("In-app notification failed:", err));
+
+            // Send Web Push notification
+            await notificationService.sendWebPushNotificationToUser(
+              follower.id,
+              `New Tournament by ${organizationOrName}`,
+              `"${newTournament.name}" – ${newTournament.format} • ${newTournament.location || 'Location TBD'}`,
+            ).catch((err: any) => console.error("Web Push notification failed:", err));
+          }
+
+          // Send email (respects notifyEmail)
+          if ((follower.notifyEmail ?? true) && follower.email) {
             await notificationService.sendEmail({
               to: follower.email,
               subject: `New Chess Tournament: ${newTournament.name}`,
@@ -726,7 +739,7 @@ Details:
 - Location: ${newTournament.location || 'TBD'}
 
 You can view and register for the tournament here:
-http://localhost:5010/tournaments/${newTournament.id}
+${appBaseUrl}/tournaments/${newTournament.id}
 
 Best regards,
 Chess Tournament Manager`

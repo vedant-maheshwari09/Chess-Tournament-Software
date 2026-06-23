@@ -255,6 +255,10 @@ router.post("/uscf/connect", requireAuth, async (req, res) => {
 
     const trimmedId = uscfId.trim();
 
+    if (!/^\d{8}$/.test(trimmedId)) {
+      return res.status(400).json({ message: "Invalid USCF ID format. USCF ID must be exactly an 8-digit number." });
+    }
+
     // Rate limiting: max 5 connection attempts per minute
     if (isRateLimited(userId, uscfConnectLimits, 5, 60 * 1000)) {
       return res.status(429).json({ message: "Too many connection attempts. Please wait a minute and try again." });

@@ -53,27 +53,49 @@ app.post("/api/tournaments/:tournamentId/matches", requireAuth, requireRole('tou
 
       // Notify players
       try {
-        const whitePlayer = await storage.getPlayer(newMatch.whitePlayerId!);
-        const blackPlayer = newMatch.blackPlayerId ? await storage.getPlayer(newMatch.blackPlayerId) : null;
-        
-        if (whitePlayer?.userId) {
-          await storage.createNotification({
-            userId: whitePlayer.userId,
-            title: "New Match Created",
-            message: `Round ${newMatch.round}: A match has been manually created for you on Board ${newMatch.board}.`,
-            type: "pairing",
-            meta: { matchId: newMatch.id, tournamentId }
-          });
-        }
-        if (blackPlayer?.userId) {
-          await storage.createNotification({
-            userId: blackPlayer.userId,
-            title: "New Match Created",
-            message: `Round ${newMatch.round}: A match has been manually created for you on Board ${newMatch.board}.`,
-            type: "pairing",
-            meta: { matchId: newMatch.id, tournamentId }
-          });
-        }
+        const [whitePlayer, blackPlayer] = await Promise.all([
+          newMatch.whitePlayerId ? storage.getPlayer(newMatch.whitePlayerId) : null,
+          newMatch.blackPlayerId ? storage.getPlayer(newMatch.blackPlayerId) : null,
+        ]);
+        const whiteName = whitePlayer ? `${whitePlayer.firstName} ${whitePlayer.lastName}` : 'TBD';
+        const blackName = blackPlayer ? `${blackPlayer.firstName} ${blackPlayer.lastName}` : 'TBD';
+
+        const notifyPlayer = async (player: typeof whitePlayer, opponentName: string) => {
+          if (!player?.userId) return;
+          const userPrefs = await storage.getUserById(player.userId) as any;
+          const wantsPairings = userPrefs?.notifyPairings ?? true;
+          const wantsEmail   = userPrefs?.notifyEmail   ?? true;
+
+          // In-app notification
+          if (wantsPairings) {
+            await storage.createNotification({
+              userId: player.userId,
+              title: "New Match Created",
+              message: `Round ${newMatch.round}: You have been paired against ${opponentName} on Board ${newMatch.board}.`,
+              type: "pairing",
+              meta: { matchId: newMatch.id, tournamentId }
+            });
+
+            // Web Push
+            await notificationService.sendWebPushNotificationToUser(
+              player.userId,
+              "New Match Created",
+              `Round ${newMatch.round}: vs ${opponentName} — Board ${newMatch.board}`,
+            ).catch((err: any) => console.error("WebPush error:", err));
+          }
+
+          // Email
+          if (wantsEmail && userPrefs?.email) {
+            await notificationService.sendEmail({
+              to: userPrefs.email,
+              subject: `New Match — Round ${newMatch.round}`,
+              text: `Hi ${player.firstName},\n\nA match has been created for you in Round ${newMatch.round}:\n\nYou vs ${opponentName} on Board ${newMatch.board}.\n\nGood luck!\n\nChess Tournament Manager`,
+            }).catch((err: any) => console.error("Email error:", err));
+          }
+        };
+
+        await notifyPlayer(whitePlayer, blackName);
+        await notifyPlayer(blackPlayer, whiteName);
       } catch (notifErr) {
         console.error("Error creating manual match notification:", notifErr);
       }
@@ -83,6 +105,7 @@ app.post("/api/tournaments/:tournamentId/matches", requireAuth, requireRole('tou
       res.status(400).json({ message: "Invalid match data" });
     }
   });
+
 
   // Public mobile submission endpoints
   app.get("/api/matches/:id/details", async (req, res) => {
@@ -407,6 +430,10 @@ app.get("/api/tournaments/:tournamentId/bye-requests", async (req, res) => {
         return res.status(404).json({ message: "Match not found" });
       }
 
+      if (currentMatch.status === "completed" || currentMatch.result) {
+        return res.status(400).json({ message: "Match already completed. Please see Tournament Director to make changes." });
+      }
+
       const tournament = await storage.getTournament(currentMatch.tournamentId);
       if (!tournament) {
         return res.status(404).json({ message: "Tournament not found" });
@@ -478,25 +505,35 @@ app.get("/api/tournaments/:tournamentId/bye-requests", async (req, res) => {
         // Send notifications
         try {
           const resultText = updatedMatch.result === '1-0' ? 'White won' : updatedMatch.result === '0-1' ? 'Black won' : updatedMatch.result === '1/2-1/2' ? 'Draw' : updatedMatch.result;
-          
-          if (whitePlayerName?.userId) {
+
+          const notifyResultPlayer = async (player: typeof whitePlayerName, opponentName: string) => {
+            if (!player?.userId) return;
+            const userPrefs = await storage.getUserById(player.userId) as any;
+            const wantsPairings = userPrefs?.notifyPairings ?? true;
+
+            if (!wantsPairings) return;
+
+            // In-app
             await storage.createNotification({
-              userId: whitePlayerName.userId,
+              userId: player.userId,
               title: "Match Result Updated",
-              message: `The result for your Round ${currentMatch.round} match against ${blackPlayerName ? `${blackPlayerName.firstName} ${blackPlayerName.lastName}` : 'Bye'} has been recorded: ${resultText}.`,
+              message: `The result for your Round ${currentMatch.round} match against ${opponentName} has been recorded: ${resultText}.`,
               type: "result_update",
               meta: { matchId: currentMatch.id, tournamentId: currentMatch.tournamentId }
             });
-          }
-          if (blackPlayerName?.userId) {
-            await storage.createNotification({
-              userId: blackPlayerName.userId,
-              title: "Match Result Updated",
-              message: `The result for your Round ${currentMatch.round} match against ${whitePlayerName ? `${whitePlayerName.firstName} ${whitePlayerName.lastName}` : 'Bye'} has been recorded: ${resultText}.`,
-              type: "result_update",
-              meta: { matchId: currentMatch.id, tournamentId: currentMatch.tournamentId }
-            });
-          }
+
+            // Web Push
+            await notificationService.sendWebPushNotificationToUser(
+              player.userId,
+              "Match Result Updated",
+              `Round ${currentMatch.round} vs ${opponentName}: ${resultText}`,
+            ).catch((err: any) => console.error("Result WebPush error:", err));
+          };
+
+          const whiteName = whitePlayerName ? `${whitePlayerName.firstName} ${whitePlayerName.lastName}` : 'Bye';
+          const blackName = blackPlayerName ? `${blackPlayerName.firstName} ${blackPlayerName.lastName}` : 'Bye';
+          await notifyResultPlayer(whitePlayerName, blackName);
+          await notifyResultPlayer(blackPlayerName, whiteName);
         } catch (notifyErr) {
           console.error("Public result notify error:", notifyErr);
         }

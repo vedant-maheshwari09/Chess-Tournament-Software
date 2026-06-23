@@ -300,16 +300,16 @@ export const insertUserSchema = createInsertSchema(users).omit({
 });
 
 export const loginSchema = z.object({
-  username: z.string().min(3).max(50),
+  username: z.string().min(3).max(50).trim(),
   password: z.string().min(6),
 });
 
 export const registerSchema = z.object({
-  username: z.string().min(3).max(50),
-  email: z.string().email(),
+  username: z.string().min(3).max(50).trim(),
+  email: z.string().email().trim().toLowerCase(),
   password: z.string().min(6),
-  firstName: z.string().min(1),
-  lastName: z.string().min(1),
+  firstName: z.string().min(1).trim(),
+  lastName: z.string().min(1).trim(),
   role: z.enum(['player', 'tournament_director']),
   notifyEmail: z.boolean().optional(),
   notifyPairings: z.boolean().optional(),
@@ -318,26 +318,26 @@ export const registerSchema = z.object({
 });
 
 export const forgotPasswordSchema = z.object({
-  email: z.string().email(),
+  email: z.string().email().trim().toLowerCase(),
 });
 
 export const forgotUsernameSchema = z.object({
-  email: z.string().email(),
+  email: z.string().email().trim().toLowerCase(),
 });
 
 export const resetPasswordSchema = z.object({
-  email: z.string().email(),
-  code: z.string().length(6).regex(/^\d+$/),
+  email: z.string().email().trim().toLowerCase(),
+  code: z.string().length(6).trim().regex(/^\d+$/),
   newPassword: z.string().min(6),
 });
 
 export const verifyEmailSchema = z.object({
-  code: z.string().length(6).regex(/^\d+$/),
-  email: z.string().email().optional(), // Optional: for verification without auth token
+  code: z.string().length(6).trim().regex(/^\d+$/),
+  email: z.string().email().trim().toLowerCase().optional(), // Optional: for verification without auth token
 });
 
 export const resendVerificationSchema = z.object({
-  email: z.string().email().optional(),
+  email: z.string().email().trim().toLowerCase().optional(),
 });
 
 export const changePasswordSchema = z.object({

@@ -16,8 +16,10 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
 const tdCredentialsSchema = z.object({
-  uscfAffiliateId: z.string().optional(),
-  fideArbiterId: z.string().optional(),
+  uscfAffiliateId: z.string().trim().optional(),
+  fideArbiterId: z.string().trim().optional().refine(val => !val || /^\d+$/.test(val), {
+    message: "FIDE Arbiter ID must be numeric only",
+  }),
   fideArbiterTitle: z.string().optional(),
 });
 

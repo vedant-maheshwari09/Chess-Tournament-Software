@@ -1,13 +1,18 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import type { ComponentType } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useRoute, Link } from "wouter";
-import { Trophy, Users, Eye, ArrowLeft, Medal, Info, Calculator, PauseCircle, Star, Loader2, MessageCircle } from "lucide-react";
+import {
+  Trophy, Users, Eye, Medal, Info, Calculator, PauseCircle, Star,
+  Loader2, MessageCircle, SlidersHorizontal, X, ChevronUp, ChevronDown,
+  ChevronsUpDown, CalendarDays, CheckSquare, Square,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import SettingsMenu from "@/components/settings-menu";
 
 import { useAuth } from "@/hooks/useAuth";
@@ -22,15 +27,16 @@ import PairingPredictor from "@/components/pairing-predictor";
 import PlayerRegistration from "@/components/player-registration";
 import TournamentByes from "@/components/tournament-byes";
 import { parseTournamentConfig } from "@/lib/tournament-config";
-import { renderTournamentPageContent } from "@/lib/tournament-page";
 import { apiRequest } from "@/lib/queryClient";
 import { requestFirebaseToken } from "@/lib/firebase";
 import { RegistrationStatusCard } from "@/components/registration-status-card";
 import NotificationBell from "@/components/notification-bell";
 
-type SortKey = "players" | "date" | "state";
-
+// ─── Types ────────────────────────────────────────────────────────────────────
+type SortKey = "players" | "date" | "state" | "name" | "sections";
+type SortDir = "asc" | "desc";
 type DetailTabKey = "pairings" | "standings" | "byes" | "predictor" | "info";
+type FormatFilter = "swiss" | "roundrobin" | "knockout" | "arena";
 
 interface TournamentRow {
   tournament: Tournament;
@@ -49,6 +55,26 @@ interface SectionData {
   empty: string;
 }
 
+interface FilterState {
+  formats: FormatFilter[];
+  minPlayers: number | null;
+  maxPlayers: number | null;
+  startAfter: string;
+  startBefore: string;
+  showStarredOnly: boolean;
+  searchText: string;
+}
+
+const DEFAULT_FILTERS: FilterState = {
+  formats: [],
+  minPlayers: null,
+  maxPlayers: null,
+  startAfter: "",
+  startBefore: "",
+  showStarredOnly: false,
+  searchText: "",
+};
+
 const DETAIL_TAB_META: Array<{ key: DetailTabKey; label: string; icon: ComponentType<{ className?: string }> }> = [
   { key: "pairings", label: "Pairings", icon: Users },
   { key: "standings", label: "Standings", icon: Medal },
@@ -57,6 +83,278 @@ const DETAIL_TAB_META: Array<{ key: DetailTabKey; label: string; icon: Component
   { key: "info", label: "Info", icon: Info },
 ];
 
+const FORMAT_OPTIONS: { value: FormatFilter; label: string }[] = [
+  { value: "swiss", label: "Swiss System" },
+  { value: "roundrobin", label: "Round Robin" },
+  { value: "knockout", label: "Knockout" },
+  { value: "arena", label: "Arena" },
+];
+
+// ─── Helper Components ────────────────────────────────────────────────────────
+function MultiCheckbox({
+  options,
+  value,
+  onChange,
+}: {
+  options: { value: string; label: string }[];
+  value: string[];
+  onChange: (newVal: string[]) => void;
+}) {
+  const toggle = (v: string) => {
+    if (value.includes(v)) onChange(value.filter((x) => x !== v));
+    else onChange([...value, v]);
+  };
+  return (
+    <div className="flex flex-col gap-1.5">
+      {options.map((opt) => {
+        const checked = value.includes(opt.value);
+        return (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => toggle(opt.value)}
+            className="flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-left hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+          >
+            {checked ? (
+              <CheckSquare className="h-4 w-4 text-blue-600 shrink-0" />
+            ) : (
+              <Square className="h-4 w-4 text-slate-400 shrink-0" />
+            )}
+            <span className={checked ? "text-slate-900 dark:text-slate-100 font-medium" : "text-slate-600 dark:text-slate-400"}>
+              {opt.label}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function FilterPanel({
+  filters,
+  setFilters,
+  activeCount,
+  onReset,
+  isOpen,
+  onClose,
+}: {
+  filters: FilterState;
+  setFilters: React.Dispatch<React.SetStateAction<FilterState>>;
+  activeCount: number;
+  onReset: () => void;
+  isOpen: boolean;
+  onClose: () => void;
+}) {
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  // Close on outside click
+  useEffect(() => {
+    if (!isOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
+        onClose();
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [isOpen, onClose]);
+
+  if (!isOpen) return null;
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div className="fixed inset-0 z-40 bg-black/20 backdrop-blur-[1px]" />
+
+      {/* Panel */}
+      <div
+        ref={panelRef}
+        className="fixed right-0 top-0 bottom-0 z-50 w-80 bg-white dark:bg-slate-900 shadow-2xl border-l border-slate-200 dark:border-slate-700 flex flex-col animate-in slide-in-from-right duration-200"
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-700">
+          <div className="flex items-center gap-2">
+            <SlidersHorizontal className="h-4 w-4 text-slate-500" />
+            <span className="font-semibold text-slate-900 dark:text-slate-100">Filters & Sort</span>
+            {activeCount > 0 && (
+              <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-blue-600 text-white text-[10px] font-bold">
+                {activeCount}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            {activeCount > 0 && (
+              <button
+                onClick={onReset}
+                className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+              >
+                Reset all
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="rounded-full p-1 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            >
+              <X className="h-4 w-4 text-slate-500" />
+            </button>
+          </div>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-6">
+
+          {/* Search */}
+          <div className="space-y-2">
+            <Label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Search</Label>
+            <Input
+              placeholder="Tournament name..."
+              value={filters.searchText}
+              onChange={(e) => setFilters((f) => ({ ...f, searchText: e.target.value }))}
+              className="h-8 text-sm"
+            />
+          </div>
+
+          {/* Format */}
+          <div className="space-y-2">
+            <Label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Format</Label>
+            <MultiCheckbox
+              options={FORMAT_OPTIONS}
+              value={filters.formats}
+              onChange={(v) => setFilters((f) => ({ ...f, formats: v as FormatFilter[] }))}
+            />
+          </div>
+
+          {/* Players range */}
+          <div className="space-y-2">
+            <Label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Player Count</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                type="number"
+                min={0}
+                placeholder="Min"
+                value={filters.minPlayers ?? ""}
+                onChange={(e) =>
+                  setFilters((f) => ({
+                    ...f,
+                    minPlayers: e.target.value !== "" ? parseInt(e.target.value) : null,
+                  }))
+                }
+                className="h-8 text-sm w-full"
+              />
+              <span className="text-slate-400 text-sm shrink-0">–</span>
+              <Input
+                type="number"
+                min={0}
+                placeholder="Max"
+                value={filters.maxPlayers ?? ""}
+                onChange={(e) =>
+                  setFilters((f) => ({
+                    ...f,
+                    maxPlayers: e.target.value !== "" ? parseInt(e.target.value) : null,
+                  }))
+                }
+                className="h-8 text-sm w-full"
+              />
+            </div>
+          </div>
+
+          {/* Date range */}
+          <div className="space-y-2">
+            <Label className="text-xs font-semibold uppercase tracking-wide text-slate-500 flex items-center gap-1">
+              <CalendarDays className="h-3 w-3" /> Start Date Range
+            </Label>
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-400 w-10 shrink-0">From</span>
+                <Input
+                  type="date"
+                  value={filters.startAfter}
+                  onChange={(e) => setFilters((f) => ({ ...f, startAfter: e.target.value }))}
+                  className="h-8 text-sm flex-1"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-400 w-10 shrink-0">To</span>
+                <Input
+                  type="date"
+                  value={filters.startBefore}
+                  onChange={(e) => setFilters((f) => ({ ...f, startBefore: e.target.value }))}
+                  className="h-8 text-sm flex-1"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Starred only */}
+          <div className="space-y-2">
+            <Label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Favorites</Label>
+            <button
+              type="button"
+              onClick={() => setFilters((f) => ({ ...f, showStarredOnly: !f.showStarredOnly }))}
+              className="flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-left hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors w-full"
+            >
+              {filters.showStarredOnly ? (
+                <CheckSquare className="h-4 w-4 text-blue-600 shrink-0" />
+              ) : (
+                <Square className="h-4 w-4 text-slate-400 shrink-0" />
+              )}
+              <span className={filters.showStarredOnly ? "text-slate-900 dark:text-slate-100 font-medium" : "text-slate-600 dark:text-slate-400"}>
+                Show starred only
+              </span>
+            </button>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-5 py-4 border-t border-slate-200 dark:border-slate-700">
+          <Button onClick={onClose} className="w-full" size="sm">
+            Apply Filters
+          </Button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ─── Sortable Column Header ────────────────────────────────────────────────────
+function SortHeader({
+  label,
+  colKey,
+  sortKey,
+  sortDir,
+  onSort,
+  className = "",
+}: {
+  label: string;
+  colKey: SortKey;
+  sortKey: SortKey;
+  sortDir: SortDir;
+  onSort: (k: SortKey) => void;
+  className?: string;
+}) {
+  const active = sortKey === colKey;
+  return (
+    <th
+      className={`px-4 py-3 cursor-pointer select-none hover:bg-slate-100 dark:hover:bg-slate-700/60 transition-colors ${className}`}
+      onClick={() => onSort(colKey)}
+    >
+      <span className="flex items-center gap-1 justify-center">
+        {label}
+        {active ? (
+          sortDir === "asc" ? (
+            <ChevronUp className="h-3 w-3 text-blue-600" />
+          ) : (
+            <ChevronDown className="h-3 w-3 text-blue-600" />
+          )
+        ) : (
+          <ChevronsUpDown className="h-3 w-3 text-slate-300 dark:text-slate-600" />
+        )}
+      </span>
+    </th>
+  );
+}
+
+// ─── Main Component ────────────────────────────────────────────────────────────
 export default function PlayerDashboard() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -69,6 +367,32 @@ export default function PlayerDashboard() {
   const isPlayer = user?.role === "player";
   const [pendingStarId, setPendingStarId] = useState<number | null>(null);
 
+  // Filter & sort state
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
+  const [sortKey, setSortKey] = useState<SortKey>("date");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
+
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  };
+
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    if (filters.formats.length > 0) count++;
+    if (filters.minPlayers !== null || filters.maxPlayers !== null) count++;
+    if (filters.startAfter) count++;
+    if (filters.startBefore) count++;
+    if (filters.showStarredOnly) count++;
+    if (filters.searchText.trim()) count++;
+    return count;
+  }, [filters]);
+
   const validTabs = ["ongoing", "upcoming", "past"];
   React.useEffect(() => {
     if (!validTabs.includes(activeTab)) {
@@ -78,7 +402,6 @@ export default function PlayerDashboard() {
 
   useEffect(() => {
     if (isPlayer) {
-      // Request FCM token and register it
       requestFirebaseToken().then((token) => {
         if (token) {
           apiRequest('/api/users/fcm-token', {
@@ -117,9 +440,7 @@ export default function PlayerDashboard() {
     },
     onMutate: async ({ tournamentId, starred }) => {
       setPendingStarId(tournamentId);
-      if (!isPlayer) {
-        return {};
-      }
+      if (!isPlayer) return {};
       await queryClient.cancelQueries({ queryKey: ["/api/tournaments/starred"] });
       const previous = queryClient.getQueryData<TournamentStar[]>(["/api/tournaments/starred"]);
       const current = previous ?? [];
@@ -152,27 +473,17 @@ export default function PlayerDashboard() {
       if (!isPlayer) return;
       queryClient.setQueryData(["/api/tournaments/starred"], (existing?: TournamentStar[]) => {
         const current = existing ?? [];
-        if (starred) {
-          return current.filter((entry) => entry.tournamentId !== tournamentId);
-        }
+        if (starred) return current.filter((entry) => entry.tournamentId !== tournamentId);
         const normalized =
           result && typeof result === "object" && "tournamentId" in result
             ? (result as TournamentStar)
-            : {
-              id: Date.now(),
-              tournamentId,
-              userId: user?.id ?? 0,
-              createdAt: new Date(),
-            };
-        const filtered = current.filter((entry) => entry.tournamentId !== tournamentId);
-        return [...filtered, normalized];
+            : { id: Date.now(), tournamentId, userId: user?.id ?? 0, createdAt: new Date() };
+        return [...current.filter((e) => e.tournamentId !== tournamentId), normalized];
       });
     },
     onSettled: () => {
       setPendingStarId(null);
-      if (isPlayer) {
-        queryClient.invalidateQueries({ queryKey: ["/api/tournaments/starred"] });
-      }
+      if (isPlayer) queryClient.invalidateQueries({ queryKey: ["/api/tournaments/starred"] });
     },
   });
 
@@ -183,16 +494,12 @@ export default function PlayerDashboard() {
 
   const registrationMap = useMemo(() => {
     const map = new Map<number, PlayerRegistrationType>();
-    myRegistrations.forEach((registration) => {
-      map.set(registration.tournamentId, registration);
-    });
+    myRegistrations.forEach((r) => map.set(r.tournamentId, r));
     return map;
   }, [myRegistrations]);
 
-  const [sortKey, setSortKey] = useState<SortKey>("date");
-
   const { data: statsData = [], isLoading: statsLoading } = useQuery<TournamentRow[]>({
-    queryKey: ["tournament-stats", tournaments.map((tournament) => tournament.id)],
+    queryKey: ["tournament-stats", tournaments.map((t) => t.id)],
     enabled: tournaments.length > 0,
     queryFn: async () => {
       return Promise.all(
@@ -200,16 +507,11 @@ export default function PlayerDashboard() {
           let players: Player[] = [];
           try {
             players = (await apiRequest(`/api/tournaments/${tournament.id}/players`)) as Player[];
-          } catch (error) {
-            console.error("Failed to fetch players for tournament", tournament.id, error);
-          }
-
+          } catch {}
           const config = parseTournamentConfig(tournament);
           const sectionsCandidate = (config as any)?.sections ?? (config as any)?.sectionDefinitions;
           const sectionsCount = Array.isArray(sectionsCandidate) ? sectionsCandidate.length : null;
-          const state =
-            (config.uscf?.state?.trim() || tournament.location?.split(",").pop()?.trim() || "") || "N/A";
-
+          const state = (config.uscf?.state?.trim() || tournament.location?.split(",").pop()?.trim() || "") || "N/A";
           return {
             tournament,
             playersCount: players.length,
@@ -224,15 +526,10 @@ export default function PlayerDashboard() {
   });
 
   const statsRows = useMemo<TournamentRow[]>(() => {
-    if (statsData.length === tournaments.length && statsData.length > 0) {
-      return statsData;
-    }
-
+    if (statsData.length === tournaments.length && statsData.length > 0) return statsData;
     return tournaments.map((tournament) => {
       const config = parseTournamentConfig(tournament);
-      const state =
-        (config.uscf?.state?.trim() || tournament.location?.split(",").pop()?.trim() || "") || "N/A";
-
+      const state = (config.uscf?.state?.trim() || tournament.location?.split(",").pop()?.trim() || "") || "N/A";
       return {
         tournament,
         playersCount: typeof (tournament as any).playerCount === "number" ? (tournament as any).playerCount : 0,
@@ -244,36 +541,59 @@ export default function PlayerDashboard() {
     });
   }, [statsData, tournaments]);
 
+  // Apply filters
+  const filteredRows = useMemo(() => {
+    return statsRows.filter((entry) => {
+      const t = entry.tournament;
+      if (filters.formats.length > 0 && !filters.formats.includes(t.format as FormatFilter)) return false;
+      if (filters.minPlayers !== null && entry.playersCount < filters.minPlayers) return false;
+      if (filters.maxPlayers !== null && entry.playersCount > filters.maxPlayers) return false;
+      if (filters.startAfter && entry.startDate) {
+        const after = new Date(filters.startAfter);
+        if (entry.startDate < after) return false;
+      }
+      if (filters.startBefore && entry.startDate) {
+        const before = new Date(filters.startBefore);
+        if (entry.startDate > before) return false;
+      }
+      if (filters.showStarredOnly && !starredIds.has(t.id)) return false;
+      if (filters.searchText.trim()) {
+        const q = filters.searchText.trim().toLowerCase();
+        if (!t.name.toLowerCase().includes(q)) return false;
+      }
+      return true;
+    });
+  }, [statsRows, filters, starredIds]);
+
   const sectionsRaw = useMemo(() => ({
-    past: statsRows.filter((entry) => entry.tournament.status === "completed"),
-    upcoming: statsRows.filter((entry) => entry.tournament.status === "upcoming"),
-    ongoing: statsRows.filter((entry) => entry.tournament.status === "active"),
-  }), [statsRows]);
+    past: filteredRows.filter((e) => e.tournament.status === "completed"),
+    upcoming: filteredRows.filter((e) => e.tournament.status === "upcoming"),
+    ongoing: filteredRows.filter((e) => e.tournament.status === "active"),
+  }), [filteredRows]);
 
   const comparator = useMemo(() => {
     return (a: TournamentRow, b: TournamentRow) => {
       if (isPlayer) {
         const aStar = starredIds.has(a.tournament.id);
         const bStar = starredIds.has(b.tournament.id);
-        if (aStar !== bStar) {
-          return aStar ? -1 : 1;
-        }
+        if (aStar !== bStar) return aStar ? -1 : 1;
       }
-
+      let cmp = 0;
       switch (sortKey) {
-        case "players":
-          return b.playersCount - a.playersCount;
-        case "state":
-          return (a.state || "").localeCompare(b.state || "");
+        case "players": cmp = b.playersCount - a.playersCount; break;
+        case "state":   cmp = (a.state || "").localeCompare(b.state || ""); break;
+        case "name":    cmp = a.tournament.name.localeCompare(b.tournament.name); break;
+        case "sections": cmp = (a.sectionsCount ?? -1) - (b.sectionsCount ?? -1); break;
         case "date":
         default: {
           const aTime = a.startDate ? a.startDate.getTime() : Number.POSITIVE_INFINITY;
           const bTime = b.startDate ? b.startDate.getTime() : Number.POSITIVE_INFINITY;
-          return aTime - bTime;
+          cmp = aTime - bTime;
         }
       }
+      return sortDir === "asc" ? cmp : -cmp;
     };
-  }, [sortKey, isPlayer, starredIds]);
+  }, [sortKey, sortDir, isPlayer, starredIds]);
 
   const sectionsData = useMemo<SectionData[]>(
     () => [
@@ -302,142 +622,137 @@ export default function PlayerDashboard() {
     [sectionsRaw, comparator]
   );
 
-
   const getFormatName = (format: string) => {
     switch (format) {
-      case 'swiss': return 'Swiss System';
-      case 'roundrobin': return 'Round Robin';
-      case 'knockout': return 'Knockout';
+      case "swiss": return "Swiss";
+      case "roundrobin": return "Round Robin";
+      case "knockout": return "Knockout";
+      case "arena": return "Arena";
       default: return format;
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'active': return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300';
-      case 'upcoming': return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300';
-      case 'completed': return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
-      default: return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
+  const getFormatColor = (format: string) => {
+    switch (format) {
+      case "swiss": return "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300";
+      case "roundrobin": return "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300";
+      case "knockout": return "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300";
+      case "arena": return "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300";
+      default: return "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300";
     }
   };
 
   const formatDateRange = (start: Date | null, end: Date | null) => {
     const format = (date: Date | null) =>
       date ? new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" }).format(date) : "TBD";
-
     if (!start && !end) return "TBD";
-    if (!start) return `TBD - ${format(end)}`;
-    if (!end) return `${format(start)} - TBD`;
-    return `${format(start)} - ${format(end)}`;
+    if (!start) return `TBD – ${format(end)}`;
+    if (!end) return `${format(start)} – TBD`;
+    return `${format(start)} – ${format(end)}`;
   };
 
   const renderTournamentRow = (entry: TournamentRow) => {
     const { tournament, playersCount, sectionsCount, startDate, endDate, state } = entry;
-    const registration = registrationMap.get(tournament.id);
     const isStarred = starredIds.has(tournament.id);
     const isPendingStar = pendingStarId === tournament.id && toggleStar.isPending;
 
     const rowClass = isStarred
-      ? "border-b border-slate-200 bg-blue-50/60 transition-colors duration-200 last:border-b-0 hover:bg-blue-100/60 dark:border-slate-800 dark:bg-blue-900/20 dark:hover:bg-blue-900/40"
-      : "border-b border-slate-200 bg-white transition-colors duration-200 last:border-b-0 hover:bg-slate-50 dark:border-slate-800 dark:bg-transparent dark:hover:bg-slate-800/40";
+      ? "border-b border-slate-200 bg-blue-50/60 transition-colors duration-150 last:border-b-0 hover:bg-blue-100/60 dark:border-slate-800 dark:bg-blue-900/20 dark:hover:bg-blue-900/40"
+      : "border-b border-slate-200 bg-white transition-colors duration-150 last:border-b-0 hover:bg-slate-50 dark:border-slate-800 dark:bg-transparent dark:hover:bg-slate-800/40";
 
     return (
       <tr key={tournament.id} className={rowClass}>
-        <td className="px-4 py-4 text-center align-middle">
+        <td className="px-4 py-3.5 text-center align-middle">
           {isPlayer ? (
             <Button
               type="button"
               variant="ghost"
               size="icon"
-              className="h-8 w-8 rounded-full"
-              onClick={(event) => {
-                event.preventDefault();
-                handleToggleStar(tournament.id, isStarred);
-              }}
+              className="h-7 w-7 rounded-full"
+              onClick={(e) => { e.preventDefault(); handleToggleStar(tournament.id, isStarred); }}
               disabled={isPendingStar}
               aria-label={isStarred ? "Remove from favorites" : "Add to favorites"}
             >
               {isPendingStar ? (
-                <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-500" />
               ) : (
-                <Star
-                  className={isStarred ? "h-4 w-4 text-blue-500" : "h-4 w-4 text-slate-400"}
-                  fill={isStarred ? "currentColor" : "none"}
-                />
+                <Star className={isStarred ? "h-3.5 w-3.5 text-blue-500" : "h-3.5 w-3.5 text-slate-300 dark:text-slate-600"} fill={isStarred ? "currentColor" : "none"} />
               )}
             </Button>
           ) : (
             <span className="text-xs text-slate-400">—</span>
           )}
         </td>
-        <td className="px-4 py-4 align-middle">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2 font-semibold text-slate-900 dark:text-slate-100">
-              <span>{tournament.name}</span>
-            </div>
-            <div className="text-xs text-slate-500">{getFormatName(tournament.format)}</div>
+        <td className="px-4 py-3.5 align-middle min-w-[200px]">
+          <div className="space-y-0.5">
+            <div className="font-medium text-slate-900 dark:text-slate-100 text-sm leading-snug">{tournament.name}</div>
+            <span className={`inline-block text-[10px] font-medium px-1.5 py-0.5 rounded ${getFormatColor(tournament.format)}`}>
+              {getFormatName(tournament.format)}
+            </span>
           </div>
         </td>
-        <td className="px-4 py-4 text-center align-middle text-sm text-slate-700 dark:text-slate-300">{state || "N/A"}</td>
-        <td className="px-4 py-4 text-center align-middle text-sm text-slate-700 dark:text-slate-300">
-          {playersCount} player{playersCount === 1 ? "" : "s"}
+        <td className="px-4 py-3.5 text-center align-middle text-sm text-slate-600 dark:text-slate-400">{state || "N/A"}</td>
+        <td className="px-4 py-3.5 text-center align-middle text-sm font-medium text-slate-700 dark:text-slate-300">
+          {playersCount}
         </td>
-        <td className="px-4 py-4 text-center align-middle text-sm text-slate-700 dark:text-slate-300">{formatDateRange(startDate, endDate)}</td>
-        <td className="px-4 py-4 text-center align-middle text-sm text-slate-700 dark:text-slate-300">{sectionsCount ?? "—"}</td>
-        <td className="px-4 py-4 align-middle text-center">
+        <td className="px-4 py-3.5 text-center align-middle text-sm text-slate-600 dark:text-slate-400 whitespace-nowrap">
+          {formatDateRange(startDate, endDate)}
+        </td>
+        <td className="px-4 py-3.5 text-center align-middle text-sm text-slate-600 dark:text-slate-400">
+          {sectionsCount ?? "—"}
+        </td>
+        <td className="px-4 py-3.5 align-middle text-center">
           <Button
             variant="outline"
             size="sm"
             onClick={() => setLocation(`/tournaments/${tournament.id}`)}
-            className="inline-flex items-center gap-2"
+            className="h-7 text-xs px-3 inline-flex items-center gap-1.5"
           >
-            <Eye className="h-4 w-4" />
-            View
+            <Eye className="h-3 w-3" /> View
           </Button>
         </td>
       </tr>
     );
   };
 
-  const renderSection = (section: SectionData) => {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>{section.label}</CardTitle>
-          <CardDescription>{section.description}</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {section.items.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-4 py-12 text-center">
-              <Trophy className="h-12 w-12 text-gray-400" />
-              <div className="space-y-2">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Nothing here yet</h3>
-                <p className="text-gray-600 dark:text-gray-300">{section.empty}</p>
-              </div>
+  const renderSection = (section: SectionData) => (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base">{section.label}</CardTitle>
+        <CardDescription className="text-xs">{section.description}</CardDescription>
+      </CardHeader>
+      <CardContent className="pt-0">
+        {section.items.length === 0 ? (
+          <div className="flex flex-col items-center justify-center gap-3 py-10 text-center">
+            <Trophy className="h-10 w-10 text-gray-300" />
+            <div>
+              <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Nothing here yet</p>
+              <p className="text-xs text-gray-500 dark:text-gray-500 mt-0.5">
+                {activeFilterCount > 0 ? "Try adjusting your filters." : section.empty}
+              </p>
             </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-[960px] w-full border-collapse overflow-hidden rounded-xl">
-                <thead className="bg-slate-50 dark:bg-slate-800/50">
-                  <tr className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                    <th className="px-4 py-3 text-center">Favorite</th>
-                    <th className="px-4 py-3 text-left">Tournament Name</th>
-                    <th className="px-4 py-3 text-center">State</th>
-                    <th className="px-4 py-3 text-center">Players</th>
-                    <th className="px-4 py-3 text-center">Start Date – End Date</th>
-                    <th className="px-4 py-3 text-center">Sections</th>
-                    <th className="px-4 py-3 text-center">View</th>
-                  </tr>
-                </thead>
-                <tbody>{section.items.map((entry) => renderTournamentRow(entry))}</tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    );
-  };
-
+          </div>
+        ) : (
+          <div className="overflow-x-auto -mx-6 px-6">
+            <table className="min-w-[900px] w-full border-collapse">
+              <thead className="bg-slate-50 dark:bg-slate-800/50">
+                <tr className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  <th className="px-4 py-2.5 text-center w-10">★</th>
+                  <SortHeader label="Name" colKey="name" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="text-left" />
+                  <SortHeader label="State" colKey="state" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="text-center" />
+                  <SortHeader label="Players" colKey="players" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="text-center" />
+                  <SortHeader label="Dates" colKey="date" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="text-center" />
+                  <SortHeader label="Sections" colKey="sections" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="text-center" />
+                  <th className="px-4 py-2.5 text-center">View</th>
+                </tr>
+              </thead>
+              <tbody>{section.items.map((entry) => renderTournamentRow(entry))}</tbody>
+            </table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
 
   if (isLoading || statsLoading) {
     return (
@@ -450,28 +765,26 @@ export default function PlayerDashboard() {
     );
   }
 
-  // Show tournament list (View button navigates to /tournaments/:id)
   return (
     <div className="min-h-screen bg-transparent">
+      {/* Header */}
       <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-md shadow">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col md:flex-row md:items-center justify-between py-6 gap-6 text-center md:text-left">
-            <div className="space-y-1">
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">Player Dashboard</h1>
-              <p className="text-gray-600 dark:text-gray-300 text-sm">
+          <div className="flex flex-col md:flex-row md:items-center justify-between py-5 gap-4 text-center md:text-left">
+            <div className="space-y-0.5">
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Player Dashboard</h1>
+              <p className="text-gray-500 dark:text-gray-400 text-sm">
                 Welcome back, {user?.firstName} {user?.lastName}
               </p>
             </div>
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center md:justify-end gap-3 w-full md:w-auto">
-              <div className="flex items-center justify-center gap-2 sm:gap-4 pb-1 sm:pb-0">
-                <Link href="/messages">
-                  <Button variant="ghost" size="icon" className="rounded-full">
-                    <MessageCircle className="h-5 w-5" />
-                  </Button>
-                </Link>
-                <NotificationBell />
-                <SettingsMenu />
-              </div>
+            <div className="flex items-center justify-center md:justify-end gap-2">
+              <Link href="/messages">
+                <Button variant="ghost" size="icon" className="rounded-full">
+                  <MessageCircle className="h-5 w-5" />
+                </Button>
+              </Link>
+              <NotificationBell />
+              <SettingsMenu />
             </div>
           </div>
         </div>
@@ -479,47 +792,100 @@ export default function PlayerDashboard() {
 
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-6 pb-10">
 
-        {/* My Registrations Status section removed - now in Notification Bell */}
+        {/* Filter button + active filter chips */}
+        <div className="mb-5 flex flex-wrap items-center gap-2">
+          <Button
+            variant={activeFilterCount > 0 ? "default" : "outline"}
+            size="sm"
+            onClick={() => setFilterOpen(true)}
+            className="h-8 gap-1.5 text-sm"
+          >
+            <SlidersHorizontal className="h-4 w-4" />
+            Filters & Sort
+            {activeFilterCount > 0 && (
+              <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-white/25 text-[10px] font-bold">
+                {activeFilterCount}
+              </span>
+            )}
+          </Button>
 
-        {tournaments.length > 0 ? (
-          <div className="mb-6 flex flex-wrap items-center justify-end gap-3">
-            <span className="text-sm text-slate-500">Sort by:</span>
-            <Select value={sortKey} onValueChange={(value) => setSortKey(value as SortKey)}>
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder="Sort tournaments" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="date">Start Date</SelectItem>
-                <SelectItem value="players">Players</SelectItem>
-                <SelectItem value="state">State</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        ) : null}
+          {/* Active filter chips */}
+          {filters.formats.length > 0 && (
+            <Badge variant="secondary" className="gap-1 text-xs cursor-pointer" onClick={() => setFilters(f => ({ ...f, formats: [] }))}>
+              Format: {filters.formats.map(getFormatName).join(", ")}
+              <X className="h-3 w-3" />
+            </Badge>
+          )}
+          {(filters.minPlayers !== null || filters.maxPlayers !== null) && (
+            <Badge variant="secondary" className="gap-1 text-xs cursor-pointer" onClick={() => setFilters(f => ({ ...f, minPlayers: null, maxPlayers: null }))}>
+              Players: {filters.minPlayers ?? "0"}–{filters.maxPlayers ?? "∞"}
+              <X className="h-3 w-3" />
+            </Badge>
+          )}
+          {(filters.startAfter || filters.startBefore) && (
+            <Badge variant="secondary" className="gap-1 text-xs cursor-pointer" onClick={() => setFilters(f => ({ ...f, startAfter: "", startBefore: "" }))}>
+              <CalendarDays className="h-3 w-3" />
+              {filters.startAfter || "…"} – {filters.startBefore || "…"}
+              <X className="h-3 w-3" />
+            </Badge>
+          )}
+          {filters.showStarredOnly && (
+            <Badge variant="secondary" className="gap-1 text-xs cursor-pointer" onClick={() => setFilters(f => ({ ...f, showStarredOnly: false }))}>
+              <Star className="h-3 w-3" /> Starred only
+              <X className="h-3 w-3" />
+            </Badge>
+          )}
+          {filters.searchText.trim() && (
+            <Badge variant="secondary" className="gap-1 text-xs cursor-pointer" onClick={() => setFilters(f => ({ ...f, searchText: "" }))}>
+              "{filters.searchText.trim()}"
+              <X className="h-3 w-3" />
+            </Badge>
+          )}
+          {activeFilterCount > 0 && (
+            <button
+              className="text-xs text-slate-400 hover:text-slate-600 underline-offset-2 hover:underline"
+              onClick={() => setFilters(DEFAULT_FILTERS)}
+            >
+              Clear all
+            </button>
+          )}
+        </div>
 
+        {/* Tabs */}
         <Tabs value={activeTab} onValueChange={(tab) => setLocation(`/dashboard/${tab}`)} className="w-full">
-          <TabsList className="flex w-full min-h-[64px] flex-nowrap overflow-x-auto no-scrollbar items-center gap-3 bg-transparent mb-6">
+          <TabsList className="flex w-full min-h-[56px] flex-nowrap overflow-x-auto no-scrollbar items-center gap-2 bg-transparent mb-5">
             {sectionsData.map((section) => (
               <TabsTrigger
                 key={section.key}
                 value={section.key}
-                className="flex-none md:flex-1 flex h-full min-w-[140px] flex-col items-center justify-center gap-1 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-center text-sm font-medium text-slate-600 shadow-sm transition whitespace-nowrap data-[state=active]:border-blue-200 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-900"
+                className="flex-none md:flex-1 flex h-full min-w-[130px] flex-col items-center justify-center gap-0.5 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-center text-sm font-medium text-slate-600 shadow-sm transition whitespace-nowrap data-[state=active]:border-blue-200 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-900 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-400 dark:data-[state=active]:bg-blue-900/30 dark:data-[state=active]:text-blue-300"
               >
-                <span className="leading-tight">{section.label}</span>
-                <span className="text-xs text-slate-500 leading-tight">
+                <span className="leading-tight text-[13px]">{section.label}</span>
+                <span className="text-[11px] text-slate-400 leading-tight">
                   {section.items.length} tournament{section.items.length === 1 ? "" : "s"}
+                  {activeFilterCount > 0 && " (filtered)"}
                 </span>
               </TabsTrigger>
             ))}
           </TabsList>
 
           {sectionsData.map((section) => (
-            <TabsContent key={section.key} value={section.key} className="mt-8 space-y-6">
+            <TabsContent key={section.key} value={section.key} className="mt-0 space-y-4">
               {renderSection(section)}
             </TabsContent>
           ))}
         </Tabs>
       </div>
+
+      {/* Filter panel */}
+      <FilterPanel
+        filters={filters}
+        setFilters={setFilters}
+        activeCount={activeFilterCount}
+        onReset={() => setFilters(DEFAULT_FILTERS)}
+        isOpen={filterOpen}
+        onClose={() => setFilterOpen(false)}
+      />
     </div>
   );
 }

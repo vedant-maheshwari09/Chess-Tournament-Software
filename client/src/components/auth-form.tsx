@@ -861,7 +861,22 @@ export default function AuthForm() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-transparent p-4">
-      <Card className="w-full max-w-md">
+      <style>{`
+        @keyframes premiumFadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(8px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        .animate-premium-in {
+          animation: premiumFadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+      `}</style>
+      <Card className="w-full max-w-md backdrop-blur-md bg-white/85 dark:bg-slate-900/85 border border-white/20 dark:border-slate-800/60 shadow-xl shadow-slate-200/50 dark:shadow-none transition-all duration-300">
         <CardHeader className="space-y-1 relative">
           {authMode === 'verify-email' && (
             <Button 
@@ -880,13 +895,17 @@ export default function AuthForm() {
             </Button>
           )}
           <div className="flex items-center justify-center mb-4">
-            <img src="/logo.png" alt="ChessSoftware Logo" className="w-16 h-16 object-contain mix-blend-multiply" />
+            <div className="p-2.5 bg-white dark:bg-white/95 rounded-2xl shadow-sm border border-slate-100/80 dark:border-transparent flex items-center justify-center">
+              <img src="/logo.png" alt="ChessSoftware Logo" className="w-12 h-12 object-contain mix-blend-multiply" />
+            </div>
           </div>
-          <CardTitle className="text-2xl text-center">ChessSoftware</CardTitle>
-          <CardDescription className="text-center">{getTitle()}</CardDescription>
+          <CardTitle className="text-2xl text-center font-bold tracking-tight">ChessSoftware</CardTitle>
+          <CardDescription className="text-center text-slate-500 dark:text-slate-400">{getTitle()}</CardDescription>
         </CardHeader>
         <CardContent>
-          {renderForm()}
+          <div key={authMode} className="animate-premium-in">
+            {renderForm()}
+          </div>
 
           <div className="mt-4 text-center">
             {authMode === 'login' && (

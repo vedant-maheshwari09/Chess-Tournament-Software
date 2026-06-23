@@ -252,102 +252,115 @@ export default function QrResultSubmit() {
             </div>
           </div>
 
-          {currentResult && (
-            <div className="bg-amber-50/60 border border-amber-100 rounded-xl p-3 flex items-center gap-2.5 mx-0.5 text-amber-800 text-xs">
-              <Info className="h-4 w-4 flex-shrink-0 text-amber-600" />
-              <p className="font-medium">
-                Already reported as: <span className="font-extrabold">{getResultFriendlyName(currentResult)}</span>. You can select another outcome below to override it.
+          {currentResult ? (
+            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-emerald-800 text-sm space-y-3 shadow-inner">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                <span className="font-extrabold text-base">Match Completed</span>
+              </div>
+              <p className="font-medium text-xs text-emerald-700 leading-relaxed">
+                The result for this match has already been securely recorded as:
+              </p>
+              <div className="flex justify-center py-2">
+                <Badge className="bg-emerald-600 text-white font-extrabold text-sm px-4 py-1.5 border-0 shadow-md">
+                  {getResultFriendlyName(currentResult)}
+                </Badge>
+              </div>
+              <p className="text-[11px] text-emerald-600 font-medium text-center">
+                To request any corrections or modifications, please contact the Tournament Director.
               </p>
             </div>
+          ) : (
+            <>
+              {/* Action selection buttons grid */}
+              <div className="space-y-4">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 text-center">
+                  Select Match Outcome
+                </h3>
+
+                <div className="grid grid-cols-1 gap-3">
+                  {/* Primary Results */}
+                  <Button 
+                    onClick={() => handleResultSelect("1-0")}
+                    disabled={submitResultMutation.isPending}
+                    className="w-full flex items-center justify-between px-4 h-12 border border-slate-200 bg-white hover:bg-slate-50 text-slate-800 hover:text-black font-extrabold shadow-sm rounded-xl transition-all duration-200 group"
+                  >
+                    <span className="flex items-center gap-2">
+                      <span className="h-5 w-5 bg-white border border-slate-300 rounded shadow-sm text-slate-600 font-mono text-xs flex items-center justify-center group-hover:scale-105 transition-transform font-bold">1</span>
+                      <span>White Wins</span>
+                    </span>
+                    <span className="text-xs text-slate-400 font-bold font-mono">1 - 0</span>
+                  </Button>
+
+                  <Button 
+                    onClick={() => handleResultSelect("1/2-1/2")}
+                    disabled={submitResultMutation.isPending}
+                    className="w-full flex items-center justify-between px-4 h-12 border border-slate-200 bg-white hover:bg-slate-50 text-slate-800 hover:text-black font-extrabold shadow-sm rounded-xl transition-all duration-200 group"
+                  >
+                    <span className="flex items-center gap-2">
+                      <span className="h-5 w-5 bg-slate-200 text-slate-700 rounded shadow-sm text-xs flex items-center justify-center group-hover:scale-105 transition-transform font-bold">½</span>
+                      <span>Draw Match</span>
+                    </span>
+                    <span className="text-xs text-slate-400 font-bold font-mono">½ - ½</span>
+                  </Button>
+
+                  <Button 
+                    onClick={() => handleResultSelect("0-1")}
+                    disabled={submitResultMutation.isPending}
+                    className="w-full flex items-center justify-between px-4 h-12 border border-slate-200 bg-white hover:bg-slate-50 text-slate-800 hover:text-black font-extrabold shadow-sm rounded-xl transition-all duration-200 group"
+                  >
+                    <span className="flex items-center gap-2">
+                      <span className="h-5 w-5 bg-slate-900 text-white rounded shadow-sm font-mono text-xs flex items-center justify-center group-hover:scale-105 transition-transform font-bold">0</span>
+                      <span>Black Wins</span>
+                    </span>
+                    <span className="text-xs text-slate-400 font-bold font-mono">0 - 1</span>
+                  </Button>
+                </div>
+
+                {/* Special Forfeits Collapsible or Grid */}
+                <div className="pt-2 border-t">
+                  <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-400 text-center mb-3">
+                    Forfeits & Penalties
+                  </h4>
+                  <div className="grid grid-cols-3 gap-2">
+                    <Button 
+                      onClick={() => handleResultSelect("1F-0F")}
+                      disabled={submitResultMutation.isPending}
+                      variant="outline"
+                      className="h-10 text-[10px] font-extrabold rounded-lg hover:bg-amber-50/50 hover:text-amber-800 transition-colors border-slate-200 px-1.5"
+                    >
+                      White Forfeit
+                    </Button>
+                    <Button 
+                      onClick={() => handleResultSelect("0F-1F")}
+                      disabled={submitResultMutation.isPending}
+                      variant="outline"
+                      className="h-10 text-[10px] font-extrabold rounded-lg hover:bg-amber-50/50 hover:text-amber-800 transition-colors border-slate-200 px-1.5"
+                    >
+                      Black Forfeit
+                    </Button>
+                    <Button 
+                      onClick={() => handleResultSelect("0F-0F")}
+                      disabled={submitResultMutation.isPending}
+                      variant="outline"
+                      className="h-10 text-[10px] font-extrabold rounded-lg hover:bg-red-50/50 hover:text-red-800 transition-colors border-slate-200 px-1.5"
+                    >
+                      Double Forfeit
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="text-center pt-2">
+                {submitResultMutation.isPending && (
+                  <div className="flex items-center justify-center text-xs font-bold text-slate-500 gap-1.5">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                    Submitting score...
+                  </div>
+                )}
+              </div>
+            </>
           )}
-
-          {/* Action selection buttons grid */}
-          <div className="space-y-4">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 text-center">
-              Select Match Outcome
-            </h3>
-
-            <div className="grid grid-cols-1 gap-3">
-              {/* Primary Results */}
-              <Button 
-                onClick={() => handleResultSelect("1-0")}
-                disabled={submitResultMutation.isPending}
-                className="w-full flex items-center justify-between px-4 h-12 border border-slate-200 bg-white hover:bg-slate-50 text-slate-800 hover:text-black font-extrabold shadow-sm rounded-xl transition-all duration-200 group"
-              >
-                <span className="flex items-center gap-2">
-                  <span className="h-5 w-5 bg-white border border-slate-300 rounded shadow-sm text-slate-600 font-mono text-xs flex items-center justify-center group-hover:scale-105 transition-transform font-bold">1</span>
-                  <span>White Wins</span>
-                </span>
-                <span className="text-xs text-slate-400 font-bold font-mono">1 - 0</span>
-              </Button>
-
-              <Button 
-                onClick={() => handleResultSelect("1/2-1/2")}
-                disabled={submitResultMutation.isPending}
-                className="w-full flex items-center justify-between px-4 h-12 border border-slate-200 bg-white hover:bg-slate-50 text-slate-800 hover:text-black font-extrabold shadow-sm rounded-xl transition-all duration-200 group"
-              >
-                <span className="flex items-center gap-2">
-                  <span className="h-5 w-5 bg-slate-200 text-slate-700 rounded shadow-sm text-xs flex items-center justify-center group-hover:scale-105 transition-transform font-bold">½</span>
-                  <span>Draw Match</span>
-                </span>
-                <span className="text-xs text-slate-400 font-bold font-mono">½ - ½</span>
-              </Button>
-
-              <Button 
-                onClick={() => handleResultSelect("0-1")}
-                disabled={submitResultMutation.isPending}
-                className="w-full flex items-center justify-between px-4 h-12 border border-slate-200 bg-white hover:bg-slate-50 text-slate-800 hover:text-black font-extrabold shadow-sm rounded-xl transition-all duration-200 group"
-              >
-                <span className="flex items-center gap-2">
-                  <span className="h-5 w-5 bg-slate-900 text-white rounded shadow-sm font-mono text-xs flex items-center justify-center group-hover:scale-105 transition-transform font-bold">0</span>
-                  <span>Black Wins</span>
-                </span>
-                <span className="text-xs text-slate-400 font-bold font-mono">0 - 1</span>
-              </Button>
-            </div>
-
-            {/* Special Forfeits Collapsible or Grid */}
-            <div className="pt-2 border-t">
-              <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-400 text-center mb-3">
-                Forfeits & Penalties
-              </h4>
-              <div className="grid grid-cols-3 gap-2">
-                <Button 
-                  onClick={() => handleResultSelect("1F-0F")}
-                  disabled={submitResultMutation.isPending}
-                  variant="outline"
-                  className="h-10 text-[10px] font-extrabold rounded-lg hover:bg-amber-50/50 hover:text-amber-800 transition-colors border-slate-200 px-1.5"
-                >
-                  White Forfeit
-                </Button>
-                <Button 
-                  onClick={() => handleResultSelect("0F-1F")}
-                  disabled={submitResultMutation.isPending}
-                  variant="outline"
-                  className="h-10 text-[10px] font-extrabold rounded-lg hover:bg-amber-50/50 hover:text-amber-800 transition-colors border-slate-200 px-1.5"
-                >
-                  Black Forfeit
-                </Button>
-                <Button 
-                  onClick={() => handleResultSelect("0F-0F")}
-                  disabled={submitResultMutation.isPending}
-                  variant="outline"
-                  className="h-10 text-[10px] font-extrabold rounded-lg hover:bg-red-50/50 hover:text-red-800 transition-colors border-slate-200 px-1.5"
-                >
-                  Double Forfeit
-                </Button>
-              </div>
-            </div>
-          </div>
-
-          <div className="text-center pt-2">
-            {submitResultMutation.isPending && (
-              <div className="flex items-center justify-center text-xs font-bold text-slate-500 gap-1.5">
-                <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-                Submitting score...
-              </div>
-            )}
-          </div>
         </CardContent>
       </Card>
     </div>
