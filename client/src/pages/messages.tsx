@@ -980,15 +980,17 @@ export default function MessagesDashboard() {
                                     <button
                                       key={emoji}
                                       title={emoji}
-                                      className={`hover:scale-125 transition-transform p-1 rounded-full ${hasReacted ? "bg-primary/20 ring-1 ring-primary/45" : "hover:bg-muted/70"}`}
+                                      className={`hover:scale-125 transition-transform rounded-full flex items-center justify-center flex-shrink-0 ${hasReacted ? "bg-primary/20 ring-1 ring-primary/45" : "hover:bg-muted/70"}`}
                                       onClick={() => handleToggleReaction(msg.id, emoji, hasReacted)}
                                       type="button"
+                                      style={{ width: "32px", height: "32px" }}
                                     >
                                       {emojiMap[emoji] ? (
                                         <img 
                                           src={emojiMap[emoji]} 
                                           alt={emoji} 
-                                          className="h-5 w-5 object-contain"
+                                          className="object-contain flex-shrink-0"
+                                          style={{ width: "24px", height: "24px", minWidth: "24px", minHeight: "24px" }}
                                         />
                                       ) : (
                                         <span className="text-lg leading-none">{emoji}</span>
@@ -1145,19 +1147,21 @@ export default function MessagesDashboard() {
                                         key={emoji}
                                         title={`Reacted by: ${tooltipText}`}
                                         onClick={() => handleToggleReaction(msg.id, emoji, hasReacted)}
-                                        className={`flex items-center gap-1 hover:bg-muted/65 px-1 py-0.5 rounded-full transition-all ${hasReacted ? "ring-1 ring-primary/35 bg-primary/5" : ""}`}
+                                        className={`flex items-center gap-1 hover:bg-muted/65 px-2 py-0.5 rounded-full transition-all flex-shrink-0 ${hasReacted ? "ring-1 ring-primary/35 bg-primary/5" : ""}`}
                                         type="button"
+                                        style={{ height: "24px" }}
                                       >
                                         {emojiMap[emoji] ? (
                                           <img 
                                             src={emojiMap[emoji]} 
                                             alt={emoji} 
-                                            className="h-4 w-4 object-contain"
+                                            className="object-contain flex-shrink-0"
+                                            style={{ width: "16px", height: "16px", minWidth: "16px", minHeight: "16px" }}
                                           />
                                         ) : (
                                           <span className="text-sm leading-none">{emoji}</span>
                                         )}
-                                        {list.length >= 1 && <span className="text-[9px] font-bold text-muted-foreground ml-0.5">{list.length}</span>}
+                                        {list.length >= 1 && <span className="text-[10px] font-bold text-muted-foreground ml-0.5">{list.length}</span>}
                                       </button>
                                     );
                                   })}
