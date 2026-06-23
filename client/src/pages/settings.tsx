@@ -29,7 +29,7 @@ import { LogOut, Trash2, ArrowLeft, SlidersHorizontal, User2, Mail, Smartphone, 
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { subscribeToPushNotifications, unsubscribeFromPushNotifications } from "@/lib/push";
+import { subscribeToPushNotifications, unsubscribeFromPushNotifications, getPushSubscriptionStatus } from "@/lib/push";
 import { UscfVerificationCard } from "@/components/uscf-verification-card";
 import { FideVerificationCard } from "@/components/fide-verification-card";
 
@@ -252,9 +252,9 @@ export default function SettingsPage() {
   const [isPushEnabling, setIsPushEnabling] = useState(false);
 
   useEffect(() => {
-    if (typeof window !== "undefined" && "Notification" in window) {
-      setIsPushEnabled(Notification.permission === "granted");
-    }
+    getPushSubscriptionStatus().then((status) => {
+      setIsPushEnabled(status);
+    });
   }, []);
 
   const handleTogglePush = async (checked: boolean) => {

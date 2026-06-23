@@ -15,6 +15,7 @@ import TournamentManagement from "@/pages/tournament-management";
 import TournamentView from "@/pages/tournament-view";
 import NotFound from "@/pages/not-found";
 import SettingsPage from "@/pages/settings";
+import DirectorProfilePage from "@/pages/director-profile";
 import AddPlayerPage from "@/pages/add-player";
 import TournamentSettingsPage from "@/pages/tournament-settings";
 import TournamentActionsPage from "@/pages/tournament-actions";
@@ -196,6 +197,9 @@ function AuthenticatedApp() {
                   <Redirect to="/dashboard/drafts" />
                 </Route>
                 <Route path="/dashboard/:tab" component={TournamentDirectorDashboard} />
+                <Route path="/directors/:id">
+                  {(params) => <DirectorProfilePage directorId={parseInt(params.id)} />}
+                </Route>
                 <Route path="/tournaments/new" component={TournamentCreation} />
                 <Route path="/tournaments/:id/manage/:tab/*">
                   {(params) => (
@@ -310,6 +314,9 @@ function AuthenticatedApp() {
                   <Redirect to="/dashboard/ongoing" />
                 </Route>
                 <Route path="/dashboard/:tab" component={PlayerDashboard} />
+                <Route path="/directors/:id">
+                  {(params) => <DirectorProfilePage directorId={parseInt(params.id)} />}
+                </Route>
                 <Route path="/tournaments/:id/register">
                   {(params) => (
                     <TournamentRouteWrapper idParam={params.id}>

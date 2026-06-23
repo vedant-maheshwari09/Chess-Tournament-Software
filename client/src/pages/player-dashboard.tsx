@@ -70,7 +70,7 @@ export default function PlayerDashboard() {
   const isPlayer = user?.role === "player";
   const [pendingStarId, setPendingStarId] = useState<number | null>(null);
 
-  const validTabs = ["ongoing", "upcoming", "past"];
+  const validTabs = ["ongoing", "upcoming", "past", "following"];
   React.useEffect(() => {
     if (!validTabs.includes(activeTab)) {
       setLocation("/dashboard/ongoing", { replace: true });
@@ -103,6 +103,13 @@ export default function PlayerDashboard() {
   const { data: myRegistrations = [] } = useQuery<PlayerRegistrationType[]>({
     queryKey: ["/api/my-registrations"],
   });
+
+  const { data: followingList = [] } = useQuery<any[]>({
+    queryKey: ["/api/follows/following"],
+    enabled: isPlayer,
+  });
+
+  const followingIds = useMemo(() => new Set(followingList.map((f) => f.id)), [followingList]);
 
   const starredIds = useMemo(() => new Set(starredEntries.map((entry) => entry.tournamentId)), [starredEntries]);
 
@@ -249,7 +256,8 @@ export default function PlayerDashboard() {
     past: statsRows.filter((entry) => entry.tournament.status === "completed"),
     upcoming: statsRows.filter((entry) => entry.tournament.status === "upcoming"),
     ongoing: statsRows.filter((entry) => entry.tournament.status === "active"),
-  }), [statsRows]);
+    following: statsRows.filter((entry) => followingIds.has(entry.tournament.createdBy)),
+  }), [statsRows, followingIds]);
 
   const comparator = useMemo(() => {
     return (a: TournamentRow, b: TournamentRow) => {
@@ -317,6 +325,13 @@ export default function PlayerDashboard() {
         description: "Completed events you can revisit.",
         items: [...sectionsRaw.past].sort(comparator),
         empty: "You haven't viewed any completed tournaments yet.",
+      },
+      {
+        key: "following",
+        label: "Subscribed Feed",
+        description: "Tournaments organized by directors you subscribe to.",
+        items: [...sectionsRaw.following].sort(comparator),
+        empty: "You haven't subscribed to any organizers yet. Subscribe to directors on their tournament pages to see their events here!",
       },
     ],
     [sectionsRaw, comparator]

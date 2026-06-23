@@ -94,3 +94,17 @@ export async function unsubscribeFromPushNotifications(): Promise<boolean> {
     return false;
   }
 }
+
+export async function getPushSubscriptionStatus(): Promise<boolean> {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    return false;
+  }
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    const subscription = await registration.pushManager.getSubscription();
+    return !!subscription;
+  } catch (error) {
+    console.error('Error getting subscription status:', error);
+    return false;
+  }
+}

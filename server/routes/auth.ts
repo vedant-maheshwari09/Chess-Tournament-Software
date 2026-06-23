@@ -562,14 +562,25 @@ app.delete("/api/auth/account", requireAuth, async (req, res) => {
 app.get("/api/users/:id", async (req, res) => {
     try {
       const userId = parseInt(req.params.id);
+      if (isNaN(userId)) {
+        return res.status(400).json({ message: "Invalid user ID" });
+      }
       const user = await storage.getUserById(userId);
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
 
+      // Count followers from follows table
+      const followerList = await db.select()
+        .from(follows)
+        .where(eq(follows.followingId, userId));
+
       // Return only public information
       const { passwordHash: _, ...publicUser } = user;
-      res.json(publicUser);
+      res.json({
+        ...publicUser,
+        followersCount: followerList.length
+      });
     } catch (error) {
       console.error('Get user by ID error:', error);
       res.status(500).json({ message: "Failed to get user info" });

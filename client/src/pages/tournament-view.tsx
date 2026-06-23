@@ -263,7 +263,9 @@ export default function TournamentView({ tournamentId }: TournamentViewProps) {
                 {director && (
                   <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 mt-3 text-sm text-slate-600 dark:text-slate-300">
                     <span className="font-semibold text-slate-500">Organized by:</span>
-                    <span>{director.organizationName || `${director.firstName} ${director.lastName}`}</span>
+                    <Link href={`/directors/${director.id}`} className="hover:text-indigo-600 dark:hover:text-indigo-400 underline decoration-dotted transition-colors">
+                      {director.organizationName || `${director.firstName} ${director.lastName}`}
+                    </Link>
                     {user && user.id !== director.id && user.role === 'player' && (
                       <Button
                         size="sm"
