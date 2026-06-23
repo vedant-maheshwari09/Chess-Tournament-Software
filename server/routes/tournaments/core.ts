@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import { z } from "zod";
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { storage } from '../../storage';
 import { requireAuth, requireRole, requireTournamentAccess } from '../../auth';
 import { notificationService } from '../../notifications';
@@ -44,8 +44,24 @@ export function applyCoreRoutes(app: Express) {
           return false;
         }
       });
-      res.json(visibleTournaments);
+
+      const followerCounts = await db.select({
+        followingId: follows.followingId,
+        count: sql<number>`count(*)::int`
+      })
+      .from(follows)
+      .groupBy(follows.followingId);
+
+      const followerMap = new Map<number, number>(followerCounts.map(f => [f.followingId, f.count]));
+
+      const enrichedTournaments = visibleTournaments.map(t => ({
+        ...t,
+        creatorSubscribers: followerMap.get(t.createdBy) || 0
+      }));
+
+      res.json(enrichedTournaments);
     } catch (error) {
+      console.error("Failed to fetch tournaments:", error);
       res.status(500).json({ message: "Failed to fetch tournaments" });
     }
   });
@@ -276,7 +292,8 @@ export function applyCoreRoutes(app: Express) {
         const followerList = await db.select({
           id: users.id,
           email: users.email,
-          notifyEmail: users.notifyEmail
+          notifyEmail: users.notifyEmail,
+          notifyTournamentStatus: users.notifyTournamentStatus
         })
         .from(follows)
         .innerJoin(users, eq(follows.followerId, users.id))
@@ -292,6 +309,15 @@ export function applyCoreRoutes(app: Express) {
             meta: { tournamentId: newTournament.id },
             read: false,
           }).catch((err: any) => console.error("In-app notification failed:", err));
+
+          if (follower.notifyTournamentStatus !== false) {
+            await notificationService.sendWebPushNotificationToUser(
+              follower.id,
+              "New Tournament",
+              `${organizationOrName} has created a new tournament: "${newTournament.name}".`,
+              `/tournaments/${newTournament.id}`
+            ).catch((err: any) => console.error("Web push notification failed:", err));
+          }
 
           if (follower.notifyEmail && follower.email) {
             await notificationService.sendEmail({

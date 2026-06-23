@@ -2,11 +2,14 @@ import React, { useEffect, useMemo, useState } from "react";
 import type { ComponentType } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useRoute, Link } from "wouter";
-import { Trophy, Users, Eye, Medal, Info, Calculator, PauseCircle, Star, Loader2, MessageCircle } from "lucide-react";
+import { Trophy, Users, Eye, Medal, Info, Calculator, PauseCircle, Star, Loader2, MessageCircle, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import SettingsMenu from "@/components/settings-menu";
 
 import { useAuth } from "@/hooks/useAuth";
@@ -18,7 +21,7 @@ import { requestFirebaseToken } from "@/lib/firebase";
 import NotificationBell from "@/components/notification-bell";
 import { slugify } from "@/lib/utils";
 
-type SortKey = "players" | "date" | "state" | "name" | "format" | "rounds" | "following";
+type SortKey = "date" | "players" | "subscribers" | "state" | "name" | "format" | "rounds";
 
 type DetailTabKey = "pairings" | "standings" | "byes" | "predictor" | "info";
 
@@ -176,7 +179,14 @@ export default function PlayerDashboard() {
     return map;
   }, [myRegistrations]);
 
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterFormat, setFilterFormat] = useState("all");
+  const [filterState, setFilterState] = useState("all");
+  const [filterMinSubscribers, setFilterMinSubscribers] = useState("0");
+  const [filterOnlyFavorites, setFilterOnlyFavorites] = useState(false);
+  const [filterOnlyFollowing, setFilterOnlyFollowing] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>("date");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
   const { data: statsData = [], isLoading: statsLoading } = useQuery<TournamentRow[]>({
     queryKey: ["tournament-stats", tournaments.map((tournament) => tournament.id)],
@@ -231,100 +241,139 @@ export default function PlayerDashboard() {
     });
   }, [statsData, tournaments]);
 
-  const sectionsRaw = useMemo(() => ({
-    past: statsRows.filter((entry) => entry.tournament.status === "completed"),
-    upcoming: statsRows.filter((entry) => entry.tournament.status === "upcoming"),
-    ongoing: statsRows.filter((entry) => entry.tournament.status === "active"),
-    following: statsRows.filter((entry) => followingIds.has(entry.tournament.createdBy)),
-  }), [statsRows, followingIds]);
-
-  const comparator = useMemo(() => {
-    return (a: TournamentRow, b: TournamentRow) => {
-      let comparison = 0;
-
-      switch (sortKey) {
-        case "name":
-          comparison = (a.tournament.name || "").localeCompare(b.tournament.name || "");
-          break;
-        case "format":
-          comparison = (a.tournament.format || "").localeCompare(b.tournament.format || "");
-          break;
-        case "rounds": {
-          const aRounds = a.tournament.rounds ?? 0;
-          const bRounds = b.tournament.rounds ?? 0;
-          comparison = bRounds - aRounds;
-          break;
-        }
-        case "players":
-          comparison = b.playersCount - a.playersCount;
-          break;
-        case "state":
-          comparison = (a.state || "").localeCompare(b.state || "");
-          break;
-        case "following":
-        case "date":
-        default: {
-          const aTime = a.startDate ? a.startDate.getTime() : Number.POSITIVE_INFINITY;
-          const bTime = b.startDate ? b.startDate.getTime() : Number.POSITIVE_INFINITY;
-          comparison = aTime - bTime;
-          break;
-        }
+  const uniqueStates = useMemo(() => {
+    const states = new Set<string>();
+    statsRows.forEach((row) => {
+      if (row.state && row.state !== "N/A") {
+        states.add(row.state);
       }
+    });
+    return Array.from(states).sort();
+  }, [statsRows]);
 
-      if (comparison === 0 && isPlayer) {
-        const aStar = starredIds.has(a.tournament.id);
-        const bStar = starredIds.has(b.tournament.id);
-        if (aStar !== bStar) {
-          return aStar ? -1 : 1;
+  const filteredAndSortedRows = useMemo(() => {
+    return statsRows
+      .filter((row) => {
+        // Search Query (name / location)
+        if (searchQuery) {
+          const q = searchQuery.toLowerCase();
+          const nameMatch = (row.tournament.name || "").toLowerCase().includes(q);
+          const locMatch = (row.tournament.location || "").toLowerCase().includes(q);
+          if (!nameMatch && !locMatch) return false;
         }
-      }
 
-      return comparison;
-    };
-  }, [sortKey, isPlayer, starredIds]);
-
-  const sectionsData = useMemo<SectionData[]>(
-    () => {
-      const filterFn = (items: TournamentRow[]) => {
-        if (sortKey === "following") {
-          return items.filter((entry) => followingIds.has(entry.tournament.createdBy));
+        // Format
+        if (filterFormat !== "all" && row.tournament.format !== filterFormat) {
+          return false;
         }
-        return items;
-      };
 
-      return [
-        {
-          key: "ongoing",
-          label: "Ongoing Tournaments",
-          description: "Live events happening right now.",
-          items: filterFn([...sectionsRaw.ongoing]).sort(comparator),
-          empty: sortKey === "following" 
-            ? "No live tournaments from organizers you follow." 
-            : "No tournaments are currently live.",
-        },
-        {
-          key: "upcoming",
-          label: "Upcoming Tournaments",
-          description: "Events that are scheduled to start soon.",
-          items: filterFn([...sectionsRaw.upcoming]).sort(comparator),
-          empty: sortKey === "following"
-            ? "No upcoming tournaments from organizers you follow."
-            : "No upcoming tournaments are available right now.",
-        },
-        {
-          key: "past",
-          label: "Past Tournaments",
-          description: "Completed events you can revisit.",
-          items: filterFn([...sectionsRaw.past]).sort(comparator),
-          empty: sortKey === "following"
-            ? "No completed tournaments from organizers you follow."
-            : "You haven't viewed any completed tournaments yet.",
-        },
-      ];
-    },
-    [sectionsRaw, comparator, sortKey, followingIds]
-  );
+        // State
+        if (filterState !== "all" && row.state !== filterState) {
+          return false;
+        }
 
+        // Min Subscribers
+        const minSubs = parseInt(filterMinSubscribers, 10);
+        const creatorSubs = (row.tournament as any).creatorSubscribers ?? 0;
+        if (creatorSubs < minSubs) {
+          return false;
+        }
+
+        // Only Favorites
+        if (filterOnlyFavorites && !starredIds.has(row.tournament.id)) {
+          return false;
+        }
+
+        // Only Following
+        if (filterOnlyFollowing && !followingIds.has(row.tournament.createdBy)) {
+          return false;
+        }
+
+        return true;
+      })
+      .sort((a, b) => {
+        let comparison = 0;
+        switch (sortKey) {
+          case "name":
+            comparison = (a.tournament.name || "").localeCompare(b.tournament.name || "");
+            break;
+          case "format":
+            comparison = (a.tournament.format || "").localeCompare(b.tournament.format || "");
+            break;
+          case "rounds": {
+            const aRounds = a.tournament.rounds ?? 0;
+            const bRounds = b.tournament.rounds ?? 0;
+            comparison = aRounds - bRounds;
+            break;
+          }
+          case "players":
+            comparison = a.playersCount - b.playersCount;
+            break;
+          case "subscribers": {
+            const aSubs = (a.tournament as any).creatorSubscribers ?? 0;
+            const bSubs = (b.tournament as any).creatorSubscribers ?? 0;
+            comparison = aSubs - bSubs;
+            break;
+          }
+          case "state":
+            comparison = (a.state || "").localeCompare(b.state || "");
+            break;
+          case "date":
+          default: {
+            const aTime = a.startDate ? a.startDate.getTime() : Number.POSITIVE_INFINITY;
+            const bTime = b.startDate ? b.startDate.getTime() : Number.POSITIVE_INFINITY;
+            comparison = aTime - bTime;
+            break;
+          }
+        }
+
+        // Apply sort direction
+        if (sortDirection === "desc") {
+          comparison = -comparison;
+        }
+
+        // Secondary sorting by favorites
+        if (comparison === 0 && isPlayer) {
+          const aStar = starredIds.has(a.tournament.id);
+          const bStar = starredIds.has(b.tournament.id);
+          if (aStar !== bStar) {
+            return aStar ? -1 : 1;
+          }
+        }
+
+        return comparison;
+      });
+  }, [statsRows, searchQuery, filterFormat, filterState, filterMinSubscribers, filterOnlyFavorites, filterOnlyFollowing, sortKey, sortDirection, starredIds, followingIds, isPlayer]);
+
+  const sectionsData = useMemo<SectionData[]>(() => {
+    const ongoing = filteredAndSortedRows.filter((entry) => entry.tournament.status === "active");
+    const upcoming = filteredAndSortedRows.filter((entry) => entry.tournament.status === "upcoming");
+    const past = filteredAndSortedRows.filter((entry) => entry.tournament.status === "completed");
+
+    return [
+      {
+        key: "ongoing",
+        label: "Ongoing Tournaments",
+        description: "Live events happening right now.",
+        items: ongoing,
+        empty: "No tournaments match the active filters.",
+      },
+      {
+        key: "upcoming",
+        label: "Upcoming Tournaments",
+        description: "Events that are scheduled to start soon.",
+        items: upcoming,
+        empty: "No upcoming tournaments match the active filters.",
+      },
+      {
+        key: "past",
+        label: "Past Tournaments",
+        description: "Completed events you can revisit.",
+        items: past,
+        empty: "No past tournaments match the active filters.",
+      },
+    ];
+  }, [filteredAndSortedRows]);
 
   const getFormatName = (format: string) => {
     switch (format) {
@@ -334,8 +383,6 @@ export default function PlayerDashboard() {
       default: return format;
     }
   };
-
-
 
   const formatDateRange = (start: Date | null, end: Date | null) => {
     const format = (date: Date | null) =>
@@ -397,6 +444,9 @@ export default function PlayerDashboard() {
         <td className="px-4 py-4 text-center align-middle text-sm text-slate-700 dark:text-slate-300">
           {playersCount} player{playersCount === 1 ? "" : "s"}
         </td>
+        <td className="px-4 py-4 text-center align-middle text-sm text-slate-700 dark:text-slate-300">
+          {(tournament as any).creatorSubscribers ?? 0}
+        </td>
         <td className="px-4 py-4 text-center align-middle text-sm text-slate-700 dark:text-slate-300">{formatDateRange(startDate, endDate)}</td>
         <td className="px-4 py-4 text-center align-middle text-sm text-slate-700 dark:text-slate-300">{sectionsCount ?? "—"}</td>
         <td className="px-4 py-4 align-middle text-center">
@@ -439,6 +489,7 @@ export default function PlayerDashboard() {
                     <th className="px-4 py-3 text-left">Tournament Name</th>
                     <th className="px-4 py-3 text-center">State</th>
                     <th className="px-4 py-3 text-center">Players</th>
+                    <th className="px-4 py-3 text-center">Organizer Subscribers</th>
                     <th className="px-4 py-3 text-center">Start Date – End Date</th>
                     <th className="px-4 py-3 text-center">Sections</th>
                     <th className="px-4 py-3 text-center">View</th>
@@ -497,22 +548,148 @@ export default function PlayerDashboard() {
         {/* My Registrations Status section removed - now in Notification Bell */}
 
         {tournaments.length > 0 ? (
-          <div className="mb-6 flex flex-wrap items-center justify-end gap-3">
-            <span className="text-sm text-slate-500">Sort by:</span>
-            <Select value={sortKey} onValueChange={(value) => setSortKey(value as SortKey)}>
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder="Sort tournaments" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="date">Start Date</SelectItem>
-                <SelectItem value="players">Players</SelectItem>
-                <SelectItem value="state">State</SelectItem>
-                <SelectItem value="name">Tournament Name</SelectItem>
-                <SelectItem value="format">Format</SelectItem>
-                <SelectItem value="rounds">Rounds</SelectItem>
-                <SelectItem value="following">Organizers I Follow</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 mb-6 shadow-sm space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-2">
+                <SlidersHorizontal className="h-5 w-5 text-indigo-500" />
+                <h3 className="font-semibold text-slate-900 dark:text-white">Filter & Sort Tournaments</h3>
+              </div>
+              {(searchQuery || filterFormat !== "all" || filterState !== "all" || filterMinSubscribers !== "0" || filterOnlyFavorites || filterOnlyFollowing) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setSearchQuery("");
+                    setFilterFormat("all");
+                    setFilterState("all");
+                    setFilterMinSubscribers("0");
+                    setFilterOnlyFavorites(false);
+                    setFilterOnlyFollowing(false);
+                  }}
+                  className="text-xs text-indigo-600 hover:text-indigo-700 h-8 px-2.5 rounded-lg"
+                >
+                  Reset Filters
+                </Button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+              {/* Search Input */}
+              <div className="space-y-1.5">
+                <Label className="text-xs text-slate-500">Search</Label>
+                <Input
+                  placeholder="Name or location..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="h-9 text-sm rounded-lg"
+                />
+              </div>
+
+              {/* Format Filter */}
+              <div className="space-y-1.5">
+                <Label className="text-xs text-slate-500">Format</Label>
+                <Select value={filterFormat} onValueChange={setFilterFormat}>
+                  <SelectTrigger className="h-9 text-sm rounded-lg">
+                    <SelectValue placeholder="All Formats" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Formats</SelectItem>
+                    <SelectItem value="swiss">Swiss System</SelectItem>
+                    <SelectItem value="roundrobin">Round Robin</SelectItem>
+                    <SelectItem value="knockout">Knockout</SelectItem>
+                    <SelectItem value="arena">Arena Mode</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* State Filter */}
+              <div className="space-y-1.5">
+                <Label className="text-xs text-slate-500">State</Label>
+                <Select value={filterState} onValueChange={setFilterState}>
+                  <SelectTrigger className="h-9 text-sm rounded-lg">
+                    <SelectValue placeholder="All States" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All States</SelectItem>
+                    {uniqueStates.map((st) => (
+                      <SelectItem key={st} value={st}>{st}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Min Subscribers Filter */}
+              <div className="space-y-1.5">
+                <Label className="text-xs text-slate-500">Min Organizer Subscribers</Label>
+                <Select value={filterMinSubscribers} onValueChange={setFilterMinSubscribers}>
+                  <SelectTrigger className="h-9 text-sm rounded-lg">
+                    <SelectValue placeholder="Any amount" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="0">Any amount</SelectItem>
+                    <SelectItem value="1">1+ subscriber</SelectItem>
+                    <SelectItem value="5">5+ subscribers</SelectItem>
+                    <SelectItem value="10">10+ subscribers</SelectItem>
+                    <SelectItem value="25">25+ subscribers</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-4 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <div className="flex flex-wrap items-center gap-6">
+                <div className="flex items-center gap-2">
+                  <Switch
+                    id="favorites-filter"
+                    checked={filterOnlyFavorites}
+                    onCheckedChange={setFilterOnlyFavorites}
+                    className="scale-90"
+                  />
+                  <Label htmlFor="favorites-filter" className="text-xs font-medium cursor-pointer text-slate-700 dark:text-slate-300">
+                    Only Favorites
+                  </Label>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Switch
+                    id="following-filter"
+                    checked={filterOnlyFollowing}
+                    onCheckedChange={setFilterOnlyFollowing}
+                    className="scale-90"
+                  />
+                  <Label htmlFor="following-filter" className="text-xs font-medium cursor-pointer text-slate-700 dark:text-slate-300">
+                    Only Followed Organizers
+                  </Label>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Label className="text-xs text-slate-500 shrink-0">Sort by:</Label>
+                <Select value={sortKey} onValueChange={(val) => setSortKey(val as any)}>
+                  <SelectTrigger className="h-8 text-xs w-36 rounded-lg">
+                    <SelectValue placeholder="Sort by" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="date">Start Date</SelectItem>
+                    <SelectItem value="players">Players Count</SelectItem>
+                    <SelectItem value="subscribers">Subscribers</SelectItem>
+                    <SelectItem value="state">State</SelectItem>
+                    <SelectItem value="name">Name</SelectItem>
+                    <SelectItem value="format">Format</SelectItem>
+                    <SelectItem value="rounds">Rounds</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setSortDirection(prev => prev === "asc" ? "desc" : "asc")}
+                  className="h-8 w-8 rounded-lg"
+                >
+                  <span className="text-xs">{sortDirection === "asc" ? "↑" : "↓"}</span>
+                </Button>
+              </div>
+            </div>
           </div>
         ) : null}
 
