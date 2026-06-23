@@ -375,6 +375,17 @@ export default function SettingsPage() {
                   placeholder="Last Name"
                 />
               </div>
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="email-input">Email Address</Label>
+                <Input 
+                  id="email-input"
+                  value={user?.email ?? ""}
+                  disabled
+                  readOnly
+                  placeholder="Email Address"
+                  className="bg-slate-50 dark:bg-slate-900 border-slate-200 text-slate-500 cursor-not-allowed"
+                />
+              </div>
               {user?.role === 'tournament_director' && (
                 <div className="space-y-2 md:col-span-2">
                   <Label htmlFor="org-name-input">Organization Name</Label>
