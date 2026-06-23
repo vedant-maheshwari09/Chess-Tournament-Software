@@ -318,7 +318,13 @@ app.post("/api/auth/login", async (req, res) => {
       });
     } catch (error) {
       console.error('Login error:', error);
-      res.status(400).json({ message: "Invalid login data" });
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : '';
+      res.status(400).json({ 
+        message: "Invalid login data", 
+        error: errorMessage,
+        stack: errorStack
+      });
     }
   });
 

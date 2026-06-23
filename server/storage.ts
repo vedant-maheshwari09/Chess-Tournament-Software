@@ -70,6 +70,10 @@ function toSnakeCase<T>(input: T): any {
 }
 
 function toCamelCase<T>(input: any): T {
+  if (input instanceof Date) {
+    return input as any;
+  }
+
   if (Array.isArray(input)) {
     return input.map((item) => toCamelCase(item)) as T;
   }
