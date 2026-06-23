@@ -49,11 +49,17 @@ export async function subscribeToPushNotifications(): Promise<boolean> {
     }
 
     // Send subscription to server
+    const token = localStorage.getItem("auth_token");
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
     const res = await fetch('/api/notifications/subscribe', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers,
       body: JSON.stringify(subscription),
     });
 
@@ -80,11 +86,17 @@ export async function unsubscribeFromPushNotifications(): Promise<boolean> {
     if (subscription) {
       await subscription.unsubscribe();
       
+      const token = localStorage.getItem("auth_token");
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+
       await fetch('/api/notifications/unsubscribe', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({ endpoint: subscription.endpoint }),
       });
     }

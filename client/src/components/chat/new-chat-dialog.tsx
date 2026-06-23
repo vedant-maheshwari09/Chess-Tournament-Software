@@ -207,9 +207,6 @@ export function NewChatDialog({ onChatCreated }: { onChatCreated: (threadId: num
                         <p className="text-sm font-semibold leading-none truncate group-hover:text-primary transition-colors">
                           {u.displayName || u.username}
                         </p>
-                        <p className="text-xs text-muted-foreground mt-1 truncate">
-                          @{u.username}
-                        </p>
                       </div>
                     </button>
                   ))}
@@ -315,9 +312,6 @@ export function NewChatDialog({ onChatCreated }: { onChatCreated: (threadId: num
                         <div className="flex-1 overflow-hidden">
                           <p className="text-sm font-semibold leading-none truncate group-hover:text-primary transition-colors">
                             {u.displayName || u.username}
-                          </p>
-                          <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                            @{u.username}
                           </p>
                         </div>
                         <div className={`h-4 w-4 rounded border flex items-center justify-center mr-1 transition-all ${isSelected ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/30"}`}>

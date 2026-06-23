@@ -29,7 +29,7 @@ import { RegistrationStatusCard } from "@/components/registration-status-card";
 import NotificationBell from "@/components/notification-bell";
 import { slugify } from "@/lib/utils";
 
-type SortKey = "players" | "date" | "state" | "name" | "format" | "rounds";
+type SortKey = "players" | "date" | "state" | "name" | "format" | "rounds" | "following";
 
 type DetailTabKey = "pairings" | "standings" | "byes" | "predictor" | "info";
 
@@ -70,7 +70,7 @@ export default function PlayerDashboard() {
   const isPlayer = user?.role === "player";
   const [pendingStarId, setPendingStarId] = useState<number | null>(null);
 
-  const validTabs = ["ongoing", "upcoming", "past", "following"];
+  const validTabs = ["ongoing", "upcoming", "past"];
   React.useEffect(() => {
     if (!validTabs.includes(activeTab)) {
       setLocation("/dashboard/ongoing", { replace: true });
@@ -282,6 +282,7 @@ export default function PlayerDashboard() {
         case "state":
           comparison = (a.state || "").localeCompare(b.state || "");
           break;
+        case "following":
         case "date":
         default: {
           const aTime = a.startDate ? a.startDate.getTime() : Number.POSITIVE_INFINITY;
@@ -304,37 +305,45 @@ export default function PlayerDashboard() {
   }, [sortKey, isPlayer, starredIds]);
 
   const sectionsData = useMemo<SectionData[]>(
-    () => [
-      {
-        key: "ongoing",
-        label: "Ongoing Tournaments",
-        description: "Live events happening right now.",
-        items: [...sectionsRaw.ongoing].sort(comparator),
-        empty: "No tournaments are currently live.",
-      },
-      {
-        key: "upcoming",
-        label: "Upcoming Tournaments",
-        description: "Events that are scheduled to start soon.",
-        items: [...sectionsRaw.upcoming].sort(comparator),
-        empty: "No upcoming tournaments are available right now.",
-      },
-      {
-        key: "past",
-        label: "Past Tournaments",
-        description: "Completed events you can revisit.",
-        items: [...sectionsRaw.past].sort(comparator),
-        empty: "You haven't viewed any completed tournaments yet.",
-      },
-      {
-        key: "following",
-        label: "Subscribed Feed",
-        description: "Tournaments organized by directors you subscribe to.",
-        items: [...sectionsRaw.following].sort(comparator),
-        empty: "You haven't subscribed to any organizers yet. Subscribe to directors on their tournament pages to see their events here!",
-      },
-    ],
-    [sectionsRaw, comparator]
+    () => {
+      const filterFn = (items: TournamentRow[]) => {
+        if (sortKey === "following") {
+          return items.filter((entry) => followingIds.has(entry.tournament.createdBy));
+        }
+        return items;
+      };
+
+      return [
+        {
+          key: "ongoing",
+          label: "Ongoing Tournaments",
+          description: "Live events happening right now.",
+          items: filterFn([...sectionsRaw.ongoing]).sort(comparator),
+          empty: sortKey === "following" 
+            ? "No live tournaments from organizers you follow." 
+            : "No tournaments are currently live.",
+        },
+        {
+          key: "upcoming",
+          label: "Upcoming Tournaments",
+          description: "Events that are scheduled to start soon.",
+          items: filterFn([...sectionsRaw.upcoming]).sort(comparator),
+          empty: sortKey === "following"
+            ? "No upcoming tournaments from organizers you follow."
+            : "No upcoming tournaments are available right now.",
+        },
+        {
+          key: "past",
+          label: "Past Tournaments",
+          description: "Completed events you can revisit.",
+          items: filterFn([...sectionsRaw.past]).sort(comparator),
+          empty: sortKey === "following"
+            ? "No completed tournaments from organizers you follow."
+            : "You haven't viewed any completed tournaments yet.",
+        },
+      ];
+    },
+    [sectionsRaw, comparator, sortKey, followingIds]
   );
 
 
@@ -530,6 +539,7 @@ export default function PlayerDashboard() {
                 <SelectItem value="name">Tournament Name</SelectItem>
                 <SelectItem value="format">Format</SelectItem>
                 <SelectItem value="rounds">Rounds</SelectItem>
+                <SelectItem value="following">Organizers I Follow</SelectItem>
               </SelectContent>
             </Select>
           </div>

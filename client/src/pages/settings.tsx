@@ -25,7 +25,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Separator } from "@/components/ui/separator";
-import { LogOut, Trash2, ArrowLeft, SlidersHorizontal, User2, Mail, Smartphone, Bell, Trophy, Users, Loader2, Check, BadgeCheck } from "lucide-react";
+import { LogOut, Trash2, ArrowLeft, SlidersHorizontal, User2, Mail, Smartphone, Bell, Trophy, Users, Loader2, Check, BadgeCheck, MessageSquare } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -47,6 +47,43 @@ export default function SettingsPage() {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+
+  // Chat customizability states (syncs to/from localStorage)
+  const [chatPlayChime, setChatPlayChime] = useState<boolean>(() => localStorage.getItem("chat_play_chime") !== "false");
+  const [chatEnterToSend, setChatEnterToSend] = useState<boolean>(() => localStorage.getItem("chat_enter_to_send") !== "false");
+  const [chatMuteGeneral, setChatMuteGeneral] = useState<boolean>(() => localStorage.getItem("chat_mute_general") === "true");
+  const [chatMuteAnnouncements, setChatMuteAnnouncements] = useState<boolean>(() => localStorage.getItem("chat_mute_announcements") === "true");
+  const [chatDensity, setChatDensity] = useState<"cozy" | "compact">(() => (localStorage.getItem("chat_density") as "cozy" | "compact") || "cozy");
+
+  const handleToggleChatPlayChime = (checked: boolean) => {
+    setChatPlayChime(checked);
+    localStorage.setItem("chat_play_chime", String(checked));
+    toast({ title: checked ? "Chat sound chimes enabled" : "Chat sound chimes disabled" });
+  };
+
+  const handleToggleChatEnterToSend = (checked: boolean) => {
+    setChatEnterToSend(checked);
+    localStorage.setItem("chat_enter_to_send", String(checked));
+    toast({ title: checked ? "Enter key will send messages" : "Enter key will insert a newline" });
+  };
+
+  const handleToggleChatMuteGeneral = (checked: boolean) => {
+    setChatMuteGeneral(checked);
+    localStorage.setItem("chat_mute_general", String(checked));
+    toast({ title: checked ? "General chat muted" : "General chat unmuted" });
+  };
+
+  const handleToggleChatMuteAnnouncements = (checked: boolean) => {
+    setChatMuteAnnouncements(checked);
+    localStorage.setItem("chat_mute_announcements", String(checked));
+    toast({ title: checked ? "Announcements chat muted" : "Announcements chat unmuted" });
+  };
+
+  const handleChatDensityChange = (value: string) => {
+    setChatDensity(value as "cozy" | "compact");
+    localStorage.setItem("chat_density", value);
+    toast({ title: `Chat density set to ${value}` });
+  };
 
   // Profile Edit States
   const [firstName, setFirstName] = useState(user?.firstName ?? "");
@@ -615,6 +652,82 @@ export default function SettingsPage() {
                   <span>Preferences saved</span>
                 </div>
               )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Chat Settings Card */}
+        <Card>
+          <CardHeader className="flex flex-row items-center gap-3">
+            <MessageSquare className="h-5 w-5 text-primary" />
+            <div>
+              <CardTitle>Chat Flow & Notifications</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Customize your messaging interface and chat notification preferences.
+              </p>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Chat Behavior</h3>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="flex items-center justify-between rounded-lg border bg-card p-4 transition-colors hover:bg-accent/5">
+                  <div>
+                    <Label className="text-sm font-bold">Sound Chimes</Label>
+                    <p className="text-xs text-muted-foreground">Play a tone for incoming direct and channel messages.</p>
+                  </div>
+                  <Switch checked={chatPlayChime} onCheckedChange={handleToggleChatPlayChime} />
+                </div>
+
+                <div className="flex items-center justify-between rounded-lg border bg-card p-4 transition-colors hover:bg-accent/5">
+                  <div>
+                    <Label className="text-sm font-bold">Press Enter to Send</Label>
+                    <p className="text-xs text-muted-foreground">Pressing Enter sends the message, Shift+Enter starts a new line.</p>
+                  </div>
+                  <Switch checked={chatEnterToSend} onCheckedChange={handleToggleChatEnterToSend} />
+                </div>
+              </div>
+            </div>
+
+            <Separator />
+
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Channel Muting</h3>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="flex items-center justify-between rounded-lg border bg-card p-4 transition-colors hover:bg-accent/5">
+                  <div>
+                    <Label className="text-sm font-bold">Mute General Channels</Label>
+                    <p className="text-xs text-muted-foreground">Silence unread badges and notifications for general chat rooms.</p>
+                  </div>
+                  <Switch checked={chatMuteGeneral} onCheckedChange={handleToggleChatMuteGeneral} />
+                </div>
+
+                <div className="flex items-center justify-between rounded-lg border bg-card p-4 transition-colors hover:bg-accent/5">
+                  <div>
+                    <Label className="text-sm font-bold">Mute Announcement Channels</Label>
+                    <p className="text-xs text-muted-foreground">Silence unread badges and notifications for announcements.</p>
+                  </div>
+                  <Switch checked={chatMuteAnnouncements} onCheckedChange={handleToggleChatMuteAnnouncements} />
+                </div>
+              </div>
+            </div>
+
+            <Separator />
+
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-2">
+              <div>
+                <Label className="text-sm font-bold">Display Density</Label>
+                <p className="text-xs text-muted-foreground">Adjust the text padding and avatar sizing in the message view.</p>
+              </div>
+              <Select value={chatDensity} onValueChange={handleChatDensityChange}>
+                <SelectTrigger className="w-full sm:w-40">
+                  <SelectValue placeholder="Select Density" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cozy">Cozy (Spaced)</SelectItem>
+                  <SelectItem value="compact">Compact (Dense)</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </CardContent>
         </Card>

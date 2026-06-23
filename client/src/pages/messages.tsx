@@ -18,6 +18,10 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Settings } from "lucide-react";
 
 export default function MessagesDashboard() {
   const { user } = useAuth();
@@ -32,6 +36,48 @@ export default function MessagesDashboard() {
   const [editMessageText, setEditMessageText] = useState("");
   const [copiedMessageId, setCopiedMessageId] = useState<number | null>(null);
   const [isMuted, setIsMuted] = useState<Record<number, boolean>>({});
+
+  // Chat Customization States
+  const [playChimeEnabled, setPlayChimeEnabled] = useState(() => localStorage.getItem("chat_play_chime") !== "false");
+  const [enterToSend, setEnterToSend] = useState(() => localStorage.getItem("chat_enter_to_send") !== "false");
+  const [muteGeneral, setMuteGeneral] = useState(() => localStorage.getItem("chat_mute_general") === "true");
+  const [muteAnnouncements, setMuteAnnouncements] = useState(() => localStorage.getItem("chat_mute_announcements") === "true");
+  const [density, setDensity] = useState<"cozy" | "compact">(() => (localStorage.getItem("chat_density") as "cozy" | "compact") || "cozy");
+
+  const playChime = () => {
+    try {
+      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const osc1 = audioCtx.createOscillator();
+      const osc2 = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
+
+      osc1.type = "sine";
+      osc1.frequency.setValueAtTime(587.33, audioCtx.currentTime); // D5
+      osc2.type = "sine";
+      osc2.frequency.setValueAtTime(880.00, audioCtx.currentTime); // A5
+
+      gainNode.gain.setValueAtTime(0.08, audioCtx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.35);
+
+      osc1.connect(gainNode);
+      osc2.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+
+      osc1.start();
+      osc2.start();
+      osc1.stop(audioCtx.currentTime + 0.35);
+      osc2.stop(audioCtx.currentTime + 0.35);
+    } catch (err) {
+      console.error("Audio chime error:", err);
+    }
+  };
+
+  const shouldShowUnread = (channelName: string, unreadCount: number) => {
+    if (unreadCount <= 0) return false;
+    if (channelName === "announcements" && muteAnnouncements) return false;
+    if (channelName === "general" && muteGeneral) return false;
+    return true;
+  };
 
   // Search & Attachments
   const [searchQuery, setSearchQuery] = useState("");
@@ -256,6 +302,12 @@ export default function MessagesDashboard() {
         if (data.type === "new_message") {
           queryClient.invalidateQueries({ queryKey: ["/api/messages/threads", data.message.threadId, "messages", searchQuery] });
           queryClient.invalidateQueries({ queryKey: ["/api/messages/threads"] });
+          if (data.message.senderId !== user?.id) {
+            const playChimeVal = localStorage.getItem("chat_play_chime") !== "false";
+            if (playChimeVal) {
+              playChime();
+            }
+          }
         } else if (data.type === "message_deleted") {
           queryClient.invalidateQueries({ queryKey: ["/api/messages/threads", data.threadId, "messages", searchQuery] });
         } else if (data.type === "message_edited") {
@@ -352,9 +404,9 @@ export default function MessagesDashboard() {
                           >
                             <Hash className="h-3.5 w-3.5" />
                             <span className="truncate">{channel.name}</span>
-                            {channel.unreadCount > 0 && activeThreadId !== channel.id && (
-                              <span className="ml-auto w-1.5 h-1.5 bg-indigo-500 rounded-full shrink-0"></span>
-                            )}
+                             {shouldShowUnread(channel.name, channel.unreadCount) && activeThreadId !== channel.id && (
+                               <span className="ml-auto w-1.5 h-1.5 bg-indigo-500 rounded-full shrink-0"></span>
+                             )}
                           </button>
                         ))}
                       </div>
@@ -484,6 +536,102 @@ export default function MessagesDashboard() {
                         </div>
                       )}
                     </ScrollArea>
+                    </DialogContent>
+                </Dialog>
+
+                {/* Chat Settings Popup Dialog */}
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" title="Chat Settings">
+                      <Settings className="h-4 w-4 text-slate-500" />
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-sm border-border/50 shadow-lg">
+                    <DialogHeader>
+                      <DialogTitle className="flex items-center gap-2 font-bold">
+                        <Settings className="h-5 w-5 text-indigo-500" />
+                        Chat Settings
+                      </DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 py-3">
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-0.5">
+                          <Label className="text-sm font-semibold">Sound Chimes</Label>
+                          <p className="text-xs text-muted-foreground">Play a tone for incoming messages.</p>
+                        </div>
+                        <Switch 
+                          checked={playChimeEnabled} 
+                          onCheckedChange={(checked) => {
+                            setPlayChimeEnabled(checked);
+                            localStorage.setItem("chat_play_chime", String(checked));
+                          }} 
+                        />
+                      </div>
+                      
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-0.5">
+                          <Label className="text-sm font-semibold">Press Enter to Send</Label>
+                          <p className="text-xs text-muted-foreground">Press Enter to send, Shift+Enter for newline.</p>
+                        </div>
+                        <Switch 
+                          checked={enterToSend} 
+                          onCheckedChange={(checked) => {
+                            setEnterToSend(checked);
+                            localStorage.setItem("chat_enter_to_send", String(checked));
+                          }} 
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-0.5">
+                          <Label className="text-sm font-semibold">Mute General Chat</Label>
+                          <p className="text-xs text-muted-foreground">Silence unread badges for general channels.</p>
+                        </div>
+                        <Switch 
+                          checked={muteGeneral} 
+                          onCheckedChange={(checked) => {
+                            setMuteGeneral(checked);
+                            localStorage.setItem("chat_mute_general", String(checked));
+                          }} 
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-0.5">
+                          <Label className="text-sm font-semibold">Mute Announcements</Label>
+                          <p className="text-xs text-muted-foreground">Silence unread badges for announcements.</p>
+                        </div>
+                        <Switch 
+                          checked={muteAnnouncements} 
+                          onCheckedChange={(checked) => {
+                            setMuteAnnouncements(checked);
+                            localStorage.setItem("chat_mute_announcements", String(checked));
+                          }} 
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between pt-3 border-t">
+                        <div className="space-y-0.5">
+                          <Label className="text-sm font-semibold">Display Density</Label>
+                          <p className="text-xs text-muted-foreground">Cozy vs compact message view.</p>
+                        </div>
+                        <Select 
+                          value={density} 
+                          onValueChange={(val) => {
+                            setDensity(val as "cozy" | "compact");
+                            localStorage.setItem("chat_density", val);
+                          }}
+                        >
+                          <SelectTrigger className="w-28 h-8 text-xs font-semibold">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="cozy" className="text-xs">Cozy</SelectItem>
+                            <SelectItem value="compact" className="text-xs">Compact</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
                   </DialogContent>
                 </Dialog>
 
@@ -581,20 +729,20 @@ export default function MessagesDashboard() {
                   const isEditing = editingMessageId === msg.id;
 
                   return (
-                    <div key={msg.id} className={`flex gap-3 group ${isMe ? "ml-auto flex-row-reverse" : "mr-auto"}`}>
+                    <div key={msg.id} className={`flex ${density === "compact" ? "gap-1.5" : "gap-3"} group ${isMe ? "ml-auto flex-row-reverse" : "mr-auto"}`}>
                       <div className="w-8 shrink-0 flex flex-col justify-end">
                         {showAvatar && !isMe && (
-                          <Avatar className="h-8 w-8 mb-1">
-                            <AvatarFallback className="text-xs bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold">
+                          <Avatar className={density === "compact" ? "h-6 w-6 mb-0.5" : "h-8 w-8 mb-1"}>
+                            <AvatarFallback className={`${density === "compact" ? "text-[10px]" : "text-xs"} bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold`}>
                               {msg.senderDisplayName?.slice(0, 2).toUpperCase() || '?'}
                             </AvatarFallback>
                           </Avatar>
                         )}
                       </div>
                       
-                      <div className={`flex flex-col gap-1 max-w-[75%] ${isMe ? "items-end" : "items-start"}`}>
+                      <div className={`flex flex-col ${density === "compact" ? "gap-0.5" : "gap-1"} max-w-[75%] ${isMe ? "items-end" : "items-start"}`}>
                         {showAvatar && (
-                          <div className="flex items-center gap-2 mb-1">
+                          <div className={`flex items-center gap-2 ${density === "compact" ? "mb-0.5" : "mb-1"}`}>
                             <span className="text-xs font-semibold text-foreground/80">{isMe ? "You" : msg.senderDisplayName}</span>
                             <span className="text-[10px] text-muted-foreground flex items-center gap-1">
                               {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -713,7 +861,7 @@ export default function MessagesDashboard() {
                           ) : (
                             <div className="space-y-1">
                               {/* Message bubble */}
-                              <div className={`px-4 py-2.5 shadow-sm text-sm leading-relaxed
+                              <div className={`${density === "compact" ? "px-3 py-1 text-xs leading-normal" : "px-4 py-2.5 shadow-sm text-sm leading-relaxed"}
                                 ${msg.isDeleted ? "bg-muted/50 text-muted-foreground italic rounded-2xl border border-dashed border-border" 
                                 : isMe 
                                   ? "bg-primary text-primary-foreground rounded-2xl rounded-tr-sm" 
@@ -748,7 +896,7 @@ export default function MessagesDashboard() {
                               
                               {/* Reactions tally display */}
                               {msg.reactions && msg.reactions.length > 0 && !msg.isDeleted && (
-                                <div className={`flex flex-wrap gap-1 mt-1.5 ${isMe ? "justify-end" : "justify-start"}`}>
+                                <div className={`flex flex-wrap gap-1 ${density === "compact" ? "mt-1" : "mt-1.5"} ${isMe ? "justify-end" : "justify-start"}`}>
                                   {Object.entries(
                                     msg.reactions.reduce((acc: any, r: any) => {
                                       if (!acc[r.emoji]) acc[r.emoji] = [];
@@ -855,12 +1003,32 @@ export default function MessagesDashboard() {
                     {uploadingFile ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
                   </Button>
 
-                  <Input 
-                    placeholder="Type a message..." 
+                  <textarea
+                    placeholder="Type a message..."
                     value={messageText}
-                    onChange={handleTyping}
+                    onChange={(e) => {
+                      setMessageText(e.target.value);
+                      if (activeThreadId) {
+                        apiRequest("/api/messages/typing", {
+                          method: "POST",
+                          body: JSON.stringify({ threadId: activeThreadId, isTyping: e.target.value.length > 0 })
+                        });
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        const enterToSendVal = localStorage.getItem("chat_enter_to_send") !== "false";
+                        if (enterToSendVal) {
+                          e.preventDefault();
+                          if (messageText.trim() || attachment) {
+                            sendMessageMutation.mutate();
+                          }
+                        }
+                      }
+                    }}
                     disabled={sendMessageMutation.isPending}
-                    className="rounded-full bg-muted/50 border-transparent focus-visible:ring-1 focus-visible:bg-background pr-12 py-6 text-sm shadow-sm"
+                    rows={1}
+                    className="flex-grow rounded-2xl bg-muted/50 border-transparent focus:outline-none focus-visible:ring-1 focus:bg-background pr-12 pl-4 py-3 text-sm shadow-sm resize-none h-[44px] leading-relaxed max-h-[120px]"
                   />
                   <Button 
                     type="submit" 
