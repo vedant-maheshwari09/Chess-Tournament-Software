@@ -46,12 +46,12 @@ export default function MessagesDashboard() {
 
   // Custom 3D Glossy Emojis mapping
   const emojiMap: Record<string, string> = {
-    "👍": "/emojis/like.png",
-    "❤️": "/emojis/love.png",
-    "🔥": "/emojis/fire.png",
-    "😂": "/emojis/laugh.png",
-    "😮": "/emojis/surprise.png",
-    "😢": "/emojis/sad.png"
+    "👍": "/emojis/like.jpg",
+    "❤️": "/emojis/love.jpg",
+    "🔥": "/emojis/fire.jpg",
+    "😂": "/emojis/laugh.jpg",
+    "😮": "/emojis/surprise.jpg",
+    "😢": "/emojis/sad.jpg"
   };
 
   // Chat Customization States
@@ -947,29 +947,19 @@ export default function MessagesDashboard() {
                           {/* Hover Actions (Reactions + Copy + Edit + Delete + Pin) */}
                           {!msg.isDeleted && !isEditing && (
                             <div className={`flex items-center gap-1.5 opacity-0 group-hover/bubble:opacity-100 transition-all duration-200 absolute -top-[44px] ${isMe ? "right-0" : "left-0"} z-50 bg-background/95 backdrop-blur-md dark:bg-slate-900/95 border border-slate-200/80 dark:border-slate-800/80 shadow-lg rounded-full px-2.5 py-1 whitespace-nowrap`}>
-                              {/* Quick Reaction Emojis */}
+                              {/* Quick Reaction Emojis — use native emoji chars (crisp at any size) */}
                               <div className="flex items-center gap-1">
                                 {quickEmojis.map(emoji => {
                                   const hasReacted = msg.reactions?.some((r: any) => r.userId === user?.id && r.emoji === emoji);
                                   return (
                                     <button
                                       key={emoji}
-                                      className={`hover:scale-125 transition-transform p-0.5 rounded-full ${hasReacted ? "bg-primary/20" : ""}`}
+                                      title={emoji}
+                                      className={`hover:scale-125 transition-transform p-0.5 rounded-full text-lg leading-none ${hasReacted ? "bg-primary/20" : ""}`}
                                       onClick={() => handleToggleReaction(msg.id, emoji, hasReacted)}
                                       type="button"
                                     >
-                                      {emojiMap[emoji] ? (
-                                        <img 
-                                          src={emojiMap[emoji]} 
-                                          alt={emoji} 
-                                          className="h-5 w-5 object-contain" 
-                                          onError={(e) => {
-                                            e.currentTarget.outerHTML = `<span class="text-sm">${emoji}</span>`;
-                                          }}
-                                        />
-                                      ) : (
-                                        <span className="text-sm">{emoji}</span>
-                                      )}
+                                      {emoji}
                                     </button>
                                   );
                                 })}
@@ -1069,7 +1059,7 @@ export default function MessagesDashboard() {
                               </div>
                             </div>
                           ) : (
-                            <div className="space-y-1 relative">
+                            <div className={`relative ${msg.reactions && msg.reactions.length > 0 && !msg.isDeleted ? "mb-5" : ""}`}>
                               {/* Message bubble */}
                               <div className={`${density === "compact" ? "px-3 py-1 text-xs leading-normal" : "px-4 py-2.5 shadow-sm text-sm leading-relaxed"}
                                 ${msg.isDeleted 
@@ -1104,10 +1094,10 @@ export default function MessagesDashboard() {
                                   </div>
                                 )}
                               </div>
-                              
-                              {/* Reactions tally display */}
+
+                              {/* Reactions tally — positioned BELOW the bubble (iMessage style) */}
                               {msg.reactions && msg.reactions.length > 0 && !msg.isDeleted && (
-                                <div className={`absolute -top-3 ${isMe ? "left-3" : "right-3"} flex items-center gap-0.5 bg-background dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-full px-1.5 py-0.5 shadow-md z-10 hover:scale-105 transition-all`}>
+                                <div className={`absolute top-full mt-1 ${isMe ? "right-2" : "left-2"} flex items-center gap-0.5 bg-background dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-full px-1.5 py-0.5 shadow-md z-10 hover:scale-105 transition-all`}>
                                   {Object.entries(
                                     msg.reactions.reduce((acc: any, r: any) => {
                                       if (!acc[r.emoji]) acc[r.emoji] = [];
@@ -1117,28 +1107,16 @@ export default function MessagesDashboard() {
                                   ).map(([emoji, list]: [string, any]) => {
                                     const hasReacted = list.some((r: any) => r.userId === user?.id);
                                     const tooltipText = list.map((r: any) => r.userDisplayName).join(", ");
-                                    
                                     return (
                                       <button
                                         key={emoji}
-                                        title={`${emoji} reacted by: ${tooltipText}`}
+                                        title={`Reacted by: ${tooltipText}`}
                                         onClick={() => handleToggleReaction(msg.id, emoji, hasReacted)}
-                                        className={`flex items-center gap-0.5 hover:bg-muted/50 px-1 rounded-full text-[10px] transition-all`}
+                                        className={`flex items-center gap-0.5 hover:bg-muted/50 px-0.5 rounded-full transition-all ${hasReacted ? "ring-1 ring-primary/40" : ""}`}
                                         type="button"
                                       >
-                                        {emojiMap[emoji] ? (
-                                          <img 
-                                            src={emojiMap[emoji]} 
-                                            alt={emoji} 
-                                            className="h-4 w-4 object-contain" 
-                                            onError={(e) => {
-                                              e.currentTarget.outerHTML = `<span class="text-xs">${emoji}</span>`;
-                                            }}
-                                          />
-                                        ) : (
-                                          <span className="text-xs">{emoji}</span>
-                                        )}
-                                        {list.length > 1 && <span className="text-[9px] font-bold text-muted-foreground">{list.length}</span>}
+                                        <span className="text-sm leading-none">{emoji}</span>
+                                        {list.length >= 1 && <span className="text-[9px] font-bold text-muted-foreground ml-0.5">{list.length}</span>}
                                       </button>
                                     );
                                   })}
