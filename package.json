@@ -5,7 +5,8 @@
   "license": "MIT",
   "scripts": {
     "dev": "cross-env NODE_ENV=development tsx watch --clear-screen=false --exclude \"**/*.sqlite*\" --exclude \".env\" --exclude \"dist\" --exclude \"node_modules\" server/index.ts",
-    "build": "vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
+    "build": "vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist && npm run build:ratings",
+    "build:ratings": "npx tsx scripts/build-ratings.ts",
     "start": "NODE_ENV=production node dist/index.js",
     "check": "tsc",
     "db:push": "cross-env NODE_TLS_REJECT_UNAUTHORIZED=0 drizzle-kit push --force"
