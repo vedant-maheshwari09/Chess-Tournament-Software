@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useMemo } from "react";
+import { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useLocation } from "wouter";
@@ -8,7 +8,17 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Send, Hash, Loader2, Trash2, Pencil, Copy, Check, MoreVertical, Info, BellOff, Paperclip, Pin, Search, FileIcon, X, MessageSquare, Users } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Send, Hash, Loader2, Trash2, Pencil, Copy, Check, MoreVertical, Info, BellOff, Paperclip, Pin, Search, FileIcon, X, MessageSquare, Users, WifiOff } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { NewChatDialog } from "@/components/chat/new-chat-dialog";
 import { useToast } from "@/hooks/use-toast";
@@ -43,15 +53,30 @@ export default function MessagesDashboard() {
   const [isMuted, setIsMuted] = useState<Record<number, boolean>>({});
   const [isMembersDialogOpen, setIsMembersDialogOpen] = useState(false);
   const [sidebarView, setSidebarView] = useState<"dms" | "groups">("dms");
+  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
 
-  // Custom 3D Glossy Emojis mapping
+  // Online/offline tracking
+  const [isOnline, setIsOnline] = useState(() => navigator.onLine);
+  useEffect(() => {
+    const handleOnline  = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener("online",  handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      window.removeEventListener("online",  handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
+
+  // Twemoji emoji image mapping (real emoji PNGs from jsDelivr)
   const emojiMap: Record<string, string> = {
-    "👍": "/emojis/like.jpg",
-    "❤️": "/emojis/love.jpg",
-    "🔥": "/emojis/fire.jpg",
-    "😂": "/emojis/laugh.jpg",
-    "😮": "/emojis/surprise.jpg",
-    "😢": "/emojis/sad.jpg"
+    "👍": "/emojis/like.png",
+    "👎": "/emojis/dislike.png",
+    "❤️": "/emojis/love.png",
+    "🔥": "/emojis/fire.png",
+    "😂": "/emojis/laugh.png",
+    "😮": "/emojis/surprise.png",
+    "😢": "/emojis/sad.png"
   };
 
   // Chat Customization States
@@ -152,7 +177,7 @@ export default function MessagesDashboard() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const quickEmojis = ["👍", "❤️", "🔥", "😂", "😮", "😢"];
+  const quickEmojis = ["👍", "👎", "❤️", "🔥", "😂", "😮", "😢"];
 
   const { data: threads, isLoading: threadsLoading } = useQuery({
     queryKey: ["/api/messages/threads"],
@@ -1012,7 +1037,7 @@ export default function MessagesDashboard() {
                                       variant="ghost" 
                                       size="icon" 
                                       className="h-6 w-6 text-destructive hover:text-destructive hover:bg-destructive/10 rounded-full"
-                                      onClick={() => deleteMessageMutation.mutate(msg.id)}
+                                      onClick={() => setDeleteConfirmId(msg.id)}
                                       disabled={deleteMessageMutation.isPending}
                                       type="button"
                                     >
@@ -1174,13 +1199,21 @@ export default function MessagesDashboard() {
                 </div>
               )}
 
+              {/* Offline banner */}
+              {!isOnline && (
+                <div className="mb-2 flex items-center gap-2 px-3 py-2 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl text-amber-800 dark:text-amber-300 text-xs font-medium">
+                  <WifiOff className="h-3.5 w-3.5 shrink-0" />
+                  You're offline. Messages cannot be sent until your connection is restored.
+                </div>
+              )}
+
               {isAnnouncementOnly ? (
                 <div className="text-center text-xs text-muted-foreground py-3 bg-slate-50/50 dark:bg-slate-900/30 rounded-xl border border-dashed">
                   This channel is read-only. Only tournament organizers can post announcements.
                 </div>
               ) : (
                 <form 
-                  onSubmit={(e) => { e.preventDefault(); sendMessageMutation.mutate(); }}
+                  onSubmit={(e) => { e.preventDefault(); if (isOnline) sendMessageMutation.mutate(); }}
                   className="flex gap-2 relative items-center"
                 >
                   <input
@@ -1195,20 +1228,20 @@ export default function MessagesDashboard() {
                     size="icon"
                     className="rounded-full shrink-0 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 dark:hover:bg-slate-800"
                     onClick={() => fileInputRef.current?.click()}
-                    disabled={uploadingFile || sendMessageMutation.isPending}
+                    disabled={!isOnline || uploadingFile || sendMessageMutation.isPending}
                   >
                     {uploadingFile ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
                   </Button>
 
                   <textarea
                     ref={textareaRef}
-                    placeholder="Type a message..."
+                    placeholder={isOnline ? "Type a message..." : "You're offline — cannot send messages"}
                     value={messageText}
                     onChange={(e) => {
                       setMessageText(e.target.value);
                       e.target.style.height = "auto";
                       e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
-                      if (activeThreadId) {
+                      if (activeThreadId && isOnline) {
                         apiRequest("/api/messages/typing", {
                           method: "POST",
                           body: JSON.stringify({ threadId: activeThreadId, isTyping: e.target.value.length > 0 })
@@ -1220,23 +1253,25 @@ export default function MessagesDashboard() {
                         const enterToSendVal = localStorage.getItem("chat_enter_to_send") !== "false";
                         if (enterToSendVal) {
                           e.preventDefault();
-                          if (messageText.trim() || attachment) {
+                          if (isOnline && (messageText.trim() || attachment)) {
                             sendMessageMutation.mutate();
                           }
                         }
                       }
                     }}
-                    disabled={sendMessageMutation.isPending}
+                    disabled={!isOnline || sendMessageMutation.isPending}
                     rows={1}
-                    className="flex-grow rounded-2xl bg-muted/50 border-transparent focus:outline-none focus-visible:ring-1 focus:bg-background pr-12 pl-4 py-3 text-sm shadow-sm resize-none h-[44px] leading-relaxed max-h-[120px] overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+                    className={`flex-grow rounded-2xl bg-muted/50 border-transparent focus:outline-none focus-visible:ring-1 focus:bg-background pr-12 pl-4 py-3 text-sm shadow-sm resize-none h-[44px] leading-relaxed max-h-[120px] overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] ${
+                      !isOnline ? "opacity-50 cursor-not-allowed" : ""
+                    }`}
                   />
                   <Button 
                     type="submit" 
                     size="icon" 
                     className={`absolute right-1.5 rounded-full h-9 w-9 shrink-0 transition-all ${
-                      messageText.trim() || attachment ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                      isOnline && (messageText.trim() || attachment) ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
                     }`} 
-                    disabled={(!messageText.trim() && !attachment) || sendMessageMutation.isPending}
+                    disabled={!isOnline || (!messageText.trim() && !attachment) || sendMessageMutation.isPending}
                   >
                     {sendMessageMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4 ml-0.5" />}
                   </Button>
@@ -1301,6 +1336,36 @@ export default function MessagesDashboard() {
           </ScrollArea>
         </DialogContent>
       </Dialog>
+
+      {/* Delete message confirmation dialog */}
+      <AlertDialog open={deleteConfirmId !== null} onOpenChange={(open) => { if (!open) setDeleteConfirmId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="h-5 w-5" />
+              Delete Message
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to permanently delete this message? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (deleteConfirmId !== null) {
+                  deleteMessageMutation.mutate(deleteConfirmId);
+                  setDeleteConfirmId(null);
+                }
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       </div>
     </div>
   );
