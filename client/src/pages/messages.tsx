@@ -958,7 +958,18 @@ export default function MessagesDashboard() {
                                       onClick={() => handleToggleReaction(msg.id, emoji, hasReacted)}
                                       type="button"
                                     >
-                                      <img src={emojiMap[emoji]} alt={emoji} className="h-5 w-5 object-contain" />
+                                      {emojiMap[emoji] ? (
+                                        <img 
+                                          src={emojiMap[emoji]} 
+                                          alt={emoji} 
+                                          className="h-5 w-5 object-contain" 
+                                          onError={(e) => {
+                                            e.currentTarget.outerHTML = `<span class="text-sm">${emoji}</span>`;
+                                          }}
+                                        />
+                                      ) : (
+                                        <span className="text-sm">{emoji}</span>
+                                      )}
                                     </button>
                                   );
                                 })}
@@ -1115,7 +1126,18 @@ export default function MessagesDashboard() {
                                         className={`flex items-center gap-0.5 hover:bg-muted/50 px-1 rounded-full text-[10px] transition-all`}
                                         type="button"
                                       >
-                                        <img src={emojiMap[emoji]} alt={emoji} className="h-4 w-4 object-contain" />
+                                        {emojiMap[emoji] ? (
+                                          <img 
+                                            src={emojiMap[emoji]} 
+                                            alt={emoji} 
+                                            className="h-4 w-4 object-contain" 
+                                            onError={(e) => {
+                                              e.currentTarget.outerHTML = `<span class="text-xs">${emoji}</span>`;
+                                            }}
+                                          />
+                                        ) : (
+                                          <span className="text-xs">{emoji}</span>
+                                        )}
                                         {list.length > 1 && <span className="text-[9px] font-bold text-muted-foreground">{list.length}</span>}
                                       </button>
                                     );
