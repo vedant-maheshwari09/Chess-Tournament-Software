@@ -18,7 +18,6 @@ import SettingsPage from "@/pages/settings";
 import DirectorProfilePage from "@/pages/director-profile";
 import SubscribersModerationPage from "@/pages/subscribers";
 import AddPlayerPage from "@/pages/add-player";
-import TournamentSettingsPage from "@/pages/tournament-settings";
 import TournamentActionsPage from "@/pages/tournament-actions";
 import TournamentRegistrationFormPage from "@/pages/tournament-registration-form";
 import TournamentPaymentSetupPage from "@/pages/tournament-payment-setup";
@@ -42,7 +41,7 @@ function TournamentRouteWrapper({
   children: (id: number) => React.ReactNode;
 }) {
   const { user } = useAuth();
-  const [location, setLocation] = useLocation();
+  const [, setLocation] = useLocation();
   const isNumeric = /^\d+$/.test(idParam);
 
   // Security check: If requireDirector is true and user is not a tournament director, deny access
@@ -220,7 +219,7 @@ function AuthenticatedApp() {
                 <Route path="/tournaments/:id/manage">
                   {(params) => (
                     <TournamentRouteWrapper idParam={params.id} requireDirector>
-                      {(resolvedId) => <Redirect to={`/tournaments/${params.id}/manage/dashboard`} />}
+                      {() => <Redirect to={`/tournaments/${params.id}/manage/dashboard`} />}
                     </TournamentRouteWrapper>
                   )}
                 </Route>
@@ -302,7 +301,7 @@ function AuthenticatedApp() {
                 <Route path="/tournaments/:id">
                   {(params) => (
                     <TournamentRouteWrapper idParam={params.id}>
-                      {(resolvedId) => <Redirect to={`/tournaments/${params.id}/info`} />}
+                      {() => <Redirect to={`/tournaments/${params.id}/info`} />}
                     </TournamentRouteWrapper>
                   )}
                 </Route>
@@ -343,7 +342,7 @@ function AuthenticatedApp() {
                 <Route path="/tournaments/:id">
                   {(params) => (
                     <TournamentRouteWrapper idParam={params.id}>
-                      {(resolvedId) => <Redirect to={`/tournaments/${params.id}/info`} />}
+                      {() => <Redirect to={`/tournaments/${params.id}/info`} />}
                     </TournamentRouteWrapper>
                   )}
                 </Route>

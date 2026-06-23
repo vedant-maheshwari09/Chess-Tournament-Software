@@ -2,10 +2,9 @@ import React, { useEffect, useMemo, useState } from "react";
 import type { ComponentType } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useRoute, Link } from "wouter";
-import { Trophy, Users, Eye, ArrowLeft, Medal, Info, Calculator, PauseCircle, Star, Loader2, MessageCircle } from "lucide-react";
+import { Trophy, Users, Eye, Medal, Info, Calculator, PauseCircle, Star, Loader2, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import SettingsMenu from "@/components/settings-menu";
@@ -13,19 +12,9 @@ import SettingsMenu from "@/components/settings-menu";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import type { Tournament, Player, PlayerRegistration as PlayerRegistrationType, TournamentStar } from "@shared/schema";
-import Standings from "@/components/standings";
-import SwissStandings from "@/components/swiss-standings";
-import SwissPairings from "@/components/swiss-pairings";
-import RoundRobinCrosstable from "@/components/round-robin-crosstable";
-import KnockoutBracket from "@/components/knockout-bracket";
-import PairingPredictor from "@/components/pairing-predictor";
-import PlayerRegistration from "@/components/player-registration";
-import TournamentByes from "@/components/tournament-byes";
 import { parseTournamentConfig } from "@/lib/tournament-config";
-import { renderTournamentPageContent } from "@/lib/tournament-page";
 import { apiRequest } from "@/lib/queryClient";
 import { requestFirebaseToken } from "@/lib/firebase";
-import { RegistrationStatusCard } from "@/components/registration-status-card";
 import NotificationBell from "@/components/notification-bell";
 import { slugify } from "@/lib/utils";
 
@@ -50,20 +39,10 @@ interface SectionData {
   empty: string;
 }
 
-const DETAIL_TAB_META: Array<{ key: DetailTabKey; label: string; icon: ComponentType<{ className?: string }> }> = [
-  { key: "pairings", label: "Pairings", icon: Users },
-  { key: "standings", label: "Standings", icon: Medal },
-  { key: "byes", label: "Byes", icon: PauseCircle },
-  { key: "predictor", label: "Pairing Predictor", icon: Calculator },
-  { key: "info", label: "Info", icon: Info },
-];
-
 export default function PlayerDashboard() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [selectedTournament, setSelectedTournament] = useState<Tournament | null>(null);
-  const [detailTab, setDetailTab] = useState<DetailTabKey>("pairings");
-  const [location, setLocation] = useLocation();
+  const [, setLocation] = useLocation();
   const [, dashboardParams] = useRoute("/dashboard/:tab");
   const activeTab = dashboardParams?.tab ?? "ongoing";
   const queryClient = useQueryClient();
@@ -356,14 +335,7 @@ export default function PlayerDashboard() {
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'active': return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300';
-      case 'upcoming': return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300';
-      case 'completed': return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
-      default: return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
-    }
-  };
+
 
   const formatDateRange = (start: Date | null, end: Date | null) => {
     const format = (date: Date | null) =>
@@ -377,7 +349,6 @@ export default function PlayerDashboard() {
 
   const renderTournamentRow = (entry: TournamentRow) => {
     const { tournament, playersCount, sectionsCount, startDate, endDate, state } = entry;
-    const registration = registrationMap.get(tournament.id);
     const isStarred = starredIds.has(tournament.id);
     const isPendingStar = pendingStarId === tournament.id && toggleStar.isPending;
 

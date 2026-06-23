@@ -12,14 +12,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { cn } from "@/lib/utils";
-import { Search, Plus, Trash2, Loader2, CreditCard, ChevronLeft, ChevronRight, Calendar, User, Info, Trophy, Check, UserRound, Save, FilePlus2, ArrowLeft, Users } from "lucide-react";
+import { Search, Trash2, Loader2, ChevronLeft, ChevronRight, Check, UserRound, Save, FilePlus2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { parseTournamentConfig } from "@/lib/tournament-config";
 import type { Player, Tournament } from "@shared/schema";
 import type { SectionDefinition } from "@shared/tournament-config";
 import { useAuth } from "@/hooks/useAuth";
-import { Breadcrumbs } from "@/components/breadcrumbs";
 
 type SourceKey = "uscf" | "fide";
 type TabKey = "basic" | "payments" | "notes";
@@ -112,18 +111,6 @@ const mapSexToFormValue = (sex?: string) => {
   return SEX_FORM_MAP[normalized] ?? undefined;
 };
 
-const formatSexDisplay = (sex?: string) => {
-  if (!sex) return undefined;
-  const normalized = sex.trim().toLowerCase();
-  if (normalized in SEX_DISPLAY_MAP) {
-    return SEX_DISPLAY_MAP[normalized];
-  }
-  if (sex.length === 1) {
-    return sex.toUpperCase();
-  }
-  return sex;
-};
-
 const extractRatingValue = (rating?: ExtraRating) => rating?.value ?? rating?.display ?? "";
 
 const normalizeName = (name: string) => {
@@ -131,27 +118,6 @@ const normalizeName = (name: string) => {
   return name.toLowerCase().replace(/\b\w/g, char => char.toUpperCase());
 };
 
-const formatNameLastFirst = (name?: string) => {
-  if (!name) return "";
-  const trimmed = name.trim();
-  if (!trimmed) return "";
-  
-  // Normalize the name before formatting if it's all uppercase
-  const shouldNormalize = trimmed === trimmed.toUpperCase() && /[A-Z]/.test(trimmed);
-  const targetName = shouldNormalize ? normalizeName(trimmed) : trimmed;
-
-  if (targetName.includes(",")) {
-    const [last, ...rest] = targetName.split(",");
-    const first = rest.join(",").trim();
-    const normalizedLast = last.trim();
-    return first ? `${normalizedLast}, ${first}` : normalizedLast;
-  }
-  const parts = targetName.split(/\s+/);
-  if (parts.length <= 1) return targetName;
-  const last = parts.pop();
-  const first = parts.join(" ");
-  return last ? `${last}, ${first}` : targetName;
-};
 
 interface AddPlayerPageProps {
   tournamentId: number;
@@ -232,7 +198,6 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
   const [activeTab, setActiveTab] = useState<TabKey>("basic");
   const [searchInputs, setSearchInputs] = useState({ term: "", lastName: "", firstName: "", id: "" });
   const [debouncedSearchInputs, setDebouncedSearchInputs] = useState({ term: "", lastName: "", firstName: "", id: "" });
-  const [combinedNameInput, setCombinedNameInput] = useState("");
 
   const createEmptyForm = useCallback(
     (initialSection?: { id?: string; name?: string | null }) => ({
@@ -272,11 +237,6 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
   const { lookupMode } = formState;
   const [searchTerm, setSearchTerm] = useState("");
 
-  const hasSearchInput = useMemo(
-    () => Object.values(debouncedSearchInputs).some((value) => value.length > 0),
-    [debouncedSearchInputs],
-  );
-
   const { data: lookupDataRaw, isFetching: lookupFetching, error: lookupError } = useQuery<
     RatingLookupResponse | null,
     Error
@@ -312,17 +272,6 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
     () => lookupResults.uscf.length + lookupResults.fide.length,
     [lookupResults],
   );
-
-  const sourceErrors = useMemo(() => {
-    if (!lookupData?.errors) return [] as Array<{ source: SourceKey; label: string; message: string }>;
-    return (Object.entries(lookupData.errors) as Array<[SourceKey, string | undefined]>)
-      .filter((entry): entry is [SourceKey, string] => Boolean(entry[1]))
-      .map(([source, message]) => ({
-        source,
-        label: SOURCE_META[source]?.label ?? source.toUpperCase(),
-        message: message.trim(),
-      }));
-  }, [lookupData]);
 
   const matchingTournamentPlayers = useMemo(() => {
     const tokens = [searchInputs.term, searchInputs.lastName, searchInputs.firstName, searchInputs.id]
@@ -534,49 +483,9 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
     }
   }, [lookupError]);
 
-  const handleCombinedNameChange = (value: string) => {
-    setCombinedNameInput(value);
-    const trimmedValue = value.trim();
-    const [lastPart, ...rest] = value.split(",");
-    const nextLast = lastPart?.trim() ?? "";
-    const nextFirst = rest.join(",").trim();
-    const digitsOnly = trimmedValue.replace(/\D/g, "");
-    const isLikelyId = trimmedValue.length > 0 && digitsOnly.length >= 4 && trimmedValue.replace(/[0-9\s-]/g, "") === "";
-    const containsLetters = /[A-Za-z]/.test(trimmedValue);
-    const sanitizedTerm = trimmedValue.replace(/,+$/g, "").trim();
-
-    setFormState((prev) => ({
-      ...prev,
-      lastName: isLikelyId ? prev.lastName : nextLast,
-      firstName: isLikelyId ? prev.firstName : nextFirst,
-    }));
-    markDirty();
-
-    setSearchInputs((prev) => ({
-      ...prev,
-      term: isLikelyId ? "" : sanitizedTerm,
-      lastName: isLikelyId ? "" : nextLast,
-      firstName: isLikelyId ? "" : nextFirst,
-      id: isLikelyId ? digitsOnly : trimmedValue.length === 0 || containsLetters ? "" : prev.id,
-    }));
-  };
-
-  const handleIdInputChange = (value: string) => {
-    const normalized = value.replace(/\D/g, "");
-    setSearchInputs((prev) => ({
-      ...prev,
-      id: normalized,
-      term: normalized.length > 0 ? "" : prev.term,
-      lastName: normalized.length > 0 ? "" : prev.lastName,
-      firstName: normalized.length > 0 ? "" : prev.firstName,
-    }));
-  };
-
   const handleClearSearch = () => {
     setSearchTerm("");
   };
-
-  const hasLookupResults = totalLookupResults > 0;
 
   const handleResultClick = (source: SourceKey, item: RatingLookupEntry) => {
     const [lastNameRaw, firstNameRaw] = item.name.split(",");

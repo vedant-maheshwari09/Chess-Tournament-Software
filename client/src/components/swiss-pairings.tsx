@@ -4,8 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Play, RefreshCw, RotateCcw, Printer, Download, ChevronDown, ChevronUp, Camera, CheckSquare, XSquare, Edit2, ScanLine, Upload, CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Play, RefreshCw, RotateCcw, Printer, Download, ChevronDown, ChevronUp, Camera, ScanLine } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -14,10 +14,9 @@ import { parseTournamentConfig } from "@/lib/tournament-config";
 import { calculateMatchupScore, type SectionDefinition, formatBoardNumber } from "@shared/tournament-config";
 import { HEAD_TO_HEAD_RESULT_OPTIONS, BYE_RESULT_OPTIONS, getPointsForResult } from "@shared/match-results";
 import { MatchManagementDialog } from "./match-management-dialog";
-import { Swords, Info, UserPlus, Settings } from "lucide-react";
+import { Swords, UserPlus, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
-import QRCode from "qrcode";
 
 interface TournamentPairingsProps {
   tournamentId: number;

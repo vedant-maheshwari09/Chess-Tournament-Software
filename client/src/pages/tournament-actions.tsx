@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { AlertTriangle, ChevronLeft, Mail, Share2, Trash2, Users } from "lucide-react";
+import { AlertTriangle, ChevronLeft, Mail, Share2, Trash2 } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
