@@ -611,6 +611,16 @@ export default function PlayerDashboard() {
     });
   }, [statsData, tournaments]);
 
+  const uniqueStates = useMemo(() => {
+    const states = new Set<string>();
+    statsRows.forEach((row) => {
+      if (row.state && row.state !== "N/A") {
+        states.add(row.state);
+      }
+    });
+    return Array.from(states).sort();
+  }, [statsRows]);
+
   // Apply filters
   const filteredRows = useMemo(() => {
     return statsRows.filter((entry) => {
