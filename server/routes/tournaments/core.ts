@@ -301,16 +301,17 @@ export function applyCoreRoutes(app: Express) {
 
         const organizationOrName = user.organizationName || `${user.firstName} ${user.lastName}`;
         for (const follower of followerList) {
-          await storage.createNotification({
-            userId: follower.id,
-            title: "New Tournament",
-            message: `${organizationOrName} has created a new tournament: "${newTournament.name}".`,
-            type: "info",
-            meta: { tournamentId: newTournament.id },
-            read: false,
-          }).catch((err: any) => console.error("In-app notification failed:", err));
-
+          // Only notify if user has not explicitly disabled tournament status notifications
           if (follower.notifyTournamentStatus !== false) {
+            await storage.createNotification({
+              userId: follower.id,
+              title: "New Tournament",
+              message: `${organizationOrName} has created a new tournament: "${newTournament.name}".`,
+              type: "info",
+              meta: { tournamentId: newTournament.id },
+              read: false,
+            }).catch((err: any) => console.error("In-app notification failed:", err));
+
             await notificationService.sendWebPushNotificationToUser(
               follower.id,
               "New Tournament",

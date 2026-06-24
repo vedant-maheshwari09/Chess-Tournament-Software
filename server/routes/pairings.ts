@@ -77,20 +77,20 @@ app.post("/api/tournaments/:tournamentId/matches", requireAuth, requireRole('tou
           const title = "New Match Created";
           const message = `Round ${newMatch.round}: A match has been manually created for you against ${opponentName} on Board ${newMatch.board}.`;
 
-          // In-app notification
-          await storage.createNotification({
-            userId: playerObj.userId,
-            title,
-            message,
-            type: "pairing",
-            meta: { matchId: newMatch.id, tournamentId }
-          });
-
-          // Fetch user preferences
+          // In-app + Web Push + Email — all gated on notifyPairings preference
           const userObj = await storage.getUserById(playerObj.userId);
           if (!userObj) return;
 
           if (userObj.notifyPairings ?? true) {
+            // In-app notification
+            await storage.createNotification({
+              userId: playerObj.userId,
+              title,
+              message,
+              type: "pairing",
+              meta: { matchId: newMatch.id, tournamentId }
+            });
+
             // Web Push notification
             await notificationService.sendWebPushNotificationToUser(
               playerObj.userId,
@@ -532,16 +532,15 @@ app.get("/api/tournaments/:tournamentId/bye-requests", async (req, res) => {
           const tourneySlug = tournament ? slugify(tournament.name) : "";
 
           if (whitePlayerName?.userId) {
-            await storage.createNotification({
-              userId: player.userId,
-              title: "Match Result Updated",
-              message: `The result for your Round ${currentMatch.round} match against ${opponentName} has been recorded: ${resultText}.`,
-              type: "result_update",
-              meta: { matchId: currentMatch.id, tournamentId: currentMatch.tournamentId }
-            });
-
             const uObj = await storage.getUserById(whitePlayerName.userId);
             if (uObj && (uObj.notifyPairings ?? true)) {
+              await storage.createNotification({
+                userId: whitePlayerName.userId,
+                title: "Match Result Updated",
+                message: `The result for your Round ${currentMatch.round} match against ${blackPlayerName ? `${blackPlayerName.firstName} ${blackPlayerName.lastName}` : 'Bye'} has been recorded: ${resultText}.`,
+                type: "result_update",
+                meta: { matchId: currentMatch.id, tournamentId: currentMatch.tournamentId }
+              });
               await notificationService.sendWebPushNotificationToUser(
                 whitePlayerName.userId,
                 "Match Result Updated",
@@ -551,16 +550,15 @@ app.get("/api/tournaments/:tournamentId/bye-requests", async (req, res) => {
             }
           }
           if (blackPlayerName?.userId) {
-            await storage.createNotification({
-              userId: blackPlayerName.userId,
-              title: "Match Result Updated",
-              message: `The result for your Round ${currentMatch.round} match against ${whitePlayerName ? `${whitePlayerName.firstName} ${whitePlayerName.lastName}` : 'Bye'} has been recorded: ${resultText}.`,
-              type: "result_update",
-              meta: { matchId: currentMatch.id, tournamentId: currentMatch.tournamentId }
-            });
-
             const uObj = await storage.getUserById(blackPlayerName.userId);
             if (uObj && (uObj.notifyPairings ?? true)) {
+              await storage.createNotification({
+                userId: blackPlayerName.userId,
+                title: "Match Result Updated",
+                message: `The result for your Round ${currentMatch.round} match against ${whitePlayerName ? `${whitePlayerName.firstName} ${whitePlayerName.lastName}` : 'Bye'} has been recorded: ${resultText}.`,
+                type: "result_update",
+                meta: { matchId: currentMatch.id, tournamentId: currentMatch.tournamentId }
+              });
               await notificationService.sendWebPushNotificationToUser(
                 blackPlayerName.userId,
                 "Match Result Updated",
