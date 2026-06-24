@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useLocation, useRoute } from "wouter";
+import { useLocation, useRoute, Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Trophy, Users, Settings as SettingsIcon, Clock as ClockIcon, Info, Share2, Facebook, Twitter, Mail, Award, Link, Swords, Pencil, Plus, Loader2 } from "lucide-react";
+import { ArrowLeft, Trophy, Users, Settings as SettingsIcon, Clock as ClockIcon, Info, Share2, Facebook, Twitter, Mail, Award, Swords, Pencil, Plus, Loader2 } from "lucide-react";
 import SwissStandings from "@/components/swiss-standings";
 import SwissPairings from "@/components/swiss-pairings";
 import RoundRobinCrosstable from "@/components/round-robin-crosstable";

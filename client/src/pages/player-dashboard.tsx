@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import SettingsMenu from "@/components/settings-menu";
 
 import { useAuth } from "@/hooks/useAuth";
@@ -349,7 +350,7 @@ function FilterPanel({
             <Label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Min Organizer Followers</Label>
             <Select
               value={String(filters.minFollowers)}
-              onValueChange={(val) => setFilters((f) => ({ ...f, minFollowers: parseInt(val) }))}
+              onValueChange={(val: string) => setFilters((f) => ({ ...f, minFollowers: parseInt(val) }))}
             >
               <SelectTrigger className="h-8 text-xs">
                 <SelectValue placeholder="Any amount" />

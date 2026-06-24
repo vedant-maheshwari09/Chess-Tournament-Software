@@ -739,46 +739,51 @@ export default function SettingsPage() {
               Update your credentials to keep your account secure.
             </p>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="current-password">Current password</Label>
-              <Input
-                id="current-password"
-                type="password"
-                value={currentPassword}
-                onChange={(event) => setCurrentPassword(event.target.value)}
-                placeholder="Enter current password"
-              />
-            </div>
-            <div className="grid gap-4 md:grid-cols-2">
+          <CardContent>
+            <form onSubmit={(e) => { e.preventDefault(); handleChangePassword(); }} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="new-password">New password</Label>
+                <Label htmlFor="current-password">Current password</Label>
                 <Input
-                  id="new-password"
+                  id="current-password"
                   type="password"
-                  value={newPassword}
-                  onChange={(event) => setNewPassword(event.target.value)}
-                  placeholder="Enter new password"
+                  value={currentPassword}
+                  onChange={(event) => setCurrentPassword(event.target.value)}
+                  placeholder="Enter current password"
+                  autoComplete="current-password"
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="confirm-password">Confirm password</Label>
-                <Input
-                  id="confirm-password"
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(event) => setConfirmPassword(event.target.value)}
-                  placeholder="Re-enter new password"
-                />
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="new-password">New password</Label>
+                  <Input
+                    id="new-password"
+                    type="password"
+                    value={newPassword}
+                    onChange={(event) => setNewPassword(event.target.value)}
+                    placeholder="Enter new password"
+                    autoComplete="new-password"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="confirm-password">Confirm password</Label>
+                  <Input
+                    id="confirm-password"
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(event) => setConfirmPassword(event.target.value)}
+                    placeholder="Re-enter new password"
+                    autoComplete="new-password"
+                  />
+                </div>
               </div>
-            </div>
-            <Button
-              onClick={handleChangePassword}
-              className="w-full md:w-auto"
-              disabled={changePasswordMutation.isPending}
-            >
-              {changePasswordMutation.isPending ? "Updating..." : "Update password"}
-            </Button>
+              <Button
+                type="submit"
+                className="w-full md:w-auto"
+                disabled={changePasswordMutation.isPending}
+              >
+                {changePasswordMutation.isPending ? "Updating..." : "Update password"}
+              </Button>
+            </form>
           </CardContent>
         </Card>
 

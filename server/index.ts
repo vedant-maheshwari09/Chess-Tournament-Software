@@ -57,8 +57,8 @@ app.use(
       directives: {
         defaultSrc: ["'self'"],
         scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://js.stripe.com"],
-        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-        fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://*.stripe.com", "https://js.stripe.com"],
+        fontSrc: ["'self'", "https://fonts.gstatic.com", "data:", "https://*.stripe.com", "https://js.stripe.com"],
         imgSrc: ["'self'", "data:", "blob:", "https://*.stripe.com", "https://js.stripe.com"],
         connectSrc: [
           "'self'",
@@ -68,7 +68,7 @@ app.use(
           "https://*.stripe.com",
           "https://generativelanguage.googleapis.com",
         ],
-        frameSrc: ["'self'", "https://js.stripe.com"],
+        frameSrc: ["'self'", "https://js.stripe.com", "https://*.stripe.com"],
         objectSrc: ["'none'"],
         upgradeInsecureRequests: [],
       },

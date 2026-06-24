@@ -166,6 +166,9 @@ function AuthenticatedApp() {
             <Route path="/" component={LandingPage} />
             <Route path="/login" component={AuthForm} />
             <Route path="/register" component={AuthForm} />
+            <Route path="/auth">
+              <Redirect to="/login" />
+            </Route>
             <Route path="/submit-result" component={QrResultSubmit} />
             <Route path="/mobile/matches/:id/submit" component={MatchSubmitMobile} />
             <Route>
@@ -181,6 +184,9 @@ function AuthenticatedApp() {
               <Redirect to="/" />
             </Route>
             <Route path="/register">
+              <Redirect to="/" />
+            </Route>
+            <Route path="/auth">
               <Redirect to="/" />
             </Route>
             <Route path="/submit-result" component={QrResultSubmit} />
