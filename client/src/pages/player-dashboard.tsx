@@ -32,12 +32,12 @@ import { apiRequest } from "@/lib/queryClient";
 import { requestFirebaseToken } from "@/lib/firebase";
 import { RegistrationStatusCard } from "@/components/registration-status-card";
 import NotificationBell from "@/components/notification-bell";
+import { slugify } from "@/lib/utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-type SortKey = "players" | "date" | "state" | "name" | "sections";
-type SortDir = "asc" | "desc";
-type DetailTabKey = "pairings" | "standings" | "byes" | "predictor" | "info";
+type SortKey = "players" | "date" | "state" | "name" | "format" | "rounds" | "following";
 type FormatFilter = "swiss" | "roundrobin" | "knockout" | "arena";
+type DetailTabKey = "pairings" | "standings" | "byes" | "predictor" | "info";
 
 interface TournamentRow {
   tournament: Tournament;
@@ -377,51 +377,11 @@ function FilterPanel({
   );
 }
 
-// ─── Sortable Column Header ────────────────────────────────────────────────────
-function SortHeader({
-  label,
-  colKey,
-  sortKey,
-  sortDir,
-  onSort,
-  className = "",
-}: {
-  label: string;
-  colKey: SortKey;
-  sortKey: SortKey;
-  sortDir: SortDir;
-  onSort: (k: SortKey) => void;
-  className?: string;
-}) {
-  const active = sortKey === colKey;
-  return (
-    <th
-      className={`px-4 py-3 cursor-pointer select-none hover:bg-slate-100 dark:hover:bg-slate-700/60 transition-colors ${className}`}
-      onClick={() => onSort(colKey)}
-    >
-      <span className="flex items-center gap-1 justify-center">
-        {label}
-        {active ? (
-          sortDir === "asc" ? (
-            <ChevronUp className="h-3 w-3 text-blue-600" />
-          ) : (
-            <ChevronDown className="h-3 w-3 text-blue-600" />
-          )
-        ) : (
-          <ChevronsUpDown className="h-3 w-3 text-slate-300 dark:text-slate-600" />
-        )}
-      </span>
-    </th>
-  );
-}
-
 // ─── Main Component ────────────────────────────────────────────────────────────
 export default function PlayerDashboard() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [selectedTournament, setSelectedTournament] = useState<Tournament | null>(null);
-  const [detailTab, setDetailTab] = useState<DetailTabKey>("pairings");
-  const [location, setLocation] = useLocation();
+  const [, setLocation] = useLocation();
   const [, dashboardParams] = useRoute("/dashboard/:tab");
   const activeTab = dashboardParams?.tab ?? "ongoing";
   const queryClient = useQueryClient();
@@ -432,16 +392,6 @@ export default function PlayerDashboard() {
   const [filterOpen, setFilterOpen] = useState(false);
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
   const [sortKey, setSortKey] = useState<SortKey>("date");
-  const [sortDir, setSortDir] = useState<SortDir>("asc");
-
-  const handleSort = (key: SortKey) => {
-    if (sortKey === key) {
-      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    } else {
-      setSortKey(key);
-      setSortDir("asc");
-    }
-  };
 
   const activeFilterCount = useMemo(() => {
     let count = 0;
@@ -664,82 +614,109 @@ export default function PlayerDashboard() {
 
   const comparator = useMemo(() => {
     return (a: TournamentRow, b: TournamentRow) => {
-      if (isPlayer) {
-        const aStar = starredIds.has(a.tournament.id);
-        const bStar = starredIds.has(b.tournament.id);
-        if (aStar !== bStar) return aStar ? -1 : 1;
-      }
-      let cmp = 0;
+      let comparison = 0;
+
       switch (sortKey) {
-        case "players": cmp = b.playersCount - a.playersCount; break;
-        case "state":   cmp = (a.state || "").localeCompare(b.state || ""); break;
-        case "name":    cmp = a.tournament.name.localeCompare(b.tournament.name); break;
-        case "sections": cmp = (a.sectionsCount ?? -1) - (b.sectionsCount ?? -1); break;
+        case "name":
+          comparison = (a.tournament.name || "").localeCompare(b.tournament.name || "");
+          break;
+        case "format":
+          comparison = (a.tournament.format || "").localeCompare(b.tournament.format || "");
+          break;
+        case "rounds": {
+          const aRounds = a.tournament.rounds ?? 0;
+          const bRounds = b.tournament.rounds ?? 0;
+          comparison = bRounds - aRounds;
+          break;
+        }
+        case "players":
+          comparison = b.playersCount - a.playersCount;
+          break;
+        case "state":
+          comparison = (a.state || "").localeCompare(b.state || "");
+          break;
+        case "following":
         case "date":
         default: {
           const aTime = a.startDate ? a.startDate.getTime() : Number.POSITIVE_INFINITY;
           const bTime = b.startDate ? b.startDate.getTime() : Number.POSITIVE_INFINITY;
-          cmp = aTime - bTime;
+          comparison = aTime - bTime;
+          break;
         }
       }
-      return sortDir === "asc" ? cmp : -cmp;
+
+      if (comparison === 0 && isPlayer) {
+        const aStar = starredIds.has(a.tournament.id);
+        const bStar = starredIds.has(b.tournament.id);
+        if (aStar !== bStar) {
+          return aStar ? -1 : 1;
+        }
+      }
+
+      return comparison;
     };
-  }, [sortKey, sortDir, isPlayer, starredIds]);
+  }, [sortKey, isPlayer, starredIds]);
 
   const sectionsData = useMemo<SectionData[]>(
-    () => [
-      {
-        key: "ongoing",
-        label: "Ongoing Tournaments",
-        description: "Live events happening right now.",
-        items: [...sectionsRaw.ongoing].sort(comparator),
-        empty: "No tournaments are currently live.",
-      },
-      {
-        key: "upcoming",
-        label: "Upcoming Tournaments",
-        description: "Events that are scheduled to start soon.",
-        items: [...sectionsRaw.upcoming].sort(comparator),
-        empty: "No upcoming tournaments are available right now.",
-      },
-      {
-        key: "past",
-        label: "Past Tournaments",
-        description: "Completed events you can revisit.",
-        items: [...sectionsRaw.past].sort(comparator),
-        empty: "You haven't viewed any completed tournaments yet.",
-      },
-    ],
-    [sectionsRaw, comparator]
+    () => {
+      const filterFn = (items: TournamentRow[]) => {
+        if (sortKey === "following") {
+          return items.filter((entry) => followingIds.has(entry.tournament.createdBy));
+        }
+        return items;
+      };
+
+      return [
+        {
+          key: "ongoing",
+          label: "Ongoing Tournaments",
+          description: "Live events happening right now.",
+          items: filterFn([...sectionsRaw.ongoing]).sort(comparator),
+          empty: sortKey === "following" 
+            ? "No live tournaments from organizers you follow." 
+            : "No tournaments are currently live.",
+        },
+        {
+          key: "upcoming",
+          label: "Upcoming Tournaments",
+          description: "Events that are scheduled to start soon.",
+          items: filterFn([...sectionsRaw.upcoming]).sort(comparator),
+          empty: sortKey === "following"
+            ? "No upcoming tournaments from organizers you follow."
+            : "No upcoming tournaments are available right now.",
+        },
+        {
+          key: "past",
+          label: "Past Tournaments",
+          description: "Completed events you can revisit.",
+          items: filterFn([...sectionsRaw.past]).sort(comparator),
+          empty: sortKey === "following"
+            ? "No completed tournaments from organizers you follow."
+            : "You haven't viewed any completed tournaments yet.",
+        },
+      ];
+    },
+    [sectionsRaw, comparator, sortKey, followingIds]
   );
 
   const getFormatName = (format: string) => {
     switch (format) {
-      case "swiss": return "Swiss";
-      case "roundrobin": return "Round Robin";
-      case "knockout": return "Knockout";
-      case "arena": return "Arena";
+      case 'swiss': return 'Swiss System';
+      case 'roundrobin': return 'Round Robin';
+      case 'knockout': return 'Knockout';
+      case 'arena': return 'Arena';
       default: return format;
-    }
-  };
-
-  const getFormatColor = (format: string) => {
-    switch (format) {
-      case "swiss": return "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300";
-      case "roundrobin": return "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300";
-      case "knockout": return "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300";
-      case "arena": return "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300";
-      default: return "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300";
     }
   };
 
   const formatDateRange = (start: Date | null, end: Date | null) => {
     const format = (date: Date | null) =>
       date ? new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" }).format(date) : "TBD";
+
     if (!start && !end) return "TBD";
-    if (!start) return `TBD – ${format(end)}`;
-    if (!end) return `${format(start)} – TBD`;
-    return `${format(start)} – ${format(end)}`;
+    if (!start) return `TBD - ${format(end)}`;
+    if (!end) return `${format(start)} - TBD`;
+    return `${format(start)} - ${format(end)}`;
   };
 
   const renderTournamentRow = (entry: TournamentRow) => {
@@ -748,102 +725,107 @@ export default function PlayerDashboard() {
     const isPendingStar = pendingStarId === tournament.id && toggleStar.isPending;
 
     const rowClass = isStarred
-      ? "border-b border-slate-200 bg-blue-50/60 transition-colors duration-150 last:border-b-0 hover:bg-blue-100/60 dark:border-slate-800 dark:bg-blue-900/20 dark:hover:bg-blue-900/40"
-      : "border-b border-slate-200 bg-white transition-colors duration-150 last:border-b-0 hover:bg-slate-50 dark:border-slate-800 dark:bg-transparent dark:hover:bg-slate-800/40";
+      ? "border-b border-slate-200 bg-blue-50/60 transition-colors duration-200 last:border-b-0 hover:bg-blue-100/60 dark:border-slate-800 dark:bg-blue-900/20 dark:hover:bg-blue-900/40"
+      : "border-b border-slate-200 bg-white transition-colors duration-200 last:border-b-0 hover:bg-slate-50 dark:border-slate-800 dark:bg-transparent dark:hover:bg-slate-800/40";
 
     return (
       <tr key={tournament.id} className={rowClass}>
-        <td className="px-4 py-3.5 text-center align-middle">
+        <td className="px-4 py-4 text-center align-middle">
           {isPlayer ? (
             <Button
               type="button"
               variant="ghost"
               size="icon"
-              className="h-7 w-7 rounded-full"
-              onClick={(e) => { e.preventDefault(); handleToggleStar(tournament.id, isStarred); }}
+              className="h-8 w-8 rounded-full"
+              onClick={(event) => {
+                event.preventDefault();
+                handleToggleStar(tournament.id, isStarred);
+              }}
               disabled={isPendingStar}
               aria-label={isStarred ? "Remove from favorites" : "Add to favorites"}
             >
               {isPendingStar ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-500" />
+                <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
               ) : (
-                <Star className={isStarred ? "h-3.5 w-3.5 text-blue-500" : "h-3.5 w-3.5 text-slate-300 dark:text-slate-600"} fill={isStarred ? "currentColor" : "none"} />
+                <Star
+                  className={isStarred ? "h-4 w-4 text-blue-500" : "h-4 w-4 text-slate-400"}
+                  fill={isStarred ? "currentColor" : "none"}
+                />
               )}
             </Button>
           ) : (
             <span className="text-xs text-slate-400">—</span>
           )}
         </td>
-        <td className="px-4 py-3.5 align-middle min-w-[200px]">
-          <div className="space-y-0.5">
-            <div className="font-medium text-slate-900 dark:text-slate-100 text-sm leading-snug">{tournament.name}</div>
-            <span className={`inline-block text-[10px] font-medium px-1.5 py-0.5 rounded ${getFormatColor(tournament.format)}`}>
-              {getFormatName(tournament.format)}
-            </span>
+        <td className="px-4 py-4 align-middle">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 font-semibold text-slate-900 dark:text-slate-100">
+              <span>{tournament.name}</span>
+            </div>
+            <div className="text-xs text-slate-500">{getFormatName(tournament.format)}</div>
           </div>
         </td>
-        <td className="px-4 py-3.5 text-center align-middle text-sm text-slate-600 dark:text-slate-400">{state || "N/A"}</td>
-        <td className="px-4 py-3.5 text-center align-middle text-sm font-medium text-slate-700 dark:text-slate-300">
-          {playersCount}
+        <td className="px-4 py-4 text-center align-middle text-sm text-slate-700 dark:text-slate-300">{state || "N/A"}</td>
+        <td className="px-4 py-4 text-center align-middle text-sm text-slate-700 dark:text-slate-300">
+          {playersCount} player{playersCount === 1 ? "" : "s"}
         </td>
-        <td className="px-4 py-3.5 text-center align-middle text-sm text-slate-600 dark:text-slate-400 whitespace-nowrap">
-          {formatDateRange(startDate, endDate)}
-        </td>
-        <td className="px-4 py-3.5 text-center align-middle text-sm text-slate-600 dark:text-slate-400">
-          {sectionsCount ?? "—"}
-        </td>
-        <td className="px-4 py-3.5 align-middle text-center">
+        <td className="px-4 py-4 text-center align-middle text-sm text-slate-700 dark:text-slate-300">{formatDateRange(startDate, endDate)}</td>
+        <td className="px-4 py-4 text-center align-middle text-sm text-slate-700 dark:text-slate-300">{sectionsCount ?? "—"}</td>
+        <td className="px-4 py-4 align-middle text-center">
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setLocation(`/tournaments/${tournament.id}`)}
-            className="h-7 text-xs px-3 inline-flex items-center gap-1.5"
+            onClick={() => setLocation(`/tournaments/${slugify(tournament.name)}`)}
+            className="inline-flex items-center gap-2"
           >
-            <Eye className="h-3 w-3" /> View
+            <Eye className="h-4 w-4" />
+            View
           </Button>
         </td>
       </tr>
     );
   };
 
-  const renderSection = (section: SectionData) => (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base">{section.label}</CardTitle>
-        <CardDescription className="text-xs">{section.description}</CardDescription>
-      </CardHeader>
-      <CardContent className="pt-0">
-        {section.items.length === 0 ? (
-          <div className="flex flex-col items-center justify-center gap-3 py-10 text-center">
-            <Trophy className="h-10 w-10 text-gray-300" />
-            <div>
-              <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Nothing here yet</p>
-              <p className="text-xs text-gray-500 dark:text-gray-500 mt-0.5">
-                {activeFilterCount > 0 ? "Try adjusting your filters." : section.empty}
-              </p>
+  const renderSection = (section: SectionData) => {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>{section.label}</CardTitle>
+          <CardDescription>{section.description}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {section.items.length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-4 py-12 text-center">
+              <Trophy className="h-12 w-12 text-gray-400" />
+              <div className="space-y-2">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Nothing here yet</h3>
+                <p className="text-gray-600 dark:text-gray-300">
+                  {activeFilterCount > 0 ? "Try adjusting your filters." : section.empty}
+                </p>
+              </div>
             </div>
-          </div>
-        ) : (
-          <div className="overflow-x-auto -mx-6 px-6">
-            <table className="min-w-[900px] w-full border-collapse">
-              <thead className="bg-slate-50 dark:bg-slate-800/50">
-                <tr className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                  <th className="px-4 py-2.5 text-center w-10">★</th>
-                  <SortHeader label="Name" colKey="name" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="text-left" />
-                  <SortHeader label="State" colKey="state" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="text-center" />
-                  <SortHeader label="Players" colKey="players" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="text-center" />
-                  <SortHeader label="Dates" colKey="date" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="text-center" />
-                  <SortHeader label="Sections" colKey="sections" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="text-center" />
-                  <th className="px-4 py-2.5 text-center">View</th>
-                </tr>
-              </thead>
-              <tbody>{section.items.map((entry) => renderTournamentRow(entry))}</tbody>
-            </table>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-[960px] w-full border-collapse overflow-hidden rounded-xl">
+                <thead className="bg-slate-50 dark:bg-slate-800/50">
+                  <tr className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    <th className="px-4 py-3 text-center">Favorite</th>
+                    <th className="px-4 py-3 text-left">Tournament Name</th>
+                    <th className="px-4 py-3 text-center">State</th>
+                    <th className="px-4 py-3 text-center">Players</th>
+                    <th className="px-4 py-3 text-center">Start Date – End Date</th>
+                    <th className="px-4 py-3 text-center">Sections</th>
+                    <th className="px-4 py-3 text-center">View</th>
+                  </tr>
+                </thead>
+                <tbody>{section.items.map((entry) => renderTournamentRow(entry))}</tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    );
+  };
 
   if (isLoading || statsLoading) {
     return (
@@ -861,21 +843,23 @@ export default function PlayerDashboard() {
       {/* Header */}
       <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-md shadow">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col md:flex-row md:items-center justify-between py-5 gap-4 text-center md:text-left">
-            <div className="space-y-0.5">
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Player Dashboard</h1>
-              <p className="text-gray-500 dark:text-gray-400 text-sm">
+          <div className="flex flex-col md:flex-row md:items-center justify-between py-6 gap-6 text-center md:text-left">
+            <div className="space-y-1">
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">Player Dashboard</h1>
+              <p className="text-gray-600 dark:text-gray-300 text-sm">
                 Welcome back, {user?.firstName} {user?.lastName}
               </p>
             </div>
-            <div className="flex items-center justify-center md:justify-end gap-2">
-              <Link href="/messages">
-                <Button variant="ghost" size="icon" className="rounded-full">
-                  <MessageCircle className="h-5 w-5" />
-                </Button>
-              </Link>
-              <NotificationBell />
-              <SettingsMenu />
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center md:justify-end gap-3 w-full md:w-auto">
+              <div className="flex items-center justify-center gap-2 sm:gap-4 pb-1 sm:pb-0">
+                <Link href="/messages">
+                  <Button variant="ghost" size="icon" className="rounded-full">
+                    <MessageCircle className="h-5 w-5" />
+                  </Button>
+                </Link>
+                <NotificationBell />
+                <SettingsMenu />
+              </div>
             </div>
           </div>
         </div>
@@ -883,103 +867,124 @@ export default function PlayerDashboard() {
 
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-6 pb-10">
 
-        {/* Filter button + active filter chips */}
-        <div className="mb-5 flex flex-wrap items-center gap-2">
-          <Button
-            variant={activeFilterCount > 0 ? "default" : "outline"}
-            size="sm"
-            onClick={() => setFilterOpen(true)}
-            className="h-8 gap-1.5 text-sm"
-          >
-            <SlidersHorizontal className="h-4 w-4" />
-            Filters & Sort
-            {activeFilterCount > 0 && (
-              <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-white/25 text-[10px] font-bold">
-                {activeFilterCount}
-              </span>
-            )}
-          </Button>
-
-          {/* Active filter chips */}
-          {filters.formats.length > 0 && (
-            <Badge variant="secondary" className="gap-1 text-xs cursor-pointer" onClick={() => setFilters(f => ({ ...f, formats: [] }))}>
-              Format: {filters.formats.map(getFormatName).join(", ")}
-              <X className="h-3 w-3" />
-            </Badge>
-          )}
-          {filters.states.length > 0 && (
-            <Badge variant="secondary" className="gap-1 text-xs cursor-pointer" onClick={() => setFilters(f => ({ ...f, states: [] }))}>
-              State: {filters.states.join(", ")}
-              <X className="h-3 w-3" />
-            </Badge>
-          )}
-          {(filters.minPlayers !== null || filters.maxPlayers !== null) && (
-            <Badge variant="secondary" className="gap-1 text-xs cursor-pointer" onClick={() => setFilters(f => ({ ...f, minPlayers: null, maxPlayers: null }))}>
-              Players: {filters.minPlayers ?? "0"}–{filters.maxPlayers ?? "∞"}
-              <X className="h-3 w-3" />
-            </Badge>
-          )}
-          {(filters.startAfter || filters.startBefore) && (
-            <Badge variant="secondary" className="gap-1 text-xs cursor-pointer" onClick={() => setFilters(f => ({ ...f, startAfter: "", startBefore: "" }))}>
-              <CalendarDays className="h-3 w-3" />
-              {filters.startAfter || "…"} – {filters.startBefore || "…"}
-              <X className="h-3 w-3" />
-            </Badge>
-          )}
-          {filters.showStarredOnly && (
-            <Badge variant="secondary" className="gap-1 text-xs cursor-pointer" onClick={() => setFilters(f => ({ ...f, showStarredOnly: false }))}>
-              <Star className="h-3 w-3" /> Starred only
-              <X className="h-3 w-3" />
-            </Badge>
-          )}
-          {filters.showFollowingOnly && (
-            <Badge variant="secondary" className="gap-1 text-xs cursor-pointer" onClick={() => setFilters(f => ({ ...f, showFollowingOnly: false }))}>
-              Followed organizers only
-              <X className="h-3 w-3" />
-            </Badge>
-          )}
-          {filters.minFollowers > 0 && (
-            <Badge variant="secondary" className="gap-1 text-xs cursor-pointer" onClick={() => setFilters(f => ({ ...f, minFollowers: 0 }))}>
-              Followers: {filters.minFollowers}+
-              <X className="h-3 w-3" />
-            </Badge>
-          )}
-          {filters.searchText.trim() && (
-            <Badge variant="secondary" className="gap-1 text-xs cursor-pointer" onClick={() => setFilters(f => ({ ...f, searchText: "" }))}>
-              "{filters.searchText.trim()}"
-              <X className="h-3 w-3" />
-            </Badge>
-          )}
-          {activeFilterCount > 0 && (
-            <button
-              className="text-xs text-slate-400 hover:text-slate-600 underline-offset-2 hover:underline"
-              onClick={() => setFilters(DEFAULT_FILTERS)}
+        {/* Filter button + active filter chips & Sort selector */}
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant={activeFilterCount > 0 ? "default" : "outline"}
+              size="sm"
+              onClick={() => setFilterOpen(true)}
+              className="h-9 gap-1.5 text-sm rounded-lg"
             >
-              Clear all
-            </button>
-          )}
+              <SlidersHorizontal className="h-4 w-4" />
+              Filters
+              {activeFilterCount > 0 && (
+                <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-white/25 text-[10px] font-bold">
+                  {activeFilterCount}
+                </span>
+              )}
+            </Button>
+
+            {/* Active filter chips */}
+            {filters.formats.length > 0 && (
+              <Badge variant="secondary" className="gap-1 text-xs cursor-pointer rounded-lg" onClick={() => setFilters(f => ({ ...f, formats: [] }))}>
+                Format: {filters.formats.map(getFormatName).join(", ")}
+                <X className="h-3 w-3" />
+              </Badge>
+            )}
+            {filters.states.length > 0 && (
+              <Badge variant="secondary" className="gap-1 text-xs cursor-pointer rounded-lg" onClick={() => setFilters(f => ({ ...f, states: [] }))}>
+                State: {filters.states.join(", ")}
+                <X className="h-3 w-3" />
+              </Badge>
+            )}
+            {(filters.minPlayers !== null || filters.maxPlayers !== null) && (
+              <Badge variant="secondary" className="gap-1 text-xs cursor-pointer rounded-lg" onClick={() => setFilters(f => ({ ...f, minPlayers: null, maxPlayers: null }))}>
+                Players: {filters.minPlayers ?? "0"}–{filters.maxPlayers ?? "∞"}
+                <X className="h-3 w-3" />
+              </Badge>
+            )}
+            {(filters.startAfter || filters.startBefore) && (
+              <Badge variant="secondary" className="gap-1 text-xs cursor-pointer rounded-lg" onClick={() => setFilters(f => ({ ...f, startAfter: "", startBefore: "" }))}>
+                <CalendarDays className="h-3 w-3" />
+                {filters.startAfter || "…"} – {filters.startBefore || "…"}
+                <X className="h-3 w-3" />
+              </Badge>
+            )}
+            {filters.showStarredOnly && (
+              <Badge variant="secondary" className="gap-1 text-xs cursor-pointer rounded-lg" onClick={() => setFilters(f => ({ ...f, showStarredOnly: false }))}>
+                <Star className="h-3 w-3" /> Starred only
+                <X className="h-3 w-3" />
+              </Badge>
+            )}
+            {filters.showFollowingOnly && (
+              <Badge variant="secondary" className="gap-1 text-xs cursor-pointer rounded-lg" onClick={() => setFilters(f => ({ ...f, showFollowingOnly: false }))}>
+                Followed organizers only
+                <X className="h-3 w-3" />
+              </Badge>
+            )}
+            {filters.minFollowers > 0 && (
+              <Badge variant="secondary" className="gap-1 text-xs cursor-pointer rounded-lg" onClick={() => setFilters(f => ({ ...f, minFollowers: 0 }))}>
+                Followers: {filters.minFollowers}+
+                <X className="h-3 w-3" />
+              </Badge>
+            )}
+            {filters.searchText.trim() && (
+              <Badge variant="secondary" className="gap-1 text-xs cursor-pointer rounded-lg" onClick={() => setFilters(f => ({ ...f, searchText: "" }))}>
+                "{filters.searchText.trim()}"
+                <X className="h-3 w-3" />
+              </Badge>
+            )}
+            {activeFilterCount > 0 && (
+              <button
+                className="text-xs text-slate-400 hover:text-slate-600 underline-offset-2 hover:underline"
+                onClick={() => setFilters(DEFAULT_FILTERS)}
+              >
+                Clear all
+              </button>
+            )}
+          </div>
+
+          {tournaments.length > 0 ? (
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-slate-500">Sort by:</span>
+              <Select value={sortKey} onValueChange={(value) => setSortKey(value as SortKey)}>
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="Sort tournaments" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="date">Start Date</SelectItem>
+                  <SelectItem value="players">Players</SelectItem>
+                  <SelectItem value="state">State</SelectItem>
+                  <SelectItem value="name">Tournament Name</SelectItem>
+                  <SelectItem value="format">Format</SelectItem>
+                  <SelectItem value="rounds">Rounds</SelectItem>
+                  <SelectItem value="following">Organizers I Follow</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
         </div>
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={(tab) => setLocation(`/dashboard/${tab}`)} className="w-full">
-          <TabsList className="flex w-full min-h-[56px] flex-nowrap overflow-x-auto no-scrollbar items-center gap-2 bg-transparent mb-5">
+          <TabsList className="flex w-full min-h-[64px] flex-nowrap overflow-x-auto no-scrollbar items-center gap-3 bg-transparent mb-6">
             {sectionsData.map((section) => (
               <TabsTrigger
                 key={section.key}
                 value={section.key}
-                className="flex-none md:flex-1 flex h-full min-w-[130px] flex-col items-center justify-center gap-0.5 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-center text-sm font-medium text-slate-600 shadow-sm transition whitespace-nowrap data-[state=active]:border-blue-200 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-900 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-400 dark:data-[state=active]:bg-blue-900/30 dark:data-[state=active]:text-blue-300"
+                className="flex-none md:flex-1 flex h-full min-w-[140px] flex-col items-center justify-center gap-1 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-center text-sm font-medium text-slate-600 shadow-sm transition whitespace-nowrap data-[state=active]:border-blue-200 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-900"
               >
-                <span className="leading-tight text-[13px]">{section.label}</span>
-                <span className="text-[11px] text-slate-400 leading-tight">
+                <span className="leading-tight">{section.label}</span>
+                <span className="text-xs text-slate-500 leading-tight">
                   {section.items.length} tournament{section.items.length === 1 ? "" : "s"}
-                  {activeFilterCount > 0 && " (filtered)"}
                 </span>
               </TabsTrigger>
             ))}
           </TabsList>
 
           {sectionsData.map((section) => (
-            <TabsContent key={section.key} value={section.key} className="mt-0 space-y-4">
+            <TabsContent key={section.key} value={section.key} className="mt-8 space-y-6">
               {renderSection(section)}
             </TabsContent>
           ))}
