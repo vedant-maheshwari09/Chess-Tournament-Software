@@ -489,6 +489,13 @@ export default function PlayerDashboard() {
     queryKey: ["/api/my-registrations"],
   });
 
+  const { data: followingList = [] } = useQuery<any[]>({
+    queryKey: ["/api/follows/following"],
+    enabled: isPlayer,
+  });
+
+  const followingIds = useMemo(() => new Set(followingList.map((f) => f.id)), [followingList]);
+
   const starredIds = useMemo(() => new Set(starredEntries.map((entry) => entry.tournamentId)), [starredEntries]);
 
   const toggleStar = useMutation<
