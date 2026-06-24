@@ -57,22 +57,28 @@ interface SectionData {
 
 interface FilterState {
   formats: FormatFilter[];
+  states: string[];
   minPlayers: number | null;
   maxPlayers: number | null;
   startAfter: string;
   startBefore: string;
   showStarredOnly: boolean;
   searchText: string;
+  minFollowers: number;
+  showFollowingOnly: boolean;
 }
 
 const DEFAULT_FILTERS: FilterState = {
   formats: [],
+  states: [],
   minPlayers: null,
   maxPlayers: null,
   startAfter: "",
   startBefore: "",
   showStarredOnly: false,
   searchText: "",
+  minFollowers: 0,
+  showFollowingOnly: false,
 };
 
 const DETAIL_TAB_META: Array<{ key: DetailTabKey; label: string; icon: ComponentType<{ className?: string }> }> = [
@@ -137,6 +143,7 @@ function FilterPanel({
   onReset,
   isOpen,
   onClose,
+  uniqueStates,
 }: {
   filters: FilterState;
   setFilters: React.Dispatch<React.SetStateAction<FilterState>>;
@@ -144,6 +151,7 @@ function FilterPanel({
   onReset: () => void;
   isOpen: boolean;
   onClose: () => void;
+  uniqueStates: string[];
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -207,7 +215,7 @@ function FilterPanel({
           <div className="space-y-2">
             <Label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Search</Label>
             <Input
-              placeholder="Tournament name..."
+              placeholder="Search name, director, org..."
               value={filters.searchText}
               onChange={(e) => setFilters((f) => ({ ...f, searchText: e.target.value }))}
               className="h-8 text-sm"
@@ -222,6 +230,22 @@ function FilterPanel({
               value={filters.formats}
               onChange={(v) => setFilters((f) => ({ ...f, formats: v as FormatFilter[] }))}
             />
+          </div>
+
+          {/* State */}
+          <div className="space-y-2">
+            <Label className="text-xs font-semibold uppercase tracking-wide text-slate-500">States</Label>
+            {uniqueStates.length === 0 ? (
+              <p className="text-xs text-slate-400">No states available</p>
+            ) : (
+              <div className="max-h-32 overflow-y-auto pr-1 border border-slate-100 dark:border-slate-800 rounded-md p-1.5 space-y-1">
+                <MultiCheckbox
+                  options={uniqueStates.map(s => ({ value: s, label: s }))}
+                  value={filters.states}
+                  onChange={(v) => setFilters((f) => ({ ...f, states: v }))}
+                />
+              </div>
+            )}
           </div>
 
           {/* Players range */}
@@ -287,21 +311,57 @@ function FilterPanel({
 
           {/* Starred only */}
           <div className="space-y-2">
-            <Label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Favorites</Label>
-            <button
-              type="button"
-              onClick={() => setFilters((f) => ({ ...f, showStarredOnly: !f.showStarredOnly }))}
-              className="flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-left hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors w-full"
+            <Label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Favorites & Following</Label>
+            <div className="space-y-1">
+              <button
+                type="button"
+                onClick={() => setFilters((f) => ({ ...f, showStarredOnly: !f.showStarredOnly }))}
+                className="flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-left hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors w-full"
+              >
+                {filters.showStarredOnly ? (
+                  <CheckSquare className="h-4 w-4 text-blue-600 shrink-0" />
+                ) : (
+                  <Square className="h-4 w-4 text-slate-400 shrink-0" />
+                )}
+                <span className={filters.showStarredOnly ? "text-slate-900 dark:text-slate-100 font-medium" : "text-slate-600 dark:text-slate-400"}>
+                  Show starred only
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilters((f) => ({ ...f, showFollowingOnly: !f.showFollowingOnly }))}
+                className="flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-left hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors w-full"
+              >
+                {filters.showFollowingOnly ? (
+                  <CheckSquare className="h-4 w-4 text-blue-600 shrink-0" />
+                ) : (
+                  <Square className="h-4 w-4 text-slate-400 shrink-0" />
+                )}
+                <span className={filters.showFollowingOnly ? "text-slate-900 dark:text-slate-100 font-medium" : "text-slate-600 dark:text-slate-400"}>
+                  Followed organizers only
+                </span>
+              </button>
+            </div>
+          </div>
+
+          {/* Min Followers */}
+          <div className="space-y-2">
+            <Label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Min Organizer Followers</Label>
+            <Select
+              value={String(filters.minFollowers)}
+              onValueChange={(val) => setFilters((f) => ({ ...f, minFollowers: parseInt(val) }))}
             >
-              {filters.showStarredOnly ? (
-                <CheckSquare className="h-4 w-4 text-blue-600 shrink-0" />
-              ) : (
-                <Square className="h-4 w-4 text-slate-400 shrink-0" />
-              )}
-              <span className={filters.showStarredOnly ? "text-slate-900 dark:text-slate-100 font-medium" : "text-slate-600 dark:text-slate-400"}>
-                Show starred only
-              </span>
-            </button>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue placeholder="Any amount" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="0">Any amount</SelectItem>
+                <SelectItem value="1">1+ follower</SelectItem>
+                <SelectItem value="5">5+ followers</SelectItem>
+                <SelectItem value="10">10+ followers</SelectItem>
+                <SelectItem value="25">25+ followers</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
@@ -385,11 +445,14 @@ export default function PlayerDashboard() {
   const activeFilterCount = useMemo(() => {
     let count = 0;
     if (filters.formats.length > 0) count++;
+    if (filters.states.length > 0) count++;
     if (filters.minPlayers !== null || filters.maxPlayers !== null) count++;
     if (filters.startAfter) count++;
     if (filters.startBefore) count++;
     if (filters.showStarredOnly) count++;
     if (filters.searchText.trim()) count++;
+    if (filters.minFollowers > 0) count++;
+    if (filters.showFollowingOnly) count++;
     return count;
   }, [filters]);
 
@@ -546,6 +609,7 @@ export default function PlayerDashboard() {
     return statsRows.filter((entry) => {
       const t = entry.tournament;
       if (filters.formats.length > 0 && !filters.formats.includes(t.format as FormatFilter)) return false;
+      if (filters.states.length > 0 && !filters.states.includes(entry.state)) return false;
       if (filters.minPlayers !== null && entry.playersCount < filters.minPlayers) return false;
       if (filters.maxPlayers !== null && entry.playersCount > filters.maxPlayers) return false;
       if (filters.startAfter && entry.startDate) {
@@ -557,13 +621,22 @@ export default function PlayerDashboard() {
         if (entry.startDate > before) return false;
       }
       if (filters.showStarredOnly && !starredIds.has(t.id)) return false;
+      if (filters.showFollowingOnly && !followingIds.has(t.createdBy)) return false;
+      if (filters.minFollowers > 0) {
+        const creatorSubs = (t as any).creatorSubscribers ?? 0;
+        if (creatorSubs < filters.minFollowers) return false;
+      }
       if (filters.searchText.trim()) {
         const q = filters.searchText.trim().toLowerCase();
-        if (!t.name.toLowerCase().includes(q)) return false;
+        const nameMatch = t.name.toLowerCase().includes(q);
+        const locationMatch = (t.location || "").toLowerCase().includes(q);
+        const creatorMatch = ((t as any).creatorName || "").toLowerCase().includes(q);
+        const orgMatch = ((t as any).creatorOrganization || "").toLowerCase().includes(q);
+        if (!nameMatch && !locationMatch && !creatorMatch && !orgMatch) return false;
       }
       return true;
     });
-  }, [statsRows, filters, starredIds]);
+  }, [statsRows, filters, starredIds, followingIds]);
 
   const sectionsRaw = useMemo(() => ({
     past: filteredRows.filter((e) => e.tournament.status === "completed"),
@@ -816,6 +889,12 @@ export default function PlayerDashboard() {
               <X className="h-3 w-3" />
             </Badge>
           )}
+          {filters.states.length > 0 && (
+            <Badge variant="secondary" className="gap-1 text-xs cursor-pointer" onClick={() => setFilters(f => ({ ...f, states: [] }))}>
+              State: {filters.states.join(", ")}
+              <X className="h-3 w-3" />
+            </Badge>
+          )}
           {(filters.minPlayers !== null || filters.maxPlayers !== null) && (
             <Badge variant="secondary" className="gap-1 text-xs cursor-pointer" onClick={() => setFilters(f => ({ ...f, minPlayers: null, maxPlayers: null }))}>
               Players: {filters.minPlayers ?? "0"}–{filters.maxPlayers ?? "∞"}
@@ -832,6 +911,18 @@ export default function PlayerDashboard() {
           {filters.showStarredOnly && (
             <Badge variant="secondary" className="gap-1 text-xs cursor-pointer" onClick={() => setFilters(f => ({ ...f, showStarredOnly: false }))}>
               <Star className="h-3 w-3" /> Starred only
+              <X className="h-3 w-3" />
+            </Badge>
+          )}
+          {filters.showFollowingOnly && (
+            <Badge variant="secondary" className="gap-1 text-xs cursor-pointer" onClick={() => setFilters(f => ({ ...f, showFollowingOnly: false }))}>
+              Followed organizers only
+              <X className="h-3 w-3" />
+            </Badge>
+          )}
+          {filters.minFollowers > 0 && (
+            <Badge variant="secondary" className="gap-1 text-xs cursor-pointer" onClick={() => setFilters(f => ({ ...f, minFollowers: 0 }))}>
+              Followers: {filters.minFollowers}+
               <X className="h-3 w-3" />
             </Badge>
           )}
@@ -885,6 +976,7 @@ export default function PlayerDashboard() {
         onReset={() => setFilters(DEFAULT_FILTERS)}
         isOpen={filterOpen}
         onClose={() => setFilterOpen(false)}
+        uniqueStates={uniqueStates}
       />
     </div>
   );

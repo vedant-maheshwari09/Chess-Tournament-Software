@@ -345,20 +345,27 @@ app.post("/api/payments/stripe-webhook", async (req: Request, res: Response) => 
             // Trigger Notifications
             try {
               const playerUser = await storage.getUserById(registration.userId);
+              const directorUser = tournament ? await storage.getUserById(tournament.createdBy) : null;
               const tourneyName = tournament?.name || "Tournament";
               const tourneySlug = tournament ? slugify(tournament.name) : "";
 
+              const playerWantsNotif = playerUser?.notifyRegistration ?? true;
+              const playerWantsEmail = playerUser?.notifyEmail ?? true;
+              const directorWantsNotif = directorUser?.notifyRegistration ?? true;
+
               if (mappedStatus === "paid") {
                 // In-app notifications
-                await storage.createNotification({
-                  userId: registration.userId,
-                  title: "Payment Succeeded",
-                  message: `Your payment of ${currency} ${amountReceived.toFixed(2)} for tournament "${tourneyName}" succeeded.`,
-                  type: "payment",
-                  meta: { registrationId: registration.id, tournamentId: tournament?.id }
-                });
+                if (playerWantsNotif) {
+                  await storage.createNotification({
+                    userId: registration.userId,
+                    title: "Payment Succeeded",
+                    message: `Your payment of ${currency} ${amountReceived.toFixed(2)} for tournament "${tourneyName}" succeeded.`,
+                    type: "payment",
+                    meta: { registrationId: registration.id, tournamentId: tournament?.id }
+                  });
+                }
 
-                if (tournament) {
+                if (tournament && directorWantsNotif) {
                   await storage.createNotification({
                     userId: tournament.createdBy,
                     title: "New Payment Received",
@@ -369,14 +376,16 @@ app.post("/api/payments/stripe-webhook", async (req: Request, res: Response) => 
                 }
 
                 // Web Push notifications
-                await notificationService.sendWebPushNotificationToUser(
-                  registration.userId,
-                  "Payment Succeeded",
-                  `Your payment of ${currency} ${amountReceived.toFixed(2)} for tournament "${tourneyName}" has been processed successfully.`,
-                  `/tournaments/${tourneySlug}`
-                );
+                if (playerWantsNotif) {
+                  await notificationService.sendWebPushNotificationToUser(
+                    registration.userId,
+                    "Payment Succeeded",
+                    `Your payment of ${currency} ${amountReceived.toFixed(2)} for tournament "${tourneyName}" has been processed successfully.`,
+                    `/tournaments/${tourneySlug}`
+                  );
+                }
 
-                if (tournament) {
+                if (tournament && directorWantsNotif) {
                   await notificationService.sendWebPushNotificationToUser(
                     tournament.createdBy,
                     "New Payment Received",
@@ -386,7 +395,7 @@ app.post("/api/payments/stripe-webhook", async (req: Request, res: Response) => 
                 }
 
                 // Email notifications
-                if (playerUser?.email) {
+                if (playerWantsNotif && playerWantsEmail && playerUser?.email) {
                   await notificationService.sendEmail({
                     to: playerUser.email,
                     subject: `Payment Confirmed: ${tourneyName}`,
@@ -396,21 +405,25 @@ app.post("/api/payments/stripe-webhook", async (req: Request, res: Response) => 
                 }
               } else if (mappedStatus === "failed") {
                 // In-app notifications
-                await storage.createNotification({
-                  userId: registration.userId,
-                  title: "Payment Failed",
-                  message: `Your payment for tournament "${tourneyName}" failed. Please check your payment method and try again.`,
-                  type: "payment",
-                  meta: { registrationId: registration.id, tournamentId: tournament?.id }
-                });
+                if (playerWantsNotif) {
+                  await storage.createNotification({
+                    userId: registration.userId,
+                    title: "Payment Failed",
+                    message: `Your payment for tournament "${tourneyName}" failed. Please check your payment method and try again.`,
+                    type: "payment",
+                    meta: { registrationId: registration.id, tournamentId: tournament?.id }
+                  });
+                }
 
                 // Web Push notifications
-                await notificationService.sendWebPushNotificationToUser(
-                  registration.userId,
-                  "Payment Failed",
-                  `Your payment for tournament "${tourneyName}" failed.`,
-                  `/tournaments/${tourneySlug}`
-                );
+                if (playerWantsNotif) {
+                  await notificationService.sendWebPushNotificationToUser(
+                    registration.userId,
+                    "Payment Failed",
+                    `Your payment for tournament "${tourneyName}" failed.`,
+                    `/tournaments/${tourneySlug}`
+                  );
+                }
               }
             } catch (err) {
               console.error("Failed to send Stripe webhook notifications:", err);

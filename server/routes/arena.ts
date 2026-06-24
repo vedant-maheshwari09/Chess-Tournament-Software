@@ -263,7 +263,10 @@ export function applyArenaRoutes(app: Router) {
       const whitePlayer = await storage.getPlayer(whitePlayerId);
       const blackPlayer = await storage.getPlayer(blackPlayerId);
 
-      if (whitePlayer?.userId) {
+      const whiteUser = whitePlayer?.userId ? await storage.getUserById(whitePlayer.userId) : null;
+      const blackUser = blackPlayer?.userId ? await storage.getUserById(blackPlayer.userId) : null;
+
+      if (whitePlayer?.userId && (whiteUser?.notifyPairings ?? true)) {
         await storage.createNotification({
           userId: whitePlayer.userId,
           title: "Match Started!",
@@ -278,7 +281,7 @@ export function applyArenaRoutes(app: Router) {
         ).catch(err => console.error("Arena push error:", err));
       }
 
-      if (blackPlayer?.userId) {
+      if (blackPlayer?.userId && (blackUser?.notifyPairings ?? true)) {
         await storage.createNotification({
           userId: blackPlayer.userId,
           title: "Match Started!",

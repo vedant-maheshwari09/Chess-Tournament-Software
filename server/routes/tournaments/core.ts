@@ -54,10 +54,25 @@ export function applyCoreRoutes(app: Express) {
 
       const followerMap = new Map<number, number>(followerCounts.map(f => [f.followingId, f.count]));
 
-      const enrichedTournaments = visibleTournaments.map(t => ({
-        ...t,
-        creatorSubscribers: followerMap.get(t.createdBy) || 0
+      // Fetch creator details (name and organization)
+      const creatorIds = Array.from(new Set(visibleTournaments.map(t => t.createdBy)));
+      const creatorMap = new Map<number, any>();
+      await Promise.all(creatorIds.map(async (id) => {
+        const u = await storage.getUserById(id);
+        if (u) {
+          creatorMap.set(id, u);
+        }
       }));
+
+      const enrichedTournaments = visibleTournaments.map(t => {
+        const creator = creatorMap.get(t.createdBy);
+        return {
+          ...t,
+          creatorSubscribers: followerMap.get(t.createdBy) || 0,
+          creatorName: creator ? `${creator.firstName || ""} ${creator.lastName || ""}`.trim() : "Unknown Director",
+          creatorOrganization: creator?.organizationName || ""
+        };
+      });
 
       res.json(enrichedTournaments);
     } catch (error) {
@@ -320,7 +335,7 @@ export function applyCoreRoutes(app: Express) {
             ).catch((err: any) => console.error("Web push notification failed:", err));
           }
 
-          if (follower.notifyEmail && follower.email) {
+          if (follower.notifyEmail !== false && follower.email) {
             await notificationService.sendEmail({
               to: follower.email,
               subject: `New Chess Tournament: ${newTournament.name}`,
