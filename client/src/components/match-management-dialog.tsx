@@ -368,79 +368,20 @@ export function MatchManagementDialog({
                 </div>
               )}
 
-              {/* Custom Result Code Input */}
-              <div className="space-y-2.5 pt-4 border-t border-border mt-4">
-                <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Or Enter Custom Code</h4>
-                <div className="flex gap-2">
-                  <div className="relative flex-1">
-                    <input
-                      type="text"
-                      value={customResult}
-                      onChange={(e) => setCustomResult(e.target.value)}
-                      placeholder={isByeMatch ? "e.g. 1/2-bye, 0-bye" : "e.g. 1F-0, 0-1F, 1/2-0"}
-                      className="flex h-10 w-full rounded-xl border border-input bg-background px-3 py-1.5 text-sm shadow-inner transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring text-foreground"
-                    />
-                  </div>
+              {/* Reset Option */}
+              {currentResult && (
+                <div className="flex items-center justify-center pt-4 border-t border-border mt-4">
                   <Button
                     type="button"
-                    className="h-10 px-5 font-bold text-xs uppercase tracking-wider rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground shadow"
-                    onClick={() => handleApplyCustomResult()}
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleSelectResult(null)}
+                    className="text-xs font-extrabold text-destructive hover:text-destructive/90 hover:bg-destructive/10 rounded-lg h-8 px-4 transition-colors"
                   >
-                    Apply
+                    Reset/Clear Result
                   </Button>
                 </div>
-
-                {/* Clickable Quick Suggestions */}
-                <div className="flex flex-wrap items-center gap-1.5 mt-2">
-                  <span className="text-[9px] text-muted-foreground font-bold uppercase mr-1">Quick Codes:</span>
-                  {(isByeMatch ? ['1-bye', '1/2-bye', '0-bye'] : ['1-0', '0-1', '1/2-1/2', '1F-0', '0-1F', '0F-0F']).map((code) => (
-                    <button
-                      key={code}
-                      type="button"
-                      onClick={() => {
-                        setCustomResult(code);
-                        handleApplyCustomResult(code);
-                      }}
-                      className="text-[10px] font-mono bg-background border border-border text-primary hover:text-primary/80 hover:border-muted-foreground/30 px-2 py-0.5 rounded-md transition-all"
-                    >
-                      {code}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Options & Reset */}
-              <div className="flex items-center justify-between pt-4 border-t border-border mt-6">
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center">
-                    <input
-                      type="checkbox"
-                      id="unrated-toggle"
-                      checked={isUnrated}
-                      onChange={handleToggleUnrated}
-                      disabled={!currentResult || currentResult === 'Pending'}
-                      className="h-4.5 w-4.5 rounded border-input bg-background text-primary focus:ring-ring cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
-                    />
-                  </div>
-                  <label
-                    htmlFor="unrated-toggle"
-                    className="text-xs font-bold text-foreground cursor-pointer select-none disabled:opacity-30"
-                  >
-                    Unrated Match (e.g., unrated)
-                  </label>
-                </div>
-                
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleSelectResult(null)}
-                  disabled={!currentResult}
-                  className="text-xs font-extrabold text-destructive hover:text-destructive/90 hover:bg-destructive/10 rounded-lg h-8 px-3 transition-colors"
-                >
-                  Reset Match
-                </Button>
-              </div>
+              )}
             </div>
           </div>
 
