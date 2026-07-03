@@ -41,7 +41,7 @@ export default function SwissStandings({ tournamentId, showExportControls = true
   });
 
   const [selectedSectionId, setSelectedSectionId] = useState<string>("__all__");
-  const [showPrizes, setShowPrizes] = useState<boolean>(true);
+  const [showPrizes, setShowPrizes] = useState<boolean>(false);
 
   const tournamentConfig = useMemo(() => (tournament ? parseTournamentConfig(tournament) : null), [tournament]);
 
@@ -673,14 +673,14 @@ a:hover { text-decoration: underline; }
             <div className="flex flex-wrap items-center justify-end gap-4">
               {/* Prize toggler switch */}
               {tournamentConfig?.prizesEnabled && (
-                <div className="flex items-center space-x-2 bg-slate-50 dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-100 dark:border-slate-700">
+                <div className="flex items-center space-x-2 bg-slate-50 dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-100 dark:border-slate-700 opacity-60">
                   <Switch
                     id="show-prizes-toggle"
-                    checked={showPrizes}
-                    onCheckedChange={setShowPrizes}
+                    checked={false}
+                    disabled
                   />
-                  <Label htmlFor="show-prizes-toggle" className="text-xs font-medium text-slate-500 dark:text-slate-400 cursor-pointer">
-                    Show Prizes
+                  <Label htmlFor="show-prizes-toggle" className="text-xs font-medium text-slate-500 dark:text-slate-400 cursor-not-allowed">
+                    Show Prizes (Coming Soon)
                   </Label>
                 </div>
               )}
