@@ -73,6 +73,7 @@ An in-browser simulation engine for Swiss tournaments:
   - **Standard Wins/Losses/Draws**: 1-0, 0-1, or ½-½.
   - **Forfeit Win / Forfeit Loss**: (1-0F, 0-1F) — Awards full tournament point to the winner, 0 points to the loser; neither game is rated.
   - **Double Forfeit**: (0F-0F) — Awards 0 points to both players; unrated.
+  - **Forfeit Draw**: (1F-1F) — Awards forfeit draws to both players (e.g. mutual no-shows).
   - **Unrated Results**: (1-0 U, 0-1 U, ½-½ U) — Awards standard tournament points but marks the game as unrated for USCF/FIDE calculations.
 - **Bye Result Options**: For any bye match (odd-player-out), the tournament director can select from:
   - **1-point bye** — full point awarded (default for last-minute byes)
@@ -80,10 +81,46 @@ An in-browser simulation engine for Swiss tournaments:
   - **0-point bye** — zero points, for zero-point byes or forfeits
   - All standard head-to-head results (forfeit wins, double forfeit, etc.) are also available for bye matches.
 
+#### **Simplified Result Entry Dialog**
+- The "Actions" settings cog dialog in the rounds tab is streamlined to display **only the actual result options** (standard wins/draws and forfeits/byes) and a single-click **"Reset/Clear Result"** button, making result entry lightning fast and clutter-free.
+
 #### **Player Roster Templates (Import from Previous Tournament)**
 - In **Settings → Players**, tournament directors can select any past tournament they own.
 - The player list from that tournament is displayed with checkboxes.
 - Selected players are imported into the current tournament with all prior results, byes, and seeds reset to fresh defaults.
+
+#### **Drafts Priority Sort**
+- The Tournament Director Dashboard automatically orders drafts by descending ID so that **newly created drafts are prioritized and displayed first**, streamlining the tournament configuration process.
+
+---
+
+### Player Experience & Dashboard Filters
+
+#### **Advanced Dashboard Filter Panel**
+- Features a professional, collapsible **slide-in drawer filter panel** on the Player Dashboard.
+- Players can filter tournaments by combining multiple criteria with logical `AND` constraints:
+  - **Multi-select Format Filter**: Swiss, Round Robin, Knockout, or Arena.
+  - **State / Location Filter**: Search by state code or city.
+  - **Player Count Range Filter**: Set minimum and maximum participant ranges.
+  - **Date Range Filter**: Filter tournaments starting before or after specific calendar dates.
+  - **Favorites (Starred-Only) Filter**: Display only favorited tournaments.
+  - **Followed Organizers Filter**: View only tournaments hosted by directors you follow.
+- Active filters display dismissible **filter chips** and a badge showing the count of active filters.
+
+#### **Clickable Table Column Headers (Sort-by)**
+- Replaced the static sort selector with **clickable table column headers** (`Favorite`, `Tournament Name`, `State`, `Players`, `Dates`) on the Player Dashboard.
+- Clicking a header dynamically toggles sorting ascending or descending, displaying clear sorting direction indicators (▲/▼).
+
+#### **Spectator QR Code Dialog**
+- Allows organizers to quickly generate custom spectator QR codes using `<QRCodeCanvas>` in a responsive glassmorphism modal with full asset download functionality.
+
+#### **Robust Multi-Owner Slug Resolution**
+- Supports premium case-insensitive slug routes (e.g. `/tournaments/spring-open-2026`).
+- If multiple tournament directors create tournaments with the same name/slug, the resolver (`/api/tournaments/by-name/:name`) **optionally checks the session token and prioritizes the logged-in director's own tournament**, preventing name collision redirect loops and access failures.
+
+#### **Live Standings & Progress Tracking**
+- Real-time standings updated after each result is entered, with tiebreaks displayed. Features **Standing Progress Indicators (`GIP#`)** indicating ongoing games on specific boards (e.g., `GIP1` for Game In Progress on board 1).
+- **"Show Prizes" Toggle**: Standings page features a disabled "Show Prizes (Coming Soon)" toggle to preview future payout distribution modules.
 
 ---
 
@@ -103,19 +140,15 @@ An in-browser simulation engine for Swiss tournaments:
 
 ---
 
-### Player Experience
+### Speed & Performance Optimizations
 
-- **Public Registration Form**: A styled, branded form matching the tournament dashboard's indigo theme. Supports single and batch registrations, with optional USCF/FIDE ID lookup.
-- **Live Standings & Progress Tracking**: Real-time standings updated after each result is entered, with tiebreaks displayed. Features **Standing Progress Indicators (`GIP#`)** indicating ongoing games on specific boards (e.g., `GIP1` for Game In Progress on board 1).
-- **Spectator QR Code Dialog**: Accessible directly from any tournament dashboard, allowing organizers to quickly generate custom spectator QR codes using `<QRCodeCanvas>` in a responsive glassmorphism modal with full asset download functionality.
-- **Friendly Case-Insensitive Slug Routing**: Easily share clean, customized links like `/tournaments/spring-open-2026` rather than database numeric IDs in the browser address bar. A robust `TournamentRouteWrapper` interceptor seamlessly maps slugs and numeric IDs dynamically on the client, redirecting user address bars to the premium slug format while keeping data references completely intact.
-- **Strict Role & Ownership Security**: Implements dual-layered authorization guards so that Player accounts cannot access Tournament Director (TD) dashboards or management pages. Access control is enforced both route-by-route and dynamic owner-ID validation, redirecting unauthorized users to secure public paths.
-- **My Matches**: Players can view their own round-by-round pairings and results after logging in.
-- **Notifications**: In-app and push notifications for result updates, pairing announcements, and match invitations.
+#### **Asynchronous Event-Driven Notifications**
+- Removed blocking, synchronous email (Resend) and web push (Firebase Cloud Messaging) broadcasting loops.
+- Notification broadcasts upon tournament creation, round start, and pairing publication are dispatched asynchronously in **background threads**, achieving sub-second response times for directors and preventing HTTP gateway timeouts.
 
 ---
 
-### Enterprise-grade Security & Performance
+### Enterprise-grade Security
 
 - **HTTP Header Hardening**: Fully secured using `helmet` configured with a strict Content Security Policy (CSP) allowing only self-hosted static files and safe third-party sources (e.g., Stripe, Google Fonts, Gemini API).
 - **API Rate Limiting**: Employs `express-rate-limit` restricting client requests to 200 per 15 minutes per IP address on all `/api` endpoints, complete with proxy trust capabilities (`trust proxy` enabled).
@@ -130,8 +163,8 @@ An in-browser simulation engine for Swiss tournaments:
 ├── client/                 # React Frontend (Vite + Tailwind)
 │   ├── src/
 │   │   ├── components/     # UI Components (Radix, Lucide, Custom)
-│   │   │   ├── swiss-pairings.tsx        # Main pairing view & result entry
-│   │   │   ├── swiss-standings.tsx       # Live standings component
+│   │   │   ├── swiss-pairings/           # Main pairing view & result entry
+│   │   │   ├── swiss-standings/          # Live standings component
 │   │   │   ├── pairing-predictor.tsx     # Next-round pairing prediction tool
 │   │   │   └── tournament-settings/      # Settings sub-components
 │   │   ├── hooks/          # Custom Hooks (Auth, API queries, UI state)
@@ -149,7 +182,10 @@ An in-browser simulation engine for Swiss tournaments:
 │   │   ├── arena.ts        # Arena specific endpoints
 │   │   ├── auth.ts         # Authentication & User Management
 │   │   ├── payments.ts     # Stripe integration & webhooks
-│   │   └── tournaments.ts  # Tournament & Player CRUD, predict-pairings, imports
+│   │   └── tournaments/    # Tournament, Player, Pairing & Registration routers
+│   │       ├── core.ts         # Core CRUD, resolution, and imports
+│   │       ├── pairings.ts     # Pairings generation & round controls
+│   │       └── registrations.ts # Registration and fields controls
 │   ├── storage.ts          # Drizzle ORM Database Interface (PostgreSQL)
 │   └── index.ts            # Server entry point
 ├── shared/                 # Shared TypeScript Definitions & Validation
