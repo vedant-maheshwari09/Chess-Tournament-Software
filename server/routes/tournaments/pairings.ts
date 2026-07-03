@@ -35,7 +35,7 @@ async function notifyRoundPairings(tournamentId: number, round: number) {
       const userObj = userMap.get(userId) as any;
       if (!userObj || !(userObj[preferenceKey] ?? true)) return;
 
-      // In-app notification
+      // In-app notification (awaited since it is a fast local DB insert)
       await storage.createNotification({
         userId,
         title,
@@ -44,13 +44,13 @@ async function notifyRoundPairings(tournamentId: number, round: number) {
         meta: { tournamentId }
       }).catch(err => console.error("Failed to create in-app notification:", err));
 
-      // Email notification
+      // Email notification (run in background, not awaited)
       if ((userObj.notifyEmail ?? true) && userObj.email) {
-        await notificationService.sendEmail({ to: userObj.email, subject: title, text: message }).catch((err: any) => console.error(`Failed to send email to ${userObj.email}:`, err));
+        notificationService.sendEmail({ to: userObj.email, subject: title, text: message }).catch((err: any) => console.error(`Failed to send email to ${userObj.email}:`, err));
       }
 
-      // Web Push notification
-      await notificationService.sendWebPushNotificationToUser(userId, title, message).catch((err: any) => console.error(`Failed to send push to ${userObj.username}:`, err));
+      // Web Push notification (run in background, not awaited)
+      notificationService.sendWebPushNotificationToUser(userId, title, message).catch((err: any) => console.error(`Failed to send push to ${userObj.username}:`, err));
     };
 
     for (const pairing of pairings) {
@@ -517,11 +517,13 @@ export function applyPairingsRoutes(app: Express) {
             const userObj = userMap.get(userId) as any;
             if (!userObj || !(userObj[preferenceKey] ?? true)) return;
 
+            // Email notification (run in background, not awaited)
             if ((userObj.notifyEmail ?? true) && userObj.email) {
-              await notificationService.sendEmail({ to: userObj.email, subject: title, text: message }).catch((err: any) => console.error(`Failed to send email to ${userObj.email}:`, err));
+              notificationService.sendEmail({ to: userObj.email, subject: title, text: message }).catch((err: any) => console.error(`Failed to send email to ${userObj.email}:`, err));
             }
+            // Web Push notification (run in background, not awaited)
             if ((userObj as any).id) {
-              await notificationService.sendWebPushNotificationToUser(userObj.id, title, message).catch((err: any) => console.error(`Failed to send push to ${userObj.username}:`, err));
+              notificationService.sendWebPushNotificationToUser(userObj.id, title, message).catch((err: any) => console.error(`Failed to send push to ${userObj.username}:`, err));
             }
           };
 

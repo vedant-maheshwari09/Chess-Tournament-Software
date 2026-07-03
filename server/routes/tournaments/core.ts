@@ -98,7 +98,39 @@ export function applyCoreRoutes(app: Express) {
       const tournaments = await storage.getAllTournaments();
       const targetSlug = slugify(nameParam);
       
-      const matched = tournaments.find(t => slugify(t.name) === targetSlug);
+      // Check if user is authenticated optionally by parsing Bearer token
+      let currentUser: any = null;
+      const authHeader = req.headers.authorization;
+      let token: string | undefined;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        token = authHeader.substring(7);
+      } else if (req.query.token && typeof req.query.token === 'string') {
+        token = req.query.token;
+      }
+
+      if (token) {
+        try {
+          const session = await storage.getSessionByToken(token);
+          if (session && new Date() <= new Date(session.expiresAt)) {
+            const user = await storage.getUserById(session.userId);
+            if (user) {
+              currentUser = user;
+            }
+          }
+        } catch (err) {
+          console.error("Optional auth parse failed:", err);
+        }
+      }
+
+      // Prioritize the tournament created by the logged-in user if there are multiple matches
+      let matched;
+      if (currentUser) {
+        matched = tournaments.find(t => slugify(t.name) === targetSlug && t.createdBy === currentUser.id);
+      }
+      if (!matched) {
+        matched = tournaments.find(t => slugify(t.name) === targetSlug);
+      }
+
       if (matched) {
         return res.json(matched);
       }
@@ -302,44 +334,53 @@ export function applyCoreRoutes(app: Express) {
       const newTournament = await storage.createTournament(tournamentWithCreator);
       console.log('Created tournament:', newTournament);
 
-      // Broadcast notifications to followers
-      try {
-        const followerList = await db.select({
-          id: users.id,
-          email: users.email,
-          notifyEmail: users.notifyEmail,
-          notifyTournamentStatus: users.notifyTournamentStatus
-        })
-        .from(follows)
-        .innerJoin(users, eq(follows.followerId, users.id))
-        .where(eq(follows.followingId, user.id));
+      // Broadcast notifications to followers in the background asynchronously
+      (async () => {
+        try {
+          const followerList = await db.select({
+            id: users.id,
+            email: users.email,
+            notifyEmail: users.notifyEmail,
+            notifyTournamentStatus: users.notifyTournamentStatus
+          })
+          .from(follows)
+          .innerJoin(users, eq(follows.followerId, users.id))
+          .where(eq(follows.followingId, user.id));
 
-        const organizationOrName = user.organizationName || `${user.firstName} ${user.lastName}`;
-        for (const follower of followerList) {
-          // Only notify if user has not explicitly disabled tournament status notifications
-          if (follower.notifyTournamentStatus !== false) {
-            await storage.createNotification({
-              userId: follower.id,
-              title: "New Tournament",
-              message: `${organizationOrName} has created a new tournament: "${newTournament.name}".`,
-              type: "info",
-              meta: { tournamentId: newTournament.id },
-              read: false,
-            }).catch((err: any) => console.error("In-app notification failed:", err));
+          const organizationOrName = user.organizationName || `${user.firstName} ${user.lastName}`;
+          
+          // Send notifications in parallel to speed up delivery
+          const promises = followerList.map(async (follower) => {
+            const tasks: Promise<any>[] = [];
+            
+            if (follower.notifyTournamentStatus !== false) {
+              tasks.push(
+                storage.createNotification({
+                  userId: follower.id,
+                  title: "New Tournament",
+                  message: `${organizationOrName} has created a new tournament: "${newTournament.name}".`,
+                  type: "info",
+                  meta: { tournamentId: newTournament.id },
+                  read: false,
+                }).catch((err: any) => console.error("In-app notification failed:", err))
+              );
 
-            await notificationService.sendWebPushNotificationToUser(
-              follower.id,
-              "New Tournament",
-              `${organizationOrName} has created a new tournament: "${newTournament.name}".`,
-              `/tournaments/${newTournament.id}`
-            ).catch((err: any) => console.error("Web push notification failed:", err));
-          }
+              tasks.push(
+                notificationService.sendWebPushNotificationToUser(
+                  follower.id,
+                  "New Tournament",
+                  `${organizationOrName} has created a new tournament: "${newTournament.name}".`,
+                  `/tournaments/${newTournament.id}`
+                ).catch((err: any) => console.error("Web push notification failed:", err))
+              );
+            }
 
-          if (follower.notifyEmail !== false && follower.email) {
-            await notificationService.sendEmail({
-              to: follower.email,
-              subject: `New Chess Tournament: ${newTournament.name}`,
-              text: `Hello,
+            if (follower.notifyEmail !== false && follower.email) {
+              tasks.push(
+                notificationService.sendEmail({
+                  to: follower.email,
+                  subject: `New Chess Tournament: ${newTournament.name}`,
+                  text: `Hello,
 
 ${organizationOrName} has just created a new tournament: "${newTournament.name}".
 
@@ -353,12 +394,18 @@ ${process.env.VITE_APP_URL || process.env.RENDER_EXTERNAL_URL || (req.headers.ho
 
 Best regards,
 Chess Tournament Manager`
-            }).catch((err: any) => console.error("Email notification failed:", err));
-          }
+                }).catch((err: any) => console.error("Email notification failed:", err))
+              );
+            }
+
+            await Promise.all(tasks);
+          });
+
+          await Promise.all(promises);
+        } catch (notifErr) {
+          console.error("Failed to broadcast follower notifications:", notifErr);
         }
-      } catch (notifErr) {
-        console.error("Failed to broadcast follower notifications:", notifErr);
-      }
+      })();
 
       res.status(201).json(newTournament);
     } catch (error) {

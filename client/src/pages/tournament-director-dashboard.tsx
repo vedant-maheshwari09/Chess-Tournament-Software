@@ -35,7 +35,7 @@ export default function TournamentDirectorDashboard() {
       past: tournaments.filter((tournament) => tournament.status === "completed"),
       live: tournaments.filter((tournament) => tournament.status === "active"),
       upcoming: tournaments.filter((tournament) => tournament.status === "upcoming"),
-      drafts: tournaments.filter((tournament) => tournament.status === "draft"),
+      drafts: tournaments.filter((tournament) => tournament.status === "draft").sort((a, b) => b.id - a.id),
     }),
     [tournaments]
   );
