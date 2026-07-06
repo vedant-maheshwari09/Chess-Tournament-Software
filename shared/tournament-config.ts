@@ -229,9 +229,96 @@ export interface RegistrationFormField {
 export interface RegistrationFormConfig {
   fields: RegistrationFormField[];
   migratedToSystemFields?: boolean;
+  formTitle?: string;
+  formDescription?: string;
 }
 
 export const DEFAULT_REGISTRATION_FIELDS: RegistrationFormField[] = [
+  {
+    id: "lookupSection",
+    label: "Player Profile Lookup",
+    type: "section",
+    required: false,
+    visible: true,
+    description: "Search or enter your player profile information."
+  },
+  {
+    id: "playerSearch",
+    label: "Player Search",
+    type: "text",
+    required: false,
+    visible: true,
+    description: "Search by player name or Chess ID to auto-fill details."
+  },
+  {
+    id: "firstName",
+    label: "First Name",
+    type: "text",
+    required: true,
+    visible: true,
+    placeholder: "e.g. John",
+    description: "Enter your first name (as it appears on your chess ID)."
+  },
+  {
+    id: "lastName",
+    label: "Last Name",
+    type: "text",
+    required: true,
+    visible: true,
+    placeholder: "e.g. Doe",
+    description: "Enter your last name (as it appears on your chess ID)."
+  },
+  {
+    id: "email",
+    label: "Email Address",
+    type: "text",
+    required: true,
+    visible: true,
+    placeholder: "e.g. john.doe@example.com",
+    description: "We will send pairing notifications and receipts here."
+  },
+  {
+    id: "sectionChoice",
+    label: "Preferred Section",
+    type: "select",
+    required: true,
+    visible: true,
+    description: "Choose the section you want to play in."
+  },
+  {
+    id: "ratingProvider",
+    label: "Rating Provider",
+    type: "select",
+    required: true,
+    visible: true,
+    description: "Select where we should verify your rating."
+  },
+  { 
+    id: "uscfId", 
+    label: "USCF ID", 
+    type: "text", 
+    required: false, 
+    visible: true,
+    placeholder: "e.g. 12345678",
+    description: "Your 8-digit United States Chess Federation ID."
+  },
+  { 
+    id: "fideId", 
+    label: "FIDE ID", 
+    type: "text", 
+    required: false, 
+    visible: true,
+    placeholder: "e.g. 1500021",
+    description: "Your official World Chess Federation ID (if applicable)."
+  },
+  {
+    id: "detailsSection",
+    label: "Contact Information",
+    type: "section",
+    required: false,
+    visible: true,
+    description: "Provide your contact and mailing address details."
+  },
   { 
     id: "address1", 
     label: "Address Line 1", 
@@ -286,23 +373,13 @@ export const DEFAULT_REGISTRATION_FIELDS: RegistrationFormField[] = [
     placeholder: "e.g. United States",
     description: "Country of residence."
   },
-  { 
-    id: "uscfId", 
-    label: "USCF ID", 
-    type: "text", 
-    required: false, 
+  {
+    id: "preferencesSection",
+    label: "Preferences & Options",
+    type: "section",
+    required: false,
     visible: true,
-    placeholder: "e.g. 12345678",
-    description: "Your 8-digit United States Chess Federation ID."
-  },
-  { 
-    id: "fideId", 
-    label: "FIDE ID", 
-    type: "text", 
-    required: false, 
-    visible: true,
-    placeholder: "e.g. 1500021",
-    description: "Your official World Chess Federation ID (if applicable)."
+    description: "Select byes, arrival time, and notification settings."
   },
   { 
     id: "byePreference", 
@@ -339,20 +416,36 @@ export const DEFAULT_REGISTRATION_FIELDS: RegistrationFormField[] = [
     description: "Opt-in to receive round pairings, final standings, and future event details."
   },
   {
-    id: "entryFee",
-    label: "Entry Fee Selection",
-    type: "select",
-    required: true,
-    visible: true,
-    description: "Choose your entry fee tier."
-  },
-  {
     id: "pairingNotifications",
     label: "Pairing Notifications",
     type: "select",
     required: false,
     visible: true,
     description: "Receive text/email alerts for pairings and results."
+  },
+  {
+    id: "checkoutSection",
+    label: "Review & Submit",
+    type: "section",
+    required: false,
+    visible: true,
+    description: "Confirm details, complete payment, and submit your registration."
+  },
+  {
+    id: "paymentFlow",
+    label: "Stripe Credit Card Payment",
+    type: "boolean",
+    required: false,
+    visible: true,
+    description: "Collect entry fees securely via Stripe checkout."
+  },
+  {
+    id: "entryFee",
+    label: "Entry Fee Selection",
+    type: "select",
+    required: true,
+    visible: true,
+    description: "Choose your entry fee tier."
   }
 ];
 
@@ -392,6 +485,10 @@ export interface TournamentConfig {
       overrides?: Record<string, MatchFormat>;
     };
     thirdPlaceMatch: boolean;
+    /** US Chess Rule 28R – Accelerated Swiss Pairings (adds 1.0 virtual point to top half in rounds 1-2) */
+    acceleratedPairings?: boolean;
+    /** US Chess Rule 28T – Non-Pairing Requests: array of [playerId, playerId] pairs that cannot be paired */
+    nonPairings?: [number, number][];
   };
   schedule: ScheduleEvent[];
   sections: SectionDefinition[];
@@ -676,6 +773,106 @@ export function createDefaultConfig(format: Tournament["format"], mode: Tourname
   };
 }
 
+export function normalizeRegistrationFields(fields: RegistrationFormField[]): RegistrationFormField[] {
+  if (!Array.isArray(fields)) return DEFAULT_REGISTRATION_FIELDS;
+
+  // Map of existing fields by ID
+  const existingMap = new Map(fields.map(f => [f.id, f]));
+
+  // Rebuild list chronologically:
+  const result: RegistrationFormField[] = [];
+
+  // Helper to push a system field (either existing one with user edits, or the default one)
+  const pushSystemField = (id: string) => {
+    const defaultField = DEFAULT_REGISTRATION_FIELDS.find(f => f.id === id);
+    if (!defaultField) return;
+    const existing = existingMap.get(id);
+    if (existing) {
+      result.push(existing);
+      existingMap.delete(id);
+    } else {
+      result.push(defaultField);
+    }
+  };
+
+  // 1. Lookup page fields first
+  pushSystemField("lookupSection");
+  pushSystemField("playerSearch");
+  pushSystemField("firstName");
+  pushSystemField("lastName");
+  pushSystemField("email");
+  pushSystemField("sectionChoice");
+  pushSystemField("ratingProvider");
+  pushSystemField("uscfId");
+  pushSystemField("fideId");
+
+  // 2. Details section header
+  pushSystemField("detailsSection");
+
+  // 3. Details fields (in the order they appear in the original list, or default order if missing)
+  const detailFieldIds = [
+    "address1",
+    "address2",
+    "city",
+    "state",
+    "postalCode",
+    "country"
+  ];
+
+  // We push details fields that exist first, maintaining original order
+  for (const field of fields) {
+    if (detailFieldIds.includes(field.id) || field.isCustom) {
+      if (existingMap.has(field.id)) {
+        result.push(field);
+        existingMap.delete(field.id);
+      }
+    }
+  }
+
+  // If any standard detail fields were not present, push them from default
+  for (const id of detailFieldIds) {
+    if (!result.some(f => f.id === id)) {
+      pushSystemField(id);
+    }
+  }
+
+  // 4. Preferences page fields
+  pushSystemField("preferencesSection");
+  const preferenceFieldIds = [
+    "byePreference",
+    "arrivalTime",
+    "notes",
+    "newsletter",
+    "pairingNotifications"
+  ];
+
+  for (const field of fields) {
+    if (preferenceFieldIds.includes(field.id)) {
+      if (existingMap.has(field.id)) {
+        result.push(field);
+        existingMap.delete(field.id);
+      }
+    }
+  }
+
+  for (const id of preferenceFieldIds) {
+    if (!result.some(f => f.id === id)) {
+      pushSystemField(id);
+    }
+  }
+
+  // 5. Payment page fields last
+  pushSystemField("checkoutSection");
+  pushSystemField("paymentFlow");
+
+  // 6. Append any remaining fields (should be empty but just in case)
+  existingMap.forEach((field) => {
+    result.push(field);
+  });
+
+  return result;
+}
+
 export function parseTournamentConfig(tournament: Tournament | undefined | null): TournamentConfig {
   if (!tournament || !tournament.roundTimings) {
     return createDefaultConfig(tournament?.format || "swiss", "rated");
@@ -702,10 +899,22 @@ export function parseTournamentConfig(tournament: Tournament | undefined | null)
         ? "unrated"
         : "rated";
 
-    return {
+    const normalizedConfig = {
       ...raw,
       mode: normalizedMode,
     } as TournamentConfig;
+
+    if (normalizedConfig.registrationFormConfig) {
+      normalizedConfig.registrationFormConfig = {
+        ...normalizedConfig.registrationFormConfig,
+        fields: normalizeRegistrationFields(normalizedConfig.registrationFormConfig.fields || []),
+      };
+    } else {
+      const defaults = createDefaultConfig(tournament?.format || "swiss", normalizedMode);
+      normalizedConfig.registrationFormConfig = defaults.registrationFormConfig;
+    }
+
+    return normalizedConfig;
   }
 
   // Legacy/v1 Parsing
@@ -883,7 +1092,12 @@ export function parseTournamentConfig(tournament: Tournament | undefined | null)
         arenaPrePairBeforeStart: tournament.arenaPrePairBeforeStart ?? parsed.arena?.arenaPrePairBeforeStart ?? defaults.arena!.arenaPrePairBeforeStart ?? false,
         scoring: (tournament.arenaScoringConfig as any) ?? parsed.arena?.scoring ?? defaults.arena!.scoring,
       },
-      registrationFormConfig: parsed.registrationFormConfig ?? defaults.registrationFormConfig,
+      registrationFormConfig: parsed.registrationFormConfig
+        ? {
+            ...parsed.registrationFormConfig,
+            fields: normalizeRegistrationFields(parsed.registrationFormConfig.fields || []),
+          }
+        : defaults.registrationFormConfig,
     };
   }
 

@@ -395,10 +395,21 @@ function getValidColorAssignments(
   p2: PlayerStats,
   strictColors: boolean,
   allowRepeats: boolean,
-  primaryRatingSystem: string
+  primaryRatingSystem: string,
+  nonPairings?: [number, number][],
+  colorTranspositionLimitPts?: number
 ): ('p1_white_p2_black' | 'p1_black_p2_white')[] {
   if (!allowRepeats && p1.opponents.has(p2.id)) {
     return [];
+  }
+
+  // US Chess Rule 28T – Non-Pairing Requests
+  if (nonPairings) {
+    for (const [a, b] of nonPairings) {
+      if ((a === p1.id && b === p2.id) || (a === p2.id && b === p1.id)) {
+        return [];
+      }
+    }
   }
 
   const options: ('p1_white_p2_black' | 'p1_black_p2_white')[] = [];
@@ -411,6 +422,33 @@ function getValidColorAssignments(
     if (p1.colorBalance >= 2) p1WhiteOk = false;
     if (p2.consecutiveColor <= -2) p2BlackOk = false;
     if (p2.colorBalance <= -2) p2BlackOk = false;
+  }
+
+  // US Chess Rule 29E5 – Color Transposition Limit
+  // If the rating difference between the higher-rated player and the lower-rated player exceeds
+  // colorTranspositionLimitPts (200 pts for balance swaps, 80 pts for due-color swaps),
+  // we cannot give the higher-rated player the color they are not due.
+  // This enforces that color preferences of lower-rated players cannot override those of much higher-rated players.
+  if (colorTranspositionLimitPts !== undefined && colorTranspositionLimitPts > 0) {
+    const p1Rating = getPlayerRating(p1.player, primaryRatingSystem);
+    const p2Rating = getPlayerRating(p2.player, primaryRatingSystem);
+    const ratingDiff = Math.abs(p1Rating - p2Rating);
+    if (ratingDiff >= colorTranspositionLimitPts) {
+      // Determine who is higher rated
+      const higherIsP1 = p1Rating >= p2Rating;
+      const higherStats = higherIsP1 ? p1 : p2;
+      const higherBalance = higherStats.colorBalance;
+      // Higher-rated player's due color preference must be respected
+      if (higherBalance > 0) {
+        // Higher-rated is due black
+        if (higherIsP1) p1WhiteOk = false;
+        else p2BlackOk = false;
+      } else if (higherBalance < 0) {
+        // Higher-rated is due white
+        if (!higherIsP1) p2BlackOk = false;
+        // When p2 must be white, p1 can only be black
+      }
+    }
   }
 
   if (p1WhiteOk && p2BlackOk) {
@@ -449,7 +487,8 @@ function backtrack(
   allowRepeats: boolean,
   boardNumbers: number[],
   boardIdx: number,
-  primaryRatingSystem: string
+  primaryRatingSystem: string,
+  nonPairings?: [number, number][]
 ): boolean {
   if (unpairedList.length === 0) {
     return true;
@@ -460,7 +499,7 @@ function backtrack(
   for (let i = 1; i < unpairedList.length; i++) {
     const p2 = unpairedList[i];
 
-    const colorOptions = getValidColorAssignments(p1, p2, strictColors, allowRepeats, primaryRatingSystem);
+    const colorOptions = getValidColorAssignments(p1, p2, strictColors, allowRepeats, primaryRatingSystem, nonPairings);
     for (const option of colorOptions) {
       const whitePlayer = option === 'p1_white_p2_black' ? p1 : p2;
       const blackPlayer = option === 'p1_white_p2_black' ? p2 : p1;
@@ -475,7 +514,7 @@ function backtrack(
 
       const remaining = unpairedList.filter(p => p.id !== p1.id && p.id !== p2.id);
 
-      if (backtrack(remaining, currentPairings, strictColors, allowRepeats, boardNumbers, boardIdx + 1, primaryRatingSystem)) {
+      if (backtrack(remaining, currentPairings, strictColors, allowRepeats, boardNumbers, boardIdx + 1, primaryRatingSystem, nonPairings)) {
         return true;
       }
 
@@ -531,6 +570,10 @@ export async function generateSwissPairings(
 
   const tournamentConfig = parseTournamentConfig(tournament);
   const primaryRatingSystem = tournamentConfig.details.primaryRatingSystem || 'uscf';
+  /** US Chess Rule 28R1: Accelerated pairings in rounds 1-2 */
+  const acceleratedPairings = tournamentConfig.details.acceleratedPairings === true;
+  /** US Chess Rule 28T: Non-pairing requests */
+  const nonPairings: [number, number][] = tournamentConfig.details.nonPairings ?? [];
 
   if (round === 1) {
     const sortedPlayers = [...activePlayers].sort((a, b) => {
@@ -553,6 +596,7 @@ export async function generateSwissPairings(
     let byePlayer: any = null;
 
     if (isOdd) {
+      // Lowest-rated / unrated gets the bye
       let byeIdx = sortedPlayers.length - 1;
       for (let i = sortedPlayers.length - 1; i >= 0; i--) {
         if (!isPlayerUnrated(sortedPlayers[i], primaryRatingSystem)) {
@@ -569,19 +613,39 @@ export async function generateSwissPairings(
       lowerHalf = sortedPlayers.slice(numPairs);
     }
 
-    const firstBoardWhiteIsUpper = Math.random() < 0.5;
+    if (acceleratedPairings) {
+      // US Chess Rule 28R1: In round 1 with accelerated pairings, pair upper half vs upper half
+      // and lower half vs lower half (top-vs-top, bottom-vs-bottom).
+      // This means board 1 = player 1 vs player 2, board 2 = player 3 vs player 4, etc.
+      console.log(`  [Accelerated Pairings] Round 1: top-vs-top, bottom-vs-bottom pairing`);
+      const allPlayers = byePlayer
+        ? sortedPlayers.filter(p => p.id !== byePlayer.id)
+        : [...sortedPlayers];
 
-    for (let i = 0; i < upperHalf.length && i < lowerHalf.length; i++) {
-      const upperPlayer = upperHalf[i];
-      const lowerPlayer = lowerHalf[i];
-      const upperPlayerIsWhite = i === 0 ? firstBoardWhiteIsUpper : (i % 2 === 0) === firstBoardWhiteIsUpper;
-
-      pairings.push({
-        whitePlayerId: upperPlayerIsWhite ? upperPlayer.id : lowerPlayer.id,
-        blackPlayerId: upperPlayerIsWhite ? lowerPlayer.id : upperPlayer.id,
-        board: resolvedBoardNumbers[i],
-        isBye: false,
-      });
+      for (let i = 0; i < allPlayers.length - 1; i += 2) {
+        const p1 = allPlayers[i];
+        const p2 = allPlayers[i + 1];
+        const coinFlip = Math.random() < 0.5;
+        pairings.push({
+          whitePlayerId: coinFlip ? p1.id : p2.id,
+          blackPlayerId: coinFlip ? p2.id : p1.id,
+          board: resolvedBoardNumbers[Math.floor(i / 2)],
+          isBye: false,
+        });
+      }
+    } else {
+      const firstBoardWhiteIsUpper = Math.random() < 0.5;
+      for (let i = 0; i < upperHalf.length && i < lowerHalf.length; i++) {
+        const upperPlayer = upperHalf[i];
+        const lowerPlayer = lowerHalf[i];
+        const upperPlayerIsWhite = i === 0 ? firstBoardWhiteIsUpper : (i % 2 === 0) === firstBoardWhiteIsUpper;
+        pairings.push({
+          whitePlayerId: upperPlayerIsWhite ? upperPlayer.id : lowerPlayer.id,
+          blackPlayerId: upperPlayerIsWhite ? lowerPlayer.id : upperPlayer.id,
+          board: resolvedBoardNumbers[i],
+          isBye: false,
+        });
+      }
     }
 
     if (isOdd && byePlayer) {
@@ -734,8 +798,27 @@ export async function generateSwissPairings(
       ? playerStatsList.filter(p => p.id !== byePlayerStats!.id)
       : playerStatsList;
 
+    // US Chess Rule 28R1: Assign virtual accelerated points for rounds 1-2
+    if (acceleratedPairings && round <= 2) {
+      const allForRating = [...playerStatsList].sort((a, b) => {
+        const rA = getPlayerRating(a.player, primaryRatingSystem);
+        const rB = getPlayerRating(b.player, primaryRatingSystem);
+        return rB - rA;
+      });
+      const topHalfCount = Math.ceil(allForRating.length / 2);
+      const topHalfIds = new Set(allForRating.slice(0, topHalfCount).map(p => p.id));
+      for (const ps of playerStatsList) {
+        (ps as any).acceleratedPoints = ps.points + (topHalfIds.has(ps.id) ? 1.0 : 0);
+      }
+      console.log(`  [Accelerated Pairings] Round ${round}: Added virtual point to top ${topHalfCount} players.`);
+    }
+
     const sortedPlayersToPair = [...playersToPair].sort((a, b) => {
-      if (a.points !== b.points) return b.points - a.points;
+      // US Chess Rule 28R1: For rounds 1 and 2 with accelerated pairings, add 1.0 virtual
+      // point to players in the upper half (by rating) for pairing purposes.
+      const aVirtual = (acceleratedPairings && round <= 2) ? (a as any).acceleratedPoints ?? a.points : a.points;
+      const bVirtual = (acceleratedPairings && round <= 2) ? (b as any).acceleratedPoints ?? b.points : b.points;
+      if (aVirtual !== bVirtual) return bVirtual - aVirtual;
       const ratingA = getPlayerRating(a.player, primaryRatingSystem);
       const ratingB = getPlayerRating(b.player, primaryRatingSystem);
       if (ratingB !== ratingA) return ratingB - ratingA;
@@ -761,7 +844,7 @@ export async function generateSwissPairings(
         const p1 = pair[0];
         const p2 = pair[1];
 
-        const colorAssignments = getValidColorAssignments(p1, p2, true, false, primaryRatingSystem);
+        const colorAssignments = getValidColorAssignments(p1, p2, true, false, primaryRatingSystem, nonPairings);
         if (colorAssignments.length > 0) {
           const whitePlayer = colorAssignments[0] === 'p1_white_p2_black' ? p1 : p2;
           const blackPlayer = colorAssignments[0] === 'p1_white_p2_black' ? p2 : p1;
@@ -784,16 +867,16 @@ export async function generateSwissPairings(
       const boardsForBacktrack = resolvedBoardNumbers.slice(0, totalBoardsNeeded);
       const backtrackPairings: any[] = [];
 
-      let found = backtrack(sortedPlayersToPair, backtrackPairings, true, false, boardsForBacktrack, 0, primaryRatingSystem);
+      let found = backtrack(sortedPlayersToPair, backtrackPairings, true, false, boardsForBacktrack, 0, primaryRatingSystem, nonPairings);
       if (!found) {
         console.log("Strict backtracking failed. Relaxing strict color constraints...");
         backtrackPairings.length = 0;
-        found = backtrack(sortedPlayersToPair, backtrackPairings, false, false, boardsForBacktrack, 0, primaryRatingSystem);
+        found = backtrack(sortedPlayersToPair, backtrackPairings, false, false, boardsForBacktrack, 0, primaryRatingSystem, nonPairings);
       }
       if (!found) {
         console.log("Color relaxed backtracking failed. Allowing repeat matchups...");
         backtrackPairings.length = 0;
-        found = backtrack(sortedPlayersToPair, backtrackPairings, false, true, boardsForBacktrack, 0, primaryRatingSystem);
+        found = backtrack(sortedPlayersToPair, backtrackPairings, false, true, boardsForBacktrack, 0, primaryRatingSystem, nonPairings);
       }
 
       if (found) {

@@ -54,6 +54,17 @@ function fileToText(file: File): Promise<string> {
   });
 }
 
+const formatDate = (value: string | Date | null | undefined) => {
+  if (!value) return "TBD";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "TBD";
+  return date.toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+};
+
 interface RegistrationFormCustomizerProps {
   config: TournamentConfig;
   onConfigChange: (config: TournamentConfig) => void;
@@ -77,15 +88,96 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
       };
     }
 
-    if (!saved.migratedToSystemFields) {
+    if (!saved.migratedToSystemFields || !saved.fields.some(f => f.id === "playerSearch" || f.id === "paymentFlow")) {
       const fieldIds = new Set(saved.fields.map(f => f.id));
-      const nextFields = [...saved.fields];
+      let nextFields = [...saved.fields];
+
+      // Remove any existing lookupSection/detailsSection/preferencesSection/checkoutSection to re-insert them at correct positions to prevent duplicate/messy ordering
+      nextFields = nextFields.filter(f => 
+        f.id !== "lookupSection" && 
+        f.id !== "detailsSection" && 
+        f.id !== "preferencesSection" && 
+        f.id !== "checkoutSection" &&
+        f.id !== "playerSearch" &&
+        f.id !== "paymentFlow"
+      );
+
+      // Core Lookup section fields
+      if (!fieldIds.has("firstName")) {
+        nextFields.unshift({
+          id: "firstName",
+          label: "First Name",
+          type: "text" as const,
+          required: true,
+          visible: true,
+          placeholder: "e.g. John",
+          description: "Enter your first name (as it appears on your chess ID)."
+        });
+      }
+
+      if (!fieldIds.has("lastName")) {
+        const idx = nextFields.findIndex(f => f.id === "firstName");
+        const newField = {
+          id: "lastName",
+          label: "Last Name",
+          type: "text" as const,
+          required: true,
+          visible: true,
+          placeholder: "e.g. Doe",
+          description: "Enter your last name (as it appears on your chess ID)."
+        };
+        if (idx !== -1) nextFields.splice(idx + 1, 0, newField);
+        else nextFields.unshift(newField);
+      }
+
+      if (!fieldIds.has("email")) {
+        const idx = nextFields.findIndex(f => f.id === "lastName");
+        const newField = {
+          id: "email",
+          label: "Email Address",
+          type: "text" as const,
+          required: true,
+          visible: true,
+          placeholder: "e.g. john.doe@example.com",
+          description: "We will send pairing notifications and receipts here."
+        };
+        if (idx !== -1) nextFields.splice(idx + 1, 0, newField);
+        else nextFields.unshift(newField);
+      }
+
+      if (!fieldIds.has("sectionChoice")) {
+        const idx = nextFields.findIndex(f => f.id === "email");
+        const newField = {
+          id: "sectionChoice",
+          label: "Preferred Section",
+          type: "select" as const,
+          required: true,
+          visible: true,
+          description: "Choose the section you want to play in."
+        };
+        if (idx !== -1) nextFields.splice(idx + 1, 0, newField);
+        else nextFields.unshift(newField);
+      }
+
+      if (!fieldIds.has("ratingProvider")) {
+        const idx = nextFields.findIndex(f => f.id === "sectionChoice");
+        const newField = {
+          id: "ratingProvider",
+          label: "Rating Provider",
+          type: "select" as const,
+          required: true,
+          visible: true,
+          description: "Select where we should verify your rating."
+        };
+        if (idx !== -1) nextFields.splice(idx + 1, 0, newField);
+        else nextFields.unshift(newField);
+      }
 
       if (!fieldIds.has("entryFee")) {
-        nextFields.unshift({
+        nextFields.push({
           id: "entryFee",
           label: "Entry Fee Selection",
-          type: "select",
+          type: "select" as const,
           required: true,
           visible: true,
           description: "Choose your entry fee tier."
@@ -96,12 +188,80 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
         nextFields.push({
           id: "pairingNotifications",
           label: "Pairing Notifications",
-          type: "select",
+          type: "select" as const,
           required: false,
           visible: true,
           description: "Receive text/email alerts for pairings and results."
         });
       }
+
+      // Now insert the default section dividers and customizer-visible preset modules in correct order
+      // 1. lookupSection at the very beginning
+      nextFields.unshift({
+        id: "lookupSection",
+        label: "Player Profile Lookup",
+        type: "section" as const,
+        required: false,
+        visible: true,
+        description: "Search or enter your player profile information."
+      });
+
+      // Insert playerSearch right after lookupSection
+      nextFields.splice(1, 0, {
+        id: "playerSearch",
+        label: "Player Search",
+        type: "text" as const,
+        required: false,
+        visible: true,
+        description: "Search by player name or Chess ID to auto-fill details."
+      });
+
+      // 2. detailsSection right before address1 (or uscfId, or default middle)
+      let detailsIdx = nextFields.findIndex(f => f.id === "address1" || f.id === "uscfId" || f.id === "fideId");
+      if (detailsIdx === -1) detailsIdx = nextFields.findIndex(f => f.id === "ratingProvider") + 1;
+      nextFields.splice(detailsIdx, 0, {
+        id: "detailsSection",
+        label: "Contact Information",
+        type: "section" as const,
+        required: false,
+        visible: true,
+        description: "Provide your contact and mailing address details."
+      });
+
+      // 3. preferencesSection right before byePreference (or arrivalTime, or newsletter)
+      let prefIdx = nextFields.findIndex(f => f.id === "byePreference" || f.id === "arrivalTime" || f.id === "newsletter" || f.id === "pairingNotifications");
+      if (prefIdx === -1) prefIdx = nextFields.length;
+      nextFields.splice(prefIdx, 0, {
+        id: "preferencesSection",
+        label: "Preferences & Options",
+        type: "section" as const,
+        required: false,
+        visible: true,
+        description: "Select byes, arrival time, and notification settings."
+      });
+
+      // 4. checkoutSection right before entryFee
+      let checkIdx = nextFields.findIndex(f => f.id === "entryFee");
+      if (checkIdx === -1) checkIdx = nextFields.length;
+      nextFields.splice(checkIdx, 0, {
+        id: "checkoutSection",
+        label: "Review & Submit",
+        type: "section" as const,
+        required: false,
+        visible: true,
+        description: "Confirm details, complete payment, and submit your registration."
+      });
+
+      // Insert paymentFlow right after checkoutSection
+      const updatedCheckIdx = nextFields.findIndex(f => f.id === "checkoutSection");
+      nextFields.splice(updatedCheckIdx + 1, 0, {
+        id: "paymentFlow",
+        label: "Stripe Credit Card Payment",
+        type: "boolean" as const,
+        required: false,
+        visible: true,
+        description: "Collect entry fees securely via Stripe checkout."
+      });
 
       return {
         ...saved,
@@ -109,7 +269,6 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
         migratedToSystemFields: true
       };
     }
-
     return saved;
   }, [config.registrationFormConfig]);
 
@@ -131,6 +290,14 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
         migratedToSystemFields: true
       } 
     });
+  };
+
+  const updateFormTitle = (title: string) => {
+    updateFormConfig({ ...formConfig, formTitle: title });
+  };
+
+  const updateFormDescription = (description: string) => {
+    updateFormConfig({ ...formConfig, formDescription: description });
   };
 
   const updateField = (id: string, updates: Partial<RegistrationFormField>) => {
@@ -315,14 +482,19 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
               <div className="border-t-8 border-t-sky-500 bg-white border border-slate-200 shadow-sm p-6 rounded-2xl space-y-3">
                 <Input
                   className="text-2xl font-bold tracking-tight text-slate-900 border-transparent hover:border-slate-200 focus:border-sky-500 focus:ring-0 px-1 py-0 h-auto bg-transparent rounded-lg"
-                  defaultValue="Chess Registration Form"
+                  value={formConfig.formTitle ?? `${config.basic.name || "Chess Tournament"} Registration Form`}
+                  onChange={(e) => updateFormTitle(e.target.value)}
                   placeholder="Form Title"
                 />
                 <textarea
                   className="w-full text-sm text-slate-500 border-transparent hover:border-slate-200 focus:border-sky-500 focus:outline-none px-1 py-1 h-auto bg-transparent rounded-lg resize-none"
-                  rows={2}
-                  defaultValue="Description"
-                  placeholder="Form description"
+                  rows={3}
+                  value={formConfig.formDescription ?? ""}
+                  onChange={(e) => updateFormDescription(e.target.value)}
+                  placeholder={config.basic.startDate
+                    ? `${formatDate(config.basic.startDate)}${config.basic.endDate && config.basic.endDate !== config.basic.startDate ? ` – ${formatDate(config.basic.endDate)}` : ""} · ${config.basic.city || "Venue TBA"} · ${config.details.timeControl?.toUpperCase() || "STANDARD"} · ${config.details.rounds || 0} rounds · 0 players`
+                    : "Form description"
+                  }
                 />
               </div>
 
@@ -330,7 +502,20 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
               <div className="space-y-4">
                 {formConfig.fields.map((field, idx) => {
                   const isFocused = focusedFieldId === field.id;
-                  const isSystemField = field.id === "entryFee" || field.id === "pairingNotifications";
+                  const isSystemField =
+                    field.id === "firstName" ||
+                    field.id === "lastName" ||
+                    field.id === "email" ||
+                    field.id === "sectionChoice" ||
+                    field.id === "ratingProvider" ||
+                    field.id === "entryFee" ||
+                    field.id === "pairingNotifications" ||
+                    field.id === "lookupSection" ||
+                    field.id === "detailsSection" ||
+                    field.id === "preferencesSection" ||
+                    field.id === "checkoutSection" ||
+                    field.id === "playerSearch" ||
+                    field.id === "paymentFlow";
                   
                   return (
                     <div 
@@ -392,17 +577,17 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
                           </div>
 
                           {/* Question Description / Helper Text */}
-                          {field.type !== "section" && (
-                            <div className="space-y-1">
-                              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Helper Text</label>
-                              <Input
-                                value={field.description ?? ""}
-                                onChange={(e) => updateField(field.id, { description: e.target.value })}
-                                placeholder="Explain or provide hints for this field..."
-                                className="h-8 text-xs border-transparent hover:border-slate-200 focus:border-sky-500 rounded-lg"
-                              />
-                            </div>
-                          )}
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                              {field.type === "section" ? "Section Subtitle / Description" : "Helper Text"}
+                            </label>
+                            <Input
+                              value={field.description ?? ""}
+                              onChange={(e) => updateField(field.id, { description: e.target.value })}
+                              placeholder={field.type === "section" ? "Subtitle or description for this page/step..." : "Explain or provide hints for this field..."}
+                              className="h-8 text-xs border-transparent hover:border-slate-200 focus:border-sky-500 rounded-lg"
+                            />
+                          </div>
 
                           {/* Dynamic Inputs Based on Selected Type */}
                           <div className="pt-2">
@@ -446,10 +631,10 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
                             )}
 
                             {field.type === "section" && (
-                              <div className="bg-slate-50 border border-slate-200 border-dashed rounded-xl p-4 space-y-2">
-                                <span className="text-[10px] font-bold text-sky-600 uppercase tracking-wider block">Visual Section Divider</span>
+                              <div className="bg-indigo-50/50 border border-indigo-200 border-dashed rounded-xl p-4 space-y-2">
+                                <span className="text-[10px] font-bold text-indigo-650 uppercase tracking-wider block">Step / Page Divider</span>
                                 <p className="text-xs text-slate-500 leading-relaxed font-medium">
-                                  This block splits your form with a clean separator line. It displays the section name in bold to organize the layout.
+                                  This block acts as a dynamic page/step break in the registration wizard. All fields located below this divider card will be automatically grouped into the next step/page of the signup form.
                                 </p>
                               </div>
                             )}
@@ -507,14 +692,34 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
                               </div>
                             )}
 
-                            {/* System field info notice (entryFee / pairingNotifications) */}
+                            {/* System field info notice (core identity / system blocks) */}
                             {isSystemField && (
                               <div className="rounded-xl border border-sky-200 bg-sky-50/60 p-3.5 flex items-start gap-2.5">
                                 <span className="text-sky-500 text-lg leading-none mt-0.5">ℹ</span>
                                 <p className="text-xs text-sky-700 font-semibold leading-relaxed">
-                                  {field.id === "entryFee"
+                                  {field.id === "firstName"
+                                    ? "This block collects the participant's first name, integrated with database lookup systems."
+                                    : field.id === "lastName"
+                                    ? "This block collects the participant's last name, integrated with database lookup systems."
+                                    : field.id === "email"
+                                    ? "This block collects the participant's email address for registration confirmations and notifications."
+                                    : field.id === "sectionChoice"
+                                    ? "This block presents section options automatically based on sections configured for this tournament."
+                                    : field.id === "ratingProvider"
+                                    ? "This block controls selection of official rating databases (USCF, FIDE, etc.)."
+                                    : field.id === "entryFee"
                                     ? "This block is controlled by the Entry Fees you configure in tournament settings. Its options are generated automatically."
-                                    : "This block lets players subscribe to email/text notifications for pairings and results. It is rendered by the system."}
+                                    : field.id === "pairingNotifications"
+                                    ? "This block lets players subscribe to email/text notifications for pairings and results. It is rendered by the system."
+                                    : field.id === "lookupSection"
+                                    ? "This starts the Player Profile Lookup page/step. It contains first/last name, email, section, and rating lookup options."
+                                    : field.id === "detailsSection"
+                                    ? "This starts the Contact Information page/step, prompting for mailing address and contact details."
+                                    : field.id === "preferencesSection"
+                                    ? "This starts the Preferences page/step, prompting for bye requests, arrival times, and pairing notification settings."
+                                    : field.id === "checkoutSection"
+                                    ? "This starts the Checkout/Review page/step, prompting the user for payment and final confirmation."
+                                    : "This is a system configuration block."}
                                 </p>
                               </div>
                             )}
@@ -545,7 +750,7 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
                               </Button>
                             </div>
 
-                            <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-4 font-semibold">
                               <button
                                 type="button"
                                 onClick={() => duplicateField(field, idx)}
@@ -612,8 +817,8 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
                               </span>
                             )}
                             {field.type === "section" && (
-                              <span className="bg-slate-100 text-indigo-700 text-[9px] font-extrabold px-1.5 py-0.5 border border-indigo-200 rounded-full shrink-0">
-                                Section Divider
+                              <span className="bg-indigo-50 text-indigo-700 text-[9px] font-extrabold px-1.5 py-0.5 border border-indigo-200 rounded-full shrink-0">
+                                Step / Page Divider
                               </span>
                             )}
                           </div>
@@ -684,41 +889,6 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
                     <Switch
                       checked={Boolean(config.registers?.allowEditRegistration)}
                       onCheckedChange={(checked) => handleRegistersChange("allowEditRegistration", checked)}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Bye Rules */}
-              <Card className="rounded-2xl border bg-white shadow-sm overflow-hidden">
-                <CardHeader className="bg-slate-50/50 p-5 border-b">
-                  <CardTitle className="text-base font-extrabold text-slate-900 flex items-center gap-2">
-                    <Settings className="h-4.5 w-4.5 text-slate-500" />
-                    Bye Rules
-                  </CardTitle>
-                  <CardDescription className="text-xs font-semibold text-slate-500">Control how half-point byes are requested by players.</CardDescription>
-                </CardHeader>
-                <CardContent className="p-5 space-y-4">
-                  <div className="space-y-2">
-                    <Label className="text-sm font-bold text-slate-800 block">Maximum Byes Allowed</Label>
-                    <p className="text-xs text-slate-500 leading-normal font-semibold">Limit how many half-point byes a player can request. Leave blank for no limit.</p>
-                    <Input
-                      type="number"
-                      min={0}
-                      placeholder="No limit"
-                      value={config.registers?.byeLimit ?? ""}
-                      onChange={(e) => handleRegistersChange("byeLimit", e.target.value ? parseInt(e.target.value, 10) : null)}
-                      className="w-36 h-10 text-xs border-slate-200 rounded-xl"
-                    />
-                  </div>
-                  <div className="flex items-center justify-between border-t pt-4">
-                    <div className="space-y-0.5">
-                      <Label className="text-sm font-bold text-slate-800">Allow Bye in the Last Round</Label>
-                      <p className="text-xs text-slate-500 leading-normal font-semibold">When disabled, players cannot select the final round for a bye request.</p>
-                    </div>
-                    <Switch
-                      checked={config.registers?.allowLastRoundBye !== false}
-                      onCheckedChange={(checked) => handleRegistersChange("allowLastRoundBye", checked)}
                     />
                   </div>
                 </CardContent>

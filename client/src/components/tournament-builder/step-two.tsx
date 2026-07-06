@@ -1296,7 +1296,28 @@ export default function StepTwo({
                   </div>
                 )}
 
-                
+                {/* Swiss Pairing Options (US Chess Rules 28R, 28T) */}
+                {config.format === 'swiss' && (
+                  <div className="space-y-4 pt-4 border-t border-slate-100">
+                    <div>
+                      <h3 className="text-base font-medium text-black">Swiss Pairing Options</h3>
+                      <p className="text-xs text-slate-500 mt-0.5">US Chess Rule Book pairing options for compliant tournaments.</p>
+                    </div>
+
+                    {/* Rule 28R - Accelerated Swiss */}
+                    <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/30 px-4 py-3.5">
+                      <div className="space-y-0.5">
+                        <Label className="text-[15px] font-medium text-black">Accelerated Pairings (Rule 28R)</Label>
+                        <p className="text-xs text-slate-500 font-normal">Adds 1 virtual point to the top half of players in rounds 1 and 2 to reduce perfect scores. Helps identify the top player faster.</p>
+                      </div>
+                      <Switch
+                        checked={!!(config.details as any).acceleratedPairings}
+                        onCheckedChange={(checked) => onConfigChange({ ...config, details: { ...config.details, acceleratedPairings: checked } as any })}
+                      />
+                    </div>
+                  </div>
+                )}
+
                 {(config.format === 'knockout' || config.format === 'arena') && (
                   <div className="space-y-6 mb-6 p-6 rounded-2xl bg-white border border-slate-200 shadow-sm">
                       <h3 className="text-base font-medium text-black flex items-center gap-2">
@@ -2179,16 +2200,33 @@ export default function StepTwo({
                              </div>
                           </div>
                           {config.format !== 'knockout' && (
-                            <div className="space-y-2">
-                              <Label className="text-base font-medium text-black">Maximum Byes</Label>
-                              <Input
-                                type="number"
-                                className="h-11 border-slate-200"
-                                placeholder="0"
-                                value={config.registers.byeLimit ?? ""}
-                                onChange={(e) => updateRegisters({ byeLimit: e.target.value ? parseInt(e.target.value) : null })}
-                              />
-                              <p className="text-xs text-slate-400">Limit the number of requested byes allowed per player.</p>
+                            <div className="space-y-4 border-t border-slate-100 pt-4">
+                              <div className="space-y-1">
+                                <Label className="text-base font-semibold text-black">Bye Rules</Label>
+                                <p className="text-xs text-slate-500">Control how half-point byes are requested by players.</p>
+                              </div>
+                              <div className="space-y-2">
+                                <Label className="text-sm font-medium text-black">Limit Requested Byes Per Player</Label>
+                                <Input
+                                  type="number"
+                                  className="h-11 border-slate-200"
+                                  placeholder="No limit"
+                                  min={0}
+                                  value={config.registers.byeLimit ?? ""}
+                                  onChange={(e) => updateRegisters({ byeLimit: e.target.value ? parseInt(e.target.value) : null })}
+                                />
+                                <p className="text-xs text-slate-400">Limit the number of requested byes allowed per player. Leave blank for no limit.</p>
+                              </div>
+                              <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/30 px-4 py-3.5">
+                                <div className="space-y-0.5">
+                                  <Label className="text-[15px] font-medium text-black">Allow Bye in Last Round</Label>
+                                  <p className="text-xs text-slate-500 font-normal">When disabled, players cannot request a bye in the final round.</p>
+                                </div>
+                                <Switch
+                                  checked={config.registers?.allowLastRoundBye !== false}
+                                  onCheckedChange={(checked) => updateRegisters({ allowLastRoundBye: checked })}
+                                />
+                              </div>
                             </div>
                           )}
                         </div>

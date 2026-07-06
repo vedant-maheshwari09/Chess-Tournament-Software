@@ -44,6 +44,7 @@ import {
   type EntryFeeRule,
   type PaymentSettings,
   DEFAULT_REGISTRATION_FIELDS,
+  type RegistrationFormField,
 } from "@/lib/tournament-config";
 import type { Tournament, Player, PlayerRegistration } from "@shared/schema";
 
@@ -1031,44 +1032,180 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
   const endDateText = formatDate(config.basic.endDate ?? config.basic.startDate);
   const playerCount = players.length;
   const playerLimit = config.registers?.playerLimit ?? null;
-  const totalSteps = 3;
-  const progressPercentage = ((currentStep - 1) / (totalSteps - 1)) * 100;
-  const stepMeta = [
-    { title: "Player lookup", description: "Find your rating profile." },
-    { title: "Player details", description: "Complete contact & entry info." },
-    { title: "Review & submit", description: "Acknowledge payment and finish." },
-  ] as const;
+  const hasLookupStep = config?.registers?.entryRequirementType !== "casual";
 
-  const handleNextStep = async () => {
-    let fields: (keyof RegistrationFormValues)[] = [];
-    if (currentStep === 1) {
-      fields = ["firstName", "lastName", "email", "sectionChoice"];
-    } else if (currentStep === 2 && entryFees.length > 0) {
-      const selectedSection = form.getValues("sectionChoice");
-      const sectionEntryFees = filterEntryFeesBySection(entryFees, selectedSection, sections);
-      const selectedEntryFeeId = form.getValues("entryFeeId");
+  const steps = useMemo(() => {
+    if (!config) return [];
+    const fields = config.registrationFormConfig?.fields || DEFAULT_REGISTRATION_FIELDS;
+    const visibleFields = fields.filter(f => f.visible);
 
-      if (sectionEntryFees.length === 0) {
-        if (!selectedEntryFeeId) {
-          form.setValue("entryFeeId", NO_ENTRY_FEE_ID, { shouldDirty: false, shouldValidate: false });
+    // Group fields into pages based on type === "section"
+    const pages: any[] = [];
+    let currentPageFields: RegistrationFormField[] = [];
+    let currentPageSection: RegistrationFormField | null = null;
+
+    for (const field of visibleFields) {
+      if (field.type === "section") {
+        if (currentPageFields.length > 0 || currentPageSection) {
+          pages.push({
+            section: currentPageSection,
+            fields: currentPageFields,
+          });
         }
+        currentPageSection = field;
+        currentPageFields = [];
       } else {
-        fields = ["entryFeeId"];
+        currentPageFields.push(field);
       }
     }
-
-    let valid = true;
-    if (fields.length > 0) {
-      valid = await form.trigger(fields, { shouldFocus: true });
+    if (currentPageFields.length > 0 || currentPageSection) {
+      pages.push({
+        section: currentPageSection,
+        fields: currentPageFields,
+      });
     }
 
-    if (valid && currentStep === 2) {
-      valid = validateCustomFormConfig();
+    // Map pages to step definitions
+    let detailsCount = 0;
+    return pages.map((page, idx) => {
+      const isCheckout = page.section?.id === "checkoutSection";
+      const isLookup = page.section?.id === "lookupSection" || (!page.section && page.fields.some((f: any) => f.id === "firstName" || f.id === "lastName"));
+      
+      let type: "lookup" | "details" | "checkout" = "details";
+      if (isCheckout) type = "checkout";
+      else if (isLookup && config.registers?.entryRequirementType !== "casual") type = "lookup";
+
+      let pageIndex = 0;
+      if (type === "details") {
+        pageIndex = detailsCount;
+        detailsCount++;
+      }
+
+      return {
+        type,
+        pageIndex,
+        sectionId: page.section?.id || `section-${idx}`,
+        section: page.section,
+        title: page.section?.label || `Page ${idx + 1}`,
+        description: page.section?.description || "Complete registration details",
+        fields: page.fields,
+      };
+    });
+  }, [config, hasLookupStep]);
+
+  const totalSteps = steps.length;
+  const progressPercentage = totalSteps > 1 ? ((currentStep - 1) / (totalSteps - 1)) * 100 : 100;
+  const stepMeta = useMemo(() => {
+    return steps.map(s => ({ title: s.title, description: s.description }));
+  }, [steps]);
+
+  const validateStepFields = async (step: typeof steps[number]): Promise<boolean> => {
+    let isValid = true;
+    const values = form.getValues();
+
+    if (step.type === "lookup") {
+      const lookupFields: (keyof RegistrationFormValues)[] = [];
+      const fields = config?.registrationFormConfig?.fields || DEFAULT_REGISTRATION_FIELDS;
+      
+      const firstNameConfig = fields.find(f => f.id === "firstName");
+      if (firstNameConfig?.visible) lookupFields.push("firstName");
+      
+      const lastNameConfig = fields.find(f => f.id === "lastName");
+      if (lastNameConfig?.visible) lookupFields.push("lastName");
+      
+      const emailConfig = fields.find(f => f.id === "email");
+      if (emailConfig?.visible) lookupFields.push("email");
+      
+      const sectionConfig = fields.find(f => f.id === "sectionChoice");
+      if (sectionConfig?.visible) lookupFields.push("sectionChoice");
+      
+      const ratingConfig = fields.find(f => f.id === "ratingProvider");
+      if (ratingConfig?.visible) lookupFields.push("ratingProvider");
+
+      if (config?.registers?.verifyUscfMembership) {
+        lookupFields.push("uscfId");
+      }
+
+      if (lookupFields.length > 0) {
+        isValid = await form.trigger(lookupFields, { shouldFocus: true });
+      }
+
+      if (isValid && config?.registers?.verifyUscfMembership) {
+        const uscfId = values.uscfId;
+        if (!uscfId || !/^\d{8}$/.test(uscfId.trim())) {
+          form.setError("uscfId", {
+            type: "manual",
+            message: "Please enter a valid 8-digit USCF ID"
+          });
+          isValid = false;
+        }
+      }
+      return isValid;
     }
+
+    if (step.type === "details") {
+      const fieldsToTrigger: any[] = [];
+      for (const field of step.fields) {
+        if (field.type === "section") continue;
+
+        if (field.id === "entryFee") {
+          const selectedSection = values.sectionChoice;
+          const sectionEntryFees = filterEntryFeesBySection(entryFees, selectedSection, sections);
+          if (sectionEntryFees.length > 0) {
+            fieldsToTrigger.push("entryFeeId");
+          }
+        } else if (field.id === "pairingNotifications") {
+          fieldsToTrigger.push("pairingNotifications");
+        } else if (field.isCustom) {
+          fieldsToTrigger.push(`customAnswers.${field.id}`);
+        } else {
+          fieldsToTrigger.push(field.id);
+        }
+      }
+
+      if (fieldsToTrigger.length > 0) {
+        isValid = await form.trigger(fieldsToTrigger, { shouldFocus: true });
+      }
+
+      for (const field of step.fields) {
+        if (field.type === "section") continue;
+        if (field.visible && field.required) {
+          if (field.isCustom) {
+            const customVal = values.customAnswers?.[field.id];
+            if (customVal === undefined || customVal === null || (typeof customVal === "string" && !customVal.trim()) || (Array.isArray(customVal) && customVal.length === 0)) {
+              form.setError(`customAnswers.${field.id}` as any, {
+                type: "manual",
+                message: `${field.label} is required`
+              });
+              isValid = false;
+            }
+          } else {
+            const val = values[field.id as keyof RegistrationFormValues];
+            if (val === undefined || val === null || (typeof val === "string" && !val.trim()) || (Array.isArray(val) && val.length === 0)) {
+              form.setError(field.id as keyof RegistrationFormValues, {
+                type: "manual",
+                message: `${field.label} is required`
+              });
+              isValid = false;
+            }
+          }
+        }
+      }
+      return isValid;
+    }
+
+    return true;
+  };
+
+  const handleNextStep = async () => {
+    const currentStepDef = steps[currentStep - 1];
+    if (!currentStepDef) return;
+
+    const valid = await validateStepFields(currentStepDef);
 
     if (!valid) {
       DEBUG_LOG("Step navigation blocked: validation failed", form.formState.errors, 'warn');
-      if (fields.includes("entryFeeId")) {
+      if (form.formState.errors.entryFeeId) {
         toast({
           title: "Select an entry fee",
           description: "Pick the entry option that matches your section before continuing.",
@@ -1081,7 +1218,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
     DEBUG_LOG(`Advancing from Step ${currentStep} to ${currentStep + 1}`);
 
     // When moving to the final review step, finalize the current player into the drafts list
-    if (currentStep === 2) {
+    if (currentStep === totalSteps - 1) {
       const currentValues = form.getValues();
       const hasData = Boolean(currentValues.firstName?.trim() || currentValues.lastName?.trim());
 
@@ -1105,7 +1242,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
       }
     }
 
-    setCurrentStep((prev) => Math.min(prev + 1, 3));
+    setCurrentStep((prev) => Math.min(prev + 1, totalSteps));
   };
 
   const handlePrevStep = () => {
@@ -1120,58 +1257,34 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
       return;
     }
 
-    let fields: (keyof RegistrationFormValues)[] = [];
-    // Validate key fields from steps 1 and 2 for the current player
-    fields = ["firstName", "lastName", "email", "sectionChoice"];
+    const currentValues = form.getValues();
+    const isEmpty = !currentValues.firstName?.trim() && !currentValues.lastName?.trim();
 
-    if (entryFees.length > 0) {
-      const selectedSection = form.getValues("sectionChoice");
-      const sectionEntryFees = filterEntryFeesBySection(entryFees, selectedSection, sections);
-      const selectedEntryFeeId = form.getValues("entryFeeId");
-
-      if (sectionEntryFees.length === 0) {
-        if (!selectedEntryFeeId) {
-          form.setValue("entryFeeId", NO_ENTRY_FEE_ID, { shouldDirty: false, shouldValidate: false });
-        }
-      } else {
-        fields = [...fields, "entryFeeId"];
-      }
+    if (currentStep === totalSteps && isEmpty) {
+      DEBUG_LOG("Add Player clicked on Step 3 with empty form. Skipping validation and returning to Step 1.");
+      setCurrentStep(1);
+      setEditingDraftId(null);
+      return;
     }
 
     let valid = true;
-    if (fields.length > 0) {
-      // If we are on Step 3 and the current form is already empty,
-      // we don't need to validate or save the current state - just go back to Step 1
-      const currentValues = form.getValues();
-      const isEmpty = !currentValues.firstName?.trim() && !currentValues.lastName?.trim();
-
-      if (currentStep === 3 && isEmpty) {
-        DEBUG_LOG("Add Player clicked on Step 3 with empty form. Skipping validation and returning to Step 1.");
-        setCurrentStep(1);
-        setEditingDraftId(null);
-        return;
+    for (const stepDef of steps) {
+      if (stepDef.type !== "checkout") {
+        const stepValid = await validateStepFields(stepDef);
+        if (!stepValid) valid = false;
       }
-
-      valid = await form.trigger(fields, { shouldFocus: true });
-    }
-
-    if (valid && currentStep === 2) {
-      valid = validateCustomFormConfig();
     }
 
     if (!valid) {
       DEBUG_LOG("Add another player blocked: validation failed", form.formState.errors, 'warn');
-      if (fields.includes("entryFeeId")) {
-        toast({
-          title: "Select an entry fee",
-          description: "Pick the entry option that matches your section before adding another player.",
-          variant: "destructive",
-        });
-      }
+      toast({
+        title: "Validation error",
+        description: "Please check that all steps are filled out correctly before adding another player.",
+        variant: "destructive",
+      });
       return;
     }
 
-    const currentValues = form.getValues();
     DEBUG_LOG(`Saving ${currentValues.firstName} to roster and resetting for next entry`);
 
     if (editingDraftId) {
@@ -1333,123 +1446,72 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
   };
 
   return (
-    <div className="min-h-screen bg-transparent">
-      {/* ===== Main Content ===== */}
-      <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
-        <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-          {/* ===== Compact Header Section ===== */}
-          <div className="border-b border-gray-100 px-6 py-5">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Link href={`/tournaments/${slugify(tournament.name)}`}>
-                  <button
-                    type="button"
-                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-blue-300 hover:text-blue-600 active:scale-95"
-                    title="Back to tournament"
-                  >
-                    <ArrowLeft className="h-4 w-4" />
-                  </button>
-                </Link>
-                <h1 className="text-xl font-semibold tracking-tight text-gray-900 sm:text-2xl">{tournament.name}</h1>
-              </div>
-              <div className="flex items-center gap-3">
-                <Badge
-                  className={cn(
-                    "border px-2 py-0.5 text-[11px] font-medium capitalize",
-                    tournament.status === "active"
-                      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                      : tournament.status === "upcoming"
-                        ? "bg-blue-50 text-blue-700 border-blue-200"
-                        : "bg-gray-100 text-gray-600 border-gray-200",
-                  )}
-                  variant="outline"
-                >
-                  {tournament.status}
-                </Badge>
-
-                {/* Premium Autosave Indicator */}
-                {(isAutosaving || lastSavedAt) && (
-                  <div className={cn(
-                    "flex items-center gap-1.5 transition-all duration-500",
-                    isAutosaving ? "opacity-100 translate-y-0" : "opacity-40 -translate-y-0"
-                  )}>
-                    {isAutosaving ? (
-                      <Loader2 className="h-3 w-3 animate-spin text-blue-500" />
-                    ) : (
-                      <div className="flex h-3 w-3 items-center justify-center rounded-full bg-emerald-500/10">
-                        <Check className="h-2 w-2 text-emerald-600" />
-                      </div>
-                    )}
-                    <span className="text-[11px] font-medium text-gray-400">
-                      {isAutosaving ? "Saving..." : `Saved at ${lastSavedAt?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
-                    </span>
+    <div className="min-h-screen bg-[#f0f4f9] w-full overflow-x-hidden">
+      {/* ===== Slim top bar ===== */}
+      <div className="sticky top-0 z-10 border-b border-slate-200/80 bg-white/95 backdrop-blur-sm">
+        <div className="mx-auto flex max-w-2xl items-center justify-between px-4 py-2.5 sm:px-6">
+          <Link href={`/tournaments/${slugify(tournament.name)}`}>
+            <button
+              type="button"
+              className="flex items-center gap-1.5 rounded-md px-2 py-1 text-sm font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 active:scale-95"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              Back
+            </button>
+          </Link>
+          <div className="flex items-center gap-3">
+            <Badge
+              className={cn(
+                "border px-2 py-0.5 text-[11px] font-medium capitalize",
+                tournament.status === "active"
+                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                  : tournament.status === "upcoming"
+                    ? "bg-blue-50 text-blue-700 border-blue-200"
+                    : "bg-gray-100 text-gray-600 border-gray-200",
+              )}
+              variant="outline"
+            >
+              {tournament.status}
+            </Badge>
+            {(isAutosaving || lastSavedAt) && (
+              <div className={cn(
+                "flex items-center gap-1.5 transition-all duration-500",
+                isAutosaving ? "opacity-100" : "opacity-40"
+              )}>
+                {isAutosaving ? (
+                  <Loader2 className="h-3 w-3 animate-spin text-blue-500" />
+                ) : (
+                  <div className="flex h-3 w-3 items-center justify-center rounded-full bg-emerald-100">
+                    <Check className="h-2 w-2 text-emerald-600" />
                   </div>
                 )}
+                <span className="text-[11px] font-medium text-gray-400">
+                  {isAutosaving ? "Saving..." : `Saved ${lastSavedAt?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ===== Main Content ===== */}
+      <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6">
+        <FormProvider {...form}>
+          <form onSubmit={(event) => event.preventDefault()} className="space-y-4">
+
+            {/* ===== Form Title Card (Google Forms style) ===== */}
+            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+              <div className="h-2.5 rounded-t-xl bg-sky-500" />
+              <div className="px-7 py-6">
+                <h1 className="text-2xl font-normal tracking-tight text-slate-900">
+                  {config?.registrationFormConfig?.formTitle || `${tournament.name} — Registration`}
+                </h1>
+                <p className="mt-2 text-sm text-slate-500 leading-relaxed">
+                  {config?.registrationFormConfig?.formDescription ||
+                    [startDateText && endDateText && endDateText !== "TBD" ? `${startDateText} – ${endDateText}` : startDateText, config?.basic.city || tournament.location || null, config?.details.timeControl ? `${config.details.timeControl.toUpperCase()} · ${config?.details.rounds} rounds` : null, `${playerCount}${playerLimit ? ` / ${playerLimit}` : ""} players registered`].filter(Boolean).join(" · ")}
+                </p>
               </div>
             </div>
-            <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-gray-500">
-              <span className="flex items-center gap-1">
-                <Calendar className="h-3.5 w-3.5" />
-                {startDateText}{endDateText && endDateText !== "TBD" && ` – ${endDateText}`}
-              </span>
-              <span className="flex items-center gap-1">
-                <MapPin className="h-3.5 w-3.5" />
-                {config.basic.city || tournament.location || "Venue TBA"}
-              </span>
-              <span className="flex items-center gap-1">
-                <Clock className="h-3.5 w-3.5" />
-                {config.details.timeControl?.toUpperCase()} · {config.details.rounds} rounds
-              </span>
-              <span className="flex items-center gap-1">
-                <Users className="h-3.5 w-3.5" />
-                {playerCount}{playerLimit ? ` / ${playerLimit}` : ""} players
-              </span>
-            </div>
-
-            {/* Step progress indicator */}
-            <div className="mt-5 flex items-center gap-0">
-              {stepMeta.map((meta, index) => {
-                const step = index + 1;
-                const isDone = currentStep > step;
-                const isActive = currentStep === step;
-                return (
-                  <div key={meta.title} className="flex items-center">
-                    <div className="flex items-center gap-2.5">
-                      <div
-                        className={cn(
-                          "flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold transition-all duration-300",
-                          isDone
-                            ? "bg-blue-600 text-white shadow-sm"
-                            : isActive
-                              ? "border-[1.5px] border-blue-600 text-blue-600 bg-blue-50 ring-2 ring-blue-100"
-                              : "border-[1.5px] border-gray-200 text-gray-400 bg-white",
-                        )}
-                      >
-                        {isDone ? <Check className="h-3.5 w-3.5" /> : step}
-                      </div>
-                      <span className={cn(
-                        "hidden text-[13px] font-medium sm:block",
-                        isDone ? "text-blue-600" : isActive ? "text-gray-900" : "text-gray-400"
-                      )}>{meta.title}</span>
-                    </div>
-                    {index < stepMeta.length - 1 && (
-                      <div
-                        className={cn(
-                          "mx-3 h-px w-10 transition-all duration-500",
-                          currentStep > step ? "bg-blue-600" : "bg-gray-200",
-                        )}
-                      />
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* ===== Form Content Area ===== */}
-          <div className="p-6 sm:p-8 lg:p-10">
-            <FormProvider {...form}>
-              <form onSubmit={(event) => event.preventDefault()} className="space-y-6">
 
                 {/* ===== Multi-player roster panel (Hidden in Step 3 to avoid double summary) ===== */}
                 {multiPlayerAllowed && currentStep < 3 && (playerDrafts.length > 0 || editingDraftId) && (
@@ -1545,16 +1607,30 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
 
                 {/* ===== Step Content ===== */}
                 <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-                  {currentStep === 1 && <StepOne config={config} players={players} sections={sections} entryFees={entryFees} />}
-                  {currentStep === 2 && (
-                    <StepTwo
-                      config={config}
-                      entryFees={entryFees}
-                      paymentSettings={paymentSettings ?? null}
-                      sections={sections}
-                    />
-                  )}
-                  {currentStep === 3 && (() => {
+                  {(() => {
+                    const step = steps[currentStep - 1];
+                    if (!step) return null;
+
+                    if (step.type === "lookup") {
+                      return <StepOne config={config} players={players} sections={sections} entryFees={entryFees} />;
+                    }
+
+                    if (step.type === "details") {
+                      return (
+                        <StepTwo
+                          config={config}
+                          entryFees={entryFees}
+                          paymentSettings={paymentSettings ?? null}
+                          sections={sections}
+                          activeFields={step.section ? [step.section, ...step.fields] : step.fields}
+                          pageIndex={step.pageIndex}
+                          totalPages={totalSteps - (hasLookupStep ? 2 : 1)}
+                        />
+                      );
+                    }
+
+                    if (step.type === "checkout") {
+                      return (() => {
                     const displayDrafts = (() => {
                       const currentVals = form.getValues();
                       if (!multiPlayerAllowed) {
@@ -1750,93 +1826,75 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
                         )}
                       </>
                     );
-                  })()}
-                </div>
+                  })()
+                }
+              })()}
+            </div>
 
-                {/* ===== Navigation Footer ===== */}
-                <div className="mt-2 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-                  <div className="flex items-center justify-between gap-4 px-5 py-4">
-                    <div className="hidden text-xs text-gray-500 sm:block">
-                      <div className="flex items-center gap-3">
-                        <span>
-                          <span className="font-medium text-gray-700">Step {currentStep}</span> of {totalSteps} · {stepMeta[currentStep - 1]?.title}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex flex-1 items-center justify-end gap-3 sm:flex-initial">
-                      {currentStep > 1 && currentStep < 3 && (
-                        <button
-                          type="button"
-                          onClick={handlePrevStep}
-                          className="inline-flex h-9 items-center gap-1.5 rounded-md border border-gray-200 bg-white px-4 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50 active:scale-95"
-                        >
-                          <ArrowLeft className="h-4 w-4" />
-                          Back
-                        </button>
-                      )}
-
-                      {/* Removed redundant Add Another Player button from footer */}
-
-                      {!existingRegistration && currentStep < 3 && (
-                        <button
-                          type="button"
-                          onClick={handleSaveDraft}
-                          className={cn(
-                            "inline-flex h-9 items-center gap-1.5 rounded-md border px-4 text-sm font-medium shadow-sm transition active:scale-95",
-                            draftSavedFlash
-                              ? "border-emerald-300 bg-emerald-50 text-emerald-700"
-                              : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50",
-                          )}
-                        >
-                          <Save className="h-3.5 w-3.5" />
-                          {draftSavedFlash ? "Saved!" : "Save Draft"}
-                        </button>
-                      )}
-
-                      {currentStep < 3 ? (
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={handleNextStep}
-                            className="inline-flex h-9 items-center gap-1.5 rounded-md bg-gray-900 px-5 text-sm font-medium text-white shadow-sm transition hover:bg-gray-800 active:scale-[0.98]"
-                          >
-                            Continue
-                            <ChevronRight className="h-4 w-4" />
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          disabled={disableSubmitButton || !paymentAcknowledged}
-                          onClick={handleFinalSubmit}
-                          className={cn(
-                            "inline-flex h-9 items-center gap-1.5 rounded-md px-5 text-sm font-medium text-white shadow-sm transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50",
-                            requiresPayment
-                              ? "bg-gray-900 hover:bg-gray-800"
-                              : "bg-gray-900 hover:bg-gray-800",
-                          )}
-                        >
-                          {registerMutation.isPending || groupRegisterMutation.isPending ? (
-                            <><Loader2 className="h-4 w-4 animate-spin" /> Submitting...</>
-                          ) : isPaymentBusy ? (
-                            <><Loader2 className="h-4 w-4 animate-spin" /> Processing...</>
-                          ) : requiresPayment ? (
-                            <><Shield className="h-4 w-4" /> Pay & Submit</>
-                          ) : (
-                            <><Check className="h-4 w-4" /> Submit Registration</>
-                          )}
-                        </button>
-                      )}
-                    </div>
+                {/* ===== Navigation Footer (Google Forms style) ===== */}
+                <div className="flex items-center justify-between gap-4 py-4 px-1">
+                  <div className="flex items-center gap-3">
+                    {currentStep > 1 && currentStep < totalSteps && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={handlePrevStep}
+                        className="h-10 px-4 text-sm font-semibold text-slate-500 hover:bg-slate-100 rounded-lg transition"
+                      >
+                        Back
+                      </Button>
+                    )}
                   </div>
-                  <div className="border-t border-gray-100 bg-gray-50/50 px-5 py-3 text-center text-xs text-gray-500">
-                    Registration powered by ChessSoftware · Confirmation sent after director review
+                  <div className="flex items-center gap-3">
+                    {!existingRegistration && currentStep < totalSteps && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={handleSaveDraft}
+                        className={cn(
+                          "h-10 px-4 text-sm font-medium transition rounded-lg",
+                          draftSavedFlash
+                            ? "text-emerald-600 hover:bg-emerald-50"
+                            : "text-slate-500 hover:bg-slate-100",
+                        )}
+                      >
+                        {draftSavedFlash ? "Saved!" : "Save Draft"}
+                      </Button>
+                    )}
+                    {currentStep < totalSteps ? (
+                      <Button
+                        type="button"
+                        onClick={handleNextStep}
+                        className="h-10 px-6 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 shadow-sm rounded-lg transition"
+                      >
+                        Continue
+                      </Button>
+                    ) : (
+                      <Button
+                        type="button"
+                        disabled={disableSubmitButton || !paymentAcknowledged}
+                        onClick={handleFinalSubmit}
+                        className="h-10 px-6 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 shadow-sm rounded-lg transition"
+                      >
+                        {registerMutation.isPending || groupRegisterMutation.isPending ? (
+                          "Submitting..."
+                        ) : isPaymentBusy ? (
+                          "Processing..."
+                        ) : requiresPayment ? (
+                          "Pay & Submit"
+                        ) : (
+                          "Submit"
+                        )}
+                      </Button>
+                    )}
                   </div>
                 </div>
-              </form>
-            </FormProvider>
-          </div>
-        </div>
+
+                <div className="mt-8 text-center text-xs text-slate-400">
+                  Registration powered by ChessSoftware · Confirmation sent after director review
+                </div>
+          </form>
+        </FormProvider>
       </div>
     </div>
   );

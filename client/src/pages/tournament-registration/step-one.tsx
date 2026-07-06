@@ -42,6 +42,21 @@ export default function StepOne({
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
 
+  const playerSearchConfig = getFieldConfig(config, "playerSearch");
+  const lookupSectionConfig = getFieldConfig(config, "lookupSection");
+
+  useEffect(() => {
+    if (!playerSearchConfig.visible) {
+      form.setValue("lookupMode", "manual", { shouldDirty: false });
+    }
+  }, [playerSearchConfig.visible, form]);
+
+  useEffect(() => {
+    if (config?.registers?.strictAutofillOnly) {
+      form.setValue("lookupMode", "profile", { shouldDirty: false });
+    }
+  }, [config?.registers?.strictAutofillOnly, form]);
+
   const numericRating = useMemo(
     () => derivePlayerRating(ratingProvider, uscfRatingValue, fideRatingValue, config?.details.primaryRatingSystem),
     [ratingProvider, uscfRatingValue, fideRatingValue, config?.details.primaryRatingSystem],
@@ -148,6 +163,7 @@ export default function StepOne({
 
   const handleSelectRosterPlayer = (player: Player) => {
     form.setValue("lookupMode", "profile", { shouldDirty: true });
+    form.setValue("profileSelected", true, { shouldDirty: true });
     form.setValue("firstName", player.firstName, { shouldDirty: true, shouldValidate: true });
     form.setValue("lastName", player.lastName, { shouldDirty: true, shouldValidate: true });
     if (player.rating) {
@@ -166,6 +182,7 @@ export default function StepOne({
   const handleSelectLookupResult = (result: RatingLookupResult) => {
     const { firstName, lastName } = splitName(result.name);
     form.setValue("lookupMode", "profile", { shouldDirty: true });
+    form.setValue("profileSelected", true, { shouldDirty: true });
     form.setValue("firstName", firstName, { shouldDirty: true, shouldValidate: true });
     form.setValue("lastName", lastName, { shouldDirty: true, shouldValidate: true });
     if (result.source === "uscf") {
@@ -190,6 +207,9 @@ export default function StepOne({
     setRemoteResults([]);
   };
 
+  const lookupTitle = lookupSectionConfig.label || "Player Lookup";
+  const lookupDescription = lookupSectionConfig.description || "Verify your rating profile";
+
   return (
     <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
       <div className="flex items-center gap-4 border-b border-gray-100 bg-gray-50/50 px-6 py-5">
@@ -197,49 +217,63 @@ export default function StepOne({
           <Search className="h-5 w-5 text-gray-600" />
         </div>
         <div>
-          <h2 className="text-lg font-semibold leading-tight text-gray-900">Player Lookup</h2>
-          <p className="text-sm text-gray-500">Step 1 of 3: Identity & Verification</p>
+          <h2 className="text-lg font-semibold leading-tight text-gray-900">{lookupTitle}</h2>
+          {lookupDescription && (
+            <p className="text-sm text-gray-500 mt-0.5">{lookupDescription}</p>
+          )}
         </div>
       </div>
 
       <div className="space-y-8 p-6 sm:p-8">
-        <RadioGroup
-          value={lookupMode}
-          onValueChange={(value) => {
-            const newMode = value as RegistrationFormValues["lookupMode"];
-            form.setValue("lookupMode", newMode, { shouldDirty: true });
+        {playerSearchConfig.visible && !config?.registers?.strictAutofillOnly && (
+          <RadioGroup
+            value={lookupMode}
+            onValueChange={(value) => {
+              const newMode = value as RegistrationFormValues["lookupMode"];
+              form.setValue("lookupMode", newMode, { shouldDirty: true });
 
-            // If switching to manual, ensure fields are cleared so search results don't ghost
-            if (newMode === "manual") {
-              form.setValue("firstName", "", { shouldDirty: true });
-              form.setValue("lastName", "", { shouldDirty: true });
-              setSearchTerm("");
-            }
-          }}
-        >
-          <div className="flex flex-col gap-4 sm:flex-row">
-            <RadioOption
-              group="lookupMode"
-              value="profile"
-              title="Use saved profile"
-              description="Search USCF and FIDE player lists."
-            />
-            <RadioOption
-              group="lookupMode"
-              value="manual"
-              title="Manual entry"
-              description="Enter all details yourself."
-            />
-          </div>
-        </RadioGroup>
+              // If switching to manual, ensure fields are cleared so search results don't ghost
+              if (newMode === "manual") {
+                form.setValue("firstName", "", { shouldDirty: true });
+                form.setValue("lastName", "", { shouldDirty: true });
+                form.setValue("profileSelected", false, { shouldDirty: true });
+                setSearchTerm("");
+              }
+            }}
+          >
+            <div className="flex flex-col gap-4 sm:flex-row">
+              <RadioOption
+                group="lookupMode"
+                value="profile"
+                title="Use saved profile"
+                description="Search USCF and FIDE player lists."
+              />
+              {/* Hide manual entry when strict autofill is required */}
+              {!config?.registers?.strictAutofillOnly && (
+                <RadioOption
+                  group="lookupMode"
+                  value="manual"
+                  title="Manual entry"
+                  description="Enter all details yourself."
+                />
+              )}
+            </div>
+          </RadioGroup>
+        )}
 
-        {lookupMode === "profile" && (
+        {playerSearchConfig.visible && lookupMode === "profile" && (
           <div className="space-y-4">
             <Label className="text-sm font-medium text-slate-700">Search players</Label>
             <div className="relative">
               <Input
                 value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
+                onChange={(event) => {
+                  setSearchTerm(event.target.value);
+                  // Clear profileSelected if user clears the search field
+                  if (!event.target.value.trim()) {
+                    form.setValue("profileSelected", false, { shouldDirty: true });
+                  }
+                }}
                 placeholder="Type name or ID (Min 3 chars)..."
                 autoComplete="off"
                 className="h-11 pl-10 pr-10 focus-visible:ring-blue-500/30"
@@ -335,12 +369,33 @@ export default function StepOne({
         )}
 
         <div className="space-y-3">
-          <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">
-            Player identity {config?.registers?.strictAutofillOnly && <span className="text-[10px] text-sky-600 font-semibold normal-case">(Profile search autofill required)</span>}
-          </p>
+          <h3 className="text-sm font-medium text-slate-700">
+            Player Identity
+            {config?.registers?.strictAutofillOnly && (
+              <span className="ml-1.5 text-[11px] font-normal text-sky-600">(Profile search autofill required)</span>
+            )}
+          </h3>
           <div className="grid gap-5 sm:grid-cols-2">
-            <Field label="First name" name="firstName" required disabled={Boolean(config?.registers?.strictAutofillOnly)} />
-            <Field label="Last name" name="lastName" required disabled={Boolean(config?.registers?.strictAutofillOnly)} />
+            {getFieldConfig(config, "firstName").visible && (
+              <Field
+                label={getFieldConfig(config, "firstName").label}
+                name="firstName"
+                required={getFieldConfig(config, "firstName").required}
+                placeholder={getFieldConfig(config, "firstName").placeholder}
+                description={getFieldConfig(config, "firstName").description}
+                disabled={Boolean(config?.registers?.strictAutofillOnly)}
+              />
+            )}
+            {getFieldConfig(config, "lastName").visible && (
+              <Field
+                label={getFieldConfig(config, "lastName").label}
+                name="lastName"
+                required={getFieldConfig(config, "lastName").required}
+                placeholder={getFieldConfig(config, "lastName").placeholder}
+                description={getFieldConfig(config, "lastName").description}
+                disabled={Boolean(config?.registers?.strictAutofillOnly)}
+              />
+            )}
             {getFieldConfig(config, "uscfId").visible && (
               <Field 
                 label={getFieldConfig(config, "uscfId").label} 
@@ -375,89 +430,115 @@ export default function StepOne({
           </div>
         </div>
 
-        <div className="space-y-3 pt-2">
-          <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Contact information</p>
-          <div className="grid gap-5 sm:grid-cols-2">
-            <Field label="Email" name="email" required valueAs="email" />
-
+        {getFieldConfig(config, "email").visible && (
+          <div className="space-y-3 pt-2">
+            <h3 className="text-sm font-semibold text-slate-800">Contact Information</h3>
+            <div className="grid gap-5 sm:grid-cols-2">
+              <Field
+                label={getFieldConfig(config, "email").label}
+                name="email"
+                required={getFieldConfig(config, "email").required}
+                placeholder={getFieldConfig(config, "email").placeholder}
+                description={getFieldConfig(config, "email").description}
+                valueAs="email"
+              />
+            </div>
           </div>
-        </div>
+        )}
 
-        <div className="space-y-3 pt-2">
-          <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Section &amp; rating</p>
-          <div className="grid gap-5 sm:grid-cols-2">
-            <div>
-              <Label className="text-sm font-medium text-slate-700">Preferred section</Label>
-              <Select
-                onValueChange={(value) => form.setValue("sectionChoice", value, { shouldDirty: true })}
-                value={form.watch("sectionChoice") ?? ""}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Choose a section" />
-                </SelectTrigger>
-                <SelectContent>
-                  {sectionDetails.length === 0 ? (
-                    <SelectItem value="" disabled>
-                      Sections will be announced soon
-                    </SelectItem>
-                  ) : (
-                    sectionDetails.map((section) => {
-                      const eligible = ratingWithinSectionRange(numericRating, section);
-                      const showEligibilityWarning = numericRating !== null && !eligible;
-                      return (
-                        <SelectItem
-                          key={section.id}
-                          value={section.name}
-                          disabled={showEligibilityWarning}
-                          className={cn(
-                            "flex flex-col items-start gap-1",
-                            showEligibilityWarning && "opacity-45 text-slate-400",
-                          )}
-                        >
-                          <span className="font-medium text-slate-900">{section.label}</span>
-                          {(section.ratingMin !== null || section.ratingMax !== null) && (
-                            <span className="text-xs text-slate-500">
-                              {" · "}
-                              {config?.details.primaryRatingSystem === "fide" ? "FIDE" : "USCF"} Rating:{" "}
-                              {section.ratingMin ?? "Unrated"} – {section.ratingMax ?? "Open"}
-                            </span>
-                          )}
-                          {showEligibilityWarning && numericRating !== null && (
-                            <span className="text-[11px] text-blue-600">
-                              Not eligible with {config?.details.primaryRatingSystem === "fide" ? "FIDE" : "USCF"} rating {numericRating}.
-                            </span>
-                          )}
+        {(getFieldConfig(config, "sectionChoice").visible || getFieldConfig(config, "ratingProvider").visible) && (
+          <div className="space-y-3 pt-2">
+            <h3 className="text-sm font-semibold text-slate-800">Section &amp; Rating</h3>
+            <div className="grid gap-5 sm:grid-cols-2">
+              {getFieldConfig(config, "sectionChoice").visible && (
+                <div>
+                  <Label className="text-sm font-medium text-slate-700">
+                    {getFieldConfig(config, "sectionChoice").label}
+                    {getFieldConfig(config, "sectionChoice").required && <span className="ml-1 text-red-500">*</span>}
+                  </Label>
+                  <Select
+                    onValueChange={(value) => form.setValue("sectionChoice", value, { shouldDirty: true })}
+                    value={form.watch("sectionChoice") ?? ""}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose a section" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {sectionDetails.length === 0 ? (
+                        <SelectItem value="" disabled>
+                          Sections will be announced soon
                         </SelectItem>
-                      );
-                    })
+                      ) : (
+                        sectionDetails.map((section) => {
+                          const eligible = ratingWithinSectionRange(numericRating, section);
+                          const showEligibilityWarning = numericRating !== null && !eligible;
+                          return (
+                            <SelectItem
+                              key={section.id}
+                              value={section.name}
+                              disabled={showEligibilityWarning}
+                              className={cn(
+                                "flex flex-col items-start gap-1",
+                                showEligibilityWarning && "opacity-45 text-slate-400",
+                              )}
+                            >
+                              <span className="font-medium text-slate-900">{section.label}</span>
+                              {(section.ratingMin !== null || section.ratingMax !== null) && (
+                                <span className="text-xs text-slate-500">
+                                  {" · "}
+                                  {config?.details.primaryRatingSystem === "fide" ? "FIDE" : "USCF"} Rating:{" "}
+                                  {section.ratingMin ?? "Unrated"} – {section.ratingMax ?? "Open"}
+                                </span>
+                              )}
+                              {showEligibilityWarning && numericRating !== null && (
+                                <span className="text-[11px] text-blue-600">
+                                  Not eligible with {config?.details.primaryRatingSystem === "fide" ? "FIDE" : "USCF"} rating {numericRating}.
+                                </span>
+                              )}
+                            </SelectItem>
+                          );
+                        })
+                      )}
+                    </SelectContent>
+                  </Select>
+                  {form.formState.errors.sectionChoice && (
+                    <p className="mt-1 text-xs text-red-500">{form.formState.errors.sectionChoice.message}</p>
                   )}
-                </SelectContent>
-              </Select>
-              {form.formState.errors.sectionChoice && (
-                <p className="mt-1 text-xs text-red-500">{form.formState.errors.sectionChoice.message}</p>
+                  {getFieldConfig(config, "sectionChoice").description && (
+                    <p className="mt-1 text-xs text-slate-400 font-medium">{getFieldConfig(config, "sectionChoice").description}</p>
+                  )}
+                </div>
+              )}
+              {getFieldConfig(config, "ratingProvider").visible && (
+                <div>
+                  <Label className="text-sm font-medium text-slate-700">
+                    {getFieldConfig(config, "ratingProvider").label}
+                    {getFieldConfig(config, "ratingProvider").required && <span className="ml-1 text-red-500">*</span>}
+                  </Label>
+                  <Select
+                    onValueChange={(value) =>
+                      form.setValue("ratingProvider", value as RegistrationFormValues["ratingProvider"], { shouldDirty: true })
+                    }
+                    value={form.watch("ratingProvider") ?? "none"}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select rating provider" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No rating</SelectItem>
+                      <SelectItem value="uscf">USCF</SelectItem>
+                      <SelectItem value="fide">FIDE</SelectItem>
+                      <SelectItem value="manual">Manual</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {getFieldConfig(config, "ratingProvider").description && (
+                    <p className="mt-1 text-xs text-slate-400 font-medium">{getFieldConfig(config, "ratingProvider").description}</p>
+                  )}
+                </div>
               )}
             </div>
-            <div>
-              <Label className="text-sm font-medium text-slate-700">Rating provider</Label>
-              <Select
-                onValueChange={(value) =>
-                  form.setValue("ratingProvider", value as RegistrationFormValues["ratingProvider"], { shouldDirty: true })
-                }
-                value={form.watch("ratingProvider") ?? "none"}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select rating provider" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No rating</SelectItem>
-                  <SelectItem value="uscf">USCF</SelectItem>
-                  <SelectItem value="fide">FIDE</SelectItem>
-                  <SelectItem value="manual">Manual</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

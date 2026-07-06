@@ -8,6 +8,7 @@ export const PAYMENT_STATUS_VALUES = ["unpaid", "processing", "paid", "failed", 
 
 export const registrationSchema = z.object({
   lookupMode: z.enum(["profile", "manual"]).default("profile"),
+  profileSelected: z.boolean().default(false),
   ratingProvider: z.enum(["uscf", "fide", "manual", "none"]).default("none"),
   firstName: z.string().min(1, "Required"),
   lastName: z.string().min(1, "Required"),
@@ -55,6 +56,7 @@ export type RegistrationFormValues = z.infer<typeof registrationSchema>;
 
 export const DEFAULT_FORM_VALUES: RegistrationFormValues = {
   lookupMode: "profile",
+  profileSelected: false,
   ratingProvider: "none",
   firstName: "",
   lastName: "",

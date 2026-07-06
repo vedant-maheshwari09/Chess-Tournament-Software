@@ -24,10 +24,16 @@ export function RadioOption({
     <label
       className={cn(
         "flex flex-1 cursor-pointer items-start gap-3 rounded-lg border border-slate-200 p-4 transition hover:border-blue-300",
-        current === value && "border-blue-500 bg-blue-50",
+        current === value && "border-blue-500 bg-blue-50/40",
       )}
     >
-      <RadioGroupItem value={value} />
+      <RadioGroupItem
+        value={value}
+        className={cn(
+          "mt-0.5 shrink-0",
+          current === value && "border-blue-600 bg-blue-600"
+        )}
+      />
       <div>
         <p className="text-sm font-medium text-slate-900">{title}</p>
         <p className="text-xs text-slate-500">{description}</p>
@@ -84,8 +90,8 @@ export function Field({
       <Input
         placeholder={placeholder}
         type={valueAs === "email" ? "email" : type}
-        {...form.register(name, { valueAsNumber: type === "number" })}
-        className="focus:border-blue-400 focus:ring-blue-200 bg-white"
+        {...form.register(name, { valueAsNumber: type === "number", disabled: Boolean(disabled) })}
+        className={cn("focus:border-blue-400 focus:ring-blue-200 bg-white", disabled && "bg-slate-50 text-slate-400 cursor-not-allowed")}
         disabled={disabled}
       />
       {description && (

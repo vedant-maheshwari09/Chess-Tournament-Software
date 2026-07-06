@@ -35,11 +35,17 @@ export default function StepTwo({
   entryFees,
   paymentSettings,
   sections,
+  activeFields,
+  pageIndex,
+  totalPages,
 }: {
   config: ReturnType<typeof parseTournamentConfig> | null;
   entryFees: EntryFeeRule[];
   paymentSettings: PaymentSettings | null;
   sections: SectionOption[];
+  activeFields: any[];
+  pageIndex: number;
+  totalPages: number;
 }) {
   const form = useFormContext<RegistrationFormValues>();
   const byePreference = form.watch("byePreference");
@@ -48,11 +54,6 @@ export default function StepTwo({
   const fideRatingValue = form.watch("fideRating");
   const selectedSection = form.watch("sectionChoice");
   const selectedEntryFeeId = form.watch("entryFeeId");
-
-  const step2ActiveFields = useMemo(() => {
-    const fields = config?.registrationFormConfig?.fields || DEFAULT_REGISTRATION_FIELDS;
-    return fields.filter((f) => f.visible && f.id !== "uscfId" && f.id !== "fideId");
-  }, [config]);
 
   const numericRating = useMemo(
     () => derivePlayerRating(ratingProvider, uscfRatingValue, fideRatingValue, config?.details.primaryRatingSystem),
@@ -84,8 +85,8 @@ export default function StepTwo({
     }
     const fallback =
       numericRating !== null
-        ? sectionDetails.find((section) => ratingWithinSectionRange(numericRating, section))
-        : sectionDetails[0];
+          ? sectionDetails.find((section) => ratingWithinSectionRange(numericRating, section))
+          : sectionDetails[0];
     if (fallback) {
       form.setValue("sectionChoice", fallback.name, { shouldDirty: false, shouldValidate: true });
     }
@@ -146,6 +147,13 @@ export default function StepTwo({
     return Array.from({ length: rounds }, (_, index) => `Round ${index + 1}`);
   }, [config?.details.rounds]);
 
+  const firstFieldIsSection = activeFields[0]?.type === "section";
+  const pageTitle = firstFieldIsSection ? activeFields[0].label : "Tournament Options";
+  const pageSubtitle = firstFieldIsSection
+    ? (activeFields[0].description || "Preferences & Information")
+    : "Step 2 of 3: Preferences & Details";
+  const fieldsToRender = firstFieldIsSection ? activeFields.slice(1) : activeFields;
+
   return (
     <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
       <div className="flex items-center gap-4 border-b border-gray-100 bg-gray-50/50 px-6 py-5">
@@ -153,100 +161,108 @@ export default function StepTwo({
           <Trophy className="h-5 w-5 text-gray-600" />
         </div>
         <div>
-          <h2 className="text-lg font-semibold leading-tight text-gray-900">Tournament Options</h2>
-          <p className="text-sm text-gray-500">Step 2 of 3: Section & Preferences</p>
+          <h2 className="text-lg font-semibold leading-tight text-gray-900">{pageTitle}</h2>
+          <p className="text-sm text-gray-500">
+            {pageSubtitle}
+            {totalPages > 1 ? ` (Page ${pageIndex + 1} of ${totalPages})` : ""}
+          </p>
         </div>
       </div>
 
       <div className="space-y-8 p-6">
-        <div className="space-y-4">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <Label className="text-sm font-bold text-slate-900 tracking-tight">Entry fee type</Label>
-              <p className="text-xs font-medium text-slate-500">Pick the pricing tier for your section.</p>
-            </div>
-            <Badge variant="outline" className="w-fit border-blue-200 bg-blue-50/70 text-blue-800 font-bold px-3 py-1">
-              {numericRating !== null ? `Live Rating: ${numericRating}` : "Status: Unrated"}
-            </Badge>
-          </div>
-          {entryFees.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-blue-200 bg-blue-50/70 p-4 text-sm text-blue-700">
-              Entry fees will be confirmed by the tournament director. Continue to acknowledge payment on the next step.
-            </div>
-          ) : entryFeeOptions.length === 0 ? (
-            <div className="flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-700">
-              <AlertCircle className="h-4 w-4 shrink-0" />
-              <p>No pricing has been configured for the selected section. Please contact the director for assistance.</p>
-            </div>
-          ) : (
-            <>
-              <RadioGroup
-                value={selectedEntryFeeId ?? ""}
-                onValueChange={(value) => form.setValue("entryFeeId", value, { shouldDirty: true })}
-                className="grid gap-3 sm:grid-cols-2"
-              >
-                {entryFeeOptions.map((fee) => {
-                  const eligible = ratingWithinEntryFee(numericRating, fee, sections, selectedSectionOption);
-                  const isRecommended = recommendedEntryFee?.id === fee.id;
-                  const isSelected = selectedEntryFeeId === fee.id;
-                  const effectiveAfterLabel = fee.effectiveAfter
-                    ? `Effective after ${formatDate(fee.effectiveAfter)}`
-                    : "Effective immediately";
-                  return (
-                    <label
-                      key={fee.id}
-                      htmlFor={`entry-fee-${fee.id}`}
-                      className={cn(
-                        "relative flex cursor-pointer flex-col gap-2 rounded-xl border p-5 transition-all shadow-sm ring-1 ring-inset ring-transparent",
-                        isSelected
-                          ? "border-blue-400 bg-blue-50/80 ring-blue-400/20 shadow-md"
-                          : "border-slate-200 bg-white hover:border-blue-300 hover:bg-blue-50/30",
-                      )}
-                    >
-                      <RadioGroupItem id={`entry-fee-${fee.id}`} value={fee.id} className="sr-only" />
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-sm font-semibold text-slate-900">{fee.section}</span>
-                        <span className="text-sm font-semibold text-slate-900">
-                          {formatCurrency(fee.amount, fee.currency)}
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-500">{formatEntryFeeRange(fee, sections, selectedSectionOption)}</p>
-                      <p className="text-[11px] text-slate-400">{effectiveAfterLabel}</p>
-                      {fee.notes && <p className="text-xs text-slate-500">{fee.notes}</p>}
-                      <div className="flex flex-wrap gap-2 pt-2">
-                        {isRecommended && (
-                          <Badge className="border-emerald-200 bg-emerald-50/80 text-emerald-700">Recommended</Badge>
-                        )}
-                        <Badge
-                          variant="outline"
-                          className={cn(
-                            "border text-xs",
-                            eligible
-                              ? "border-emerald-200 bg-emerald-50/70 text-emerald-700"
-                              : "border-blue-200 bg-blue-50/70 text-blue-700",
-                          )}
-                        >
-                          {eligible ? "Matches rating" : "Director review required"}
-                        </Badge>
-                      </div>
-                    </label>
-                  );
-                })}
-              </RadioGroup>
-              {form.formState.errors.entryFeeId && (
-                <p className="text-xs text-red-500">{form.formState.errors.entryFeeId.message}</p>
-              )}
-            </>
-          )}
-        </div>
+        {fieldsToRender.length > 0 && (
+          <div className="grid gap-6 sm:grid-cols-2">
+            {fieldsToRender.map((field: any) => {
+              const isCustom = field.isCustom;
+              const path = isCustom ? `customAnswers.${field.id}` : field.id;
 
-        {step2ActiveFields.length > 0 && (
-          <>
-            <Separator />
-            <div className="grid gap-6 sm:grid-cols-2">
-              {step2ActiveFields.map((field: any) => {
-                const isCustom = field.isCustom;
-                const path = isCustom ? `customAnswers.${field.id}` : field.id;
+              // --- ENTRY FEE SELECTION ---
+              if (field.id === "entryFee") {
+                if (entryFees.length === 0) {
+                  return (
+                    <div key={field.id} className="col-span-2 rounded-lg border border-dashed border-blue-200 bg-blue-50/70 p-4 text-sm text-blue-700">
+                      Entry fees will be confirmed by the tournament director. Continue to acknowledge payment on the next step.
+                    </div>
+                  );
+                }
+                if (entryFeeOptions.length === 0) {
+                  return (
+                    <div key={field.id} className="col-span-2 flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-700">
+                      <AlertCircle className="h-4 w-4 shrink-0" />
+                      <p>No pricing has been configured for the selected section. Please contact the director for assistance.</p>
+                    </div>
+                  );
+                }
+                return (
+                  <div key={field.id} className="col-span-2 space-y-4">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <Label className="text-sm font-bold text-slate-900 tracking-tight">{field.label}</Label>
+                        {field.description && <p className="text-xs font-medium text-slate-500">{field.description}</p>}
+                      </div>
+                      <Badge variant="outline" className="w-fit border-blue-200 bg-blue-50/70 text-blue-800 font-bold px-3 py-1">
+                        {numericRating !== null ? `Live Rating: ${numericRating}` : "Status: Unrated"}
+                      </Badge>
+                    </div>
+                    <RadioGroup
+                      value={selectedEntryFeeId ?? ""}
+                      onValueChange={(value) => form.setValue("entryFeeId", value, { shouldDirty: true })}
+                      className="grid gap-3 sm:grid-cols-2 animate-in fade-in duration-200"
+                    >
+                      {entryFeeOptions.map((fee) => {
+                        const eligible = ratingWithinEntryFee(numericRating, fee, sections, selectedSectionOption);
+                        const isRecommended = recommendedEntryFee?.id === fee.id;
+                        const isSelected = selectedEntryFeeId === fee.id;
+                        const effectiveAfterLabel = fee.effectiveAfter
+                          ? `Effective after ${formatDate(fee.effectiveAfter)}`
+                          : "Effective immediately";
+                        return (
+                          <label
+                            key={fee.id}
+                            htmlFor={`entry-fee-${fee.id}`}
+                            className={cn(
+                              "relative flex cursor-pointer flex-col gap-2 rounded-xl border p-5 transition-all shadow-sm ring-1 ring-inset ring-transparent",
+                              isSelected
+                                ? "border-blue-400 bg-blue-50/80 ring-blue-400/20 shadow-md"
+                                : "border-slate-200 bg-white hover:border-blue-300 hover:bg-blue-50/30",
+                            )}
+                          >
+                            <RadioGroupItem id={`entry-fee-${fee.id}`} value={fee.id} className="sr-only" />
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-sm font-semibold text-slate-900">{fee.section}</span>
+                              <span className="text-sm font-semibold text-slate-900">
+                                {formatCurrency(fee.amount, fee.currency)}
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-500">{formatEntryFeeRange(fee, sections, selectedSectionOption)}</p>
+                            <p className="text-[11px] text-slate-400">{effectiveAfterLabel}</p>
+                            {fee.notes && <p className="text-xs text-slate-500">{fee.notes}</p>}
+                            <div className="flex flex-wrap gap-2 pt-2">
+                              {isRecommended && (
+                                <Badge className="border-emerald-200 bg-emerald-50/80 text-emerald-700">Recommended</Badge>
+                              )}
+                              <Badge
+                                variant="outline"
+                                className={cn(
+                                  "border text-xs",
+                                  eligible
+                                    ? "border-emerald-200 bg-emerald-50/70 text-emerald-700"
+                                    : "border-blue-200 bg-blue-50/70 text-blue-700",
+                                )}
+                              >
+                                {eligible ? "Matches rating" : "Director review required"}
+                              </Badge>
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </RadioGroup>
+                    {form.formState.errors.entryFeeId && (
+                      <p className="text-xs text-red-500">{form.formState.errors.entryFeeId.message}</p>
+                    )}
+                  </div>
+                );
+              }
 
                 // --- BYE PREFERENCE ---
                 if (field.id === "byePreference") {
@@ -592,49 +608,57 @@ export default function StepTwo({
                   );
                 }
 
-                // --- TEXT / NUMBER FIELDS ---
-                return (
-                  <div key={field.id} className="col-span-1">
-                    <Field
-                      label={field.label}
-                      name={path}
-                      required={field.required}
-                      placeholder={field.placeholder || `Enter ${field.label}...`}
-                      type={field.type === "number" ? "number" : "text"}
-                      description={field.description}
-                    />
-                  </div>
-                );
-              })}
+               // --- PAIRING NOTIFICATIONS ---
+               if (field.id === "pairingNotifications") {
+                 const error = form.formState.errors.pairingNotifications;
+                 return (
+                   <div key={field.id} className="group space-y-2 col-span-1">
+                     <Label className="text-sm font-medium text-slate-700 transition-colors group-focus-within:text-blue-700">
+                       {field.label}
+                       {field.required && <span className="ml-1 text-red-500">*</span>}
+                     </Label>
+                     <Select
+                       value={form.watch("pairingNotifications") ?? "email"}
+                       onValueChange={(value) =>
+                         form.setValue("pairingNotifications", value as RegistrationFormValues["pairingNotifications"], {
+                           shouldDirty: true,
+                           shouldValidate: true,
+                         })
+                       }
+                     >
+                       <SelectTrigger className="bg-white border-slate-200 focus:ring-blue-200 focus:border-blue-400">
+                         <SelectValue placeholder={field.placeholder || "Select preference"} />
+                       </SelectTrigger>
+                       <SelectContent>
+                         <SelectItem value="email">Email only</SelectItem>
+                         <SelectItem value="none">No notifications</SelectItem>
+                       </SelectContent>
+                     </Select>
+                     {field.description && (
+                       <p className="text-[11px] text-slate-400 leading-normal mt-0.5">{field.description}</p>
+                     )}
+                     {error && (
+                       <p className="text-xs text-red-500">{error.message}</p>
+                     )}
+                   </div>
+                 );
+               }
 
-              {/* Pairing Notifications (Always visible & active) */}
-              <div className="group space-y-2 col-span-1">
-                <Label className="text-sm font-medium text-slate-700 transition-colors group-focus-within:text-blue-700">
-                  Pairing notifications
-                </Label>
-                <Select
-                  value={form.watch("pairingNotifications") ?? "email"}
-                  onValueChange={(value) =>
-                    form.setValue("pairingNotifications", value as RegistrationFormValues["pairingNotifications"], {
-                      shouldDirty: true,
-                      shouldValidate: true,
-                    })
-                  }
-                >
-                  <SelectTrigger className="bg-white border-slate-200 focus:ring-blue-200 focus:border-blue-400">
-                    <SelectValue placeholder="Select preference" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="email">Email only</SelectItem>
-                    <SelectItem value="none">No notifications</SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-[11px] text-slate-400 leading-normal mt-0.5">
-                  Choose how you want to receive pairings and result alerts.
-                </p>
-              </div>
-            </div>
-          </>
+               // --- TEXT / NUMBER FIELDS ---
+               return (
+                 <div key={field.id} className="col-span-1">
+                   <Field
+                     label={field.label}
+                     name={path}
+                     required={field.required}
+                     placeholder={field.placeholder || `Enter ${field.label}...`}
+                     type={field.type === "number" ? "number" : "text"}
+                     description={field.description}
+                   />
+                 </div>
+               );
+             })}
+          </div>
         )}
       </div>
     </div>
