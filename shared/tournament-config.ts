@@ -49,6 +49,7 @@ export interface RegistersConfig {
   entryRequirementType?: "casual" | "rated";
   ratedSystem?: "uscf" | "fide" | "both" | "either";
   strictAutofillOnly?: boolean;
+  allowLastRoundBye?: boolean;
 }
 
 export interface FideRegistrationData {
@@ -227,6 +228,7 @@ export interface RegistrationFormField {
 
 export interface RegistrationFormConfig {
   fields: RegistrationFormField[];
+  migratedToSystemFields?: boolean;
 }
 
 export const DEFAULT_REGISTRATION_FIELDS: RegistrationFormField[] = [
@@ -336,6 +338,22 @@ export const DEFAULT_REGISTRATION_FIELDS: RegistrationFormField[] = [
     visible: true,
     description: "Opt-in to receive round pairings, final standings, and future event details."
   },
+  {
+    id: "entryFee",
+    label: "Entry Fee Selection",
+    type: "select",
+    required: true,
+    visible: true,
+    description: "Choose your entry fee tier."
+  },
+  {
+    id: "pairingNotifications",
+    label: "Pairing Notifications",
+    type: "select",
+    required: false,
+    visible: true,
+    description: "Receive text/email alerts for pairings and results."
+  }
 ];
 
 export interface TournamentConfig {
@@ -559,6 +577,7 @@ export function createDefaultConfig(format: Tournament["format"], mode: Tourname
       autoAcceptRegistrations: false,
       verifyUscfMembership: false,
       uscfMinGamesThreshold: 4,
+      allowLastRoundBye: true,
     },
     fide: {
       prizeFund: "",
@@ -824,6 +843,9 @@ export function parseTournamentConfig(tournament: Tournament | undefined | null)
         uscfMinGamesThreshold: typeof parsed.registers?.uscfMinGamesThreshold === "number" 
           ? parsed.registers.uscfMinGamesThreshold 
           : 4,
+        allowLastRoundBye: typeof parsed.registers?.allowLastRoundBye === "boolean" 
+          ? parsed.registers.allowLastRoundBye 
+          : true,
       },
       publicPage: {
         ...defaults.publicPage,

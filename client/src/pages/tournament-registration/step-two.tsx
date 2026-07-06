@@ -273,24 +273,51 @@ export default function StepTwo({
 
                       {byePreference === "yes" && (
                         <div className="rounded-xl border border-slate-200 bg-slate-50/20 p-5 space-y-3 animate-in fade-in slide-in-from-top-1 duration-200">
-                          <Label className="text-sm font-semibold text-slate-700">Select eligible rounds</Label>
+                          <div className="flex items-center justify-between">
+                            <Label className="text-sm font-semibold text-slate-700">Select eligible rounds</Label>
+                            {(() => {
+                              const limit = config?.registers?.byeLimit;
+                              const selected = form.watch("byeRounds") ?? [];
+                              if (limit != null && selected.length >= limit) {
+                                return (
+                                  <span className="text-xs font-semibold text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-2.5 py-0.5">
+                                    Max {limit} bye{limit !== 1 ? "s" : ""} reached
+                                  </span>
+                                );
+                              }
+                              return null;
+                            })()}
+                          </div>
                           <div className="grid gap-3 sm:grid-cols-3">
-                            {byeRounds.map((label) => {
+                            {byeRounds.map((label, roundIdx) => {
                               const checked = form.watch("byeRounds")?.includes(label);
+                              const totalRounds = config?.details.rounds ?? 0;
+                              const isLastRound = roundIdx === totalRounds - 1;
+                              const lastRoundBlocked = isLastRound && config?.registers?.allowLastRoundBye === false;
+                              const byeLimit = config?.registers?.byeLimit;
+                              const selectedCount = (form.watch("byeRounds") ?? []).length;
+                              const limitReached = byeLimit != null && selectedCount >= byeLimit && !checked;
+                              const isDisabled = lastRoundBlocked || limitReached;
                               return (
                                 <button
                                   key={label}
                                   type="button"
-                                  onClick={() => toggleArrayValue(form, "byeRounds", label)}
+                                  disabled={isDisabled}
+                                  onClick={() => !isDisabled && toggleArrayValue(form, "byeRounds", label)}
                                   className={cn(
                                     "flex items-center justify-between rounded-xl border px-4 py-3.5 text-sm font-medium transition-all shadow-sm active:scale-[0.98]",
                                     checked
                                       ? "border-blue-500 bg-blue-600 text-white shadow-md shadow-blue-100/50"
+                                      : isDisabled
+                                      ? "border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed opacity-60"
                                       : "border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:bg-blue-50/50",
                                   )}
                                 >
                                   <span>{label}</span>
                                   {checked && <Check className="h-4 w-4" />}
+                                  {lastRoundBlocked && !checked && (
+                                    <span className="text-[10px] font-bold text-slate-400">Not allowed</span>
+                                  )}
                                 </button>
                               );
                             })}

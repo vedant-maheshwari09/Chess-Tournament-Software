@@ -67,15 +67,70 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
   const importRef = React.useRef<HTMLInputElement>(null);
   const [activeSubTab, setActiveSubTab] = useState("questions");
 
-  // Parse or default the registration form configuration
-  const formConfig = useMemo((): RegistrationFormConfig => {
-    return config.registrationFormConfig ?? {
-      fields: DEFAULT_REGISTRATION_FIELDS.map(f => ({ ...f })),
-    };
+  // Parse or default the registration form configuration with migration for legacy system fields
+  const formConfig = useMemo((): RegistrationFormConfig & { migratedToSystemFields?: boolean } => {
+    const saved = config.registrationFormConfig;
+    if (!saved) {
+      return {
+        fields: DEFAULT_REGISTRATION_FIELDS.map(f => ({ ...f })),
+        migratedToSystemFields: true
+      };
+    }
+
+    if (!saved.migratedToSystemFields) {
+      const fieldIds = new Set(saved.fields.map(f => f.id));
+      const nextFields = [...saved.fields];
+
+      if (!fieldIds.has("entryFee")) {
+        nextFields.unshift({
+          id: "entryFee",
+          label: "Entry Fee Selection",
+          type: "select",
+          required: true,
+          visible: true,
+          description: "Choose your entry fee tier."
+        });
+      }
+
+      if (!fieldIds.has("pairingNotifications")) {
+        nextFields.push({
+          id: "pairingNotifications",
+          label: "Pairing Notifications",
+          type: "select",
+          required: false,
+          visible: true,
+          description: "Receive text/email alerts for pairings and results."
+        });
+      }
+
+      return {
+        ...saved,
+        fields: nextFields,
+        migratedToSystemFields: true
+      };
+    }
+
+    return saved;
   }, [config.registrationFormConfig]);
 
+  // Persist migrated config to database if it was migrated in-memory
+  React.useEffect(() => {
+    if (config.registrationFormConfig?.migratedToSystemFields !== true && formConfig.migratedToSystemFields === true) {
+      onConfigChange({
+        ...config,
+        registrationFormConfig: formConfig
+      });
+    }
+  }, [config, formConfig, onConfigChange]);
+
   const updateFormConfig = (next: RegistrationFormConfig) => {
-    onConfigChange({ ...config, registrationFormConfig: next });
+    onConfigChange({ 
+      ...config, 
+      registrationFormConfig: {
+        ...next,
+        migratedToSystemFields: true
+      } 
+    });
   };
 
   const updateField = (id: string, updates: Partial<RegistrationFormField>) => {
@@ -275,6 +330,7 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
               <div className="space-y-4">
                 {formConfig.fields.map((field, idx) => {
                   const isFocused = focusedFieldId === field.id;
+                  const isSystemField = field.id === "entryFee" || field.id === "pairingNotifications";
                   
                   return (
                     <div 
@@ -296,6 +352,7 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
                             
                             <Select
                               value={field.type}
+                              disabled={isSystemField}
                               onValueChange={(val: RegistrationFormField["type"]) => {
                                 const defaultPlaceholders = {
                                   text: "Short answer text",
@@ -398,7 +455,7 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
                             )}
 
                             {/* Inline Options Editor for GForms Choice Types */}
-                            {(field.type === "select" || field.type === "radio" || field.type === "checkbox") && (
+                            {!isSystemField && (field.type === "select" || field.type === "radio" || field.type === "checkbox") && (
                               <div className="space-y-2.5">
                                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Options</span>
                                 
@@ -447,6 +504,18 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
                                     + Add Option
                                   </button>
                                 </div>
+                              </div>
+                            )}
+
+                            {/* System field info notice (entryFee / pairingNotifications) */}
+                            {isSystemField && (
+                              <div className="rounded-xl border border-sky-200 bg-sky-50/60 p-3.5 flex items-start gap-2.5">
+                                <span className="text-sky-500 text-lg leading-none mt-0.5">ℹ</span>
+                                <p className="text-xs text-sky-700 font-semibold leading-relaxed">
+                                  {field.id === "entryFee"
+                                    ? "This block is controlled by the Entry Fees you configure in tournament settings. Its options are generated automatically."
+                                    : "This block lets players subscribe to email/text notifications for pairings and results. It is rendered by the system."}
+                                </p>
                               </div>
                             )}
                           </div>
@@ -615,6 +684,41 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
                     <Switch
                       checked={Boolean(config.registers?.allowEditRegistration)}
                       onCheckedChange={(checked) => handleRegistersChange("allowEditRegistration", checked)}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Bye Rules */}
+              <Card className="rounded-2xl border bg-white shadow-sm overflow-hidden">
+                <CardHeader className="bg-slate-50/50 p-5 border-b">
+                  <CardTitle className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                    <Settings className="h-4.5 w-4.5 text-slate-500" />
+                    Bye Rules
+                  </CardTitle>
+                  <CardDescription className="text-xs font-semibold text-slate-500">Control how half-point byes are requested by players.</CardDescription>
+                </CardHeader>
+                <CardContent className="p-5 space-y-4">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-bold text-slate-800 block">Maximum Byes Allowed</Label>
+                    <p className="text-xs text-slate-500 leading-normal font-semibold">Limit how many half-point byes a player can request. Leave blank for no limit.</p>
+                    <Input
+                      type="number"
+                      min={0}
+                      placeholder="No limit"
+                      value={config.registers?.byeLimit ?? ""}
+                      onChange={(e) => handleRegistersChange("byeLimit", e.target.value ? parseInt(e.target.value, 10) : null)}
+                      className="w-36 h-10 text-xs border-slate-200 rounded-xl"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between border-t pt-4">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm font-bold text-slate-800">Allow Bye in the Last Round</Label>
+                      <p className="text-xs text-slate-500 leading-normal font-semibold">When disabled, players cannot select the final round for a bye request.</p>
+                    </div>
+                    <Switch
+                      checked={config.registers?.allowLastRoundBye !== false}
+                      onCheckedChange={(checked) => handleRegistersChange("allowLastRoundBye", checked)}
                     />
                   </div>
                 </CardContent>
