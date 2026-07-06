@@ -487,17 +487,14 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
                                 Duplicate
                               </button>
 
-                              {/* Only allow deleting custom fields or specific editable fields */}
-                              {(field.isCustom || field.prebuiltType) && (
-                                <button
-                                  type="button"
-                                  onClick={() => removeField(field.id)}
-                                  className="flex items-center gap-1.5 text-xs font-bold hover:text-red-655 transition text-red-500"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                  Delete
-                                </button>
-                              )}
+                              <button
+                                type="button"
+                                onClick={() => removeField(field.id)}
+                                className="flex items-center gap-1.5 text-xs font-bold hover:text-red-655 transition text-red-500"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                                Delete
+                              </button>
 
                               <div className="h-4 border-l border-slate-200" />
 
@@ -623,26 +620,141 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
                 </CardContent>
               </Card>
 
-              {/* USCF Verification */}
+              {/* Tournament Entry & Rating Requirements */}
               <Card className="rounded-2xl border bg-white shadow-sm overflow-hidden">
                 <CardHeader className="bg-slate-50/50 p-5 border-b">
                   <CardTitle className="text-base font-extrabold text-slate-900 flex items-center gap-2">
                     <CheckSquare className="h-4.5 w-4.5 text-slate-500" />
-                    USCF Verification & Auto-Accept
+                    Tournament Entry & Rating Requirements
                   </CardTitle>
-                  <CardDescription className="text-xs font-semibold text-slate-500 font-sans">Automate registry verification and player approvals.</CardDescription>
+                  <CardDescription className="text-xs font-semibold text-slate-500 font-sans">Configure tournament rating validation and federation verification policies.</CardDescription>
                 </CardHeader>
-                <CardContent className="p-5 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label className="text-sm font-bold text-slate-800">Verify USCF Membership</Label>
-                      <p className="text-xs text-slate-500 leading-normal font-semibold">Force lookups against active US Chess registries during registration.</p>
-                    </div>
-                    <Switch
-                      checked={Boolean(config.registers?.verifyUscfMembership)}
-                      onCheckedChange={(checked) => handleRegistersChange("verifyUscfMembership", checked)}
-                    />
+                <CardContent className="p-5 space-y-5">
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-bold text-slate-800">Tournament Entry Type</Label>
+                    <Select
+                      value={config.registers?.entryRequirementType || "rated"}
+                      onValueChange={(val: "casual" | "rated") => {
+                        if (val === "casual") {
+                          onConfigChange({
+                            ...config,
+                            registers: {
+                              ...config.registers,
+                              entryRequirementType: "casual",
+                              verifyUscfMembership: false,
+                              uscfRated: false,
+                              fideRated: false,
+                              ratedSystem: undefined,
+                              strictAutofillOnly: false,
+                            }
+                          });
+                        } else {
+                          onConfigChange({
+                            ...config,
+                            registers: {
+                              ...config.registers,
+                              entryRequirementType: "rated",
+                              verifyUscfMembership: true,
+                              uscfRated: true,
+                              ratedSystem: "uscf",
+                              strictAutofillOnly: false,
+                            }
+                          });
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="h-10 text-xs border-slate-200 bg-white rounded-xl">
+                        <SelectValue placeholder="Choose entry type" />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-xl">
+                        <SelectItem value="casual">Casual / Unrated (No Verification)</SelectItem>
+                        <SelectItem value="rated">Official Rated (Requires Federation ID)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-slate-400 font-medium leading-relaxed">
+                      {config.registers?.entryRequirementType === "casual"
+                        ? "This tournament is casual. Name and contact info are required; USCF/FIDE lookup steps will be hidden."
+                        : "Rated tournament. Validates active memberships and fetches ratings automatically."}
+                    </p>
                   </div>
+
+                  {config.registers?.entryRequirementType !== "casual" && (
+                    <div className="space-y-4 border-t pt-4 animate-in slide-in-from-top-2 duration-200">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-bold text-slate-650">Required Federation System</Label>
+                        <Select
+                          value={config.registers?.ratedSystem || "uscf"}
+                          onValueChange={(val: "uscf" | "fide" | "both" | "either") => {
+                            onConfigChange({
+                              ...config,
+                              registers: {
+                                ...config.registers,
+                                ratedSystem: val,
+                                uscfRated: val === "uscf" || val === "both" || val === "either",
+                                fideRated: val === "fide" || val === "both" || val === "either",
+                              }
+                            });
+                          }}
+                        >
+                          <SelectTrigger className="h-10 text-xs border-slate-200 bg-white rounded-xl">
+                            <SelectValue placeholder="Choose rating system" />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-xl">
+                            <SelectItem value="uscf">USCF Only</SelectItem>
+                            <SelectItem value="fide">FIDE Only</SelectItem>
+                            <SelectItem value="both">Both USCF & FIDE Required</SelectItem>
+                            <SelectItem value="either">Either USCF or FIDE Required</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-bold text-slate-650">Registration Verification Mode</Label>
+                        <Select
+                          value={config.registers?.strictAutofillOnly ? "strict" : "flexible"}
+                          onValueChange={(val: "strict" | "flexible") => {
+                            handleRegistersChange("strictAutofillOnly", val === "strict");
+                          }}
+                        >
+                          <SelectTrigger className="h-10 text-xs border-slate-200 bg-white rounded-xl">
+                            <SelectValue placeholder="Select registration mode" />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-xl">
+                            <SelectItem value="flexible">Flexible (Registry Lookup + Manual Input Override)</SelectItem>
+                            <SelectItem value="strict">Strict Autofill (Registry Lookup Only - No Manual Edits)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <p className="text-[10px] text-slate-400 leading-normal">
+                          {config.registers?.strictAutofillOnly
+                            ? "Players must search the registry and select a valid profile. Typing names or IDs manually is disabled."
+                            : "Players can lookup their profiles, but are allowed to type their ID/rating manually if search fails."}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center justify-between border-t pt-4">
+                        <div className="space-y-0.5">
+                          <Label className="text-sm font-bold text-slate-800">Auto-Verify Membership Status</Label>
+                          <p className="text-xs text-slate-500 leading-normal font-semibold">Force lookups against active chess registries during registration.</p>
+                        </div>
+                        <Switch
+                          checked={Boolean(config.registers?.verifyUscfMembership)}
+                          onCheckedChange={(checked) => handleRegistersChange("verifyUscfMembership", checked)}
+                        />
+                      </div>
+
+                      <div className="space-y-2 border-t pt-4">
+                        <Label className="text-sm font-bold text-slate-800 block">Provisional Rating Games Threshold</Label>
+                        <p className="text-xs text-slate-500 leading-normal font-semibold mb-2">Number of played games below which a rating is considered provisional (e.g. less than 4 games).</p>
+                        <Input
+                          type="number"
+                          value={config.registers?.uscfMinGamesThreshold ?? 4}
+                          onChange={(e) => handleRegistersChange("uscfMinGamesThreshold", parseInt(e.target.value, 10) || 4)}
+                          className="w-32 h-10 text-xs border-slate-200 rounded-xl"
+                          min={0}
+                        />
+                      </div>
+                    </div>
+                  )}
 
                   <div className="flex items-center justify-between border-t pt-4">
                     <div className="space-y-0.5">
@@ -652,18 +764,6 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
                     <Switch
                       checked={Boolean(config.registers?.autoAcceptRegistrations)}
                       onCheckedChange={(checked) => handleRegistersChange("autoAcceptRegistrations", checked)}
-                    />
-                  </div>
-
-                  <div className="space-y-2 border-t pt-4">
-                    <Label className="text-sm font-bold text-slate-800 block">Provisional Rating Games Threshold</Label>
-                    <p className="text-xs text-slate-500 leading-normal font-semibold mb-2">Number of played games below which a rating is considered provisional (e.g. less than 4 games).</p>
-                    <Input
-                      type="number"
-                      value={config.registers?.uscfMinGamesThreshold ?? 4}
-                      onChange={(e) => handleRegistersChange("uscfMinGamesThreshold", parseInt(e.target.value, 10) || 4)}
-                      className="w-32 h-10 text-xs border-slate-200 rounded-xl"
-                      min={0}
                     />
                   </div>
                 </CardContent>

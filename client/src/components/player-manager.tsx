@@ -618,6 +618,9 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
                               {sortKey === 'rating' && <ArrowUpDown className="ml-2 h-4 w-4 inline" />}
                             </Button>
                           </TableHead>
+                          {tournamentConfig.registers?.verifyUscfMembership && (
+                            <TableHead>USCF ID & Status</TableHead>
+                          )}
                           {tournament.format === 'knockout' && (
                             <TableHead className="w-20">Seed</TableHead>
                           )}
@@ -661,7 +664,7 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
                                     <span className="text-sm font-medium text-slate-900">
                                       {player.lastName}, {player.firstName}
                                     </span>
-                                    {(player as any).userUscfId && (
+                                    {!tournamentConfig.registers?.verifyUscfMembership && (player as any).userUscfId && (
                                       <div className="flex items-center gap-1.5 mt-0.5" onClick={(e) => e.stopPropagation()}>
                                         <span className="text-[11px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
                                           USCF: {(player as any).userUscfId}
@@ -703,6 +706,43 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
                                   ? (player.fideRating ?? player.rating ?? "-")
                                   : (player.uscfRating ?? player.rating ?? "-")}
                               </TableCell>
+                              {tournamentConfig.registers?.verifyUscfMembership && (
+                                <TableCell onClick={(e) => e.stopPropagation()}>
+                                  {(player as any).userUscfId ? (
+                                    <div className="flex flex-col gap-1 items-start">
+                                      <span className="font-mono text-xs text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded border font-bold">
+                                        {(player as any).userUscfId}
+                                      </span>
+                                      {(player as any).userUscfVerificationStatus === "verified" ? (
+                                        <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border-emerald-250/30 text-[10px] px-1.5 py-0 rounded-full font-medium">
+                                          Verified
+                                        </Badge>
+                                      ) : (player as any).userUscfVerificationStatus === "pending" ? (
+                                        <div className="flex items-center gap-1.5">
+                                          <Badge className="bg-amber-50 text-amber-700 hover:bg-amber-50 border-amber-250/30 text-[10px] px-1.5 py-0 rounded-full font-medium animate-pulse">
+                                            Pending
+                                          </Badge>
+                                          {isTD && (
+                                            <button
+                                              onClick={() => verifyUscfMutation.mutate({ targetUserId: (player as any).userId, verified: true })}
+                                              disabled={verifyUscfMutation.isPending}
+                                              className="text-[10px] text-indigo-600 hover:text-indigo-850 font-bold hover:underline"
+                                            >
+                                              Verify
+                                            </button>
+                                          )}
+                                        </div>
+                                      ) : (
+                                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 rounded-full font-medium">
+                                          Unverified
+                                        </Badge>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <span className="text-xs text-slate-400">Not Provided</span>
+                                  )}
+                                </TableCell>
+                              )}
                               {tournament.format === 'knockout' && (
                                 <TableCell>
                                   {isTD && editingSeedId === player.id ? (

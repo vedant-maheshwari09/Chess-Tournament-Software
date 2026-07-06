@@ -335,10 +335,12 @@ export default function StepOne({
         )}
 
         <div className="space-y-3">
-          <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Player identity</p>
+          <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">
+            Player identity {config?.registers?.strictAutofillOnly && <span className="text-[10px] text-sky-600 font-semibold normal-case">(Profile search autofill required)</span>}
+          </p>
           <div className="grid gap-5 sm:grid-cols-2">
-            <Field label="First name" name="firstName" required />
-            <Field label="Last name" name="lastName" required />
+            <Field label="First name" name="firstName" required disabled={Boolean(config?.registers?.strictAutofillOnly)} />
+            <Field label="Last name" name="lastName" required disabled={Boolean(config?.registers?.strictAutofillOnly)} />
             {getFieldConfig(config, "uscfId").visible && (
               <Field 
                 label={getFieldConfig(config, "uscfId").label} 
@@ -346,6 +348,7 @@ export default function StepOne({
                 required={getFieldConfig(config, "uscfId").required} 
                 placeholder={getFieldConfig(config, "uscfId").placeholder}
                 description={getFieldConfig(config, "uscfId").description}
+                disabled={Boolean(config?.registers?.strictAutofillOnly)}
               />
             )}
             {getFieldConfig(config, "fideId").visible && (
@@ -355,17 +358,18 @@ export default function StepOne({
                 required={getFieldConfig(config, "fideId").required} 
                 placeholder={getFieldConfig(config, "fideId").placeholder}
                 description={getFieldConfig(config, "fideId").description}
+                disabled={Boolean(config?.registers?.strictAutofillOnly)}
               />
             )}
             {config?.details.primaryRatingSystem === "fide" ? (
               <>
-                <Field label="FIDE rating (Primary)" name="fideRating" />
-                <Field label="USCF rating" name="uscfRating" />
+                <Field label="FIDE rating (Primary)" name="fideRating" disabled={Boolean(config?.registers?.strictAutofillOnly)} />
+                <Field label="USCF rating" name="uscfRating" disabled={Boolean(config?.registers?.strictAutofillOnly)} />
               </>
             ) : (
               <>
-                <Field label="USCF rating (Primary)" name="uscfRating" />
-                <Field label="FIDE rating" name="fideRating" />
+                <Field label="USCF rating (Primary)" name="uscfRating" disabled={Boolean(config?.registers?.strictAutofillOnly)} />
+                <Field label="FIDE rating" name="fideRating" disabled={Boolean(config?.registers?.strictAutofillOnly)} />
               </>
             )}
           </div>

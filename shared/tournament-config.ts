@@ -46,6 +46,9 @@ export interface RegistersConfig {
   autoAcceptRegistrations?: boolean;
   verifyUscfMembership?: boolean;
   uscfMinGamesThreshold?: number;
+  entryRequirementType?: "casual" | "rated";
+  ratedSystem?: "uscf" | "fide" | "both" | "either";
+  strictAutofillOnly?: boolean;
 }
 
 export interface FideRegistrationData {

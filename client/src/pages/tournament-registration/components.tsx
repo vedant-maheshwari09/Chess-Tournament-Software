@@ -45,6 +45,7 @@ export function Field({
   valueAs,
   type = "text",
   description,
+  disabled,
 }: {
   label: string;
   name: any;
@@ -53,6 +54,7 @@ export function Field({
   valueAs?: "email";
   type?: "text" | "number";
   description?: string;
+  disabled?: boolean;
 }) {
   const form = useFormContext<RegistrationFormValues>();
   
@@ -84,6 +86,7 @@ export function Field({
         type={valueAs === "email" ? "email" : type}
         {...form.register(name, { valueAsNumber: type === "number" })}
         className="focus:border-blue-400 focus:ring-blue-200 bg-white"
+        disabled={disabled}
       />
       {description && (
         <p className="text-[11px] text-slate-400 leading-normal mt-0.5">{description}</p>
