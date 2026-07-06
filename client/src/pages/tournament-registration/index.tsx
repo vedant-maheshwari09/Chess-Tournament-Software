@@ -229,7 +229,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
       } else {
         const customVal = values.customAnswers?.[field.id];
         if (field.visible && field.required) {
-          if (customVal === undefined || customVal === null || (typeof customVal === "string" && !customVal.trim())) {
+          if (customVal === undefined || customVal === null || (typeof customVal === "string" && !customVal.trim()) || (Array.isArray(customVal) && customVal.length === 0)) {
             form.setError(`customAnswers.${field.id}` as any, {
               type: "manual",
               message: `${field.label} is required`
@@ -239,6 +239,42 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
         }
       }
     }
+
+    // USCF Membership validation if verifyUscfMembership is enabled
+    if (config?.registers?.verifyUscfMembership) {
+      const uscfId = values.uscfId;
+      const uscfRating = values.uscfRating;
+      const uscfExpiration = values.customAnswers?.uscfExpiration;
+
+      // 1. Check USCF ID
+      if (!uscfId || !/^\d{8}$/.test(uscfId.trim())) {
+        form.setError("uscfId", {
+          type: "manual",
+          message: "Please enter a valid 8-digit USCF ID"
+        });
+        isValid = false;
+      }
+
+      // 2. Check Expiration Date
+      if (!uscfExpiration || !/^\d{4}-\d{2}-\d{2}$/.test(uscfExpiration)) {
+        form.setError("customAnswers.uscfExpiration" as any, {
+          type: "manual",
+          message: "USCF Expiration Date is required"
+        });
+        isValid = false;
+      } else {
+        const expDate = new Date(uscfExpiration);
+        const tourneyStart = config.basic.startDate ? new Date(config.basic.startDate) : new Date();
+        if (expDate < tourneyStart) {
+          form.setError("customAnswers.uscfExpiration" as any, {
+            type: "manual",
+            message: `USCF Membership has expired (Expires: ${uscfExpiration}). Must be active through tournament.`
+          });
+          isValid = false;
+        }
+      }
+    }
+
     return isValid;
   };
 

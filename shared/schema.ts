@@ -120,6 +120,8 @@ export const tournaments = pgTable("tournaments", {
   arenaPrePairBeforeStart: boolean("arena_pre_pair_before_start").default(false).notNull(),
   startDate: timestamp("start_date"),
   endDate: timestamp("end_date"),
+  notificationScheduledTime: timestamp("notification_scheduled_time"),
+  notificationSent: boolean("notification_sent").default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

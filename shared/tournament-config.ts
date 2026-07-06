@@ -43,6 +43,9 @@ export interface RegistersConfig {
   registrationDeadlineTime?: string | null;
   allowExtraGames?: boolean;
   chatEnabled?: boolean;
+  autoAcceptRegistrations?: boolean;
+  verifyUscfMembership?: boolean;
+  uscfMinGamesThreshold?: number;
 }
 
 export interface FideRegistrationData {
@@ -209,7 +212,7 @@ export interface PaymentSettings {
 export interface RegistrationFormField {
   id: string;
   label: string;
-  type: "text" | "number" | "boolean" | "select";
+  type: "text" | "number" | "boolean" | "select" | "paragraph" | "radio" | "checkbox" | "date" | "time" | "section";
   options?: string[];
   required: boolean;
   visible: boolean;
@@ -548,8 +551,11 @@ export function createDefaultConfig(format: Tournament["format"], mode: Tourname
       isDoubleElimination: false,
       thirdPlaceMatch: false,
       pushNotifications: true,
-      allowExtraGames: false,
+          allowExtraGames: false,
       chatEnabled: false,
+      autoAcceptRegistrations: false,
+      verifyUscfMembership: false,
+      uscfMinGamesThreshold: 4,
     },
     fide: {
       prizeFund: "",
@@ -806,6 +812,15 @@ export function parseTournamentConfig(tournament: Tournament | undefined | null)
         paymentDetails: parsed.registers?.paymentDetails ?? "",
         allowEditRegistration: parsed.registers?.allowEditRegistration ?? false,
         isDoubleElimination: parsed.registers?.isDoubleElimination ?? tournament.isDoubleElimination ?? false,
+        autoAcceptRegistrations: typeof parsed.registers?.autoAcceptRegistrations === "boolean" 
+          ? parsed.registers.autoAcceptRegistrations 
+          : false,
+        verifyUscfMembership: typeof parsed.registers?.verifyUscfMembership === "boolean" 
+          ? parsed.registers.verifyUscfMembership 
+          : false,
+        uscfMinGamesThreshold: typeof parsed.registers?.uscfMinGamesThreshold === "number" 
+          ? parsed.registers.uscfMinGamesThreshold 
+          : 4,
       },
       publicPage: {
         ...defaults.publicPage,

@@ -175,6 +175,9 @@ export default function StepOne({
       if (result.location) {
         form.setValue("state", result.location, { shouldDirty: false });
       }
+      if (result.metadata?.expiration) {
+        form.setValue("customAnswers.uscfExpiration", result.metadata.expiration, { shouldDirty: true });
+      }
     } else {
       form.setValue("ratingProvider", "fide", { shouldDirty: true });
       form.setValue("fideId", result.id, { shouldDirty: true });

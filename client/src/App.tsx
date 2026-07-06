@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { Switch, Route, Redirect, useLocation } from "wouter";
-import { queryClient } from "./lib/queryClient";
+import { queryClient, apiRequest } from "./lib/queryClient";
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -141,6 +141,27 @@ function AuthenticatedApp() {
       setLocation('/onboarding');
     }
   }, [user, location, setLocation, isLoading]);
+
+  // Process post-login auto-follow redirection
+  useEffect(() => {
+    if (!isLoading && user) {
+      const followTdId = localStorage.getItem("follow_td_id");
+      if (followTdId) {
+        localStorage.removeItem("follow_td_id");
+        const directorId = parseInt(followTdId, 10);
+        if (!isNaN(directorId)) {
+          apiRequest(`/api/follows/${directorId}`, { method: "POST" })
+            .then(() => {
+              setLocation(`/directors/${directorId}`);
+            })
+            .catch((err: any) => {
+              console.error("Auto-follow error:", err);
+              setLocation(`/directors/${directorId}`);
+            });
+        }
+      }
+    }
+  }, [user, isLoading, setLocation]);
 
   if (isLoading) {
     return (

@@ -1,7 +1,7 @@
 import React, { useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation, Link } from "wouter";
-import { ArrowLeft, Trophy, Users, Award, Mail, Building2, Calendar, ShieldCheck, Loader2 } from "lucide-react";
+import { ArrowLeft, Trophy, Users, Award, Calendar, ShieldCheck, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -52,13 +52,13 @@ export default function DirectorProfilePage({ directorId }: DirectorProfileProps
       refetchFollowStatus();
       refetchDirector();
       toast({
-        title: "Subscribed!",
-        description: `You are now subscribed to ${director?.organizationName || `${director?.firstName} ${director?.lastName}`}.`,
+        title: "Following",
+        description: `You are now following ${director?.organizationName || `${director?.firstName} ${director?.lastName}`}.`,
       });
     },
     onError: (err: any) => {
       toast({
-        title: "Failed to subscribe",
+        title: "Failed to follow",
         description: err.message || "An unexpected error occurred.",
         variant: "destructive",
       });
@@ -75,13 +75,13 @@ export default function DirectorProfilePage({ directorId }: DirectorProfileProps
       refetchFollowStatus();
       refetchDirector();
       toast({
-        title: "Unsubscribed",
-        description: `You have unsubscribed from ${director?.organizationName || `${director?.firstName} ${director?.lastName}`}.`,
+        title: "Unfollowed",
+        description: `You unfollowed ${director?.organizationName || `${director?.firstName} ${director?.lastName}`}.`,
       });
     },
     onError: (err: any) => {
       toast({
-        title: "Failed to unsubscribe",
+        title: "Failed to unfollow",
         description: err.message || "An unexpected error occurred.",
         variant: "destructive",
       });
@@ -114,19 +114,6 @@ export default function DirectorProfilePage({ directorId }: DirectorProfileProps
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "active":
-        return <Badge className="bg-green-100 text-green-800 border-none rounded-full px-3 py-1 font-bold">LIVE</Badge>;
-      case "upcoming":
-        return <Badge className="bg-blue-100 text-blue-850 border-none rounded-full px-3 py-1 font-bold">UPCOMING</Badge>;
-      case "completed":
-        return <Badge className="bg-slate-100 text-slate-600 border-none rounded-full px-3 py-1 font-bold">PAST</Badge>;
-      default:
-        return null;
-    }
-  };
-
   const formatDate = (dateStr: any) => {
     if (!dateStr) return "TBD";
     return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" }).format(new Date(dateStr));
@@ -134,10 +121,10 @@ export default function DirectorProfilePage({ directorId }: DirectorProfileProps
 
   if (directorLoading || tournamentsLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-transparent">
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950">
         <div className="text-center">
-          <Loader2 className="h-12 w-12 animate-spin text-indigo-600 mx-auto" />
-          <p className="mt-4 text-slate-600 dark:text-slate-400 font-medium">Loading organizer profile...</p>
+          <Loader2 className="h-12 w-12 animate-spin text-indigo-650 mx-auto" />
+          <p className="mt-4 text-slate-500 font-medium">Loading profile...</p>
         </div>
       </div>
     );
@@ -145,106 +132,68 @@ export default function DirectorProfilePage({ directorId }: DirectorProfileProps
 
   if (!director) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-transparent">
-        <Card className="w-full max-w-md border-none shadow-xl">
-          <CardContent className="pt-8 pb-8 text-center">
-            <Building2 className="mx-auto mb-6 h-16 w-16 text-slate-200" />
-            <h3 className="mb-2 text-2xl font-bold text-slate-900 dark:text-white">Organizer Not Found</h3>
-            <p className="mb-8 text-slate-500 dark:text-slate-400">The director or organization profile you're looking for doesn't exist.</p>
-            <Button onClick={() => setLocation("/")} className="w-full bg-indigo-600 hover:bg-indigo-700">Back to Home</Button>
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950">
+        <Card className="w-full max-w-md border shadow-md">
+          <CardContent className="pt-8 pb-8 text-center space-y-4">
+            <Trophy className="mx-auto h-12 w-12 text-slate-300" />
+            <h3 className="text-xl font-bold text-slate-950">Director Not Found</h3>
+            <p className="text-sm text-slate-500">The director or organization profile you're looking for doesn't exist.</p>
+            <Button onClick={() => setLocation("/")} className="w-full bg-indigo-650 hover:bg-indigo-700 text-white rounded-xl">Back to Home</Button>
           </CardContent>
         </Card>
       </div>
     );
   }
 
+  // Check if it's the logged-in user's own profile
+  const isOwnProfile = user?.id === directorId;
+
   return (
-    <div className="min-h-screen bg-transparent pb-12">
-      <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8 space-y-8">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-16 font-sans">
+      <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 space-y-8">
         
         {/* Back Button */}
         <div className="flex items-center">
           <Button
             variant="ghost"
             onClick={handleBack}
-            className="flex items-center gap-2 text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
+            className="flex items-center gap-2 text-slate-500 hover:text-slate-900 rounded-xl"
           >
             <ArrowLeft className="h-4 w-4" />
             Back
           </Button>
         </div>
 
-        {/* Profile Card */}
-        <Card className="overflow-hidden border-none shadow-xl shadow-slate-200/50 dark:bg-slate-900 bg-white p-6 sm:p-8">
-          <CardContent className="p-0 flex flex-col md:flex-row items-center md:items-start gap-8">
-            {/* Avatar */}
-            <div className="relative group w-28 h-28 rounded-full overflow-hidden border-4 border-indigo-100 dark:border-slate-800 shadow-inner flex items-center justify-center bg-indigo-50/50 shrink-0">
-              {director.profilePicture ? (
-                <img src={director.profilePicture} alt={director.organizationName || director.firstName} className="w-full h-full object-cover" />
-              ) : (
-                <Building2 className="w-12 h-12 text-indigo-300" />
-              )}
-            </div>
+        {/* INSTAGRAM-STYLE PROFILE HEADER */}
+        <div className="flex flex-col md:flex-row items-center md:items-start gap-8 md:gap-12 pb-8 border-b border-slate-200">
+          {/* Left: Avatar */}
+          <div className="w-32 h-32 md:w-36 md:h-36 rounded-full overflow-hidden border border-slate-200 shadow-sm flex items-center justify-center bg-white shrink-0 relative">
+            {director.profilePicture ? (
+              <img src={director.profilePicture} alt={director.organizationName || director.firstName} className="w-full h-full object-cover" />
+            ) : (
+              <span className="text-4xl font-bold text-slate-400">
+                {(director.organizationName || director.firstName || "?")[0].toUpperCase()}
+              </span>
+            )}
+          </div>
 
-            {/* Info Details */}
-            <div className="space-y-4 text-center md:text-left flex-grow">
-              <div className="space-y-1">
-                <h1 className="text-3xl font-extrabold text-slate-950 dark:text-white tracking-tight">
-                  {director.organizationName || `${director.firstName} ${director.lastName}`}
-                </h1>
-                {director.organizationName && (
-                  <p className="text-sm font-semibold text-indigo-600 dark:text-indigo-400">
-                    Directed by: {director.firstName} {director.lastName}
-                  </p>
-                )}
-                <p className="text-xs text-slate-500 dark:text-slate-400">@{director.username}</p>
-              </div>
-
-              {/* Follower Badge & Credentials */}
-              <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 text-sm">
-                <Badge className="bg-indigo-50 text-indigo-700 hover:bg-indigo-50 dark:bg-slate-800 dark:text-indigo-300 font-bold px-3 py-1 rounded-full border-none">
-                  {director.followersCount || 0} subscriber{(director.followersCount || 0) === 1 ? "" : "s"}
-                </Badge>
-                {director.fideArbiterTitle && director.fideArbiterTitle !== "none" && (
-                  <Badge className="bg-amber-50 text-amber-800 hover:bg-amber-50 dark:bg-slate-800 dark:text-amber-300 font-bold px-3 py-1 rounded-full border-none flex items-center gap-1">
-                    <ShieldCheck className="h-3.5 w-3.5" />
-                    {director.fideArbiterTitle} (FIDE)
-                  </Badge>
-                )}
-              </div>
-
-              {/* Arbiter Credentials Block */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-600 dark:text-slate-300 pt-2 border-t border-slate-100 dark:border-slate-850">
-                {director.uscfAffiliateId && (
-                  <div className="flex items-center justify-center md:justify-start gap-1.5">
-                    <Award className="h-4 w-4 text-slate-400" />
-                    <span>USCF Affiliate ID: <strong className="text-slate-800 dark:text-slate-200">{director.uscfAffiliateId}</strong></span>
-                  </div>
-                )}
-                {director.fideArbiterId && (
-                  <div className="flex items-center justify-center md:justify-start gap-1.5">
-                    <Award className="h-4 w-4 text-slate-400" />
-                    <span>FIDE Arbiter ID: <strong className="text-slate-800 dark:text-slate-200">{director.fideArbiterId}</strong></span>
-                  </div>
-                )}
-                <div className="flex items-center justify-center md:justify-start gap-1.5">
-                  <Mail className="h-4 w-4 text-slate-400" />
-                  <span>Email: <strong className="text-slate-800 dark:text-slate-200">{director.email}</strong></span>
-                </div>
-              </div>
-            </div>
-
-            {/* Subscribe Button */}
-            {user && user.id !== directorId && user.role === "player" && (
-              <div className="self-center md:self-start">
+          {/* Right: User Information */}
+          <div className="space-y-4 text-center md:text-left flex-1 min-w-0">
+            {/* Username + Follow Action Button Row */}
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+              <h2 className="text-xl font-light text-slate-800 dark:text-slate-100 truncate">
+                {director.username}
+              </h2>
+              
+              {!isOwnProfile && user && user.role === "player" && (
                 <Button
-                  size="lg"
-                  variant={followStatus?.following ? "secondary" : "default"}
+                  size="sm"
+                  variant={followStatus?.following ? "outline" : "default"}
                   className={cn(
-                    "rounded-full font-bold px-6 py-5 tracking-wide shadow-md transition-all duration-200 hover:-translate-y-0.5",
+                    "rounded-lg font-bold px-5 h-8.5 tracking-wide text-xs transition active:scale-95 shrink-0",
                     followStatus?.following
-                      ? "bg-slate-100 hover:bg-slate-200 text-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 border-none"
-                      : "bg-indigo-600 hover:bg-indigo-700 text-white"
+                      ? "bg-white border-slate-250 text-slate-700 hover:bg-slate-50 shadow-sm"
+                      : "bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm"
                   )}
                   onClick={() => {
                     if (followStatus?.following) {
@@ -256,28 +205,80 @@ export default function DirectorProfilePage({ directorId }: DirectorProfileProps
                   disabled={followMutation.isPending || unfollowMutation.isPending}
                 >
                   {followMutation.isPending || unfollowMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    <Loader2 className="h-3 w-3 animate-spin mr-1.5" />
                   ) : null}
-                  {followStatus?.following ? "Subscribed" : "Subscribe to Updates"}
+                  {followStatus?.following ? "Following" : "Follow"}
                 </Button>
+              )}
+            </div>
+
+            {/* Stats Row */}
+            <div className="flex justify-center md:justify-start gap-8 text-sm">
+              <div>
+                <span className="font-bold text-slate-900 dark:text-slate-150">{directorTournaments.length}</span>
+                <span className="text-slate-500 ml-1">tournaments</span>
               </div>
-            )}
-          </CardContent>
-        </Card>
+              <div>
+                <span className="font-bold text-slate-900 dark:text-slate-150">{director.followersCount || 0}</span>
+                <span className="text-slate-500 ml-1">followers</span>
+              </div>
+            </div>
 
-        {/* Tournaments List */}
-        <div className="space-y-4">
-          <h2 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">Tournaments by this Organizer</h2>
+            {/* User Bio and Credentials */}
+            <div className="space-y-1">
+              <h1 className="text-sm font-bold text-slate-900 dark:text-white">
+                {director.organizationName || `${director.firstName} ${director.lastName}`}
+              </h1>
+              {director.organizationName && (
+                <p className="text-xs text-slate-500">
+                  Directed by: {director.firstName} {director.lastName}
+                </p>
+              )}
+            </div>
 
+            {/* Credentials Row */}
+            <div className="flex flex-wrap gap-2 pt-1 justify-center md:justify-start">
+              {director.fideArbiterTitle && director.fideArbiterTitle !== "none" && (
+                <Badge className="bg-amber-50 border border-amber-200 text-amber-800 hover:bg-amber-50 font-bold px-2.5 py-0.5 rounded-lg flex items-center gap-1 shrink-0 text-[10px]">
+                  <ShieldCheck className="h-3 w-3" />
+                  FIDE {director.fideArbiterTitle}
+                </Badge>
+              )}
+              {director.uscfAffiliateId && (
+                <Badge className="bg-slate-100 border border-slate-200 text-slate-700 hover:bg-slate-100 font-semibold px-2.5 py-0.5 rounded-lg shrink-0 text-[10px]">
+                  USCF Affil: {director.uscfAffiliateId}
+                </Badge>
+              )}
+              {director.fideArbiterId && (
+                <Badge className="bg-slate-100 border border-slate-200 text-slate-700 hover:bg-slate-100 font-semibold px-2.5 py-0.5 rounded-lg shrink-0 text-[10px]">
+                  FIDE ID: {director.fideArbiterId}
+                </Badge>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Tournaments Grid Section */}
+        <div className="space-y-6">
+          {/* Instagram-style Clean Tab Bar */}
           <Tabs defaultValue="live" className="w-full">
-            <TabsList className="flex w-full min-h-[48px] overflow-x-auto no-scrollbar items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200/60 shadow-sm">
-              <TabsTrigger value="live" className="flex-1 rounded-lg text-xs sm:text-sm font-semibold py-2">
+            <TabsList className="flex items-center justify-center gap-8 bg-transparent border-t border-slate-200 rounded-none p-0 h-auto">
+              <TabsTrigger 
+                value="live" 
+                className="rounded-none border-t-2 border-t-transparent data-[state=active]:border-t-indigo-650 data-[state=active]:text-indigo-650 font-bold text-xs uppercase tracking-wider py-4 bg-transparent shadow-none"
+              >
                 Live ({categorizedTournaments.live.length})
               </TabsTrigger>
-              <TabsTrigger value="upcoming" className="flex-1 rounded-lg text-xs sm:text-sm font-semibold py-2">
+              <TabsTrigger 
+                value="upcoming" 
+                className="rounded-none border-t-2 border-t-transparent data-[state=active]:border-t-indigo-650 data-[state=active]:text-indigo-650 font-bold text-xs uppercase tracking-wider py-4 bg-transparent shadow-none"
+              >
                 Upcoming ({categorizedTournaments.upcoming.length})
               </TabsTrigger>
-              <TabsTrigger value="past" className="flex-1 rounded-lg text-xs sm:text-sm font-semibold py-2">
+              <TabsTrigger 
+                value="past" 
+                className="rounded-none border-t-2 border-t-transparent data-[state=active]:border-t-indigo-650 data-[state=active]:text-indigo-650 font-bold text-xs uppercase tracking-wider py-4 bg-transparent shadow-none"
+              >
                 Past ({categorizedTournaments.past.length})
               </TabsTrigger>
             </TabsList>
@@ -285,42 +286,48 @@ export default function DirectorProfilePage({ directorId }: DirectorProfileProps
             {Object.entries(categorizedTournaments).map(([key, list]) => (
               <TabsContent key={key} value={key} className="mt-6">
                 {list.length === 0 ? (
-                  <Card className="border-none shadow-sm dark:bg-slate-900">
-                    <CardContent className="flex flex-col items-center justify-center gap-4 py-12 text-center text-slate-500">
-                      <Trophy className="h-12 w-12 mx-auto text-slate-200" />
-                      <p>No {key} tournaments available for this organizer.</p>
-                    </CardContent>
-                  </Card>
+                  <div className="flex flex-col items-center justify-center gap-3 py-16 text-center text-slate-400">
+                    <Trophy className="h-10 w-10 text-slate-200" />
+                    <p className="text-sm font-medium">No {key} tournaments found.</p>
+                  </div>
                 ) : (
-                  <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="grid gap-6 sm:grid-cols-2">
                     {list.map((tournament) => (
-                      <Card key={tournament.id} className="hover:shadow-md transition-all border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/50">
-                        <CardHeader className="pb-3 flex flex-row items-start justify-between gap-4">
-                          <div>
-                            <CardTitle className="text-lg font-bold">{tournament.name}</CardTitle>
-                            <CardDescription className="text-xs mt-1">
-                              {getFormatLabel(tournament.format)}
-                            </CardDescription>
-                          </div>
-                          {getStatusBadge(tournament.status)}
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                          <div className="flex flex-col gap-1.5 text-xs text-slate-600 dark:text-slate-400">
-                            <span className="flex items-center gap-1.5">
-                              <Calendar className="h-3.5 w-3.5" />
-                              {formatDate(tournament.startDate)} – {formatDate(tournament.endDate)}
-                            </span>
-                            <span className="flex items-center gap-1.5">
-                              <Users className="h-3.5 w-3.5" />
-                              {tournament.rounds ? `${tournament.rounds} rounds` : "Arena event"}
+                      <Card key={tournament.id} className="bg-white border border-slate-200 shadow-sm hover:shadow-md transition rounded-2xl overflow-hidden flex flex-col justify-between">
+                        <div className="p-5 space-y-3">
+                          <div className="flex justify-between items-start gap-2">
+                            <h3 className="font-bold text-slate-900 text-base leading-snug line-clamp-1">
+                              {tournament.name}
+                            </h3>
+                            <span className={cn(
+                              "text-[9px] font-extrabold px-2 py-0.5 rounded-full border tracking-wide uppercase shrink-0",
+                              tournament.status === "active" ? "bg-green-50 text-green-700 border-green-200" :
+                              tournament.status === "upcoming" ? "bg-blue-50 text-blue-700 border-blue-200" :
+                              "bg-slate-50 text-slate-500 border-slate-200"
+                            )}>
+                              {tournament.status === "active" ? "live" : tournament.status}
                             </span>
                           </div>
+
+                          <div className="space-y-1.5 text-xs text-slate-500">
+                            <div className="flex items-center gap-2">
+                              <Calendar className="h-3.5 w-3.5 shrink-0" />
+                              <span>{formatDate(tournament.startDate)} – {formatDate(tournament.endDate)}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Trophy className="h-3.5 w-3.5 shrink-0" />
+                              <span>{getFormatLabel(tournament.format)} · {tournament.rounds ? `${tournament.rounds} rounds` : "Arena event"}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="px-5 pb-5 pt-0">
                           <Link href={`/tournaments/${slugify(tournament.name)}`}>
-                            <Button className="w-full bg-slate-900 hover:bg-slate-800 dark:bg-slate-850 dark:hover:bg-slate-800 font-semibold rounded-xl text-xs py-2 shadow-sm">
-                              View Tournament
-                            </Button>
+                            <a className="w-full inline-flex items-center justify-center h-9 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-sm transition">
+                              View Tournament →
+                            </a>
                           </Link>
-                        </CardContent>
+                        </div>
                       </Card>
                     ))}
                   </div>

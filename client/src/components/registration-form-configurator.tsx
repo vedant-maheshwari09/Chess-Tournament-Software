@@ -7,6 +7,7 @@ import type { Tournament } from "@shared/schema";
 import { Save, Loader2 } from "lucide-react";
 import { parseTournamentConfig, type TournamentConfig } from "@/lib/tournament-config";
 import { RegistrationFormCustomizer } from "@/components/registration-form-customizer";
+import { slugify } from "@/lib/utils";
 
 interface RegistrationFormConfiguratorProps {
   tournamentId: number;
@@ -78,7 +79,7 @@ export default function RegistrationFormConfigurator({ tournamentId, tournament 
       <RegistrationFormCustomizer 
         config={localConfig}
         onConfigChange={setLocalConfig}
-        tournamentId={tournamentId}
+        tournamentSlug={slugify(tournament.name)}
         actions={
           <Button 
             onClick={handleSave} 

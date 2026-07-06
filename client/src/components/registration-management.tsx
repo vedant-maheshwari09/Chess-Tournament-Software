@@ -236,9 +236,39 @@ export default function RegistrationManagement({ tournamentId, tournament }: Reg
                   <TableRow key={reg.id} className="hover:bg-slate-50/50 transition">
                     <TableCell className="font-medium text-slate-500">{index + 1}</TableCell>
                     <TableCell>
-                      <div className="flex flex-col">
-                        <span className="font-semibold text-slate-950">{reg.playerName}</span>
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-slate-950">{reg.playerName}</span>
+                          {(reg as any).uscfId && (
+                            <span className="text-[10px] text-slate-400 font-mono">({(reg as any).uscfId})</span>
+                          )}
+                        </div>
                         <span className="text-[11px] text-slate-400 font-medium">{reg.email || "No email"}</span>
+                        {((reg as any).uscfId || (reg as any).isProvisional) && (
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            {(reg as any).uscfId && (
+                              <Badge 
+                                variant="outline" 
+                                className={cn(
+                                  "text-[9px] font-bold px-1.5 py-0.5",
+                                  (reg as any).uscfActive 
+                                    ? "bg-emerald-50 text-emerald-700 border-emerald-200" 
+                                    : "bg-rose-50 text-rose-700 border-rose-200"
+                                )}
+                              >
+                                {(reg as any).uscfActive ? "USCF Active" : "USCF Expired"}
+                              </Badge>
+                            )}
+                            {(reg as any).isProvisional && (
+                              <Badge 
+                                variant="outline" 
+                                className="text-[9px] font-bold px-1.5 py-0.5 bg-amber-50 text-amber-700 border-amber-200"
+                              >
+                                Provisional ({(reg as any).gamesCount ?? 0} games)
+                              </Badge>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell>
@@ -395,7 +425,22 @@ export default function RegistrationManagement({ tournamentId, tournament }: Reg
                   </div>
                   <div>
                     <span className="text-[10px] text-slate-400 font-semibold uppercase">USCF ID</span>
-                    <p className="text-sm font-medium text-slate-900 font-mono">{selectedReg.uscfId || "—"}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium text-slate-900 font-mono">{selectedReg.uscfId || "—"}</p>
+                      {selectedReg.uscfId && (
+                        <Badge 
+                          variant="outline" 
+                          className={cn(
+                            "text-[9px] font-bold px-1.5 py-0.5",
+                            (selectedReg as any).uscfActive 
+                              ? "bg-emerald-50 text-emerald-700 border-emerald-200" 
+                              : "bg-rose-50 text-rose-700 border-rose-200"
+                          )}
+                        >
+                          {(selectedReg as any).uscfActive ? "Active" : "Expired"}
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                   <div>
                     <span className="text-[10px] text-slate-400 font-semibold uppercase">FIDE ID</span>
@@ -403,7 +448,17 @@ export default function RegistrationManagement({ tournamentId, tournament }: Reg
                   </div>
                   <div>
                     <span className="text-[10px] text-slate-400 font-semibold uppercase">USCF Rating</span>
-                    <p className="text-sm font-medium text-slate-900">{selectedReg.uscfRating || "—"}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium text-slate-900">{selectedReg.uscfRating || "—"}</p>
+                      {(selectedReg as any).isProvisional && (
+                        <Badge 
+                          variant="outline" 
+                          className="text-[9px] font-bold px-1.5 py-0.5 bg-amber-50 text-amber-700 border-amber-200"
+                        >
+                          Provisional ({(selectedReg as any).gamesCount ?? 0} games)
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                   <div>
                     <span className="text-[10px] text-slate-400 font-semibold uppercase">FIDE Rating</span>

@@ -406,6 +406,165 @@ export default function StepTwo({
                   );
                 }
 
+                // --- PARAGRAPH ---
+                if (field.type === "paragraph") {
+                  const error = isCustom 
+                    ? form.formState.errors.customAnswers?.[field.id] 
+                    : form.formState.errors[field.id as keyof RegistrationFormValues];
+                  return (
+                    <div key={field.id} className="col-span-2 space-y-2">
+                      <Label className="text-sm font-medium text-slate-700 font-bold">
+                        {field.label}
+                        {field.required && <span className="ml-1 text-red-500">*</span>}
+                      </Label>
+                      <Textarea
+                        className="mt-1 bg-white focus:border-blue-400 focus:ring-blue-200 min-h-24 font-semibold"
+                        placeholder={field.placeholder || `Enter ${field.label}...`}
+                        value={form.watch(path as any) ?? ""}
+                        onChange={(e) => form.setValue(path as any, e.target.value, { shouldDirty: true, shouldValidate: true })}
+                      />
+                      {field.description && (
+                        <p className="text-[11px] text-slate-400 leading-normal mt-1">{field.description}</p>
+                      )}
+                      {error && (
+                        <p className="mt-1 text-xs text-red-500">{error.message as string}</p>
+                      )}
+                    </div>
+                  );
+                }
+
+                // --- RADIO (MULTIPLE CHOICE) ---
+                if (field.type === "radio") {
+                  const val = form.watch(path as any) ?? "";
+                  const options = field.options ?? [];
+                  const error = isCustom 
+                    ? form.formState.errors.customAnswers?.[field.id] 
+                    : form.formState.errors[field.id as keyof RegistrationFormValues];
+                  return (
+                    <div key={field.id} className="col-span-2 space-y-2">
+                      <Label className="text-sm font-medium text-slate-700 font-bold">
+                        {field.label}
+                        {field.required && <span className="ml-1 text-red-500">*</span>}
+                      </Label>
+                      <RadioGroup
+                        value={val}
+                        onValueChange={(value) => form.setValue(path as any, value, { shouldDirty: true, shouldValidate: true })}
+                        className="flex flex-col gap-2 mt-1"
+                      >
+                        {options.map((opt: any) => (
+                          <div key={opt} className="flex items-center gap-2">
+                            <RadioGroupItem value={opt} id={`${field.id}-${opt}`} />
+                            <Label htmlFor={`${field.id}-${opt}`} className="text-xs font-bold text-slate-700 cursor-pointer">{opt}</Label>
+                          </div>
+                        ))}
+                      </RadioGroup>
+                      {field.description && (
+                        <p className="text-[11px] text-slate-400 leading-normal mt-1">{field.description}</p>
+                      )}
+                      {error && (
+                        <p className="mt-1 text-xs text-red-500">{error.message as string}</p>
+                      )}
+                    </div>
+                  );
+                }
+
+                // --- CHECKBOX (CHECKBOXES) ---
+                if (field.type === "checkbox") {
+                  const checkedValues: string[] = form.watch(path as any) ?? [];
+                  const options = field.options ?? [];
+                  const error = isCustom 
+                    ? form.formState.errors.customAnswers?.[field.id] 
+                    : form.formState.errors[field.id as keyof RegistrationFormValues];
+                  const handleCheckboxChange = (opt: string, checked: boolean) => {
+                    const next = checked ? [...checkedValues, opt] : checkedValues.filter(v => v !== opt);
+                    form.setValue(path as any, next, { shouldDirty: true, shouldValidate: true });
+                  };
+                  return (
+                    <div key={field.id} className="col-span-2 space-y-2">
+                      <Label className="text-sm font-medium text-slate-700 font-bold">
+                        {field.label}
+                        {field.required && <span className="ml-1 text-red-500">*</span>}
+                      </Label>
+                      <div className="flex flex-col gap-2 mt-1">
+                        {options.map((opt: any) => {
+                          const isChecked = checkedValues.includes(opt);
+                          return (
+                            <label key={opt} className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer select-none">
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={(e) => handleCheckboxChange(opt, e.target.checked)}
+                                className="rounded border-slate-350 text-blue-600 focus:ring-blue-500 h-4.5 w-4.5"
+                              />
+                              <span>{opt}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                      {field.description && (
+                        <p className="text-[11px] text-slate-400 leading-normal mt-1">{field.description}</p>
+                      )}
+                      {error && (
+                        <p className="mt-1 text-xs text-red-500">{error.message as string}</p>
+                      )}
+                    </div>
+                  );
+                }
+
+                // --- DATE ---
+                if (field.type === "date") {
+                  const error = isCustom 
+                    ? form.formState.errors.customAnswers?.[field.id] 
+                    : form.formState.errors[field.id as keyof RegistrationFormValues];
+                  return (
+                    <div key={field.id} className="col-span-1 space-y-2">
+                      <Label className="text-sm font-medium text-slate-700 font-bold">
+                        {field.label}
+                        {field.required && <span className="ml-1 text-red-500">*</span>}
+                      </Label>
+                      <Input
+                        type="date"
+                        className="bg-white border-slate-200 focus:ring-blue-200 focus:border-blue-400"
+                        value={form.watch(path as any) ?? ""}
+                        onChange={(e) => form.setValue(path as any, e.target.value, { shouldDirty: true, shouldValidate: true })}
+                      />
+                      {field.description && (
+                        <p className="text-[11px] text-slate-400 leading-normal mt-1">{field.description}</p>
+                      )}
+                      {error && (
+                        <p className="mt-1 text-xs text-red-500">{error.message as string}</p>
+                      )}
+                    </div>
+                  );
+                }
+
+                // --- TIME ---
+                if (field.type === "time") {
+                  const error = isCustom 
+                    ? form.formState.errors.customAnswers?.[field.id] 
+                    : form.formState.errors[field.id as keyof RegistrationFormValues];
+                  return (
+                    <div key={field.id} className="col-span-1 space-y-2">
+                      <Label className="text-sm font-medium text-slate-700 font-bold">
+                        {field.label}
+                        {field.required && <span className="ml-1 text-red-500">*</span>}
+                      </Label>
+                      <Input
+                        type="time"
+                        className="bg-white border-slate-200 focus:ring-blue-200 focus:border-blue-400"
+                        value={form.watch(path as any) ?? ""}
+                        onChange={(e) => form.setValue(path as any, e.target.value, { shouldDirty: true, shouldValidate: true })}
+                      />
+                      {field.description && (
+                        <p className="text-[11px] text-slate-400 leading-normal mt-1">{field.description}</p>
+                      )}
+                      {error && (
+                        <p className="mt-1 text-xs text-red-500">{error.message as string}</p>
+                      )}
+                    </div>
+                  );
+                }
+
                 // --- TEXT / NUMBER FIELDS ---
                 return (
                   <div key={field.id} className="col-span-1">

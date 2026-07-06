@@ -6,49 +6,33 @@ import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Plus, 
   Trash2, 
-  Eye, 
-  EyeOff, 
   ChevronDown, 
   ChevronUp,
   FileUp, 
   FileDown,
-  Check,
-  Users,
-  CreditCard,
-  GripVertical,
-  School,
-  GraduationCap,
-  Shirt,
-  User,
-  Calendar,
-  Globe,
   Settings,
-  Mail,
-  Clock,
-  MapPin,
-  Compass,
-  AlignLeft,
-  Hash,
-  ListPlus,
-  CheckSquare,
   X,
-  ExternalLink,
+  Type,
+  LayoutGrid,
+  AlignLeft,
+  CheckSquare,
   Copy,
-  Sliders,
-  ShieldCheck,
-  Trophy
+  SeparatorHorizontal,
+  Eye
 } from "lucide-react";
 import { 
   DEFAULT_REGISTRATION_FIELDS, 
   type RegistrationFormConfig, 
   type RegistrationFormField,
-  type TournamentConfig
+  type TournamentConfig,
+  type RegistersConfig,
+  type PaymentSettings
 } from "@/lib/tournament-config";
 
-// Local helper functions
 function downloadJson(filename: string, data: unknown) {
   if (typeof window === "undefined") return;
   const payload = JSON.stringify(data, null, 2);
@@ -73,424 +57,15 @@ function fileToText(file: File): Promise<string> {
 interface RegistrationFormCustomizerProps {
   config: TournamentConfig;
   onConfigChange: (config: TournamentConfig) => void;
-  tournamentId?: number;
-  actions?: React.ReactNode; // Slot for custom actions (like Save button)
+  actions?: React.ReactNode;
+  tournamentSlug?: string;
 }
 
-// Unified categories for one-click adding and enabling
-const ONE_CLICK_CATEGORIES = [
-  {
-    id: "personal",
-    name: "Personal & Contact Details",
-    icon: <User className="h-4 w-4 text-blue-600" />,
-    description: "Demographic info, direct contacts, and emergency contacts.",
-    fields: [
-      {
-        id: "dob",
-        label: "Date of Birth",
-        type: "text" as const,
-        placeholder: "MM/DD/YYYY",
-        description: "Used to verify age eligibility for restricted junior or senior sections.",
-        prebuiltType: "dob",
-        isCustom: true
-      },
-      {
-        id: "gender",
-        label: "Gender / Sex",
-        type: "select" as const,
-        options: ["Male", "Female", "Prefer not to say"],
-        placeholder: "Select gender...",
-        description: "For category tracking or gender-specific sections.",
-        prebuiltType: "gender",
-        isCustom: true
-      },
-      {
-        id: "phone",
-        label: "Phone Number",
-        type: "text" as const,
-        placeholder: "e.g. (555) 019-2834",
-        description: "Primary contact number for pairings or emergency alerts.",
-        isCustom: true
-      },
-      {
-        id: "emergencyContactName",
-        label: "Emergency Contact Name",
-        type: "text" as const,
-        placeholder: "e.g. Jane Doe",
-        description: "On-site emergency contact name.",
-        isCustom: true
-      },
-      {
-        id: "emergencyContactPhone",
-        label: "Emergency Contact Phone",
-        type: "text" as const,
-        placeholder: "e.g. (555) 019-2834",
-        description: "Active phone number of the emergency contact person.",
-        isCustom: true
-      }
-    ]
-  },
-  {
-    id: "chess",
-    name: "Chess & Federation Profiles",
-    icon: <Trophy className="h-4 w-4 text-blue-600" />,
-    description: "Federation credentials, school details, and club rosters.",
-    fields: [
-      {
-        id: "uscfId",
-        label: "USCF ID",
-        type: "text" as const,
-        placeholder: "e.g. 12345678",
-        description: "Your official 8-digit United States Chess Federation ID."
-      },
-      {
-        id: "fideId",
-        label: "FIDE ID",
-        type: "text" as const,
-        placeholder: "e.g. 1500021",
-        description: "Your official international World Chess Federation ID."
-      },
-      {
-        id: "uscfExpiration",
-        label: "USCF Expiration Date",
-        type: "text" as const,
-        placeholder: "MM/DD/YYYY",
-        description: "Required to verify active status with US Chess Federation.",
-        prebuiltType: "uscf_expiration",
-        isCustom: true
-      },
-      {
-        id: "fideFederation",
-        label: "FIDE Federation",
-        type: "text" as const,
-        placeholder: "e.g. USA, ENG, CAN",
-        description: "National chess federation registered with FIDE.",
-        prebuiltType: "fide_federation",
-        isCustom: true
-      },
-      {
-        id: "schoolName",
-        label: "School Name",
-        type: "text" as const,
-        placeholder: "e.g. Oak Elementary School",
-        description: "For scholastic team scores and trophies tracking.",
-        prebuiltType: "school",
-        isCustom: true
-      },
-      {
-        id: "grade",
-        label: "Grade",
-        type: "select" as const,
-        options: ["Kindergarten", "1st Grade", "2nd Grade", "3rd Grade", "4th Grade", "5th Grade", "6th Grade", "7th Grade", "8th Grade", "9th Grade", "10th Grade", "11th Grade", "12th Grade"],
-        placeholder: "Select grade level...",
-        description: "Required for grade-restricted school brackets.",
-        prebuiltType: "grade",
-        isCustom: true
-      },
-      {
-        id: "coachName",
-        label: "Coach Name",
-        type: "text" as const,
-        placeholder: "e.g. Mr. John Doe",
-        description: "The scholastic or private coach of the player.",
-        prebuiltType: "coach",
-        isCustom: true
-      },
-      {
-        id: "clubName",
-        label: "Club Name",
-        type: "text" as const,
-        placeholder: "e.g. Metro Chess Club",
-        description: "Affiliated local chess club team name.",
-        prebuiltType: "club",
-        isCustom: true
-      },
-      {
-        id: "ratingVerification",
-        label: "Confirm Rating Accuracy",
-        type: "boolean" as const,
-        description: "I agree that the director may adjust my section enrollment if my official rating differs.",
-        isCustom: true
-      }
-    ]
-  },
-  {
-    id: "location",
-    name: "Location & Address Details",
-    icon: <MapPin className="h-4 w-4 text-blue-600" />,
-    description: "Standard physical mailing addresses for billing and statistics.",
-    fields: [
-      {
-        id: "address1",
-        label: "Street Address",
-        type: "text" as const,
-        placeholder: "e.g. 123 Main Street",
-        description: "Primary street address."
-      },
-      {
-        id: "address2",
-        label: "Apt / Suite / Room",
-        type: "text" as const,
-        placeholder: "e.g. Suite 4B or Apt 12",
-        description: "Apartment number, suite, or room (optional)."
-      },
-      {
-        id: "city",
-        label: "City",
-        type: "text" as const,
-        placeholder: "e.g. New York",
-        description: "City of residence."
-      },
-      {
-        id: "state",
-        label: "State / Province",
-        type: "text" as const,
-        placeholder: "e.g. NY",
-        description: "State or province abbreviation."
-      },
-      {
-        id: "postalCode",
-        label: "Postal / ZIP Code",
-        type: "text" as const,
-        placeholder: "e.g. 10001",
-        description: "Postal or ZIP code."
-      },
-      {
-        id: "country",
-        label: "Country",
-        type: "text" as const,
-        placeholder: "e.g. United States",
-        description: "Country of residence."
-      }
-    ]
-  },
-  {
-    id: "payments",
-    name: "Payments & ID Verification",
-    icon: <ShieldCheck className="h-4 w-4 text-blue-600" />,
-    description: "Terms of pay, offline deposit agreements, and identification checks.",
-    fields: [
-      {
-        id: "paymentOffline",
-        label: "Offline Payment Agreement",
-        type: "boolean" as const,
-        description: "I agree to pay the registration fee offline on-site before Round 1 starts, or risk being withdrawn.",
-        isCustom: true
-      },
-      {
-        id: "paymentOnline",
-        label: "Online Deposit Consent",
-        type: "boolean" as const,
-        description: "I acknowledge that online registration requires completing checkout through the online billing module.",
-        isCustom: true
-      },
-      {
-        id: "uscfMembershipRenewalFee",
-        label: "USCF Membership Renewal Fee ($45)",
-        type: "boolean" as const,
-        description: "Add USCF registration / renewal fee to your tournament entry checkout.",
-        isCustom: true
-      },
-      {
-        id: "tshirtPreorderFee",
-        label: "Pre-order Tournament T-Shirt ($20)",
-        type: "boolean" as const,
-        description: "Includes official cotton event t-shirt (please specify size in preferences).",
-        isCustom: true
-      },
-      {
-        id: "donationPrizeFund",
-        label: "Optional Donation to Prize Fund",
-        type: "select" as const,
-        options: ["No donation", "Donate $10", "Donate $25", "Donate $50", "Donate $100"],
-        placeholder: "Select contribution level...",
-        description: "Help support the scholastic and master prize funds.",
-        isCustom: true
-      },
-      {
-        id: "earlyBirdDiscountCode",
-        label: "Voucher / Promo Code",
-        type: "text" as const,
-        placeholder: "e.g. EARLYBIRD10, CHESSCLUB...",
-        description: "Enter an active promotion or membership discount code.",
-        isCustom: true
-      },
-      {
-        id: "paymentMethodPreference",
-        label: "Preferred Payment Method",
-        type: "select" as const,
-        options: ["Credit / Debit Card (Online)", "Venmo", "Zelle", "PayPal", "Cash / Check On-Site"],
-        placeholder: "Select payment method...",
-        description: "Indicate how you plan to complete checkout to help TDs organize receipts.",
-        isCustom: true
-      },
-      {
-        id: "idDocumentVerification",
-        label: "ID Document Number",
-        type: "text" as const,
-        placeholder: "e.g. Passport, State ID, or Driver's license number...",
-        description: "Verification code required for official FIDE profiles or qualified payouts.",
-        isCustom: true
-      },
-      {
-        id: "idVerificationAgreement",
-        label: "Identity Verification Agreement",
-        type: "boolean" as const,
-        description: "I agree to show a valid photo ID (e.g. passport or driver's license) during on-site check-in if requested.",
-        isCustom: true
-      }
-    ]
-  },
-  {
-    id: "preferences",
-    name: "Preferences & Scheduling",
-    icon: <Sliders className="h-4 w-4 text-blue-600" />,
-    description: "Requested byes, check-in schedules, shirt sizes, and meal boxes.",
-    fields: [
-      {
-        id: "byePreference",
-        label: "Bye Requests",
-        type: "boolean" as const,
-        description: "Request a half-point bye for rounds you are unable to play."
-      },
-      {
-        id: "arrivalTime",
-        label: "Expected Arrival Time",
-        type: "text" as const,
-        placeholder: "e.g. Friday 6:30 PM",
-        description: "Helpful for directors to manage on-site schedules and check-ins."
-      },
-      {
-        id: "notes",
-        label: "Notes / Special Requests",
-        type: "text" as const,
-        placeholder: "e.g. Wheelchair access, traveling with family...",
-        description: "Any special accommodations or messages for the Tournament Director."
-      },
-      {
-        id: "newsletter",
-        label: "Receive Bulletins",
-        type: "boolean" as const,
-        description: "Opt-in to receive round pairings, final standings, and future event details."
-      },
-      {
-        id: "tshirtSize",
-        label: "T-Shirt Size",
-        type: "select" as const,
-        options: ["Youth S", "Youth M", "Youth L", "Adult S", "Adult M", "Adult L", "Adult XL", "Adult XXL"],
-        placeholder: "Select shirt size...",
-        description: "Required if entry fee includes a tournament t-shirt.",
-        prebuiltType: "tshirt",
-        isCustom: true
-      },
-      {
-        id: "lunchOption",
-        label: "Lunch Box Preference",
-        type: "select" as const,
-        options: ["None", "Vegetarian Box", "Turkey & Cheese Box", "Ham & Swiss Box", "Gluten-Free Salad"],
-        placeholder: "Select lunch option...",
-        description: "Optional pre-ordered lunch box for the tournament day.",
-        isCustom: true
-      },
-      {
-        id: "sectionCheck",
-        label: "Acknowledge Section Eligibility",
-        type: "boolean" as const,
-        description: "I have reviewed the rating limits for my selected section and certify that I am eligible.",
-        isCustom: true
-      }
-    ]
-  }
-];
-
-// Inline Options Chip Manager Subcomponent
-interface OptionsManagerProps {
-  options: string[];
-  onChange: (options: string[]) => void;
-}
-
-function OptionsManager({ options, onChange }: OptionsManagerProps) {
-  const [inputValue, setInputValue] = useState("");
-
-  const handleAdd = () => {
-    const trimmed = inputValue.trim();
-    if (trimmed && !options.includes(trimmed)) {
-      onChange([...options, trimmed]);
-      setInputValue("");
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      handleAdd();
-    }
-  };
-
-  const handleRemove = (indexToRemove: number) => {
-    onChange(options.filter((_, idx) => idx !== indexToRemove));
-  };
-
-  return (
-    <div className="space-y-3 p-4 bg-slate-50 border border-slate-200 rounded-xl">
-      <div className="flex items-center justify-between">
-        <span className="text-[11px] font-extrabold text-slate-700 tracking-wide flex items-center gap-1.5">
-          <ListPlus className="h-3.5 w-3.5 text-blue-600" />
-          Dropdown Menu Choices
-        </span>
-        <span className="text-[10px] text-slate-500 font-extrabold bg-slate-200 px-2 py-0.5 rounded-full border border-slate-200/50">
-          {options.length} Options
-        </span>
-      </div>
-      
-      {options.length > 0 ? (
-        <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto p-1.5 bg-white border border-slate-200 rounded-xl">
-          {options.map((option, idx) => (
-            <div 
-              key={idx} 
-              className="flex items-center gap-1.5 bg-white border border-slate-200 text-slate-800 font-bold px-2 py-0.5 rounded-lg text-xs shadow-sm hover:border-slate-350 transition-all"
-            >
-              <span>{option}</span>
-              <button
-                type="button"
-                onClick={() => handleRemove(idx)}
-                className="text-slate-400 hover:text-red-500 hover:bg-red-50 p-0.5 rounded-md transition"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <p className="text-[11px] text-slate-400 italic px-1">No options defined yet. Add choices below.</p>
-      )}
-
-      <div className="flex gap-2">
-        <Input
-          value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Type choice and press Enter..."
-          className="h-10 text-xs bg-white border-slate-200 focus:border-blue-500 rounded-xl"
-        />
-        <Button
-          type="button"
-          onClick={handleAdd}
-          className="h-10 text-xs px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-sm"
-        >
-          Add Choice
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-export function RegistrationFormCustomizer({ config, onConfigChange, tournamentId, actions }: RegistrationFormCustomizerProps) {
+export function RegistrationFormCustomizer({ config, onConfigChange, actions, tournamentSlug }: RegistrationFormCustomizerProps) {
   const { toast } = useToast();
   const [focusedFieldId, setFocusedFieldId] = useState<string | null>(null);
-  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
-  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const importRef = React.useRef<HTMLInputElement>(null);
+  const [activeSubTab, setActiveSubTab] = useState("questions");
 
   // Parse or default the registration form configuration
   const formConfig = useMemo((): RegistrationFormConfig => {
@@ -508,130 +83,90 @@ export function RegistrationFormCustomizer({ config, onConfigChange, tournamentI
     updateFormConfig({ ...formConfig, fields: next });
   };
 
-  // Add custom questions from bottom toolbar
-  const addCustomQuestionWithType = (type: "text" | "number" | "boolean" | "select") => {
+  const addCustomQuestionWithType = (type: RegistrationFormField["type"]) => {
     const defaultLabels = {
-      text: "Custom Text Question",
-      number: "Custom Number Question",
-      select: "Custom Dropdown Question",
-      boolean: "Custom Yes/No Question",
+      text: "Untitled Short Answer",
+      paragraph: "Untitled Paragraph",
+      select: "Untitled Dropdown Question",
+      radio: "Untitled Multiple Choice",
+      checkbox: "Untitled Checkboxes Question",
+      boolean: "Untitled Yes/No Toggle",
+      date: "Untitled Date Question",
+      time: "Untitled Time Question",
+      number: "Untitled Number Question",
+      section: "Untitled Section Divider"
     };
-    const defaultPlaceholders = {
-      text: "Type details here...",
-      number: "Enter number...",
-      select: "Select option...",
-      boolean: undefined,
-    };
-    const newId = `custom_${Date.now()}`;
+
     const newField: RegistrationFormField = {
-      id: newId,
-      label: defaultLabels[type],
+      id: `${type === "section" ? "section" : "custom"}_${Date.now()}`,
+      label: defaultLabels[type] || "Untitled Question",
       type,
-      placeholder: defaultPlaceholders[type],
-      description: "Additional details requested by the organizer.",
+      placeholder: (type === "text" || type === "number" || type === "paragraph") ? "Short answer text" : undefined,
+      description: type === "section" ? "Section description (optional)" : "Question helper text",
       required: false,
       visible: true,
       isCustom: true,
-      options: type === "select" ? ["Option 1", "Option 2"] : undefined,
+      options: (type === "select" || type === "radio" || type === "checkbox") ? ["Option 1", "Option 2"] : undefined,
     };
+
     updateFormConfig({ ...formConfig, fields: [...formConfig.fields, newField] });
     setFocusedFieldId(newField.id);
+
+    // Scroll to bottom where the new question was added
+    setTimeout(() => {
+      const el = document.getElementById(`field-card-${newField.id}`);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 100);
+
     toast({
-      title: `${type.toUpperCase()} Question Added`,
-      description: `New "${defaultLabels[type]}" block successfully added.`
+      title: `${type.toUpperCase()} added`,
+      description: `Successfully appended to form.`
     });
   };
 
-  // Unified add or enable prebuilt / standard fields from side shelf
-  const addOrEnableField = (template: {
-    id: string;
-    label: string;
-    type: "text" | "number" | "boolean" | "select";
-    placeholder?: string;
-    description: string;
-    options?: string[];
-    prebuiltType?: string;
-    isCustom?: boolean;
-  }) => {
-    const existingFieldIdx = formConfig.fields.findIndex(f => f.id === template.id);
-    
-    if (existingFieldIdx > -1) {
-      const existingField = formConfig.fields[existingFieldIdx];
-      if (existingField.visible) {
-        // Scroll or focus in builder
-        setFocusedFieldId(template.id);
-        toast({
-          title: "Field already active",
-          description: `Focused "${template.label}" in the form builder list.`,
-        });
-      } else {
-        // Turn visible back on
-        const nextFields = formConfig.fields.map(f => f.id === template.id ? { ...f, visible: true } : f);
-        updateFormConfig({ ...formConfig, fields: nextFields });
-        setFocusedFieldId(template.id);
-        toast({
-          title: "Field Enabled",
-          description: `Successfully enabled standard "${template.label}" field.`,
-        });
-      }
-    } else {
-      // Append brand-new chess/custom prebuilt template
-      const newField: RegistrationFormField = {
-        id: template.id,
-        label: template.label,
-        type: template.type,
-        placeholder: template.placeholder,
-        description: template.description,
-        required: false,
-        visible: true,
-        isCustom: template.isCustom,
-        prebuiltType: template.prebuiltType,
-        options: template.options,
-      };
-      
-      updateFormConfig({ ...formConfig, fields: [...formConfig.fields, newField] });
-      setFocusedFieldId(newField.id);
-      toast({
-        title: "Field Added",
-        description: `Successfully added prebuilt "${template.label}" question.`,
-      });
-    }
+  const duplicateField = (field: RegistrationFormField, index: number) => {
+    const duplicated: RegistrationFormField = {
+      ...field,
+      id: `${field.type === "section" ? "section" : "custom"}_duplicated_${Date.now()}`,
+      label: `${field.label} (Copy)`,
+      isCustom: true,
+      options: field.options ? [...field.options] : undefined
+    };
+
+    const nextFields = [...formConfig.fields];
+    nextFields.splice(index + 1, 0, duplicated);
+
+    updateFormConfig({ ...formConfig, fields: nextFields });
+    setFocusedFieldId(duplicated.id);
+
+    setTimeout(() => {
+      const el = document.getElementById(`field-card-${duplicated.id}`);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 100);
+
+    toast({
+      title: "Question duplicated",
+      description: "Created a copy of the question."
+    });
   };
 
   const removeField = (id: string) => {
-    // If it's standard, hide it instead of deleting it permanently, keeping schema intact
-    const standardField = DEFAULT_REGISTRATION_FIELDS.find(f => f.id === id);
-    if (standardField) {
-      updateField(id, { visible: false, required: false });
-    } else {
-      updateFormConfig({ ...formConfig, fields: formConfig.fields.filter((f) => f.id !== id) });
-    }
+    updateFormConfig({ ...formConfig, fields: formConfig.fields.filter((f) => f.id !== id) });
     if (focusedFieldId === id) setFocusedFieldId(null);
     toast({
-      title: "Field Deactivated",
-      description: "Question removed or hidden from the registration form."
+      title: "Removed",
+      description: "Item removed from registration form."
     });
   };
 
   const moveField = (index: number, direction: "up" | "down") => {
     const targetIndex = direction === "up" ? index - 1 : index + 1;
     if (targetIndex < 0 || targetIndex >= formConfig.fields.length) return;
-    
-    // Deep clone array items to guarantee React reactive re-render
-    const nextFields = formConfig.fields.map(f => ({ ...f }));
+    const nextFields = [...formConfig.fields];
     const temp = nextFields[index];
     nextFields[index] = nextFields[targetIndex];
     nextFields[targetIndex] = temp;
-    
     updateFormConfig({ ...formConfig, fields: nextFields });
-    
-    // Keep focus locked on the same moving field
-    setFocusedFieldId(nextFields[targetIndex].id);
-    
-    toast({
-      title: "Question Reordered",
-      description: `Moved question successfully ${direction}.`
-    });
   };
 
   const handleExport = () => {
@@ -659,593 +194,642 @@ export function RegistrationFormCustomizer({ config, onConfigChange, tournamentI
     }
   };
 
-  const registrationUrl = useMemo(() => {
-    if (typeof window === "undefined") return "";
-    const origin = window.location.origin;
-    const id = tournamentId ?? 44;
-    return `${origin}/tournaments/${id}/register`;
-  }, [tournamentId]);
-
-  const handleCopyLink = () => {
-    if (typeof navigator !== "undefined" && navigator.clipboard) {
-      navigator.clipboard.writeText(registrationUrl);
-      toast({
-        title: "Link Copied",
-        description: "Registration form link copied to clipboard.",
-      });
-    } else {
-      toast({
-        title: "Copy Failed",
-        description: "Clipboard access is not supported in this browser environment.",
-        variant: "destructive",
-      });
-    }
+  const handleRegistersChange = (key: keyof RegistersConfig, value: any) => {
+    onConfigChange({
+      ...config,
+      registers: {
+        ...config.registers,
+        [key]: value
+      }
+    });
   };
 
-  const getFieldIcon = (field: RegistrationFormField) => {
-    if (field.prebuiltType === "school") return <School className="h-4 w-4 text-slate-500" />;
-    if (field.prebuiltType === "grade") return <GraduationCap className="h-4 w-4 text-slate-500" />;
-    if (field.prebuiltType === "coach") return <User className="h-4 w-4 text-slate-500" />;
-    if (field.prebuiltType === "club") return <Users className="h-4 w-4 text-slate-500" />;
-    if (field.prebuiltType === "tshirt") return <Shirt className="h-4 w-4 text-slate-500" />;
-    if (field.prebuiltType === "gender") return <User className="h-4 w-4 text-slate-500" />;
-    if (field.prebuiltType === "dob") return <Calendar className="h-4 w-4 text-slate-500" />;
-    if (field.prebuiltType === "uscf_expiration") return <CreditCard className="h-4 w-4 text-slate-500" />;
-    if (field.prebuiltType === "fide_federation") return <Globe className="h-4 w-4 text-slate-500" />;
-
-    // Standard columns mapping
-    if (field.id === "uscfId" || field.id === "fideId" || field.id.toLowerCase().includes("payment") || field.id.toLowerCase().includes("fee") || field.id.toLowerCase().includes("donation")) {
-      return <CreditCard className="h-4 w-4 text-slate-500" />;
-    }
-    if (field.id.toLowerCase().includes("tshirt")) {
-      return <Shirt className="h-4 w-4 text-slate-500" />;
-    }
-    if (field.id === "byePreference") return <Compass className="h-4 w-4 text-slate-500" />;
-    if (field.id === "newsletter") return <Mail className="h-4 w-4 text-slate-500" />;
-    if (field.id === "arrivalTime") return <Clock className="h-4 w-4 text-slate-500" />;
-    if (field.id === "notes") return <Settings className="h-4 w-4 text-slate-500" />;
-    if (field.id.startsWith("address") || field.id === "city" || field.id === "state" || field.id === "postalCode" || field.id === "country") return <MapPin className="h-4 w-4 text-slate-500" />;
-
-    return <Settings className="h-4 w-4 text-slate-500" />;
+  const handlePaymentsChange = (key: keyof PaymentSettings, value: any) => {
+    onConfigChange({
+      ...config,
+      payments: {
+        ...config.payments,
+        [key]: value
+      }
+    });
   };
 
-  const getFieldTag = (field: RegistrationFormField) => {
-    if (field.prebuiltType) return "Chess Prebuilt";
-    if (field.isCustom) return "Custom Question";
-    return "Standard Field";
-  };
-
-  const getFieldTagClass = (field: RegistrationFormField) => {
-    if (field.prebuiltType) return "bg-sky-50 text-sky-700 border-sky-200/50";
-    if (field.isCustom) return "bg-blue-50 text-blue-700 border-blue-200/50";
-    return "bg-slate-50 text-slate-600 border-slate-200/50";
+  const toggleOfflineMethod = (method: string) => {
+    const methods = config.payments?.acceptedOfflineMethods ?? [];
+    const nextMethods = methods.includes(method as any)
+      ? methods.filter(m => m !== method)
+      : [...methods, method as any];
+    handlePaymentsChange("acceptedOfflineMethods", nextMethods);
   };
 
   return (
-    <div className="rounded-2xl border bg-slate-50/50 p-6 space-y-6 shadow-sm border-slate-200/60 font-sans">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="space-y-1">
-          <h3 className="text-xl font-extrabold tracking-tight text-slate-950 flex items-center gap-2.5">
-            <Sliders className="h-5.5 w-5.5 text-blue-600" />
-            Edit Registration Form
+    <div className="w-full space-y-6 max-w-4xl mx-auto font-sans relative">
+      <div className="flex flex-wrap items-center justify-between gap-4 pb-2 border-b">
+        <div className="space-y-0.5">
+          <h3 className="text-xl font-extrabold tracking-tight text-slate-900">
+            Form Registration Customizer
           </h3>
-          <p className="text-xs font-semibold text-slate-500 leading-relaxed">
-            Customize fields and request parameters for player signups. Reorder blocks and save to update instantly.
+          <p className="text-xs font-semibold text-slate-500">
+            Edit player registration forms and verification policies.
           </p>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <input ref={importRef} type="file" accept=".json" className="hidden" onChange={handleImportFile} />
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="gap-1.5 text-xs h-9 bg-white border-slate-200 text-slate-700 hover:bg-slate-50 shadow-sm rounded-xl font-bold"
-            onClick={handleImportClick}
-          >
-            <FileUp className="h-3.5 w-3.5" />
-            Import Form
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="gap-1.5 text-xs h-9 bg-white border-slate-200 text-slate-700 hover:bg-slate-50 shadow-sm rounded-xl font-bold"
-            onClick={handleExport}
-          >
-            <FileDown className="h-3.5 w-3.5" />
-            Export Form
-          </Button>
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        {/* Left Columns: Main Configuration Builder List */}
-        <div className="lg:col-span-2 space-y-4">
-          <div className="flex items-center justify-between border-b pb-2">
-            <span className="text-xs font-extrabold text-slate-500 tracking-wider uppercase">Active Form Fields Schema</span>
-            <span className="text-xs text-slate-400 font-semibold">{formConfig.fields.filter(f => f.visible).length} active / {formConfig.fields.length} total blocks</span>
-          </div>
+      {/* Tabs Header: Questions & Settings */}
+      <div className="flex items-center justify-between bg-slate-100/80 border p-1 rounded-xl shadow-sm">
+        <Tabs value={activeSubTab} onValueChange={setActiveSubTab} className="w-full">
+          <TabsList className="grid grid-cols-2 max-w-xs bg-transparent border-none">
+            <TabsTrigger value="questions" className="rounded-lg font-bold text-sm py-1.5 flex items-center gap-1.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">
+              <AlignLeft className="h-4 w-4" />
+              Questions
+            </TabsTrigger>
+            <TabsTrigger value="settings" className="rounded-lg font-bold text-sm py-1.5 flex items-center gap-1.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">
+              <Settings className="h-4 w-4" />
+              Settings
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </div>
 
-          <div className="space-y-3">
-            {formConfig.fields.map((field, idx) => {
-              const isFocused = focusedFieldId === field.id;
-              return (
-                <div 
-                  key={field.id}
-                  draggable={focusedFieldId !== field.id}
-                  onDragStart={(e) => {
-                    setDraggedIndex(idx);
-                    e.dataTransfer.effectAllowed = "move";
-                  }}
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    if (draggedIndex !== null && draggedIndex !== idx) {
-                      setDragOverIndex(idx);
-                    }
-                  }}
-                  onDragEnd={() => {
-                    setDraggedIndex(null);
-                    setDragOverIndex(null);
-                  }}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    if (draggedIndex !== null && draggedIndex !== idx) {
-                      const nextFields = [...formConfig.fields];
-                      const [draggedItem] = nextFields.splice(draggedIndex, 1);
-                      nextFields.splice(idx, 0, draggedItem);
-                      updateFormConfig({ ...formConfig, fields: nextFields });
-                      toast({
-                        title: "Fields Reordered",
-                        description: `Moved "${draggedItem.label}" successfully.`,
-                      });
-                    }
-                    setDraggedIndex(null);
-                    setDragOverIndex(null);
-                  }}
-                  className={`transition-all duration-200 relative ${
-                    draggedIndex === idx ? "opacity-30 scale-[0.98] border-2 border-dashed border-blue-200 rounded-2xl" : ""
-                  } ${
-                    dragOverIndex === idx && draggedIndex !== idx ? "border-t-4 border-t-blue-500 pt-3" : ""
-                  }`}
-                >
-                  {isFocused ? (
-                    /* EXPANDED ACTIVE STATE CARD */
+      <div className="flex gap-6 items-start">
+        {/* Main Content Area */}
+        <div className="flex-1 space-y-4 min-w-0">
+          {activeSubTab === "questions" ? (
+            <div className="space-y-4 pb-24">
+              {/* Form Title & Description Card (Google Forms Style) */}
+              <div className="border-t-8 border-t-sky-500 bg-white border border-slate-200 shadow-sm p-6 rounded-2xl space-y-3">
+                <Input
+                  className="text-2xl font-bold tracking-tight text-slate-900 border-transparent hover:border-slate-200 focus:border-sky-500 focus:ring-0 px-1 py-0 h-auto bg-transparent rounded-lg"
+                  defaultValue="Chess Registration Form"
+                  placeholder="Form Title"
+                />
+                <textarea
+                  className="w-full text-sm text-slate-500 border-transparent hover:border-slate-200 focus:border-sky-500 focus:outline-none px-1 py-1 h-auto bg-transparent rounded-lg resize-none"
+                  rows={2}
+                  defaultValue="Description"
+                  placeholder="Form description"
+                />
+              </div>
+
+              {/* Questions List */}
+              <div className="space-y-4">
+                {formConfig.fields.map((field, idx) => {
+                  const isFocused = focusedFieldId === field.id;
+                  
+                  return (
                     <div 
-                      className="border-l-4 border-l-blue-600 bg-white border-slate-200 shadow-lg p-5 rounded-2xl animate-in fade-in duration-200"
+                      key={field.id} 
+                      id={`field-card-${field.id}`}
+                      className="transition-all duration-200"
                     >
-                      <div className="flex items-center justify-between gap-3 pb-3 mb-3.5 border-b border-slate-100">
-                        <div className="flex items-center gap-2">
-                          <GripVertical className="h-4 w-4 text-slate-400 cursor-grab active:cursor-grabbing" />
-                          <span className="text-[10px] font-extrabold text-slate-400 tracking-wider">
-                            QUESTION {idx + 1}
-                          </span>
-                          <span className={`text-[10px] font-extrabold px-1.5 py-0.25 border rounded-full ${getFieldTagClass(field)}`}>
-                            {getFieldTag(field)}
-                          </span>
+                      {isFocused ? (
+                        /* GOOGLE FORMS ACTIVE STATE QUESTION CARD */
+                        <div className="border-l-4 border-l-sky-500 bg-white border border-slate-200 shadow-md p-6 rounded-2xl space-y-4 animate-in fade-in duration-200">
+                          {/* Top Row: Title & Question Type Dropdown */}
+                          <div className="flex items-start gap-4">
+                            <Input
+                              value={field.label}
+                              onChange={(e) => updateField(field.id, { label: e.target.value })}
+                              placeholder="Question"
+                              className="text-base font-bold text-slate-800 border-b border-b-slate-200 hover:border-b-slate-355 focus:border-b-sky-500 focus:ring-0 px-2 py-1.5 h-10 bg-slate-50 border-t-0 border-l-0 border-r-0 rounded-t-lg rounded-b-none flex-1"
+                            />
+                            
+                            <Select
+                              value={field.type}
+                              onValueChange={(val: RegistrationFormField["type"]) => {
+                                const defaultPlaceholders = {
+                                  text: "Short answer text",
+                                  paragraph: "Paragraph text",
+                                  number: "Number input",
+                                  select: undefined,
+                                  radio: undefined,
+                                  checkbox: undefined,
+                                  boolean: "",
+                                  date: "",
+                                  time: "",
+                                  section: ""
+                                };
+                                updateField(field.id, {
+                                  type: val,
+                                  placeholder: defaultPlaceholders[val] || undefined,
+                                  options: (val === "select" || val === "radio" || val === "checkbox") ? (field.options && field.options.length > 0 ? field.options : ["Option 1", "Option 2"]) : undefined
+                                });
+                              }}
+                            >
+                              <SelectTrigger className="w-[180px] h-10 text-xs border-slate-200 bg-white font-bold rounded-xl shrink-0">
+                                <SelectValue placeholder="Question Type" />
+                              </SelectTrigger>
+                              <SelectContent className="rounded-xl">
+                                <SelectItem value="text">Short answer</SelectItem>
+                                <SelectItem value="paragraph">Paragraph</SelectItem>
+                                <SelectItem value="number">Number</SelectItem>
+                                <SelectItem value="select">Dropdown</SelectItem>
+                                <SelectItem value="radio">Multiple Choice</SelectItem>
+                                <SelectItem value="checkbox">Checkboxes</SelectItem>
+                                <SelectItem value="boolean">Yes/No Toggle</SelectItem>
+                                <SelectItem value="date">Date</SelectItem>
+                                <SelectItem value="time">Time</SelectItem>
+                                <SelectItem value="section">Section Divider</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          {/* Question Description / Helper Text */}
+                          {field.type !== "section" && (
+                            <div className="space-y-1">
+                              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Helper Text</label>
+                              <Input
+                                value={field.description ?? ""}
+                                onChange={(e) => updateField(field.id, { description: e.target.value })}
+                                placeholder="Explain or provide hints for this field..."
+                                className="h-8 text-xs border-transparent hover:border-slate-200 focus:border-sky-500 rounded-lg"
+                              />
+                            </div>
+                          )}
+
+                          {/* Dynamic Inputs Based on Selected Type */}
+                          <div className="pt-2">
+                            {field.type === "text" && (
+                              <div className="border-b border-dashed border-slate-300 pb-1 w-2/3">
+                                <span className="text-xs text-slate-400 italic">Short answer text</span>
+                              </div>
+                            )}
+
+                            {field.type === "paragraph" && (
+                              <div className="border-b border-dashed border-slate-300 pb-1.5 w-full">
+                                <span className="text-xs text-slate-400 italic">Long answer paragraph text</span>
+                              </div>
+                            )}
+
+                            {field.type === "number" && (
+                              <div className="border-b border-dashed border-slate-300 pb-1 w-1/3">
+                                <span className="text-xs text-slate-400 italic">Numeric input</span>
+                              </div>
+                            )}
+
+                            {field.type === "boolean" && (
+                              <div className="flex items-center gap-2.5 bg-slate-50 border p-3 rounded-xl max-w-sm">
+                                <div className="h-4.5 w-8 rounded-full bg-slate-200 border relative shrink-0" />
+                                <span className="text-xs font-semibold text-slate-500">Yes/No checkbox toggle preview</span>
+                              </div>
+                            )}
+
+                            {field.type === "date" && (
+                              <div className="border border-slate-200 bg-slate-50/50 p-2.5 rounded-xl text-xs text-slate-500 w-48 flex justify-between items-center">
+                                <span>Month, Day, Year</span>
+                                <span className="text-slate-400">📅</span>
+                              </div>
+                            )}
+
+                            {field.type === "time" && (
+                              <div className="border border-slate-200 bg-slate-50/50 p-2.5 rounded-xl text-xs text-slate-500 w-32 flex justify-between items-center">
+                                <span>-- : -- --</span>
+                                <span className="text-slate-400">🕒</span>
+                              </div>
+                            )}
+
+                            {field.type === "section" && (
+                              <div className="bg-slate-50 border border-slate-200 border-dashed rounded-xl p-4 space-y-2">
+                                <span className="text-[10px] font-bold text-sky-600 uppercase tracking-wider block">Visual Section Divider</span>
+                                <p className="text-xs text-slate-500 leading-relaxed font-medium">
+                                  This block splits your form with a clean separator line. It displays the section name in bold to organize the layout.
+                                </p>
+                              </div>
+                            )}
+
+                            {/* Inline Options Editor for GForms Choice Types */}
+                            {(field.type === "select" || field.type === "radio" || field.type === "checkbox") && (
+                              <div className="space-y-2.5">
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Options</span>
+                                
+                                <div className="space-y-1.5">
+                                  {(field.options ?? []).map((option, optIdx) => (
+                                    <div key={optIdx} className="flex items-center gap-2 group max-w-md">
+                                      {field.type === "radio" && <div className="h-4 w-4 rounded-full border border-slate-300 flex-shrink-0" />}
+                                      {field.type === "checkbox" && <div className="h-4 w-4 rounded border border-slate-300 flex-shrink-0" />}
+                                      {field.type === "select" && <span className="text-xs text-slate-400 font-bold w-4">{optIdx + 1}.</span>}
+                                      
+                                      <Input
+                                        value={option}
+                                        onChange={(e) => {
+                                          const newOptions = [...(field.options ?? [])];
+                                          newOptions[optIdx] = e.target.value;
+                                          updateField(field.id, { options: newOptions });
+                                        }}
+                                        className="h-8 text-xs border-transparent hover:border-slate-200 focus:border-sky-500 focus:ring-0 bg-transparent rounded-lg flex-1 font-semibold"
+                                      />
+                                      
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => {
+                                          const newOptions = (field.options ?? []).filter((_, idx) => idx !== optIdx);
+                                          updateField(field.id, { options: newOptions });
+                                        }}
+                                        className="h-7 w-7 text-slate-400 hover:text-red-500 rounded-lg hover:bg-slate-100 shrink-0"
+                                      >
+                                        <X className="h-3.5 w-3.5" />
+                                      </Button>
+                                    </div>
+                                  ))}
+                                </div>
+
+                                <div className="pt-1 flex items-center gap-3">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const nextOpts = [...(field.options ?? []), `Option ${(field.options ?? []).length + 1}`];
+                                      updateField(field.id, { options: nextOpts });
+                                    }}
+                                    className="text-xs font-bold text-sky-650 hover:text-sky-700 hover:underline"
+                                  >
+                                    + Add Option
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Bottom Action Footer Row of Active Card */}
+                          <div className="flex items-center justify-between border-t pt-3 mt-2 text-slate-400">
+                            <div className="flex items-center gap-1">
+                              <Button
+                                type="button"
+                                disabled={idx === 0}
+                                onClick={() => moveField(idx, "up")}
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-slate-400 hover:text-slate-900 rounded-lg"
+                              >
+                                <ChevronUp className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                type="button"
+                                disabled={idx === formConfig.fields.length - 1}
+                                onClick={() => moveField(idx, "down")}
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-slate-400 hover:text-slate-900 rounded-lg"
+                              >
+                                <ChevronDown className="h-4 w-4" />
+                              </Button>
+                            </div>
+
+                            <div className="flex items-center gap-4">
+                              <button
+                                type="button"
+                                onClick={() => duplicateField(field, idx)}
+                                className="flex items-center gap-1.5 text-xs font-bold hover:text-slate-700 transition"
+                                title="Duplicate question"
+                              >
+                                <Copy className="h-3.5 w-3.5" />
+                                Duplicate
+                              </button>
+
+                              {/* Only allow deleting custom fields or specific editable fields */}
+                              {(field.isCustom || field.prebuiltType) && (
+                                <button
+                                  type="button"
+                                  onClick={() => removeField(field.id)}
+                                  className="flex items-center gap-1.5 text-xs font-bold hover:text-red-655 transition text-red-500"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                  Delete
+                                </button>
+                              )}
+
+                              <div className="h-4 border-l border-slate-200" />
+
+                              {field.type !== "section" && (
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-bold text-slate-500">Required</span>
+                                  <Switch
+                                    checked={field.required}
+                                    onCheckedChange={(v) => updateField(field.id, { required: v, visible: v ? true : field.visible })}
+                                    className="scale-90 data-[state=checked]:bg-sky-500"
+                                  />
+                                </div>
+                              )}
+
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-bold text-slate-500">Visible</span>
+                                <Switch
+                                  checked={field.visible}
+                                  onCheckedChange={(v) => updateField(field.id, { visible: v, required: v ? field.required : false })}
+                                  className="scale-90 data-[state=checked]:bg-sky-500"
+                                  disabled={field.required} // required fields must be visible
+                                />
+                              </div>
+                            </div>
+                          </div>
                         </div>
-                        
-                        {/* Type converter dropdown */}
-                        <Select
-                          value={field.type}
-                          onValueChange={(val: "text" | "number" | "boolean" | "select") => {
-                            const defaultPlaceholders = {
-                              text: "Type answer here...",
-                              number: "Enter number...",
-                              select: "Select option...",
-                              boolean: "",
-                            };
-                            updateField(field.id, {
-                              type: val,
-                              placeholder: defaultPlaceholders[val] || undefined,
-                              options: val === "select" ? (field.options && field.options.length > 0 ? field.options : ["Option 1", "Option 2"]) : undefined
-                            });
-                            toast({
-                              title: "Question Type Updated",
-                              description: `Changed question to ${val} input.`
-                            });
-                          }}
+                      ) : (
+                        /* COLLAPSED INACTIVE CARD PREVIEW */
+                        <div 
+                          onClick={() => setFocusedFieldId(field.id)}
+                          className={`bg-white hover:bg-slate-50/50 border border-slate-200 shadow-sm p-4 rounded-xl cursor-pointer transition-all flex items-center justify-between gap-4 ${
+                            !field.visible ? "opacity-60 bg-slate-50/20" : ""
+                          }`}
                         >
-                          <SelectTrigger className="w-[155px] h-9 text-xs bg-white border-slate-200 font-bold rounded-xl shrink-0">
-                            <SelectValue placeholder="Question Type" />
+                          <div className="flex items-center gap-3 min-w-0">
+                            <span className="text-xs font-bold text-slate-400 shrink-0">#{idx + 1}</span>
+                            <span className="text-sm font-bold text-slate-800 truncate">
+                              {field.label || "Untitled Question"}
+                            </span>
+                            {field.required && (
+                              <span className="text-red-500 font-extrabold text-xs shrink-0" title="Required">*</span>
+                            )}
+                            {!field.visible && (
+                              <span className="bg-slate-100 text-slate-400 text-[9px] font-bold px-1.5 py-0.5 border rounded-full shrink-0">
+                                Hidden
+                              </span>
+                            )}
+                            {field.type === "section" && (
+                              <span className="bg-slate-100 text-indigo-700 text-[9px] font-extrabold px-1.5 py-0.5 border border-indigo-200 rounded-full shrink-0">
+                                Section Divider
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-3 shrink-0">
+                            <span className="text-[10px] font-extrabold bg-slate-100 text-slate-500 px-2 py-0.5 rounded border border-slate-200 capitalize">
+                              {field.type === "select" ? "dropdown" : field.type === "boolean" ? "yes/no" : field.type}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            /* TAB 2: SETTINGS (PRESERVED ALL EXISTING POLICIES AND STYLINGS) */
+            <div className="space-y-6 pb-24">
+              {/* General Settings */}
+              <Card className="rounded-2xl border bg-white shadow-sm overflow-hidden">
+                <CardHeader className="bg-slate-50/50 p-5 border-b">
+                  <CardTitle className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                    <Settings className="h-4.5 w-4.5 text-slate-500" />
+                    General Form Policies
+                  </CardTitle>
+                  <CardDescription className="text-xs font-semibold text-slate-500">Configure global registration policies.</CardDescription>
+                </CardHeader>
+                <CardContent className="p-5 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm font-bold text-slate-800">Show on Calendar</Label>
+                      <p className="text-xs text-slate-500 leading-normal font-semibold">Make this tournament visible on the public event calendar.</p>
+                    </div>
+                    <Switch
+                      checked={Boolean(config.registers?.showOnCalendar)}
+                      onCheckedChange={(checked) => handleRegistersChange("showOnCalendar", checked)}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between border-t pt-4">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm font-bold text-slate-800">Allow Online Registrations</Label>
+                      <p className="text-xs text-slate-500 leading-normal font-semibold">Allow users to register and sign up for this tournament online.</p>
+                    </div>
+                    <Switch
+                      checked={Boolean(config.registers?.allowSignup)}
+                      onCheckedChange={(checked) => handleRegistersChange("allowSignup", checked)}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between border-t pt-4">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm font-bold text-slate-800">Enable Multi-Player Registration</Label>
+                      <p className="text-xs text-slate-500 leading-normal font-semibold">Allow a player to register multiple participants in a single session (shopping cart mode).</p>
+                    </div>
+                    <Switch
+                      checked={Boolean(config.registers?.allowMultiPlayerSignup)}
+                      onCheckedChange={(checked) => handleRegistersChange("allowMultiPlayerSignup", checked)}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between border-t pt-4">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm font-bold text-slate-800">Allow Registration Edits</Label>
+                      <p className="text-xs text-slate-500 leading-normal font-semibold">Allow players to modify their sections or request byes after registering.</p>
+                    </div>
+                    <Switch
+                      checked={Boolean(config.registers?.allowEditRegistration)}
+                      onCheckedChange={(checked) => handleRegistersChange("allowEditRegistration", checked)}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* USCF Verification */}
+              <Card className="rounded-2xl border bg-white shadow-sm overflow-hidden">
+                <CardHeader className="bg-slate-50/50 p-5 border-b">
+                  <CardTitle className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                    <CheckSquare className="h-4.5 w-4.5 text-slate-500" />
+                    USCF Verification & Auto-Accept
+                  </CardTitle>
+                  <CardDescription className="text-xs font-semibold text-slate-500 font-sans">Automate registry verification and player approvals.</CardDescription>
+                </CardHeader>
+                <CardContent className="p-5 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm font-bold text-slate-800">Verify USCF Membership</Label>
+                      <p className="text-xs text-slate-500 leading-normal font-semibold">Force lookups against active US Chess registries during registration.</p>
+                    </div>
+                    <Switch
+                      checked={Boolean(config.registers?.verifyUscfMembership)}
+                      onCheckedChange={(checked) => handleRegistersChange("verifyUscfMembership", checked)}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between border-t pt-4">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm font-bold text-slate-800">Auto-Accept Registrations</Label>
+                      <p className="text-xs text-slate-500 leading-normal font-semibold">Automatically approve submitted registrations and add players directly to the roster.</p>
+                    </div>
+                    <Switch
+                      checked={Boolean(config.registers?.autoAcceptRegistrations)}
+                      onCheckedChange={(checked) => handleRegistersChange("autoAcceptRegistrations", checked)}
+                    />
+                  </div>
+
+                  <div className="space-y-2 border-t pt-4">
+                    <Label className="text-sm font-bold text-slate-800 block">Provisional Rating Games Threshold</Label>
+                    <p className="text-xs text-slate-500 leading-normal font-semibold mb-2">Number of played games below which a rating is considered provisional (e.g. less than 4 games).</p>
+                    <Input
+                      type="number"
+                      value={config.registers?.uscfMinGamesThreshold ?? 4}
+                      onChange={(e) => handleRegistersChange("uscfMinGamesThreshold", parseInt(e.target.value, 10) || 4)}
+                      className="w-32 h-10 text-xs border-slate-200 rounded-xl"
+                      min={0}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Payments Config */}
+              <Card className="rounded-2xl border bg-white shadow-sm overflow-hidden">
+                <CardHeader className="bg-slate-50/50 p-5 border-b">
+                  <CardTitle className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                    <Settings className="h-4.5 w-4.5 text-slate-500" />
+                    Payments & Collection Policies
+                  </CardTitle>
+                  <CardDescription className="text-xs font-semibold text-slate-500 font-sans">Collect entry fees online or handle cash on-site.</CardDescription>
+                </CardHeader>
+                <CardContent className="p-5 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm font-bold text-slate-800">Collect Entry Fees</Label>
+                      <p className="text-xs text-slate-500 leading-normal font-semibold">Require players to pay entry fees to confirm registration.</p>
+                    </div>
+                    <Switch
+                      checked={Boolean(config.payments?.onlineEnabled)}
+                      onCheckedChange={(checked) => handlePaymentsChange("onlineEnabled", checked)}
+                    />
+                  </div>
+
+                  {config.payments?.onlineEnabled && (
+                    <div className="space-y-4 border-t pt-4 animate-in slide-in-from-top-2 duration-200">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-bold text-slate-650">Online Payment Provider</Label>
+                        <Select
+                          value={config.payments?.provider || "stripe"}
+                          onValueChange={(val) => handlePaymentsChange("provider", val)}
+                        >
+                          <SelectTrigger className="h-10 text-xs border-slate-200 bg-white rounded-xl">
+                            <SelectValue placeholder="Select provider" />
                           </SelectTrigger>
                           <SelectContent className="rounded-xl">
-                            <SelectItem value="text">
-                              <div className="flex items-center gap-2">
-                                <AlignLeft className="h-3.5 w-3.5 text-blue-500" />
-                                <span>Short answer</span>
-                              </div>
-                            </SelectItem>
-                            <SelectItem value="number">
-                              <div className="flex items-center gap-2">
-                                <Hash className="h-3.5 w-3.5 text-blue-500" />
-                                <span>Number</span>
-                              </div>
-                            </SelectItem>
-                            <SelectItem value="select">
-                              <div className="flex items-center gap-2">
-                                <ListPlus className="h-3.5 w-3.5 text-blue-500" />
-                                <span>Dropdown</span>
-                              </div>
-                            </SelectItem>
-                            <SelectItem value="boolean">
-                              <div className="flex items-center gap-2">
-                                <CheckSquare className="h-3.5 w-3.5 text-blue-500" />
-                                <span>Yes/No toggle</span>
-                              </div>
-                            </SelectItem>
+                            <SelectItem value="stripe">Stripe Connect (Recommended)</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
 
-                      {/* Edit Fields */}
-                      <div className="space-y-4">
-                        <div className="grid gap-4 sm:grid-cols-2">
-                          <div className="space-y-1">
-                            <Label className="text-[11px] font-extrabold text-slate-500 tracking-wide">Question Label</Label>
-                            <Input
-                              value={field.label}
-                              onChange={(e) => updateField(field.id, { label: e.target.value })}
-                              className="h-10 text-sm bg-white rounded-xl focus:border-blue-500 font-semibold"
-                            />
-                          </div>
-
-                          {field.type !== "boolean" && (
-                            <div className="space-y-1">
-                              <Label className="text-[11px] font-extrabold text-slate-500 tracking-wide">Watermark Placeholder</Label>
-                              <Input
-                                value={field.placeholder ?? ""}
-                                onChange={(e) => updateField(field.id, { placeholder: e.target.value })}
-                                placeholder="Type helper text..."
-                                className="h-10 text-sm bg-white rounded-xl focus:border-blue-500"
-                              />
-                            </div>
-                          )}
+                      <div className="flex items-center justify-between border-t pt-4">
+                        <div className="space-y-0.5">
+                          <Label className="text-sm font-bold text-slate-800">Require Upfront Checkout Payment</Label>
+                          <p className="text-xs text-slate-500 leading-normal font-semibold">Require successful credit/debit card checkout before creating roster entries.</p>
                         </div>
+                        <Switch
+                          checked={Boolean(config.payments?.requirePaymentOnRegistration)}
+                          onCheckedChange={(checked) => handlePaymentsChange("requirePaymentOnRegistration", checked)}
+                        />
+                      </div>
 
-                        <div className="space-y-1">
-                          <Label className="text-[11px] font-extrabold text-slate-500 tracking-wide">Helper Explanation / Instructions</Label>
-                          <textarea
-                            value={field.description ?? ""}
-                            onChange={(e) => updateField(field.id, { description: e.target.value })}
-                            rows={2}
-                            placeholder="Helpful hints appear under the question..."
-                            className="w-full text-xs border rounded-xl p-3 bg-white border-slate-200 focus:outline-none focus:border-blue-500 font-semibold leading-relaxed"
-                          />
-                        </div>
-
-                        {field.type === "select" && (
-                          <OptionsManager
-                            options={field.options ?? []}
-                            onChange={(nextOptions) => updateField(field.id, { options: nextOptions })}
-                          />
-                        )}
-
-                        {/* Bottom bar controls */}
-                        <div className="flex flex-wrap items-center justify-between gap-4 pt-3 border-t border-slate-100">
-                          <div className="flex items-center gap-1">
-                            <Button
-                              type="button"
-                              disabled={idx === 0}
-                              onClick={() => moveField(idx, "up")}
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-slate-400 hover:text-slate-900 rounded-lg"
-                            >
-                              <ChevronUp className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              type="button"
-                              disabled={idx === formConfig.fields.length - 1}
-                              onClick={() => moveField(idx, "down")}
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-slate-400 hover:text-slate-900 rounded-lg"
-                            >
-                              <ChevronDown className="h-4 w-4" />
-                            </Button>
-                            <span className="text-[10px] text-slate-400 font-mono select-all ml-2 font-semibold">ID: {field.id}</span>
-                          </div>
-
-                          <div className="flex items-center gap-5">
-                            <div className="flex items-center gap-2">
-                              <Switch
-                                id={`visible-${field.id}`}
-                                checked={field.visible}
-                                onCheckedChange={(v) => updateField(field.id, { visible: v, required: v ? field.required : false })}
-                                className="scale-90"
-                              />
-                              <Label htmlFor={`visible-${field.id}`} className="text-xs font-bold text-slate-500 cursor-pointer">Visible</Label>
-                            </div>
-
-                            {field.visible && (
-                              <div className="flex items-center gap-2">
-                                <Switch
-                                  id={`required-${field.id}`}
-                                  checked={field.required}
-                                  onCheckedChange={(v) => updateField(field.id, { required: v })}
-                                  className="scale-90"
+                      <div className="space-y-2.5 border-t pt-4">
+                        <Label className="text-xs font-bold text-slate-650 block">Accepted Offline Payment Methods</Label>
+                        <div className="grid grid-cols-2 gap-2">
+                          {["cash", "check", "venmo", "zelle", "paypal", "other"].map((m) => {
+                            const active = (config.payments?.acceptedOfflineMethods || []).includes(m as any);
+                            return (
+                              <label key={m} className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer select-none">
+                                <input
+                                  type="checkbox"
+                                  checked={active}
+                                  onChange={() => toggleOfflineMethod(m)}
+                                  className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-4.5 w-4.5"
                                 />
-                                <Label htmlFor={`required-${field.id}`} className="text-xs font-bold text-slate-500 cursor-pointer">Required</Label>
-                              </div>
-                            )}
-
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => removeField(field.id)}
-                              className="h-8 text-xs text-red-500 hover:text-red-700 hover:bg-red-50 gap-1.5 rounded-lg font-bold"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                              {DEFAULT_REGISTRATION_FIELDS.some(f => f.id === field.id) ? "Hide Field" : "Delete"}
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    /* COLLAPSED INACTIVE STATE CARD */
-                    <div 
-                      onClick={() => setFocusedFieldId(field.id)}
-                      className={`border-l-4 border-l-transparent bg-white hover:bg-slate-50/20 border-slate-200 hover:border-slate-300 shadow-sm p-4 rounded-2xl cursor-pointer transition-all duration-200 flex flex-col gap-2.5 relative ${
-                        !field.visible ? "opacity-60" : ""
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <span className="text-xs font-bold text-slate-400 shrink-0">#{idx + 1}</span>
-                          <div className="flex-shrink-0 h-7 w-7 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-center">
-                            {getFieldIcon(field)}
-                          </div>
-                          <span className="text-sm font-semibold text-slate-800 truncate">
-                            {field.label || "Untitled Question"}
-                          </span>
-                          {field.required && (
-                            <span className="text-red-500 font-extrabold text-xs shrink-0" title="Required">*</span>
-                          )}
-                          {!field.visible && (
-                            <span className="bg-slate-100 text-slate-400 text-[9px] font-bold px-1.5 py-0.5 rounded-full border border-slate-200 shrink-0">
-                              Hidden
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="flex items-center gap-3 shrink-0" onClick={(e) => e.stopPropagation()}>
-                          <span className={`text-[10px] font-bold px-2 py-0.5 border rounded-full ${getFieldTagClass(field)}`}>
-                            {field.type === "text" ? "Short Text" : field.type === "number" ? "Number" : field.type === "select" ? "Dropdown" : "Yes/No"}
-                          </span>
-
-                          <div className="flex items-center gap-2.5 border-l pl-2.5 border-slate-100">
-                            <button
-                              type="button"
-                              onClick={() => updateField(field.id, { visible: !field.visible, required: !field.visible ? field.required : false })}
-                              className={`p-1 rounded-md hover:bg-slate-100 transition-colors ${
-                                field.visible ? "text-slate-400 hover:text-slate-700" : "text-slate-300 hover:text-slate-400"
-                              }`}
-                              title={field.visible ? "Hide from players" : "Show to players"}
-                            >
-                              {field.visible ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
-                            </button>
-
-                            {field.visible && (
-                              <button
-                                type="button"
-                                onClick={() => updateField(field.id, { required: !field.required })}
-                                className={`px-1.5 py-0.5 rounded-md hover:bg-slate-100 transition-all text-[10px] font-extrabold leading-none ${
-                                  field.required ? "text-red-600 bg-red-50/50 hover:bg-red-50" : "text-slate-300 hover:text-slate-500"
-                                }`}
-                                title={field.required ? "Make optional" : "Make required"}
-                              >
-                                Req
-                              </button>
-                            )}
-                          </div>
+                                <span className="capitalize">{m}</span>
+                              </label>
+                            );
+                          })}
                         </div>
                       </div>
 
-                      <div className="pl-9 pr-1">
-                        {field.type === "text" || field.type === "number" ? (
-                          <div className="h-8 border border-slate-100 border-dashed rounded-lg bg-slate-50/30 flex items-center px-3 select-none">
-                            <span className="text-xs text-slate-400 truncate font-semibold">{field.placeholder || "Type answer here..."}</span>
-                          </div>
-                        ) : field.type === "select" ? (
-                          <div className="flex flex-wrap gap-1.5 max-h-12 overflow-hidden items-center">
-                            {(field.options && field.options.length > 0) ? (
-                              field.options.map((opt, oIdx) => (
-                                <span key={oIdx} className="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
-                                  {opt}
-                                </span>
-                              ))
-                            ) : (
-                              <span className="text-[10px] text-slate-400 italic">No options defined</span>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-2">
-                            <div className="h-4 w-4 rounded border border-slate-200 bg-slate-50 shrink-0" />
-                            <span className="text-xs text-slate-400 font-semibold">Yes / No Option Checkbox</span>
-                          </div>
-                        )}
+                      <div className="space-y-1.5 border-t pt-4">
+                        <Label className="text-xs font-bold text-slate-650">Offline Payment Instructions</Label>
+                        <textarea
+                          value={config.payments?.offlineInstructions || ""}
+                          onChange={(e) => handlePaymentsChange("offlineInstructions", e.target.value)}
+                          rows={2}
+                          placeholder="e.g. Bring cash/check to the registration desk at 9:30 AM before Round 1 starts."
+                          className="w-full text-xs border rounded-xl p-2.5 bg-white border-slate-200 focus:outline-none focus:border-indigo-500 font-semibold"
+                        />
                       </div>
                     </div>
                   )}
-                </div>
-              );
-            })}
-          </div>
-
-          {/* QUICK ADD BUILDER TOOLBAR */}
-          <div className="sticky bottom-6 z-20 mx-auto flex items-center justify-between gap-2.5 p-2.5 rounded-3xl border border-slate-200/80 bg-white/95 backdrop-blur-md shadow-lg max-w-lg animate-in slide-in-from-bottom-5">
-            <div className="flex items-center gap-1.5 w-full justify-between overflow-x-auto no-scrollbar">
-              <div className="flex items-center gap-1.5 px-3 py-1 bg-slate-100 rounded-2xl shrink-0 whitespace-nowrap">
-                <Plus className="h-3.5 w-3.5 text-slate-600 shrink-0" />
-                <span className="text-[10px] font-extrabold text-slate-700 tracking-wider uppercase whitespace-nowrap">Custom Field</span>
-              </div>
-              
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-8 px-2 text-xs text-slate-700 hover:text-blue-600 hover:bg-blue-50/55 rounded-xl flex items-center gap-1 transition-all font-bold shrink-0 whitespace-nowrap"
-                onClick={() => addCustomQuestionWithType("text")}
-              >
-                <AlignLeft className="h-3.5 w-3.5 text-blue-500 shrink-0" />
-                <span>Text</span>
-              </Button>
-              
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-8 px-2 text-xs text-slate-700 hover:text-blue-600 hover:bg-blue-50/55 rounded-xl flex items-center gap-1 transition-all font-bold shrink-0 whitespace-nowrap"
-                onClick={() => addCustomQuestionWithType("number")}
-              >
-                <Hash className="h-3.5 w-3.5 text-blue-500 shrink-0" />
-                <span>Number</span>
-              </Button>
-              
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-8 px-2 text-xs text-slate-700 hover:text-blue-600 hover:bg-blue-50/55 rounded-xl flex items-center gap-1 transition-all font-bold shrink-0 whitespace-nowrap"
-                onClick={() => addCustomQuestionWithType("select")}
-              >
-                <ListPlus className="h-3.5 w-3.5 text-blue-500 shrink-0" />
-                <span>Dropdown</span>
-              </Button>
-              
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-8 px-2 text-xs text-slate-700 hover:text-blue-600 hover:bg-blue-50/55 rounded-xl flex items-center gap-1 transition-all font-bold shrink-0 whitespace-nowrap"
-                onClick={() => addCustomQuestionWithType("boolean")}
-              >
-                <CheckSquare className="h-3.5 w-3.5 text-blue-500 shrink-0" />
-                <span>Yes/No</span>
-              </Button>
+                </CardContent>
+              </Card>
             </div>
+          )}
+        </div>
+
+        {/* Google Forms-style Sticky Right Floating Toolbar */}
+        {activeSubTab === "questions" && (
+          <div className="sticky top-6 flex flex-col items-center gap-3 p-2 bg-white border border-slate-200 shadow-md rounded-2xl shrink-0 w-12 animate-in fade-in duration-300">
+            {/* Live Preview (Eye Icon) */}
+            {tournamentSlug && (
+              <a
+                href={`/tournaments/${tournamentSlug}/register`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="h-8 w-8 rounded-lg hover:bg-slate-100 text-slate-650 hover:text-sky-600 transition flex items-center justify-center shrink-0"
+                title="Preview registration form"
+              >
+                <Eye className="h-4.5 w-4.5" />
+              </a>
+            )}
+
+            <div className="w-6 border-t border-slate-200" />
+
+            {/* Add question */}
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 rounded-lg hover:bg-slate-100 hover:text-sky-600 transition"
+              title="Add Question"
+              onClick={() => addCustomQuestionWithType("text")}
+            >
+              <Plus className="h-4.5 w-4.5 text-slate-600 hover:text-sky-600" />
+            </Button>
+
+            {/* Add section header */}
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 rounded-lg hover:bg-slate-100 hover:text-sky-600 transition"
+              title="Add Section Divider"
+              onClick={() => addCustomQuestionWithType("section")}
+            >
+              <Type className="h-4.5 w-4.5 text-slate-600 hover:text-sky-600" />
+            </Button>
+
+            <div className="w-6 border-t border-slate-200" />
+
+            {/* Import JSON */}
+            <input ref={importRef} type="file" accept=".json" className="hidden" onChange={handleImportFile} />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 rounded-lg hover:bg-slate-100 hover:text-sky-600 transition"
+              title="Import Form"
+              onClick={handleImportClick}
+            >
+              <FileUp className="h-4.5 w-4.5 text-slate-600" />
+            </Button>
+
+            {/* Export JSON */}
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 rounded-lg hover:bg-slate-100 hover:text-sky-600 transition"
+              title="Export Form"
+              onClick={handleExport}
+            >
+              <FileDown className="h-4.5 w-4.5 text-slate-600" />
+            </Button>
           </div>
-        </div>
-
-        {/* Right Column: Dynamic Form Link & Accordion Prebuilt Shelf */}
-        <div className="space-y-6">
-          {/* Live Registration Link card */}
-          <Card className="border border-blue-100 bg-blue-50/5 shadow-sm rounded-2xl">
-            <CardHeader className="p-4 pb-2">
-              <CardTitle className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                <ExternalLink className="h-4 w-4 text-blue-600" />
-                Live Registration Link
-              </CardTitle>
-              <CardDescription className="text-xs text-slate-500">
-                View and test the active, fully working registration signup form page.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="p-4 pt-2 space-y-3">
-              <div className="flex items-center gap-2 bg-white border border-slate-200 p-2.5 rounded-xl text-xs font-mono text-slate-600 select-all overflow-hidden truncate">
-                <span className="truncate">{registrationUrl}</span>
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={handleCopyLink}
-                  className="flex-1 gap-1.5 text-xs h-9 bg-white border-slate-200 text-slate-700 hover:bg-slate-50 font-bold rounded-xl shadow-sm"
-                >
-                  <Copy className="h-3.5 w-3.5 text-slate-500" />
-                  Copy Link
-                </Button>
-                <Button
-                  type="button"
-                  variant="default"
-                  size="sm"
-                  onClick={() => window.open(registrationUrl, "_blank")}
-                  className="flex-1 gap-1.5 text-xs h-9 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-sm"
-                >
-                  Open Form
-                  <ExternalLink className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Structured One-Click Add Shelf (Closed Accordion Blocks) */}
-          <Card className="border border-slate-200 bg-white shadow-sm rounded-2xl">
-            <CardHeader className="p-4 pb-2">
-              <CardTitle className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                <ListPlus className="h-4 w-4 text-blue-600" />
-                One-Click Add Fields
-              </CardTitle>
-              <CardDescription className="text-xs text-slate-500">
-                Instantly enable standard columns or inject structured questions grouped by category.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="p-4 pt-2 space-y-3">
-              {ONE_CLICK_CATEGORIES.map((category) => (
-                <details 
-                  key={category.id} 
-                  className="group border border-slate-200 rounded-xl bg-white overflow-hidden transition-all duration-200"
-                >
-                  <summary className="flex items-center justify-between p-3 font-semibold text-xs text-slate-700 cursor-pointer select-none bg-slate-50/50 hover:bg-slate-50 transition-colors">
-                    <div className="flex items-center gap-2">
-                      {category.icon}
-                      <span>{category.name}</span>
-                    </div>
-                    <ChevronDown className="h-3.5 w-3.5 text-slate-400 group-open:rotate-180 transition-transform duration-200" />
-                  </summary>
-                  <div className="p-3 border-t border-slate-100 bg-slate-50/10 space-y-2.5">
-                    <p className="text-[10px] text-slate-400 font-medium leading-normal mb-1">{category.description}</p>
-                    <div className="space-y-1.5">
-                      {category.fields.map((f) => {
-                        const exists = formConfig.fields.some(field => field.id === f.id);
-                        const isVisible = exists && formConfig.fields.find(field => field.id === f.id)?.visible;
-                        const isCurrentlyActive = exists && isVisible;
-
-                        return (
-                          <div 
-                            key={f.id} 
-                            className="flex items-center justify-between gap-3 p-2 bg-white border border-slate-150 rounded-xl text-xs shadow-sm hover:border-slate-250 transition-colors"
-                          >
-                            <div className="min-w-0 flex-1 space-y-0.5">
-                              <span className="font-bold text-slate-800 text-[11px] block truncate">{f.label}</span>
-                              <span className="text-[9px] text-slate-400 block leading-normal truncate">{f.description}</span>
-                            </div>
-                            <Button
-                              type="button"
-                              variant={isCurrentlyActive ? "outline" : "default"}
-                              size="sm"
-                              onClick={() => addOrEnableField(f)}
-                              className={`h-7 px-2 text-[10px] font-bold rounded-lg shrink-0 transition-all ${
-                                isCurrentlyActive 
-                                  ? "bg-slate-100 border-slate-200 text-slate-500 hover:bg-slate-150" 
-                                  : "bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
-                              }`}
-                            >
-                              {isCurrentlyActive ? (
-                                <span className="flex items-center gap-1">
-                                  <Check className="h-3 w-3 text-emerald-600 font-extrabold" />
-                                  Active
-                                </span>
-                              ) : (
-                                "Add"
-                              )}
-                            </Button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </details>
-              ))}
-            </CardContent>
-          </Card>
-        </div>
+        )}
       </div>
-      
+
       {actions && (
-        <div className="border-t border-slate-200/60 pt-5 flex items-center justify-end">
+        <div className="border-t border-slate-200 pt-4 flex items-center justify-end">
           {actions}
         </div>
       )}

@@ -36,7 +36,13 @@ export const NO_ENTRY_FEE_ID = "offline-entry-fee";
 export function getFieldConfig(config: any, fieldId: string) {
   const fields = config?.registrationFormConfig?.fields || DEFAULT_REGISTRATION_FIELDS;
   const field = fields.find((f: any) => f.id === fieldId);
-  return field ?? { id: fieldId, label: fieldId, type: "text", required: false, visible: false };
+  const base = field ?? { id: fieldId, label: fieldId, type: "text", required: false, visible: false };
+  if (config?.registers?.verifyUscfMembership) {
+    if (fieldId === "uscfId" || fieldId === "uscfRating") {
+      return { ...base, visible: true, required: true };
+    }
+  }
+  return base;
 }
 
 
