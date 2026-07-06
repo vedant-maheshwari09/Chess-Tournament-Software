@@ -126,6 +126,9 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
   // Check if user owns this tournament
   const isOwner = user?.role === 'tournament_director' && tournament && user && tournament.createdBy === user.id;
 
+  // Derive config early so hooks that depend on it don't hit TDZ
+  const tournamentConfig = useMemo(() => tournament ? parseTournamentConfig(tournament) : null, [tournament]);
+
   // Redirect non-owners to tournament view
   useEffect(() => {
     if (tournament && user && !isOwner) {
@@ -154,7 +157,6 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
   });
 
   const [activeRoundSection, setActiveRoundSection] = useState("all");
-  const tournamentConfig = useMemo(() => tournament ? parseTournamentConfig(tournament) : null, [tournament]);
   const sections = useMemo(() => tournamentConfig?.sections ?? [], [tournamentConfig]);
 
   const [boardNumbering, setBoardNumbering] = useState<BoardNumberingSettings>({});
