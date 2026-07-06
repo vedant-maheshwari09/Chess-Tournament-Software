@@ -133,9 +133,12 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
     }
   }, [tournament, user, isOwner, tournamentId, setLocation]);
 
-  // Ensure activeTab is valid for Arena format
+  // Ensure activeTab is valid for Arena format and registration options
   React.useEffect(() => {
-    const validTabs = ["dashboard", "players", "rounds", "registrations"];
+    const validTabs = ["dashboard", "players", "rounds"];
+    if (tournamentConfig?.registers?.allowSignup !== false) {
+      validTabs.push("registrations");
+    }
     if (tournament?.format !== 'arena') {
       validTabs.push("standings");
     }
@@ -143,7 +146,7 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
     if (!validTabs.includes(activeTab)) {
       setLocation(`/tournaments/${tournament ? slugify(tournament.name) : tournamentId}/manage/dashboard`, { replace: true });
     }
-  }, [tournament?.format, tournament, activeTab, tournamentId, setLocation]);
+  }, [tournament?.format, tournament, tournamentConfig, activeTab, tournamentId, setLocation]);
 
   // Fetch players
   const { data: players = [] } = useQuery<Player[]>({
@@ -517,13 +520,15 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
               <Users className="h-5 w-5" />
               <span className="capitalize">Players</span>
             </TabsTrigger>
-            <TabsTrigger
-              value="registrations"
-              className="flex-none md:flex-1 h-full min-h-[38px] flex items-center justify-center gap-2 px-6 rounded-lg text-center text-sm font-semibold text-slate-500 transition-all data-[state=active]:bg-white data-[state=active]:text-black data-[state=active]:shadow-sm"
-            >
-              <FileText className="h-5 w-5" />
-              <span className="capitalize">Registrations</span>
-            </TabsTrigger>
+            {tournamentConfig?.registers?.allowSignup !== false && (
+              <TabsTrigger
+                value="registrations"
+                className="flex-none md:flex-1 h-full min-h-[38px] flex items-center justify-center gap-2 px-6 rounded-lg text-center text-sm font-semibold text-slate-500 transition-all data-[state=active]:bg-white data-[state=active]:text-black data-[state=active]:shadow-sm"
+              >
+                <FileText className="h-5 w-5" />
+                <span className="capitalize">Registrations</span>
+              </TabsTrigger>
+            )}
             <TabsTrigger
               value="rounds"
               className="flex-none md:flex-1 h-full min-h-[38px] flex items-center justify-center gap-2 px-6 rounded-lg text-center text-sm font-semibold text-slate-500 transition-all data-[state=active]:bg-white data-[state=active]:text-black data-[state=active]:shadow-sm"

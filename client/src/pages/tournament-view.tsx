@@ -311,7 +311,7 @@ export default function TournamentView({ tournamentId }: TournamentViewProps) {
                         tournament.status.charAt(0).toUpperCase() + tournament.status.slice(1)}
                 </Badge>
 
-                {(tournament.status === "upcoming" || tournament.status === "registration") && (
+                {(tournament.status === "upcoming" || tournament.status === "registration") && config.registers?.allowSignup !== false && (
                   hasRegistration ? (
                     config.registers?.allowEditRegistration && (
                       <Button

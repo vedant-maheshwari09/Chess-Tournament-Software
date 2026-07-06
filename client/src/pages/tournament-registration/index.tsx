@@ -118,6 +118,14 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
     () => (tournament ? parseTournamentConfig(tournament) : null),
     [tournament],
   );
+
+  // Redirect if online registration has been disabled by the director
+  useEffect(() => {
+    if (tournament && config && config.registers?.allowSignup === false) {
+      setLocation(`/tournaments/${slugify(tournament.name)}`);
+    }
+  }, [tournament, config, setLocation]);
+
   const multiPlayerAllowed = Boolean(config?.registers?.allowMultiPlayerSignup);
   const existingRegistrations = registrations.filter(
     (entry) => entry.tournamentId === tournamentId && entry.status !== "cancelled" && entry.status !== "declined"
