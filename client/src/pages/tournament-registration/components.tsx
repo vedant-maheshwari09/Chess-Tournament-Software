@@ -81,6 +81,14 @@ export function Field({
   
   const error = getNestedError();
 
+  const isSystemField = typeof name === "string" && [
+    "firstName", "lastName", "email", "uscfId", "fideId", "uscfRating", "fideRating",
+    "address1", "address2", "city", "state", "postalCode", "country",
+    "sectionChoice", "ratingProvider", "pairingNotifications", "notes"
+  ].includes(name);
+
+  const showDescription = description && !isSystemField;
+
   return (
     <div className="group space-y-2">
       <Label className="text-sm font-medium text-slate-700 transition-colors group-focus-within:text-blue-700">
@@ -91,10 +99,10 @@ export function Field({
         placeholder={placeholder}
         type={valueAs === "email" ? "email" : type}
         {...form.register(name, { valueAsNumber: type === "number", disabled: Boolean(disabled) })}
-        className={cn("focus:border-blue-400 focus:ring-blue-200 bg-white", disabled && "bg-slate-50 text-slate-400 cursor-not-allowed")}
+        className={cn("focus:border-blue-400 focus:ring-blue-200 bg-white", disabled && "bg-slate-50/70 text-slate-700 font-medium disabled:opacity-85 cursor-not-allowed border-slate-200")}
         disabled={disabled}
       />
-      {description && (
+      {showDescription && (
         <p className="text-[11px] text-slate-400 leading-normal mt-0.5">{description}</p>
       )}
       {error && <p className="text-xs text-red-500">{error.message as string}</p>}

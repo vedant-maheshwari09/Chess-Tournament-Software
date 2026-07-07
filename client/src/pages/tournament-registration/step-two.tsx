@@ -156,17 +156,11 @@ export default function StepTwo({
 
   return (
     <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-      <div className="flex items-center gap-4 border-b border-gray-100 bg-gray-50/50 px-6 py-5">
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white border border-gray-200 shadow-sm">
-          <Trophy className="h-5 w-5 text-gray-600" />
-        </div>
-        <div>
-          <h2 className="text-lg font-semibold leading-tight text-gray-900">{pageTitle}</h2>
-          <p className="text-sm text-gray-500">
-            {pageSubtitle}
-            {totalPages > 1 ? ` (Page ${pageIndex + 1} of ${totalPages})` : ""}
-          </p>
-        </div>
+      <div className="border-b border-gray-100 bg-gray-50/50 px-6 py-5">
+        <h2 className="text-lg font-semibold leading-tight text-gray-900">{pageTitle}</h2>
+        {pageSubtitle && (
+          <p className="text-sm text-gray-500 mt-0.5">{pageSubtitle}</p>
+        )}
       </div>
 
       <div className="space-y-8 p-6">
@@ -175,6 +169,18 @@ export default function StepTwo({
             {fieldsToRender.map((field: any) => {
               const isCustom = field.isCustom;
               const path = isCustom ? `customAnswers.${field.id}` : field.id;
+
+              // --- HEADING / TEXT BLOCK ---
+              if (field.type === "heading") {
+                return (
+                  <div key={field.id} className="col-span-2 space-y-1 pt-4">
+                    <h3 className="text-base font-bold text-slate-900 tracking-tight">{field.label}</h3>
+                    {field.description && (
+                      <p className="text-xs text-slate-500 leading-normal">{field.description}</p>
+                    )}
+                  </div>
+                );
+              }
 
               // --- ENTRY FEE SELECTION ---
               if (field.id === "entryFee") {
@@ -198,7 +204,7 @@ export default function StepTwo({
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <div>
                         <Label className="text-sm font-bold text-slate-900 tracking-tight">{field.label}</Label>
-                        {field.description && <p className="text-xs font-medium text-slate-500">{field.description}</p>}
+                        {isCustom && field.description && <p className="text-xs font-medium text-slate-500">{field.description}</p>}
                       </div>
                       <Badge variant="outline" className="w-fit border-blue-200 bg-blue-50/70 text-blue-800 font-bold px-3 py-1">
                         {numericRating !== null ? `Live Rating: ${numericRating}` : "Status: Unrated"}
@@ -376,7 +382,7 @@ export default function StepTwo({
                           {field.label}
                           {field.required && <span className="ml-1 text-red-500">*</span>}
                         </Label>
-                        {field.description && (
+                        {isCustom && field.description && (
                           <p className="text-xs leading-relaxed text-slate-500 select-none">
                             {field.description}
                           </p>
@@ -400,7 +406,7 @@ export default function StepTwo({
                         placeholder={field.placeholder || "Share any additional information, companions, or messages for the Director."}
                         {...form.register("notes")}
                       />
-                      {field.description && (
+                      {isCustom && field.description && (
                         <p className="text-[11px] text-slate-400 leading-normal mt-1">{field.description}</p>
                       )}
                       {error && (
@@ -439,7 +445,7 @@ export default function StepTwo({
                           ))}
                         </SelectContent>
                       </Select>
-                      {field.description && (
+                      {isCustom && field.description && (
                         <p className="text-[11px] text-slate-400 leading-normal mt-0.5">{field.description}</p>
                       )}
                       {error && (
@@ -598,7 +604,7 @@ export default function StepTwo({
                         value={form.watch(path as any) ?? ""}
                         onChange={(e) => form.setValue(path as any, e.target.value, { shouldDirty: true, shouldValidate: true })}
                       />
-                      {field.description && (
+                      {isCustom && field.description && (
                         <p className="text-[11px] text-slate-400 leading-normal mt-1">{field.description}</p>
                       )}
                       {error && (
@@ -634,7 +640,7 @@ export default function StepTwo({
                          <SelectItem value="none">No notifications</SelectItem>
                        </SelectContent>
                      </Select>
-                     {field.description && (
+                     {isCustom && field.description && (
                        <p className="text-[11px] text-slate-400 leading-normal mt-0.5">{field.description}</p>
                      )}
                      {error && (
@@ -653,7 +659,7 @@ export default function StepTwo({
                      required={field.required}
                      placeholder={field.placeholder || `Enter ${field.label}...`}
                      type={field.type === "number" ? "number" : "text"}
-                     description={field.description}
+                     description={isCustom ? field.description : undefined}
                    />
                  </div>
                );

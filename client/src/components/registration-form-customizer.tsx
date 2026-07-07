@@ -88,7 +88,11 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
       };
     }
 
-    if (!saved.migratedToSystemFields || !saved.fields.some(f => f.id === "playerSearch" || f.id === "paymentFlow")) {
+    if (
+      !saved.migratedToSystemFields || 
+      !saved.fields.some(f => f.id === "playerSearch" || f.id === "paymentFlow") ||
+      !saved.fields.some(f => f.id === "playerIdentityHeading" || f.id === "contactInfoHeading" || f.id === "sectionRatingHeading")
+    ) {
       const fieldIds = new Set(saved.fields.map(f => f.id));
       let nextFields = [...saved.fields];
 
@@ -130,6 +134,19 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
         else nextFields.unshift(newField);
       }
 
+      if (!fieldIds.has("playerIdentityHeading")) {
+        const idx = nextFields.findIndex(f => f.id === "firstName");
+        const newField = {
+          id: "playerIdentityHeading",
+          label: "Player Identity",
+          type: "heading" as const,
+          required: false,
+          visible: true,
+        };
+        if (idx !== -1) nextFields.splice(idx, 0, newField); // Place right before firstName
+        else nextFields.unshift(newField);
+      }
+
       if (!fieldIds.has("email")) {
         const idx = nextFields.findIndex(f => f.id === "lastName");
         const newField = {
@@ -145,6 +162,19 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
         else nextFields.unshift(newField);
       }
 
+      if (!fieldIds.has("contactInfoHeading")) {
+        const idx = nextFields.findIndex(f => f.id === "email");
+        const newField = {
+          id: "contactInfoHeading",
+          label: "Contact Information",
+          type: "heading" as const,
+          required: false,
+          visible: true,
+        };
+        if (idx !== -1) nextFields.splice(idx, 0, newField); // Place right before email
+        else nextFields.unshift(newField);
+      }
+
       if (!fieldIds.has("sectionChoice")) {
         const idx = nextFields.findIndex(f => f.id === "email");
         const newField = {
@@ -156,6 +186,19 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
           description: "Choose the section you want to play in."
         };
         if (idx !== -1) nextFields.splice(idx + 1, 0, newField);
+        else nextFields.unshift(newField);
+      }
+
+      if (!fieldIds.has("sectionRatingHeading")) {
+        const idx = nextFields.findIndex(f => f.id === "sectionChoice");
+        const newField = {
+          id: "sectionRatingHeading",
+          label: "Section & Rating",
+          type: "heading" as const,
+          required: false,
+          visible: true,
+        };
+        if (idx !== -1) nextFields.splice(idx, 0, newField); // Place right before sectionChoice
         else nextFields.unshift(newField);
       }
 
@@ -316,15 +359,16 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
       date: "Untitled Date Question",
       time: "Untitled Time Question",
       number: "Untitled Number Question",
-      section: "Untitled Section Divider"
+      section: "Untitled Section Divider",
+      heading: "Untitled Heading"
     };
 
     const newField: RegistrationFormField = {
-      id: `${type === "section" ? "section" : "custom"}_${Date.now()}`,
+      id: `${(type === "section" || type === "heading") ? type : "custom"}_${Date.now()}`,
       label: defaultLabels[type] || "Untitled Question",
       type,
       placeholder: (type === "text" || type === "number" || type === "paragraph") ? "Short answer text" : undefined,
-      description: type === "section" ? "Section description (optional)" : "Question helper text",
+      description: (type === "section" || type === "heading") ? "Subtitle or description text (optional)" : "Question helper text",
       required: false,
       visible: true,
       isCustom: true,
@@ -517,7 +561,10 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
                     field.id === "preferencesSection" ||
                     field.id === "checkoutSection" ||
                     field.id === "playerSearch" ||
-                    field.id === "paymentFlow";
+                    field.id === "paymentFlow" ||
+                    field.id === "playerIdentityHeading" ||
+                    field.id === "contactInfoHeading" ||
+                    field.id === "sectionRatingHeading";
                   
                   return (
                     <div 
@@ -551,7 +598,8 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
                                   boolean: "",
                                   date: "",
                                   time: "",
-                                  section: ""
+                                  section: "",
+                                  heading: ""
                                 };
                                 updateField(field.id, {
                                   type: val,
@@ -574,6 +622,7 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
                                 <SelectItem value="date">Date</SelectItem>
                                 <SelectItem value="time">Time</SelectItem>
                                 <SelectItem value="section">Section Divider</SelectItem>
+                                <SelectItem value="heading">Heading / Title</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
@@ -581,12 +630,12 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
                           {/* Question Description / Helper Text */}
                           <div className="space-y-1">
                             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                              {field.type === "section" ? "Section Subtitle / Description" : "Helper Text"}
+                              {(field.type === "section" || field.type === "heading") ? "Section Subtitle / Description" : "Helper Text"}
                             </label>
                             <Input
                               value={field.description ?? ""}
                               onChange={(e) => updateField(field.id, { description: e.target.value })}
-                              placeholder={field.type === "section" ? "Subtitle or description for this page/step..." : "Explain or provide hints for this field..."}
+                              placeholder={(field.type === "section" || field.type === "heading") ? "Subtitle or description for this page/step..." : "Explain or provide hints for this field..."}
                               className="h-8 text-xs border-transparent hover:border-slate-200 focus:border-sky-500 rounded-lg"
                             />
                           </div>
@@ -638,6 +687,16 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
                                 <p className="text-xs text-slate-500 leading-relaxed font-medium">
                                   This block acts as a dynamic page/step break in the registration wizard. All fields located below this divider card will be automatically grouped into the next step/page of the signup form.
                                 </p>
+                              </div>
+                            )}
+
+                            {field.type === "heading" && (
+                              <div className="bg-slate-50 border border-slate-200 border-dashed rounded-xl p-4 space-y-2">
+                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Heading / Text Block Preview</span>
+                                <h3 className="text-sm font-extrabold text-slate-800">{field.label || "Untitled Heading"}</h3>
+                                {field.description && (
+                                  <p className="text-xs text-slate-500 font-medium leading-relaxed">{field.description}</p>
+                                )}
                               </div>
                             )}
 
@@ -721,6 +780,12 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
                                     ? "This starts the Preferences page/step, prompting for bye requests, arrival times, and pairing notification settings."
                                     : field.id === "checkoutSection"
                                     ? "This starts the Checkout/Review page/step, prompting the user for payment and final confirmation."
+                                    : field.id === "playerIdentityHeading"
+                                    ? "This heading introduces the Player Identity section (first name, last name, federation IDs)."
+                                    : field.id === "contactInfoHeading"
+                                    ? "This heading introduces the Contact Information section (email address)."
+                                    : field.id === "sectionRatingHeading"
+                                    ? "This heading introduces the Section & Rating preferences."
                                     : "This is a system configuration block."}
                                 </p>
                               </div>
@@ -1162,7 +1227,19 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
               <Plus className="h-4.5 w-4.5 text-slate-600 hover:text-sky-600" />
             </Button>
 
-            {/* Add section header */}
+            {/* Add heading/title */}
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 rounded-lg hover:bg-slate-100 hover:text-sky-600 transition"
+              title="Add Heading / Title"
+              onClick={() => addCustomQuestionWithType("heading")}
+            >
+              <Type className="h-4.5 w-4.5 text-slate-600 hover:text-sky-600" />
+            </Button>
+
+            {/* Add section divider */}
             <Button
               type="button"
               variant="ghost"
@@ -1171,7 +1248,7 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
               title="Add Section Divider"
               onClick={() => addCustomQuestionWithType("section")}
             >
-              <Type className="h-4.5 w-4.5 text-slate-600 hover:text-sky-600" />
+              <SeparatorHorizontal className="h-4.5 w-4.5 text-slate-600 hover:text-sky-600" />
             </Button>
 
             <div className="w-6 border-t border-slate-200" />

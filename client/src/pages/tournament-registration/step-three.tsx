@@ -318,16 +318,11 @@ function StepThreeContent({
 
   return (
     <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-      <div className="flex items-center gap-4 border-b border-gray-100 bg-gray-50/50 px-6 py-5">
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white border border-gray-200 shadow-sm">
-          <Wallet className="h-5 w-5 text-gray-600" />
-        </div>
-        <div>
-          <h2 className="text-lg font-semibold leading-tight text-gray-900">Payment &amp; Review</h2>
-          <p className="text-sm text-gray-500">
-            Step 3 of 3: {requiresPayment ? "Complete registration with secure checkout" : "Confirm and submit your registration"}
-          </p>
-        </div>
+      <div className="border-b border-gray-100 bg-gray-50/50 px-6 py-5">
+        <h2 className="text-lg font-semibold leading-tight text-gray-900">Payment &amp; Review</h2>
+        <p className="text-sm text-gray-500 mt-0.5">
+          {requiresPayment ? "Complete registration with secure checkout" : "Confirm and submit your registration"}
+        </p>
       </div>
 
       <div className="space-y-6 p-6">

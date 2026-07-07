@@ -212,16 +212,11 @@ export default function StepOne({
 
   return (
     <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-      <div className="flex items-center gap-4 border-b border-gray-100 bg-gray-50/50 px-6 py-5">
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white border border-gray-200 shadow-sm">
-          <Search className="h-5 w-5 text-gray-600" />
-        </div>
-        <div>
-          <h2 className="text-lg font-semibold leading-tight text-gray-900">{lookupTitle}</h2>
-          {lookupDescription && (
-            <p className="text-sm text-gray-500 mt-0.5">{lookupDescription}</p>
-          )}
-        </div>
+      <div className="border-b border-gray-100 bg-gray-50/50 px-6 py-5">
+        <h2 className="text-lg font-semibold leading-tight text-gray-900">{lookupTitle}</h2>
+        {lookupDescription && (
+          <p className="text-sm text-gray-500 mt-0.5">{lookupDescription}</p>
+        )}
       </div>
 
       <div className="space-y-8 p-6 sm:p-8">
@@ -369,12 +364,14 @@ export default function StepOne({
         )}
 
         <div className="space-y-3">
-          <h3 className="text-sm font-medium text-slate-700">
-            Player Identity
-            {config?.registers?.strictAutofillOnly && (
-              <span className="ml-1.5 text-[11px] font-normal text-sky-600">(Profile search autofill required)</span>
-            )}
-          </h3>
+          {getFieldConfig(config, "playerIdentityHeading").visible !== false && (
+            <h3 className="text-base font-bold text-slate-900 tracking-tight">
+              {getFieldConfig(config, "playerIdentityHeading").label || "Player Identity"}
+              {config?.registers?.strictAutofillOnly && (
+                <span className="ml-1.5 text-[11px] font-normal text-sky-600">(Profile search autofill required)</span>
+              )}
+            </h3>
+          )}
           <div className="grid gap-5 sm:grid-cols-2">
             {getFieldConfig(config, "firstName").visible && (
               <Field
@@ -432,7 +429,11 @@ export default function StepOne({
 
         {getFieldConfig(config, "email").visible && (
           <div className="space-y-3 pt-2">
-            <h3 className="text-sm font-semibold text-slate-800">Contact Information</h3>
+            {getFieldConfig(config, "contactInfoHeading").visible !== false && (
+              <h3 className="text-base font-bold text-slate-900 tracking-tight">
+                {getFieldConfig(config, "contactInfoHeading").label || "Contact Information"}
+              </h3>
+            )}
             <div className="grid gap-5 sm:grid-cols-2">
               <Field
                 label={getFieldConfig(config, "email").label}
@@ -448,10 +449,14 @@ export default function StepOne({
 
         {(getFieldConfig(config, "sectionChoice").visible || getFieldConfig(config, "ratingProvider").visible) && (
           <div className="space-y-3 pt-2">
-            <h3 className="text-sm font-semibold text-slate-800">Section &amp; Rating</h3>
+            {getFieldConfig(config, "sectionRatingHeading").visible !== false && (
+              <h3 className="text-base font-bold text-slate-900 tracking-tight">
+                {getFieldConfig(config, "sectionRatingHeading").label || "Section & Rating"}
+              </h3>
+            )}
             <div className="grid gap-5 sm:grid-cols-2">
               {getFieldConfig(config, "sectionChoice").visible && (
-                <div>
+                <div className="space-y-2">
                   <Label className="text-sm font-medium text-slate-700">
                     {getFieldConfig(config, "sectionChoice").label}
                     {getFieldConfig(config, "sectionChoice").required && <span className="ml-1 text-red-500">*</span>}
@@ -474,13 +479,13 @@ export default function StepOne({
                           const showEligibilityWarning = numericRating !== null && !eligible;
                           return (
                             <SelectItem
-                              key={section.id}
-                              value={section.name}
-                              disabled={showEligibilityWarning}
-                              className={cn(
-                                "flex flex-col items-start gap-1",
-                                showEligibilityWarning && "opacity-45 text-slate-400",
-                              )}
+                               key={section.id}
+                               value={section.name}
+                               disabled={showEligibilityWarning}
+                               className={cn(
+                                 "flex flex-col items-start gap-1",
+                                 showEligibilityWarning && "opacity-45 text-slate-400",
+                               )}
                             >
                               <span className="font-medium text-slate-900">{section.label}</span>
                               {(section.ratingMin !== null || section.ratingMax !== null) && (
@@ -504,13 +509,10 @@ export default function StepOne({
                   {form.formState.errors.sectionChoice && (
                     <p className="mt-1 text-xs text-red-500">{form.formState.errors.sectionChoice.message}</p>
                   )}
-                  {getFieldConfig(config, "sectionChoice").description && (
-                    <p className="mt-1 text-xs text-slate-400 font-medium">{getFieldConfig(config, "sectionChoice").description}</p>
-                  )}
                 </div>
               )}
               {getFieldConfig(config, "ratingProvider").visible && (
-                <div>
+                <div className="space-y-2">
                   <Label className="text-sm font-medium text-slate-700">
                     {getFieldConfig(config, "ratingProvider").label}
                     {getFieldConfig(config, "ratingProvider").required && <span className="ml-1 text-red-500">*</span>}
@@ -531,9 +533,6 @@ export default function StepOne({
                       <SelectItem value="manual">Manual</SelectItem>
                     </SelectContent>
                   </Select>
-                  {getFieldConfig(config, "ratingProvider").description && (
-                    <p className="mt-1 text-xs text-slate-400 font-medium">{getFieldConfig(config, "ratingProvider").description}</p>
-                  )}
                 </div>
               )}
             </div>

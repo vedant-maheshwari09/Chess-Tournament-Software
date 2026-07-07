@@ -120,6 +120,73 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
     [tournament],
   );
 
+  const hasLookupStep = config?.registers?.entryRequirementType !== "casual";
+
+  const steps = useMemo(() => {
+    if (!config) return [];
+    const fields = config.registrationFormConfig?.fields || DEFAULT_REGISTRATION_FIELDS;
+    const visibleFields = fields.filter(f => f.visible);
+
+    // Group fields into pages based on type === "section"
+    const pages: any[] = [];
+    let currentPageFields: RegistrationFormField[] = [];
+    let currentPageSection: RegistrationFormField | null = null;
+
+    for (const field of visibleFields) {
+      if (field.type === "section") {
+        if (currentPageFields.length > 0 || currentPageSection) {
+          pages.push({
+            section: currentPageSection,
+            fields: currentPageFields,
+          });
+        }
+        currentPageSection = field;
+        currentPageFields = [];
+      } else {
+        currentPageFields.push(field);
+      }
+    }
+    if (currentPageFields.length > 0 || currentPageSection) {
+      pages.push({
+        section: currentPageSection,
+        fields: currentPageFields,
+      });
+    }
+
+    // Map pages to step definitions
+    let detailsCount = 0;
+    return pages.map((page, idx) => {
+      const isCheckout = page.section?.id === "checkoutSection";
+      const isLookup = page.section?.id === "lookupSection" || (!page.section && page.fields.some((f: any) => f.id === "firstName" || f.id === "lastName"));
+      
+      let type: "lookup" | "details" | "checkout" = "details";
+      if (isCheckout) type = "checkout";
+      else if (isLookup && config.registers?.entryRequirementType !== "casual") type = "lookup";
+
+      let pageIndex = 0;
+      if (type === "details") {
+        pageIndex = detailsCount;
+        detailsCount++;
+      }
+
+      return {
+        type,
+        pageIndex,
+        sectionId: page.section?.id || `section-${idx}`,
+        section: page.section,
+        title: page.section?.label || `Page ${idx + 1}`,
+        description: page.section?.description || "Complete registration details",
+        fields: page.fields,
+      };
+    });
+  }, [config, hasLookupStep]);
+
+  const totalSteps = steps.length;
+  const progressPercentage = totalSteps > 1 ? ((currentStep - 1) / (totalSteps - 1)) * 100 : 100;
+  const stepMeta = useMemo(() => {
+    return steps.map(s => ({ title: s.title, description: s.description }));
+  }, [steps]);
+
   // Redirect if online registration has been disabled by the director
   useEffect(() => {
     if (tournament && config && config.registers?.allowSignup === false) {
@@ -369,10 +436,10 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
   }, [canProcessOnline, form, paymentTotals.currency, paymentTotals.total]);
 
   useEffect(() => {
-    if (currentStep !== 3) {
+    if (currentStep !== totalSteps) {
       setIsPaymentElementReady(false);
     }
-  }, [currentStep]);
+  }, [currentStep, totalSteps]);
 
   useEffect(() => {
     // CRITICAL for group registrations: If we have multiple registrations, load them into playerDrafts
@@ -593,7 +660,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
 
       queryClient.invalidateQueries({ queryKey: ["/api/my-registrations"] });
       queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/players`] });
-      setCurrentStep(3);
+      setCurrentStep(totalSteps);
       paymentSubmitRef.current = null;
       setClientSecret(null);
       paymentIntentRequestKeyRef.current = null;
@@ -712,7 +779,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
   }, [canProcessOnline, createPaymentIntent, form, clientSecret, requiresPayment, toast, allDraftValues]);
 
   useEffect(() => {
-    if (currentStep !== 3) {
+    if (currentStep !== totalSteps) {
       return;
     }
     if (!canProcessOnline) {
@@ -806,7 +873,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
       const newUrl = window.location.pathname;
       window.history.replaceState({}, '', newUrl);
 
-      setCurrentStep(3);
+      setCurrentStep(totalSteps);
     },
     onError: (error: Error) => {
       toast({
@@ -905,73 +972,6 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
     (requiresPayment && canProcessOnline && (!clientSecret || createPaymentIntent.isPending || !isPaymentElementReady));
 
   // ===== Hooks must be declared before any conditional returns =====
-  const hasLookupStep = config?.registers?.entryRequirementType !== "casual";
-
-  const steps = useMemo(() => {
-    if (!config) return [];
-    const fields = config.registrationFormConfig?.fields || DEFAULT_REGISTRATION_FIELDS;
-    const visibleFields = fields.filter(f => f.visible);
-
-    // Group fields into pages based on type === "section"
-    const pages: any[] = [];
-    let currentPageFields: RegistrationFormField[] = [];
-    let currentPageSection: RegistrationFormField | null = null;
-
-    for (const field of visibleFields) {
-      if (field.type === "section") {
-        if (currentPageFields.length > 0 || currentPageSection) {
-          pages.push({
-            section: currentPageSection,
-            fields: currentPageFields,
-          });
-        }
-        currentPageSection = field;
-        currentPageFields = [];
-      } else {
-        currentPageFields.push(field);
-      }
-    }
-    if (currentPageFields.length > 0 || currentPageSection) {
-      pages.push({
-        section: currentPageSection,
-        fields: currentPageFields,
-      });
-    }
-
-    // Map pages to step definitions
-    let detailsCount = 0;
-    return pages.map((page, idx) => {
-      const isCheckout = page.section?.id === "checkoutSection";
-      const isLookup = page.section?.id === "lookupSection" || (!page.section && page.fields.some((f: any) => f.id === "firstName" || f.id === "lastName"));
-      
-      let type: "lookup" | "details" | "checkout" = "details";
-      if (isCheckout) type = "checkout";
-      else if (isLookup && config.registers?.entryRequirementType !== "casual") type = "lookup";
-
-      let pageIndex = 0;
-      if (type === "details") {
-        pageIndex = detailsCount;
-        detailsCount++;
-      }
-
-      return {
-        type,
-        pageIndex,
-        sectionId: page.section?.id || `section-${idx}`,
-        section: page.section,
-        title: page.section?.label || `Page ${idx + 1}`,
-        description: page.section?.description || "Complete registration details",
-        fields: page.fields,
-      };
-    });
-  }, [config, hasLookupStep]);
-
-  const totalSteps = steps.length;
-  const progressPercentage = totalSteps > 1 ? ((currentStep - 1) / (totalSteps - 1)) * 100 : 100;
-  const stepMeta = useMemo(() => {
-    return steps.map(s => ({ title: s.title, description: s.description }));
-  }, [steps]);
-  // ===== End hooks block =====
 
   if (isLoading) {
     return (
@@ -1504,10 +1504,10 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
 
             {/* ===== Form Title Card (Google Forms style) ===== */}
             <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-              <div className="h-2.5 rounded-t-xl bg-sky-500" />
+              <div className="h-2.5 rounded-t-xl bg-primary" />
               <div className="px-7 py-6">
                 <h1 className="text-2xl font-normal tracking-tight text-slate-900">
-                  {config?.registrationFormConfig?.formTitle || `${tournament.name} — Registration`}
+                  {config?.registrationFormConfig?.formTitle || `${tournament.name} Registration Form`}
                 </h1>
                 <p className="mt-2 text-sm text-slate-500 leading-relaxed">
                   {config?.registrationFormConfig?.formDescription ||
@@ -1516,8 +1516,8 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
               </div>
             </div>
 
-                {/* ===== Multi-player roster panel (Hidden in Step 3 to avoid double summary) ===== */}
-                {multiPlayerAllowed && currentStep < 3 && (playerDrafts.length > 0 || editingDraftId) && (
+                {/* ===== Multi-player roster panel (Hidden in checkout step to avoid double summary) ===== */}
+                {multiPlayerAllowed && currentStep < totalSteps && (playerDrafts.length > 0 || editingDraftId) && (
                   <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
                     <div className="flex items-center gap-4 border-b border-gray-100 bg-gray-50/50 px-6 py-4">
                       <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white border border-gray-200 shadow-sm">
@@ -1587,8 +1587,8 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
                         );
                       })}
 
-                      {/* Current in-progress info bar (not in Step 3) */}
-                      {!editingDraftId && currentStep < 3 && (
+                      {/* Current in-progress info bar (not in checkout step) */}
+                      {!editingDraftId && currentStep < totalSteps && (
                         <div className="flex items-center gap-3 bg-gray-50 border-t border-dashed border-gray-200 px-6 py-3">
                           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-dashed border-gray-300 bg-white text-xs font-medium text-gray-400">
                             {playerDrafts.length + 1}
@@ -1840,25 +1840,25 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
                     {currentStep > 1 && currentStep < totalSteps && (
                       <Button
                         type="button"
-                        variant="ghost"
+                        variant="secondary"
                         onClick={handlePrevStep}
-                        className="h-10 px-4 text-sm font-semibold text-slate-500 hover:bg-slate-100 rounded-lg transition"
+                        className="h-10 px-4 text-sm font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200/80 rounded-lg transition shadow-sm border border-slate-200/40"
                       >
                         Back
                       </Button>
                     )}
                   </div>
                   <div className="flex items-center gap-3">
-                    {!existingRegistration && currentStep < totalSteps && (
+                    {currentStep < totalSteps && (
                       <Button
                         type="button"
-                        variant="ghost"
+                        variant="secondary"
                         onClick={handleSaveDraft}
                         className={cn(
-                          "h-10 px-4 text-sm font-medium transition rounded-lg",
+                          "h-10 px-4 text-sm font-medium transition rounded-lg shadow-sm border",
                           draftSavedFlash
-                            ? "text-emerald-600 hover:bg-emerald-50"
-                            : "text-slate-500 hover:bg-slate-100",
+                            ? "bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100"
+                            : "bg-slate-100 border-slate-200/40 text-slate-700 hover:bg-slate-200/80",
                         )}
                       >
                         {draftSavedFlash ? "Saved!" : "Save Draft"}
@@ -1868,7 +1868,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
                       <Button
                         type="button"
                         onClick={handleNextStep}
-                        className="h-10 px-6 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 shadow-sm rounded-lg transition"
+                        className="h-10 px-6 text-sm font-semibold text-white bg-primary hover:bg-primary/90 shadow-sm rounded-lg transition"
                       >
                         Continue
                       </Button>
@@ -1877,7 +1877,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
                         type="button"
                         disabled={disableSubmitButton || !paymentAcknowledged}
                         onClick={handleFinalSubmit}
-                        className="h-10 px-6 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 shadow-sm rounded-lg transition"
+                        className="h-10 px-6 text-sm font-semibold text-white bg-primary hover:bg-primary/90 shadow-sm rounded-lg transition"
                       >
                         {registerMutation.isPending || groupRegisterMutation.isPending ? (
                           "Submitting..."

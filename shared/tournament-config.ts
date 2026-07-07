@@ -216,7 +216,7 @@ export interface PaymentSettings {
 export interface RegistrationFormField {
   id: string;
   label: string;
-  type: "text" | "number" | "boolean" | "select" | "paragraph" | "radio" | "checkbox" | "date" | "time" | "section";
+  type: "text" | "number" | "boolean" | "select" | "paragraph" | "radio" | "checkbox" | "date" | "time" | "section" | "heading";
   options?: string[];
   required: boolean;
   visible: boolean;
@@ -251,6 +251,13 @@ export const DEFAULT_REGISTRATION_FIELDS: RegistrationFormField[] = [
     description: "Search by player name or Chess ID to auto-fill details."
   },
   {
+    id: "playerIdentityHeading",
+    label: "Player Identity",
+    type: "heading",
+    required: false,
+    visible: true,
+  },
+  {
     id: "firstName",
     label: "First Name",
     type: "text",
@@ -267,31 +274,6 @@ export const DEFAULT_REGISTRATION_FIELDS: RegistrationFormField[] = [
     visible: true,
     placeholder: "e.g. Doe",
     description: "Enter your last name (as it appears on your chess ID)."
-  },
-  {
-    id: "email",
-    label: "Email Address",
-    type: "text",
-    required: true,
-    visible: true,
-    placeholder: "e.g. john.doe@example.com",
-    description: "We will send pairing notifications and receipts here."
-  },
-  {
-    id: "sectionChoice",
-    label: "Preferred Section",
-    type: "select",
-    required: true,
-    visible: true,
-    description: "Choose the section you want to play in."
-  },
-  {
-    id: "ratingProvider",
-    label: "Rating Provider",
-    type: "select",
-    required: true,
-    visible: true,
-    description: "Select where we should verify your rating."
   },
   { 
     id: "uscfId", 
@@ -310,6 +292,45 @@ export const DEFAULT_REGISTRATION_FIELDS: RegistrationFormField[] = [
     visible: true,
     placeholder: "e.g. 1500021",
     description: "Your official World Chess Federation ID (if applicable)."
+  },
+  {
+    id: "contactInfoHeading",
+    label: "Contact Information",
+    type: "heading",
+    required: false,
+    visible: true,
+  },
+  {
+    id: "email",
+    label: "Email Address",
+    type: "text",
+    required: true,
+    visible: true,
+    placeholder: "e.g. john.doe@example.com",
+    description: "We will send pairing notifications and receipts here."
+  },
+  {
+    id: "sectionRatingHeading",
+    label: "Section & Rating",
+    type: "heading",
+    required: false,
+    visible: true,
+  },
+  {
+    id: "sectionChoice",
+    label: "Preferred Section",
+    type: "select",
+    required: true,
+    visible: true,
+    description: "Choose the section you want to play in."
+  },
+  {
+    id: "ratingProvider",
+    label: "Rating Provider",
+    type: "select",
+    required: true,
+    visible: true,
+    description: "Select where we should verify your rating."
   },
   {
     id: "detailsSection",
