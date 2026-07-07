@@ -728,7 +728,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
   });
 
   const ensurePaymentIntent = useCallback(async () => {
-    if (!canProcessOnline || createPaymentIntent.isPending) {
+    if (!canProcessOnline || createPaymentIntent.isPending || !requiresPayment) {
       return;
     }
 
@@ -785,7 +785,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
     if (currentStep !== totalSteps) {
       return;
     }
-    if (!canProcessOnline) {
+    if (!canProcessOnline || !requiresPayment) {
       setIsPaymentElementReady(true);
       return;
     }
@@ -793,6 +793,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
   }, [
     currentStep,
     canProcessOnline,
+    requiresPayment,
     ensurePaymentIntent,
     watchEntryFeeId,
     watchContribution,
