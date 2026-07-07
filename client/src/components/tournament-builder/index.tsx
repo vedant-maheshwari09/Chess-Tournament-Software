@@ -58,6 +58,7 @@ export function TournamentBuilder({
 
       if (nextMode === "online") {
         registers.allowSignup = true;
+        registers.allowPlayerToJoin = true;
         registers.fideRated = false;
         registers.uscfRated = false;
       } else if (nextMode === "unrated") {

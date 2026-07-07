@@ -171,13 +171,17 @@ export default function TournamentSettingsPage({ tournamentId, section }: Tourna
 
   const updateRegisters = (update: Partial<RegistersConfig>) => {
     if (!config) return;
+    const finalUpdate = { ...update };
+    if ("allowSignup" in update) {
+      finalUpdate.allowPlayerToJoin = update.allowSignup;
+    }
     setConfig((prev) => {
       if (!prev) return prev;
       const next = {
         ...prev,
         registers: {
           ...prev.registers,
-          ...update,
+          ...finalUpdate,
         },
       };
       return next;

@@ -904,6 +904,75 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
     isPaymentBusy ||
     (requiresPayment && canProcessOnline && (!clientSecret || createPaymentIntent.isPending || !isPaymentElementReady));
 
+  // ===== Hooks must be declared before any conditional returns =====
+  const hasLookupStep = config?.registers?.entryRequirementType !== "casual";
+
+  const steps = useMemo(() => {
+    if (!config) return [];
+    const fields = config.registrationFormConfig?.fields || DEFAULT_REGISTRATION_FIELDS;
+    const visibleFields = fields.filter(f => f.visible);
+
+    // Group fields into pages based on type === "section"
+    const pages: any[] = [];
+    let currentPageFields: RegistrationFormField[] = [];
+    let currentPageSection: RegistrationFormField | null = null;
+
+    for (const field of visibleFields) {
+      if (field.type === "section") {
+        if (currentPageFields.length > 0 || currentPageSection) {
+          pages.push({
+            section: currentPageSection,
+            fields: currentPageFields,
+          });
+        }
+        currentPageSection = field;
+        currentPageFields = [];
+      } else {
+        currentPageFields.push(field);
+      }
+    }
+    if (currentPageFields.length > 0 || currentPageSection) {
+      pages.push({
+        section: currentPageSection,
+        fields: currentPageFields,
+      });
+    }
+
+    // Map pages to step definitions
+    let detailsCount = 0;
+    return pages.map((page, idx) => {
+      const isCheckout = page.section?.id === "checkoutSection";
+      const isLookup = page.section?.id === "lookupSection" || (!page.section && page.fields.some((f: any) => f.id === "firstName" || f.id === "lastName"));
+      
+      let type: "lookup" | "details" | "checkout" = "details";
+      if (isCheckout) type = "checkout";
+      else if (isLookup && config.registers?.entryRequirementType !== "casual") type = "lookup";
+
+      let pageIndex = 0;
+      if (type === "details") {
+        pageIndex = detailsCount;
+        detailsCount++;
+      }
+
+      return {
+        type,
+        pageIndex,
+        sectionId: page.section?.id || `section-${idx}`,
+        section: page.section,
+        title: page.section?.label || `Page ${idx + 1}`,
+        description: page.section?.description || "Complete registration details",
+        fields: page.fields,
+      };
+    });
+  }, [config, hasLookupStep]);
+
+  const totalSteps = steps.length;
+  const progressPercentage = totalSteps > 1 ? ((currentStep - 1) / (totalSteps - 1)) * 100 : 100;
+  const stepMeta = useMemo(() => {
+    return steps.map(s => ({ title: s.title, description: s.description }));
+  }, [steps]);
+  // ===== End hooks block =====
+
   if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#f7f6f3]">
@@ -1032,72 +1101,6 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
   const endDateText = formatDate(config.basic.endDate ?? config.basic.startDate);
   const playerCount = players.length;
   const playerLimit = config.registers?.playerLimit ?? null;
-  const hasLookupStep = config?.registers?.entryRequirementType !== "casual";
-
-  const steps = useMemo(() => {
-    if (!config) return [];
-    const fields = config.registrationFormConfig?.fields || DEFAULT_REGISTRATION_FIELDS;
-    const visibleFields = fields.filter(f => f.visible);
-
-    // Group fields into pages based on type === "section"
-    const pages: any[] = [];
-    let currentPageFields: RegistrationFormField[] = [];
-    let currentPageSection: RegistrationFormField | null = null;
-
-    for (const field of visibleFields) {
-      if (field.type === "section") {
-        if (currentPageFields.length > 0 || currentPageSection) {
-          pages.push({
-            section: currentPageSection,
-            fields: currentPageFields,
-          });
-        }
-        currentPageSection = field;
-        currentPageFields = [];
-      } else {
-        currentPageFields.push(field);
-      }
-    }
-    if (currentPageFields.length > 0 || currentPageSection) {
-      pages.push({
-        section: currentPageSection,
-        fields: currentPageFields,
-      });
-    }
-
-    // Map pages to step definitions
-    let detailsCount = 0;
-    return pages.map((page, idx) => {
-      const isCheckout = page.section?.id === "checkoutSection";
-      const isLookup = page.section?.id === "lookupSection" || (!page.section && page.fields.some((f: any) => f.id === "firstName" || f.id === "lastName"));
-      
-      let type: "lookup" | "details" | "checkout" = "details";
-      if (isCheckout) type = "checkout";
-      else if (isLookup && config.registers?.entryRequirementType !== "casual") type = "lookup";
-
-      let pageIndex = 0;
-      if (type === "details") {
-        pageIndex = detailsCount;
-        detailsCount++;
-      }
-
-      return {
-        type,
-        pageIndex,
-        sectionId: page.section?.id || `section-${idx}`,
-        section: page.section,
-        title: page.section?.label || `Page ${idx + 1}`,
-        description: page.section?.description || "Complete registration details",
-        fields: page.fields,
-      };
-    });
-  }, [config, hasLookupStep]);
-
-  const totalSteps = steps.length;
-  const progressPercentage = totalSteps > 1 ? ((currentStep - 1) / (totalSteps - 1)) * 100 : 100;
-  const stepMeta = useMemo(() => {
-    return steps.map(s => ({ title: s.title, description: s.description }));
-  }, [steps]);
 
   const validateStepFields = async (step: typeof steps[number]): Promise<boolean> => {
     let isValid = true;

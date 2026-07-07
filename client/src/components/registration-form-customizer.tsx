@@ -417,11 +417,13 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
   };
 
   const handleRegistersChange = (key: keyof RegistersConfig, value: any) => {
+    const extra = key === "allowSignup" ? { allowPlayerToJoin: value } : {};
     onConfigChange({
       ...config,
       registers: {
         ...config.registers,
-        [key]: value
+        [key]: value,
+        ...extra
       }
     });
   };

@@ -211,8 +211,13 @@ export default function StepTwo({
     updateDetails({ assistantTDs });
   };
 
-  const updateRegisters = (updates: Partial<TournamentConfig["registers"]>) =>
-    onConfigChange({ ...config, registers: { ...config.registers, ...updates } });
+  const updateRegisters = (updates: Partial<TournamentConfig["registers"]>) => {
+    const finalUpdates = { ...updates };
+    if ("allowSignup" in updates) {
+      finalUpdates.allowPlayerToJoin = updates.allowSignup;
+    }
+    onConfigChange({ ...config, registers: { ...config.registers, ...finalUpdates } });
+  };
 
   const updatePayments = (updates: Partial<TournamentConfig["payments"]>) =>
     onConfigChange({ ...config, payments: { ...config.payments, ...updates } });
@@ -2074,27 +2079,15 @@ export default function StepTwo({
                       <h3 className="text-base font-semibold text-black">Registration Policy</h3>
                       <p className="text-sm text-slate-500">Configure entry rules and participant interface options.</p>
                     </div>
-
                     <div className="grid gap-4 md:grid-cols-2">
                       <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/30 px-5 py-4 transition-all hover:bg-slate-50/50">
                         <div className="space-y-0.5">
                           <Label className="text-base font-medium text-black">Allow Online Registrations</Label>
-                          <p className="text-xs text-slate-500 font-normal">Allow users to register and sign up for this tournament online.</p>
+                           <p className="text-xs text-slate-500 font-normal">Allow users to register and sign up for this tournament online.</p>
                         </div>
                         <Switch
                           checked={Boolean(config.registers.allowSignup !== false)}
                           onCheckedChange={(checked) => updateRegisters({ allowSignup: checked })}
-                        />
-                      </div>
-
-                      <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/30 px-5 py-4 transition-all hover:bg-slate-50/50">
-                        <div className="space-y-0.5">
-                          <Label className="text-base font-medium text-black">Online Registration</Label>
-                          <p className="text-xs text-slate-500 font-normal">Allow players to self-register online.</p>
-                        </div>
-                        <Switch
-                          checked={config.registers.allowPlayerToJoin}
-                          onCheckedChange={(checked) => updateRegisters({ allowPlayerToJoin: checked })}
                         />
                       </div>
 
