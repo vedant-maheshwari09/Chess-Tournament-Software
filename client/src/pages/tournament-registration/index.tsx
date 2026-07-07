@@ -374,9 +374,6 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
   const canProcessOnline = Boolean(paymentSettings?.onlineEnabled && paymentsConfigResponse?.onlineConfigured && stripePromise);
   const offlineMethodsConfigured = paymentSettings?.acceptedOfflineMethods ?? [];
   const offlineAllowed = offlineMethodsConfigured.length > 0;
-  const requiresPayment = Boolean(
-    canProcessOnline && (paymentSettings?.requirePaymentOnRegistration || !offlineAllowed),
-  );
 
   const [watchEntryFeeId, watchContribution, watchFirstName, watchLastName, watchEmail, watchCustomAnswers] = form.watch([
     "entryFeeId",
@@ -422,6 +419,12 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
       currency: paymentTotals.currency
     });
   }, [playerDrafts, entryFees, paymentSettings, paymentTotals, multiPlayerAllowed]);
+
+  const requiresPayment = Boolean(
+    canProcessOnline &&
+    (paymentSettings?.requirePaymentOnRegistration || !offlineAllowed) &&
+    (multiPlayerAllowed && playerDrafts.length > 0 ? groupPaymentTotals.total > 0 : paymentTotals.total > 0)
+  );
 
   useEffect(() => {
     if (!canProcessOnline) {
