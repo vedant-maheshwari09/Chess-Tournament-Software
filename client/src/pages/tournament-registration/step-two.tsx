@@ -656,7 +656,7 @@ export default function StepTwo({
                return (
                  <div key={field.id} className="col-span-1">
                    <Field
-                     label={field.label}
+                    label={field.label}
                      name={path}
                      required={field.required}
                      placeholder={field.placeholder || `Enter ${field.label}...`}
@@ -666,6 +666,49 @@ export default function StepTwo({
                  </div>
                );
              })}
+          </div>
+        )}
+
+        {/* Prize Payout Details */}
+        {pageIndex === totalPages - 1 && config?.registers?.collectPrizePayoutDetails !== false && (
+          <div className="space-y-4 border-t border-slate-100 pt-6 col-span-2">
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 tracking-tight">Prize Payout Details</h3>
+              <p className="text-xs text-slate-500 mt-1">
+                Provide your Stripe and direct payout information. The tournament director will use this if you win a cash prize.
+              </p>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="prizeStripeEmail" className="text-xs font-semibold text-slate-700">Stripe Email Address</Label>
+                <Input
+                  id="prizeStripeEmail"
+                  type="email"
+                  placeholder="email@example.com"
+                  {...form.register("customAnswers.prizeStripeEmail")}
+                  className="bg-white border-slate-200 focus:ring-blue-200 focus:border-blue-400"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="prizeBankRouting" className="text-xs font-semibold text-slate-700">Bank Routing Number</Label>
+                <Input
+                  id="prizeBankRouting"
+                  placeholder="9-digit routing number"
+                  {...form.register("customAnswers.prizeBankRouting")}
+                  className="bg-white border-slate-200 focus:ring-blue-200 focus:border-blue-400"
+                />
+              </div>
+              <div className="col-span-2 space-y-2">
+                <Label htmlFor="prizeBankAccount" className="text-xs font-semibold text-slate-700">Bank Account Number</Label>
+                <Input
+                  id="prizeBankAccount"
+                  type="password"
+                  placeholder="Account number"
+                  {...form.register("customAnswers.prizeBankAccount")}
+                  className="bg-white border-slate-200 focus:ring-blue-200 focus:border-blue-400"
+                />
+              </div>
+            </div>
           </div>
         )}
       </div>

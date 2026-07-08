@@ -42,7 +42,6 @@ function TournamentRouteWrapper({
 }) {
   const { user } = useAuth();
   const [, setLocation] = useLocation();
-  const isNumeric = /^\d+$/.test(idParam);
 
   // Security check: If requireDirector is true and user is not a tournament director, deny access
   if (requireDirector && user?.role !== 'tournament_director') {
@@ -54,42 +53,7 @@ function TournamentRouteWrapper({
     return <>{children(0)}</>;
   }
 
-  if (isNumeric) {
-    // If it's a numeric ID, fetch the tournament to get its slug and redirect
-    const tournamentId = parseInt(idParam, 10);
-    const { data: tournament, isLoading, error } = useQuery<any>({
-      queryKey: [`/api/tournaments/${tournamentId}`],
-      retry: false,
-    });
-
-    if (isLoading) {
-      return (
-        <div className="min-h-screen flex items-center justify-center bg-transparent backdrop-blur-md">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
-            <p className="mt-4 text-slate-600 font-medium">Redirecting to slugified link...</p>
-          </div>
-        </div>
-      );
-    }
-
-    if (error || !tournament) {
-      return <Redirect to="/not-found" />;
-    }
-
-    // Secondary security check
-    if (requireDirector && tournament.createdBy !== user?.id && user?.role !== 'admin') {
-      return <Redirect to="/dashboard" />;
-    }
-
-    const slug = slugify(tournament.name);
-    // Construct new path replacing the numeric tournament ID with the slug
-    const currentPath = window.location.pathname;
-    const newPath = currentPath.replace(`/tournaments/${idParam}`, `/tournaments/${slug}`);
-    return <Redirect to={newPath} replace />;
-  }
-
-  // If it's a slug, query by-name to resolve the ID
+  // Query by-name/ID endpoint to resolve the tournament
   const { data: tournament, isLoading, error } = useQuery<any>({
     queryKey: [`/api/tournaments/by-name/${idParam}`],
     retry: false,
@@ -126,6 +90,15 @@ function TournamentRouteWrapper({
   // Security check: check ownership of tournament if requireDirector is true
   if (requireDirector && tournament.createdBy !== user?.id && user?.role !== 'admin') {
     return <Redirect to={`/tournaments/${idParam}`} />;
+  }
+
+  // Check if we accessed the tournament using its numeric ID instead of its slugified name.
+  // If so, redirect to the slugified path.
+  const slug = slugify(tournament.name);
+  if (slug !== idParam) {
+    const currentPath = window.location.pathname;
+    const newPath = currentPath.replace(`/tournaments/${idParam}`, `/tournaments/${slug}`);
+    return <Redirect to={newPath} replace />;
   }
 
   return <>{children(tournament.id)}</>;
@@ -178,6 +151,8 @@ function AuthenticatedApp() {
     return null; // prevent rendering other routes until redirect completes
   }
 
+  const isDirector = (user as any)?.role === 'tournament_director';
+
   return (
     <>
       <AnimatedBackground />
@@ -199,7 +174,6 @@ function AuthenticatedApp() {
         </div>
       ) : (
         <div className="min-h-screen bg-transparent">
-          {/* Role-based Routing */}
           <Switch>
             <Route path="/login">
               <Redirect to="/" />
@@ -215,166 +189,163 @@ function AuthenticatedApp() {
             <Route path="/settings" component={SettingsPage} />
             <Route path="/onboarding" component={OnboardingPage} />
             <Route path="/messages" component={MessagesDashboard} />
-            {(user as any)?.role === 'tournament_director' ? (
-              <>
-                <Route path="/">
-                  <Redirect to="/dashboard/drafts" />
-                </Route>
-                <Route path="/dashboard">
-                  <Redirect to="/dashboard/drafts" />
-                </Route>
-                <Route path="/dashboard/:tab" component={TournamentDirectorDashboard} />
-                <Route path="/subscribers" component={SubscribersModerationPage} />
-                <Route path="/directors/:id">
-                  {(params) => <DirectorProfilePage directorId={parseInt(params.id)} />}
-                </Route>
-                <Route path="/tournaments/new" component={TournamentCreation} />
-                <Route path="/tournaments/:id/manage/:tab/*">
-                  {(params) => (
-                    <TournamentRouteWrapper idParam={params.id} requireDirector>
-                      {(resolvedId) => <TournamentManagement tournamentId={resolvedId} />}
-                    </TournamentRouteWrapper>
-                  )}
-                </Route>
-                <Route path="/tournaments/:id/manage/:tab">
-                  {(params) => (
-                    <TournamentRouteWrapper idParam={params.id} requireDirector>
-                      {(resolvedId) => <TournamentManagement tournamentId={resolvedId} />}
-                    </TournamentRouteWrapper>
-                  )}
-                </Route>
-                <Route path="/tournaments/:id/manage">
-                  {(params) => (
-                    <TournamentRouteWrapper idParam={params.id} requireDirector>
-                      {() => <Redirect to={`/tournaments/${params.id}/manage/dashboard`} />}
-                    </TournamentRouteWrapper>
-                  )}
-                </Route>
-                <Route path="/tournaments/:id/settings/:section">
-                  {(params) => (
-                    <TournamentRouteWrapper idParam={params.id} requireDirector>
-                      {(resolvedId) => <TournamentActionsPage tournamentId={resolvedId} />}
-                    </TournamentRouteWrapper>
-                  )}
-                </Route>
-                <Route path="/tournaments/:id/settings">
-                  {(params) => (
-                    <TournamentRouteWrapper idParam={params.id} requireDirector>
-                      {(resolvedId) => <TournamentActionsPage tournamentId={resolvedId} />}
-                    </TournamentRouteWrapper>
-                  )}
-                </Route>
-                <Route path="/tournaments/:id/reports/uscf">
-                  {(params) => (
-                    <TournamentRouteWrapper idParam={params.id} requireDirector>
-                      {(resolvedId) => <TournamentReportsPage tournamentId={resolvedId} type="uscf" />}
-                    </TournamentRouteWrapper>
-                  )}
-                </Route>
-                <Route path="/tournaments/:id/reports/fide">
-                  {(params) => (
-                    <TournamentRouteWrapper idParam={params.id} requireDirector>
-                      {(resolvedId) => <TournamentReportsPage tournamentId={resolvedId} type="fide" />}
-                    </TournamentRouteWrapper>
-                  )}
-                </Route>
-                <Route path="/tournaments/:id/players/new">
-                  {(params) => (
-                    <TournamentRouteWrapper idParam={params.id} requireDirector>
-                      {(resolvedId) => <AddPlayerPage tournamentId={resolvedId} />}
-                    </TournamentRouteWrapper>
-                  )}
-                </Route>
-                <Route path="/tournaments/:id/players/:playerId">
-                  {(params) => (
-                    <TournamentRouteWrapper idParam={params.id} requireDirector>
-                      {(resolvedId) => (
-                        <AddPlayerPage
-                          tournamentId={resolvedId}
-                          playerId={parseInt(params.playerId)}
-                        />
-                      )}
-                    </TournamentRouteWrapper>
-                  )}
-                </Route>
-                <Route path="/tournaments/:id/register">
-                  {(params) => (
-                    <TournamentRouteWrapper idParam={params.id}>
-                      {(resolvedId) => <TournamentRegistrationFormPage tournamentId={resolvedId} />}
-                    </TournamentRouteWrapper>
-                  )}
-                </Route>
-                <Route path="/tournaments/:id/payments/setup">
-                  {(params) => (
-                    <TournamentRouteWrapper idParam={params.id} requireDirector>
-                      {(resolvedId) => <TournamentPaymentSetupPage tournamentId={resolvedId} />}
-                    </TournamentRouteWrapper>
-                  )}
-                </Route>
-                <Route path="/tournaments/:id/:tab/*">
-                  {(params) => (
-                    <TournamentRouteWrapper idParam={params.id}>
-                      {(resolvedId) => <TournamentView tournamentId={resolvedId} />}
-                    </TournamentRouteWrapper>
-                  )}
-                </Route>
-                <Route path="/tournaments/:id/:tab">
-                  {(params) => (
-                    <TournamentRouteWrapper idParam={params.id}>
-                      {(resolvedId) => <TournamentView tournamentId={resolvedId} />}
-                    </TournamentRouteWrapper>
-                  )}
-                </Route>
-                <Route path="/tournaments/:id">
-                  {(params) => (
-                    <TournamentRouteWrapper idParam={params.id}>
-                      {() => <Redirect to={`/tournaments/${params.id}/info`} />}
-                    </TournamentRouteWrapper>
-                  )}
-                </Route>
-              </>
-            ) : (
-              <>
-                <Route path="/">
-                  <Redirect to="/dashboard/ongoing" />
-                </Route>
-                <Route path="/dashboard">
-                  <Redirect to="/dashboard/ongoing" />
-                </Route>
-                <Route path="/dashboard/:tab" component={PlayerDashboard} />
-                <Route path="/directors/:id">
-                  {(params) => <DirectorProfilePage directorId={parseInt(params.id)} />}
-                </Route>
-                <Route path="/tournaments/:id/register">
-                  {(params) => (
-                    <TournamentRouteWrapper idParam={params.id}>
-                      {(resolvedId) => <TournamentRegistrationFormPage tournamentId={resolvedId} />}
-                    </TournamentRouteWrapper>
-                  )}
-                </Route>
-                <Route path="/tournaments/:id/:tab/*">
-                  {(params) => (
-                    <TournamentRouteWrapper idParam={params.id}>
-                      {(resolvedId) => <TournamentView tournamentId={resolvedId} />}
-                    </TournamentRouteWrapper>
-                  )}
-                </Route>
-                <Route path="/tournaments/:id/:tab">
-                  {(params) => (
-                    <TournamentRouteWrapper idParam={params.id}>
-                      {(resolvedId) => <TournamentView tournamentId={resolvedId} />}
-                    </TournamentRouteWrapper>
-                  )}
-                </Route>
-                <Route path="/tournaments/:id">
-                  {(params) => (
-                    <TournamentRouteWrapper idParam={params.id}>
-                      {() => <Redirect to={`/tournaments/${params.id}/info`} />}
-                    </TournamentRouteWrapper>
-                  )}
-                </Route>
-              </>
+
+            {/* Dashboard Redirects */}
+            <Route path="/">
+              {isDirector ? <Redirect to="/dashboard/drafts" /> : <Redirect to="/dashboard/ongoing" />}
+            </Route>
+            <Route path="/dashboard">
+              {isDirector ? <Redirect to="/dashboard/drafts" /> : <Redirect to="/dashboard/ongoing" />}
+            </Route>
+
+            {/* Director Specific Dashboard & Subscriber routes */}
+            {isDirector && (
+              <Route path="/dashboard/:tab" component={TournamentDirectorDashboard} />
             )}
+            {isDirector && (
+              <Route path="/subscribers" component={SubscribersModerationPage} />
+            )}
+
+            {/* Player Specific Dashboard */}
+            {!isDirector && (
+              <Route path="/dashboard/:tab" component={PlayerDashboard} />
+            )}
+
+            {/* Director Profile page (accessible by both) */}
+            <Route path="/directors/:id">
+              {(params) => <DirectorProfilePage directorId={parseInt(params.id)} />}
+            </Route>
+
+            {/* Director Specific Tournament management/creation routes */}
+            {isDirector && (
+              <Route path="/tournaments/new" component={TournamentCreation} />
+            )}
+            {isDirector && (
+              <Route path="/tournaments/:id/manage/:tab/*">
+                {(params) => (
+                  <TournamentRouteWrapper idParam={params.id} requireDirector>
+                    {(resolvedId) => <TournamentManagement tournamentId={resolvedId} />}
+                  </TournamentRouteWrapper>
+                )}
+              </Route>
+            )}
+            {isDirector && (
+              <Route path="/tournaments/:id/manage/:tab">
+                {(params) => (
+                  <TournamentRouteWrapper idParam={params.id} requireDirector>
+                    {(resolvedId) => <TournamentManagement tournamentId={resolvedId} />}
+                  </TournamentRouteWrapper>
+                )}
+              </Route>
+            )}
+            {isDirector && (
+              <Route path="/tournaments/:id/manage">
+                {(params) => (
+                  <TournamentRouteWrapper idParam={params.id} requireDirector>
+                    {() => <Redirect to={`/tournaments/${params.id}/manage/dashboard`} />}
+                  </TournamentRouteWrapper>
+                )}
+              </Route>
+            )}
+            {isDirector && (
+              <Route path="/tournaments/:id/settings/:section">
+                {(params) => (
+                  <TournamentRouteWrapper idParam={params.id} requireDirector>
+                    {(resolvedId) => <TournamentActionsPage tournamentId={resolvedId} />}
+                  </TournamentRouteWrapper>
+                )}
+              </Route>
+            )}
+            {isDirector && (
+              <Route path="/tournaments/:id/settings">
+                {(params) => (
+                  <TournamentRouteWrapper idParam={params.id} requireDirector>
+                    {(resolvedId) => <TournamentActionsPage tournamentId={resolvedId} />}
+                  </TournamentRouteWrapper>
+                )}
+              </Route>
+            )}
+            {isDirector && (
+              <Route path="/tournaments/:id/reports/uscf">
+                {(params) => (
+                  <TournamentRouteWrapper idParam={params.id} requireDirector>
+                    {(resolvedId) => <TournamentReportsPage tournamentId={resolvedId} type="uscf" />}
+                  </TournamentRouteWrapper>
+                )}
+              </Route>
+            )}
+            {isDirector && (
+              <Route path="/tournaments/:id/reports/fide">
+                {(params) => (
+                  <TournamentRouteWrapper idParam={params.id} requireDirector>
+                    {(resolvedId) => <TournamentReportsPage tournamentId={resolvedId} type="fide" />}
+                  </TournamentRouteWrapper>
+                )}
+              </Route>
+            )}
+            {isDirector && (
+              <Route path="/tournaments/:id/players/new">
+                {(params) => (
+                  <TournamentRouteWrapper idParam={params.id} requireDirector>
+                    {(resolvedId) => <AddPlayerPage tournamentId={resolvedId} />}
+                  </TournamentRouteWrapper>
+                )}
+              </Route>
+            )}
+            {isDirector && (
+              <Route path="/tournaments/:id/players/:playerId">
+                {(params) => (
+                  <TournamentRouteWrapper idParam={params.id} requireDirector>
+                    {(resolvedId) => (
+                      <AddPlayerPage
+                        tournamentId={resolvedId}
+                        playerId={parseInt(params.playerId)}
+                      />
+                    )}
+                  </TournamentRouteWrapper>
+                )}
+              </Route>
+            )}
+            {isDirector && (
+              <Route path="/tournaments/:id/payments/setup">
+                {(params) => (
+                  <TournamentRouteWrapper idParam={params.id} requireDirector>
+                    {(resolvedId) => <TournamentPaymentSetupPage tournamentId={resolvedId} />}
+                  </TournamentRouteWrapper>
+                )}
+              </Route>
+            )}
+
+            {/* General Tournament Registration & View (Accessible by both) */}
+            <Route path="/tournaments/:id/register">
+              {(params) => (
+                <TournamentRouteWrapper idParam={params.id}>
+                  {(resolvedId) => <TournamentRegistrationFormPage tournamentId={resolvedId} />}
+                </TournamentRouteWrapper>
+              )}
+            </Route>
+            <Route path="/tournaments/:id/:tab/*">
+              {(params) => (
+                <TournamentRouteWrapper idParam={params.id}>
+                  {(resolvedId) => <TournamentView tournamentId={resolvedId} />}
+                </TournamentRouteWrapper>
+              )}
+            </Route>
+            <Route path="/tournaments/:id/:tab">
+              {(params) => (
+                <TournamentRouteWrapper idParam={params.id}>
+                  {(resolvedId) => <TournamentView tournamentId={resolvedId} />}
+                </TournamentRouteWrapper>
+              )}
+            </Route>
+            <Route path="/tournaments/:id">
+              {(params) => (
+                <TournamentRouteWrapper idParam={params.id}>
+                  {() => <Redirect to={`/tournaments/${params.id}/info`} />}
+                </TournamentRouteWrapper>
+              )}
+            </Route>
+
             <Route component={NotFound} />
           </Switch>
         </div>

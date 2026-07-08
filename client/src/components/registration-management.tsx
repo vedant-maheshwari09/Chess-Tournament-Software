@@ -120,7 +120,10 @@ export default function RegistrationManagement({ tournamentId, tournament }: Reg
     
     return Object.entries(answers).map(([key, value]) => {
       const configField = fields.find(f => f.id === key);
-      const label = configField ? configField.label : key.replace(/^(custom_)/, "").replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+      let label = configField ? configField.label : key.replace(/^(custom_)/, "").replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+      if (key === "prizeStripeEmail") label = "Prize Stripe Email";
+      if (key === "prizeBankRouting") label = "Prize Bank Routing Number";
+      if (key === "prizeBankAccount") label = "Prize Bank Account Number";
       
       let displayValue = "";
       if (typeof value === "boolean") {

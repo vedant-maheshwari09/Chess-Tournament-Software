@@ -68,6 +68,23 @@ export function applyRegistrationsRoutes(app: Express) {
       }
       const payloadArray = z.array(playerRegistrationSchema).parse(req.body);
 
+      // Validate requested byes against tournament configurations
+      for (const payload of payloadArray) {
+        if (payload.byePreference === "yes" && payload.byeRounds && payload.byeRounds.length > 0) {
+          const limit = config.registers.byeLimit ?? 2;
+          if (payload.byeRounds.length > limit) {
+            return res.status(400).json({ error: `Player ${payload.playerName} cannot request more than ${limit} bye(s).` });
+          }
+          if (config.registers.allowLastRoundBye === false) {
+            const totalRounds = config.details.rounds ?? 0;
+            const lastRoundLabel = `Round ${totalRounds}`;
+            if (payload.byeRounds.includes(lastRoundLabel)) {
+              return res.status(400).json({ error: `Player ${payload.playerName} cannot request a half-point bye for the final round.` });
+            }
+          }
+        }
+      }
+
       // Check payment intent for the whole batch based on the first item since the cart shares it
       const sampleItem = payloadArray[0];
       const results: any[] = [];
@@ -301,6 +318,22 @@ export function applyRegistrationsRoutes(app: Express) {
 
       const payments = config.payments;
       const payload = playerRegistrationSchema.parse(req.body ?? {});
+
+      // Validate requested byes against tournament configurations
+      if (payload.byePreference === "yes" && payload.byeRounds && payload.byeRounds.length > 0) {
+        const limit = config.registers.byeLimit ?? 2;
+        if (payload.byeRounds.length > limit) {
+          return res.status(400).json({ error: `You cannot request more than ${limit} bye(s).` });
+        }
+        if (config.registers.allowLastRoundBye === false) {
+          const totalRounds = config.details.rounds ?? 0;
+          const lastRoundLabel = `Round ${totalRounds}`;
+          if (payload.byeRounds.includes(lastRoundLabel)) {
+            return res.status(400).json({ error: "Half-point byes for the final round are not allowed." });
+          }
+        }
+      }
+
       const offlineAllowed = (payments.acceptedOfflineMethods ?? []).length > 0;
       const mustCompletePayment = payments.onlineEnabled && (payments.requirePaymentOnRegistration || !offlineAllowed);
 

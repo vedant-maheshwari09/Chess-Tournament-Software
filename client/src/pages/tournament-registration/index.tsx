@@ -37,6 +37,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 import { apiRequest } from "@/lib/queryClient";
 
 import {
@@ -87,6 +88,7 @@ import { Field } from "./components";
 
 
 export default function TournamentRegistrationFormPage({ tournamentId }: TournamentRegistrationFormProps) {
+  const { user } = useAuth();
   const [, setLocation] = useLocation();
   const searchString = useSearch();
   const queryClient = useQueryClient();
@@ -499,6 +501,22 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
       }
     }
   }, [existingRegistrations, draftRestored, playerDrafts.length, editingDraftId, form, setPlayerDrafts]);
+
+  useEffect(() => {
+    if (user && !draftRestored) {
+      const payment = (user.paymentSettings as any) || {};
+      if (payment.prizePaymentEnabled) {
+        const answers = form.getValues("customAnswers") || {};
+        const updatedAnswers = {
+          ...answers,
+          prizeStripeEmail: payment.prizeStripeEmail || user.email || "",
+          prizeBankRouting: payment.prizeBankRouting || "",
+          prizeBankAccount: payment.prizeBankAccount || "",
+        };
+        form.setValue("customAnswers", updatedAnswers, { shouldDirty: false });
+      }
+    }
+  }, [user, draftRestored, form]);
 
   // --- Restore draft from localStorage on initial mount ---
   useEffect(() => {

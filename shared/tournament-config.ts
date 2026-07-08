@@ -50,6 +50,7 @@ export interface RegistersConfig {
   ratedSystem?: "uscf" | "fide" | "both" | "either";
   strictAutofillOnly?: boolean;
   allowLastRoundBye?: boolean;
+  collectPrizePayoutDetails?: boolean;
 }
 
 export interface FideRegistrationData {
@@ -438,11 +439,11 @@ export const DEFAULT_REGISTRATION_FIELDS: RegistrationFormField[] = [
   },
   {
     id: "pairingNotifications",
-    label: "Pairing Notifications",
+    label: "Notification Preference",
     type: "select",
     required: false,
     visible: true,
-    description: "Receive text/email alerts for pairings and results."
+    description: "Receive pairings, standings, and tournament updates."
   },
   {
     id: "checkoutSection",

@@ -230,11 +230,11 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
       if (!fieldIds.has("pairingNotifications")) {
         nextFields.push({
           id: "pairingNotifications",
-          label: "Pairing Notifications",
+          label: "Notification Preference",
           type: "select" as const,
           required: false,
           visible: true,
-          description: "Receive text/email alerts for pairings and results."
+          description: "Receive pairings, standings, and tournament updates."
         });
       }
 
@@ -956,6 +956,52 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
                     <Switch
                       checked={Boolean(config.registers?.allowEditRegistration)}
                       onCheckedChange={(checked) => handleRegistersChange("allowEditRegistration", checked)}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between border-t pt-4">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm font-bold text-slate-800">Collect Prize Payout Details</Label>
+                      <p className="text-xs text-slate-500 leading-normal font-semibold">Ask players for their Stripe email and bank info during registration to facilitate direct payouts.</p>
+                    </div>
+                    <Switch
+                      checked={config.registers?.collectPrizePayoutDetails !== false}
+                      onCheckedChange={(checked) => handleRegistersChange("collectPrizePayoutDetails", checked)}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Bye Request Settings */}
+              <Card className="rounded-2xl border bg-white shadow-sm overflow-hidden">
+                <CardHeader className="bg-slate-50/50 p-5 border-b">
+                  <CardTitle className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                    <CheckSquare className="h-4.5 w-4.5 text-slate-500" />
+                    Bye Request Settings
+                  </CardTitle>
+                  <CardDescription className="text-xs font-semibold text-slate-500">Configure parameters for requesting byes before the event starts.</CardDescription>
+                </CardHeader>
+                <CardContent className="p-5 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm font-bold text-slate-800">Allow Last Round Bye</Label>
+                      <p className="text-xs text-slate-500 leading-normal font-semibold">Allow players to request half-point byes for the final round.</p>
+                    </div>
+                    <Switch
+                      checked={config.registers?.allowLastRoundBye !== false}
+                      onCheckedChange={(checked) => handleRegistersChange("allowLastRoundBye", checked)}
+                    />
+                  </div>
+
+                  <div className="space-y-2 border-t pt-4">
+                    <Label className="text-sm font-bold text-slate-800 block">Maximum Bye Limit</Label>
+                    <p className="text-xs text-slate-500 leading-normal font-semibold mb-2">Maximum number of half-point or zero-point byes a player is allowed to request.</p>
+                    <Input
+                      type="number"
+                      value={config.registers?.byeLimit ?? 2}
+                      onChange={(e) => handleRegistersChange("byeLimit", parseInt(e.target.value, 10) || 0)}
+                      className="w-32 h-10 text-xs border-slate-200 rounded-xl"
+                      min={0}
                     />
                   </div>
                 </CardContent>

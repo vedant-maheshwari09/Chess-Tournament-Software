@@ -129,7 +129,7 @@ export default function StepOne({
         const params = new URLSearchParams({ q: term, limit: "10" });
         const response = (await apiRequest(`/api/rating-lookup?${params.toString()}`)) as RatingLookupResponse;
         if (cancelled) return;
-        const combined = response.uscf ?? [];
+        const combined = [...(response.uscf ?? []), ...(response.fide ?? [])];
         setRemoteResults(combined);
         const mergedErrors = response.errors
           ? Object.values(response.errors)
@@ -189,12 +189,24 @@ export default function StepOne({
       form.setValue("ratingProvider", "uscf", { shouldDirty: true });
       form.setValue("uscfId", result.id, { shouldDirty: true });
       form.setValue("uscfRating", result.ratingDisplay ?? result.rating ?? "", { shouldDirty: true });
+      
       if (result.location) {
-        form.setValue("state", result.location, { shouldDirty: true, shouldValidate: true });
+        const parts = result.location.split(",").map(s => s.trim());
+        if (parts.length >= 2) {
+          form.setValue("city", parts[0], { shouldDirty: true, shouldValidate: true });
+          form.setValue("state", parts[1], { shouldDirty: true, shouldValidate: true });
+        } else if (parts.length === 1 && parts[0].length === 2) {
+          form.setValue("state", parts[0], { shouldDirty: true, shouldValidate: true });
+          form.setValue("city", "", { shouldDirty: true });
+        } else {
+          form.setValue("city", parts[0], { shouldDirty: true, shouldValidate: true });
+          form.setValue("state", "", { shouldDirty: true });
+        }
       } else {
         form.setValue("state", "", { shouldDirty: true });
+        form.setValue("city", "", { shouldDirty: true });
       }
-      form.setValue("city", "", { shouldDirty: true });
+      
       if (result.metadata?.expiration) {
         form.setValue("customAnswers.uscfExpiration", result.metadata.expiration, { shouldDirty: true });
       }
