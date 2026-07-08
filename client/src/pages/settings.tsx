@@ -44,6 +44,12 @@ export default function SettingsPage() {
   const [notifyPairings, setNotifyPairings] = useState<boolean>(user?.notifyPairings ?? true);
   const [notifyRegistration, setNotifyRegistration] = useState<boolean>(user?.notifyRegistration ?? true);
   const [notifyTournamentStatus, setNotifyTournamentStatus] = useState<boolean>(user?.notifyTournamentStatus ?? true);
+
+  const [prizePaymentEnabled, setPrizePaymentEnabled] = useState<boolean>(true);
+  const [prizeStripeEmail, setPrizeStripeEmail] = useState<string>("");
+  const [prizeBankRouting, setPrizeBankRouting] = useState<string>("");
+  const [prizeBankAccount, setPrizeBankAccount] = useState<string>("");
+  const [isSavingPrizePayment, setIsSavingPrizePayment] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -149,6 +155,12 @@ export default function SettingsPage() {
     setLastName(user?.lastName ?? "");
     setOrganizationName(user?.organizationName ?? "");
     setProfilePicture(user?.profilePicture ?? "");
+
+    const payment = (user?.paymentSettings as any) || {};
+    setPrizePaymentEnabled(payment.prizePaymentEnabled ?? true);
+    setPrizeStripeEmail(payment.prizeStripeEmail ?? user?.email ?? "");
+    setPrizeBankRouting(payment.prizeBankRouting ?? "");
+    setPrizeBankAccount(payment.prizeBankAccount ?? "");
   }, [user, updatePreferencesMutation.isPending]);
 
   const updateProfileMutation = useMutation({
@@ -201,6 +213,35 @@ export default function SettingsPage() {
       lastName,
       organizationName: user?.role === 'tournament_director' ? organizationName : undefined
     });
+  };
+
+  const handleSavePrizePayment = async () => {
+    setIsSavingPrizePayment(true);
+    try {
+      const response = await apiRequest("/api/auth/profile/prize-payment", {
+        method: "PATCH",
+        body: JSON.stringify({
+          prizePaymentEnabled,
+          prizeStripeEmail,
+          prizeBankRouting,
+          prizeBankAccount,
+        }),
+      });
+      const data = await response.json();
+      queryClient.setQueryData(["/api/auth/me"], data);
+      toast({
+        title: "Payout details saved",
+        description: "Your prize payment preferences have been updated successfully.",
+      });
+    } catch (err: any) {
+      toast({
+        title: "Failed to save details",
+        description: err.message || "An error occurred while updating payout settings.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSavingPrizePayment(false);
+    }
   };
 
   const logoutMutation = useMutation({
@@ -728,6 +769,79 @@ export default function SettingsPage() {
                   <SelectItem value="compact">Compact (Dense)</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Prize Payout Details Card */}
+        <Card>
+          <CardHeader className="flex flex-row items-center gap-3">
+            <Trophy className="h-5 w-5 text-primary" />
+            <div>
+              <CardTitle>Prize Payout Details</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Manage your payment information to receive cash prizes and refunds via Stripe.
+              </p>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="flex items-center justify-between rounded-lg border bg-card p-4 transition-colors hover:bg-accent/5">
+              <div>
+                <Label className="text-sm font-bold">Enable Prize Payments</Label>
+                <p className="text-xs text-muted-foreground">Allow tournament directors to issue direct payouts and refunds.</p>
+              </div>
+              <Switch checked={prizePaymentEnabled} onCheckedChange={setPrizePaymentEnabled} />
+            </div>
+
+            {prizePaymentEnabled && (
+              <div className="space-y-4 pt-2 animate-in fade-in slide-in-from-top-1 duration-200">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="prize-stripe-email">Stripe Email Address</Label>
+                    <Input
+                      id="prize-stripe-email"
+                      type="email"
+                      value={prizeStripeEmail}
+                      onChange={(e) => setPrizeStripeEmail(e.target.value)}
+                      placeholder="email@example.com"
+                    />
+                    <p className="text-[10px] text-muted-foreground">Connected to your Stripe account.</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="prize-bank-routing">Bank Routing Number</Label>
+                    <Input
+                      id="prize-bank-routing"
+                      value={prizeBankRouting}
+                      onChange={(e) => setPrizeBankRouting(e.target.value)}
+                      placeholder="9-digit routing number"
+                    />
+                    <p className="text-[10px] text-muted-foreground">Used for direct ACH payouts.</p>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="prize-bank-account">Bank Account Number</Label>
+                  <Input
+                    id="prize-bank-account"
+                    type="password"
+                    value={prizeBankAccount}
+                    onChange={(e) => setPrizeBankAccount(e.target.value)}
+                    placeholder="Account number"
+                  />
+                  <p className="text-[10px] text-muted-foreground">Masked for your security.</p>
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end border-t pt-4">
+              <Button
+                type="button"
+                disabled={isSavingPrizePayment}
+                onClick={handleSavePrizePayment}
+                className="bg-primary hover:bg-primary/90 text-white font-semibold"
+              >
+                {isSavingPrizePayment ? "Saving..." : "Save Payout Details"}
+              </Button>
             </div>
           </CardContent>
         </Card>

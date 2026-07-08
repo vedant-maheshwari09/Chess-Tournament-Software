@@ -99,7 +99,7 @@ export function Field({
         placeholder={placeholder}
         type={valueAs === "email" ? "email" : type}
         {...form.register(name, { valueAsNumber: type === "number", disabled: Boolean(disabled) })}
-        className={cn("focus:border-blue-400 focus:ring-blue-200 bg-white", disabled && "bg-slate-50/70 text-slate-700 font-medium disabled:opacity-85 cursor-not-allowed border-slate-200")}
+        className={cn("focus:border-blue-400 focus:ring-blue-200 bg-white", disabled && "bg-slate-50/80 text-slate-900 font-semibold disabled:opacity-100 cursor-not-allowed border-slate-200")}
         disabled={disabled}
       />
       {showDescription && (

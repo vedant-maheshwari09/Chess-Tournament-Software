@@ -636,8 +636,10 @@ export default function StepTwo({
                          <SelectValue placeholder={field.placeholder || "Select preference"} />
                        </SelectTrigger>
                        <SelectContent>
-                         <SelectItem value="email">Email only</SelectItem>
-                         <SelectItem value="none">No notifications</SelectItem>
+                         <SelectItem value="none">None</SelectItem>
+                         <SelectItem value="push">Push notifications</SelectItem>
+                         <SelectItem value="email">Email</SelectItem>
+                         <SelectItem value="both">Both (Email & Push)</SelectItem>
                        </SelectContent>
                      </Select>
                      {isCustom && field.description && (

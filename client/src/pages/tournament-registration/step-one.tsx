@@ -129,7 +129,7 @@ export default function StepOne({
         const params = new URLSearchParams({ q: term, limit: "10" });
         const response = (await apiRequest(`/api/rating-lookup?${params.toString()}`)) as RatingLookupResponse;
         if (cancelled) return;
-        const combined = [...(response.uscf ?? []), ...(response.fide ?? [])];
+        const combined = response.uscf ?? [];
         setRemoteResults(combined);
         const mergedErrors = response.errors
           ? Object.values(response.errors)
@@ -190,8 +190,11 @@ export default function StepOne({
       form.setValue("uscfId", result.id, { shouldDirty: true });
       form.setValue("uscfRating", result.ratingDisplay ?? result.rating ?? "", { shouldDirty: true });
       if (result.location) {
-        form.setValue("state", result.location, { shouldDirty: false });
+        form.setValue("state", result.location, { shouldDirty: true, shouldValidate: true });
+      } else {
+        form.setValue("state", "", { shouldDirty: true });
       }
+      form.setValue("city", "", { shouldDirty: true });
       if (result.metadata?.expiration) {
         form.setValue("customAnswers.uscfExpiration", result.metadata.expiration, { shouldDirty: true });
       }
@@ -202,6 +205,8 @@ export default function StepOne({
       if (result.location) {
         form.setValue("country", result.location, { shouldDirty: false });
       }
+      form.setValue("city", "", { shouldDirty: true });
+      form.setValue("state", "", { shouldDirty: true });
     }
     setSearchTerm(result.name);
     setRemoteResults([]);
@@ -279,15 +284,15 @@ export default function StepOne({
             {isSearching ? (
               <div className="my-2 flex flex-col items-center justify-center gap-3 py-8 rounded-lg border border-dashed border-slate-200 bg-slate-50/50">
                 <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
-                <span className="text-sm font-medium text-slate-500">Searching USCF & FIDE databases...</span>
+                <span className="text-sm font-medium text-slate-500">Searching USCF database...</span>
               </div>
             ) : (
               <>
                 {searchTerm.trim().length < 3 ? (
-                  <p className="text-xs text-slate-500">Enter at least three characters to search both databases.</p>
+                  <p className="text-xs text-slate-500">Enter at least three characters to search the USCF database.</p>
                 ) : (
                   <p className="text-xs text-slate-500">
-                    Showing the best matches from the official USCF and FIDE player directories.
+                    Showing the best matches from the official USCF player directory.
                   </p>
                 )}
                 {searchError && <p className="text-xs text-red-500">{searchError}</p>}
@@ -298,7 +303,7 @@ export default function StepOne({
               <div className="space-y-5">
                 {remoteResults.length > 0 && (
                   <div className="space-y-2">
-                    <p className="text-[11px] uppercase tracking-wide text-slate-500">USCF &amp; FIDE results</p>
+                    <p className="text-[11px] uppercase tracking-wide text-slate-500">USCF results</p>
                     <div className="max-h-52 space-y-2 overflow-y-auto pr-1">
                       {remoteResults.map((result) => (
                         <button

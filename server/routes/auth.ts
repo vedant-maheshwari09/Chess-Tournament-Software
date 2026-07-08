@@ -907,6 +907,34 @@ app.post("/api/users/fcm-token", requireAuth, async (req, res) => {
     }
   });
 
+  // Prize payment settings update route
+  app.patch("/api/auth/profile/prize-payment", requireAuth, async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      const { prizePaymentEnabled, prizeStripeEmail, prizeBankRouting, prizeBankAccount } = req.body;
+      
+      const existingUser = await storage.getUserById(userId);
+      if (!existingUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      const currentSettings = (existingUser.paymentSettings as any) || {};
+      const nextSettings = {
+        ...currentSettings,
+        prizePaymentEnabled: prizePaymentEnabled !== undefined ? prizePaymentEnabled : true,
+        prizeStripeEmail: prizeStripeEmail !== undefined ? prizeStripeEmail : existingUser.email,
+        prizeBankRouting: prizeBankRouting !== undefined ? prizeBankRouting : "",
+        prizeBankAccount: prizeBankAccount !== undefined ? prizeBankAccount : "",
+      };
+
+      const updated = await storage.updateUser(userId, { paymentSettings: nextSettings });
+      res.json(updated);
+    } catch (err) {
+      console.error("Prize payment update error:", err);
+      res.status(500).json({ message: "Failed to update prize payment details" });
+    }
+  });
+
   // Follow a TD
   app.post("/api/follows/:userId", requireAuth, async (req, res) => {
     try {

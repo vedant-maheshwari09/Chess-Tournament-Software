@@ -23,7 +23,7 @@ export const registrationSchema = z.object({
   state: z.string().optional(),
   postalCode: z.string().optional(),
   country: z.string().optional(),
-  pairingNotifications: z.enum(["email", "none"]).default("email"),
+  pairingNotifications: z.enum(["none", "push", "email", "both"]).default("email"),
   newsletter: z.boolean().default(false),
   sectionChoice: z.string().min(1, "Select a section"),
   entryFeeId: z.string().min(1, "Select an entry option"),

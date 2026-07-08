@@ -115,7 +115,7 @@ export function useAuth() {
 
   return {
     user,
-    isLoading,
+    isLoading: isLoading && !!localStorage.getItem("auth_token"),
     isAuthenticated: !!user && !error,
     login: loginMutation.mutateAsync,
     register: registerMutation.mutateAsync,

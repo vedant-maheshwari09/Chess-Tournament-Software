@@ -737,11 +737,6 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
 
     if (!normalizedEntryFeeId && requiresPayment && allDraftValues.length === 0) {
       paymentIntentRequestKeyRef.current = null;
-      toast({
-        title: "Confirm entry fee",
-        description: "Select the entry option for your section before continuing to payment.",
-        variant: "destructive",
-      });
       return;
     }
 
@@ -1844,9 +1839,9 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
                     {currentStep > 1 && currentStep < totalSteps && (
                       <Button
                         type="button"
-                        variant="secondary"
+                        variant="outline"
                         onClick={handlePrevStep}
-                        className="h-10 px-4 text-sm font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200/80 rounded-lg transition shadow-sm border border-slate-200/40"
+                        className="h-10 px-4 text-sm font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200/80 hover:text-slate-800 rounded-lg transition shadow-sm border border-slate-300"
                       >
                         Back
                       </Button>
@@ -1856,13 +1851,13 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
                     {currentStep < totalSteps && (
                       <Button
                         type="button"
-                        variant="secondary"
+                        variant="outline"
                         onClick={handleSaveDraft}
                         className={cn(
-                          "h-10 px-4 text-sm font-medium transition rounded-lg shadow-sm border",
+                          "h-10 px-4 text-sm font-semibold transition rounded-lg shadow-sm border",
                           draftSavedFlash
-                            ? "bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100"
-                            : "bg-slate-100 border-slate-200/40 text-slate-700 hover:bg-slate-200/80",
+                            ? "bg-emerald-50 border-emerald-300 text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800"
+                            : "bg-slate-100 border-slate-300 text-slate-700 hover:bg-slate-200/80 hover:text-slate-800",
                         )}
                       >
                         {draftSavedFlash ? "Saved!" : "Save Draft"}
