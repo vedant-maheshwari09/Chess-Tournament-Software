@@ -98,6 +98,7 @@ export function Field({
       <Input
         placeholder={placeholder}
         type={valueAs === "email" ? "email" : type}
+        autoComplete="new-password"
         {...form.register(name, { valueAsNumber: type === "number", disabled: Boolean(disabled) })}
         className={cn("focus:border-blue-400 focus:ring-blue-200 bg-white", disabled && "bg-slate-50/80 text-slate-900 font-semibold disabled:opacity-100 cursor-not-allowed border-slate-200")}
         disabled={disabled}

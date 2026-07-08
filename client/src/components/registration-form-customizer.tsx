@@ -22,8 +22,15 @@ import {
   CheckSquare,
   Copy,
   SeparatorHorizontal,
-  Eye
+  Eye,
+  ListPlus
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { 
   DEFAULT_REGISTRATION_FIELDS, 
   type RegistrationFormConfig, 
@@ -417,11 +424,73 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
   };
 
   const removeField = (id: string) => {
-    updateFormConfig({ ...formConfig, fields: formConfig.fields.filter((f) => f.id !== id) });
+    const nonDeletableFields = [
+      "firstName",
+      "lastName",
+      "email",
+      "sectionChoice",
+      "ratingProvider",
+      "lookupSection",
+      "checkoutSection"
+    ];
+
+    if (nonDeletableFields.includes(id)) {
+      toast({
+        title: "Cannot delete",
+        description: "This field is required for tournament registration and cannot be removed.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const field = formConfig.fields.find(f => f.id === id);
+    if (field && !field.isCustom) {
+      // Standard system field: hide instead of deleting so it can be restored
+      updateFormConfig({
+        ...formConfig,
+        fields: formConfig.fields.map(f => f.id === id ? { ...f, visible: false, required: false } : f)
+      });
+    } else {
+      // Custom field: delete completely
+      updateFormConfig({
+        ...formConfig,
+        fields: formConfig.fields.filter((f) => f.id !== id)
+      });
+    }
+
     if (focusedFieldId === id) setFocusedFieldId(null);
     toast({
       title: "Removed",
       description: "Item removed from registration form."
+    });
+  };
+
+  const deletableSystemFields = [
+    { id: "playerSearch", label: "Player Search Options" },
+    { id: "uscfId", label: "USCF ID Lookup" },
+    { id: "fideId", label: "FIDE ID Lookup" },
+    { id: "city", label: "City" },
+    { id: "state", label: "State" },
+    { id: "detailsSection", label: "Contact Info Divider" },
+    { id: "address1", label: "Address Line 1" },
+    { id: "address2", label: "Address Line 2" },
+    { id: "postalCode", label: "Postal Code" },
+    { id: "country", label: "Country" },
+    { id: "byePreference", label: "Bye Requests" },
+    { id: "arrivalTime", label: "Expected Arrival Time" },
+    { id: "notes", label: "Notes / Requests" },
+    { id: "newsletter", label: "Receive Bulletins" },
+    { id: "pairingNotifications", label: "Notification Preference" },
+  ];
+
+  const restoreSystemField = (id: string) => {
+    updateFormConfig({
+      ...formConfig,
+      fields: formConfig.fields.map(f => f.id === id ? { ...f, visible: true } : f)
+    });
+    toast({
+      title: "Restored",
+      description: "Field restored to the form."
     });
   };
 
@@ -546,8 +615,19 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
 
               {/* Questions List */}
               <div className="space-y-4">
-                {formConfig.fields.map((field, idx) => {
-                  const isFocused = focusedFieldId === field.id;
+                {(() => {
+                  const visibleFieldsList = formConfig.fields.filter(f => f.isCustom || f.visible);
+                  const totalVisibleCount = visibleFieldsList.length;
+                  let visibleCount = 0;
+
+                  return formConfig.fields.map((field, originalIdx) => {
+                    const isHiddenSystemField = !field.isCustom && !field.visible;
+                    if (isHiddenSystemField) return null;
+
+                    const displayIdx = visibleCount;
+                    visibleCount++;
+
+                    const isFocused = focusedFieldId === field.id;
                   const isSystemField =
                     field.id === "firstName" ||
                     field.id === "lastName" ||
@@ -797,8 +877,8 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
                             <div className="flex items-center gap-1">
                               <Button
                                 type="button"
-                                disabled={idx === 0}
-                                onClick={() => moveField(idx, "up")}
+                                disabled={displayIdx === 0}
+                                onClick={() => moveField(originalIdx, "up")}
                                 variant="ghost"
                                 size="icon"
                                 className="h-8 w-8 text-slate-400 hover:text-slate-900 rounded-lg"
@@ -807,8 +887,8 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
                               </Button>
                               <Button
                                 type="button"
-                                disabled={idx === formConfig.fields.length - 1}
-                                onClick={() => moveField(idx, "down")}
+                                disabled={displayIdx === totalVisibleCount - 1}
+                                onClick={() => moveField(originalIdx, "down")}
                                 variant="ghost"
                                 size="icon"
                                 className="h-8 w-8 text-slate-400 hover:text-slate-900 rounded-lg"
@@ -820,7 +900,7 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
                             <div className="flex items-center gap-4 font-semibold">
                               <button
                                 type="button"
-                                onClick={() => duplicateField(field, idx)}
+                                onClick={() => duplicateField(field, originalIdx)}
                                 className="flex items-center gap-1.5 text-xs font-bold hover:text-slate-700 transition"
                                 title="Duplicate question"
                               >
@@ -871,7 +951,7 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
                           }`}
                         >
                           <div className="flex items-center gap-3 min-w-0">
-                            <span className="text-xs font-bold text-slate-400 shrink-0">#{idx + 1}</span>
+                            <span className="text-xs font-bold text-slate-400 shrink-0">#{displayIdx + 1}</span>
                             <span className="text-sm font-bold text-slate-800 truncate">
                               {field.label || "Untitled Question"}
                             </span>
@@ -899,7 +979,8 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
                       )}
                     </div>
                   );
-                })}
+                });
+              })()}
               </div>
             </div>
           ) : (
@@ -956,17 +1037,6 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
                     <Switch
                       checked={Boolean(config.registers?.allowEditRegistration)}
                       onCheckedChange={(checked) => handleRegistersChange("allowEditRegistration", checked)}
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between border-t pt-4">
-                    <div className="space-y-0.5">
-                      <Label className="text-sm font-bold text-slate-800">Collect Prize Payout Details</Label>
-                      <p className="text-xs text-slate-500 leading-normal font-semibold">Ask players for their Stripe email and bank info during registration to facilitate direct payouts.</p>
-                    </div>
-                    <Switch
-                      checked={config.registers?.collectPrizePayoutDetails !== false}
-                      onCheckedChange={(checked) => handleRegistersChange("collectPrizePayoutDetails", checked)}
                     />
                   </div>
                 </CardContent>
@@ -1237,6 +1307,17 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
                       </div>
                     </div>
                   )}
+
+                  <div className="flex items-center justify-between border-t pt-4">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm font-bold text-slate-800">Collect Prize Payout Details</Label>
+                      <p className="text-xs text-slate-500 leading-normal font-semibold">Ask players for their Stripe email and bank info during registration to facilitate direct payouts.</p>
+                    </div>
+                    <Switch
+                      checked={config.registers?.collectPrizePayoutDetails !== false}
+                      onCheckedChange={(checked) => handleRegistersChange("collectPrizePayoutDetails", checked)}
+                    />
+                  </div>
                 </CardContent>
               </Card>
             </div>
@@ -1272,6 +1353,40 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
             >
               <Plus className="h-4.5 w-4.5 text-slate-600 hover:text-sky-600" />
             </Button>
+
+            {/* Add Standard Field */}
+            {(() => {
+              const hiddenStandardFields = deletableSystemFields.filter(
+                (field) => formConfig.fields.some((f) => f.id === field.id && !f.visible)
+              );
+              if (hiddenStandardFields.length === 0) return null;
+              return (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 rounded-lg hover:bg-slate-100 hover:text-sky-600 transition"
+                      title="Add Standard Field"
+                    >
+                      <ListPlus className="h-4.5 w-4.5 text-slate-600 hover:text-sky-600" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="rounded-xl w-48 max-h-72 overflow-y-auto bg-white border border-slate-200 shadow-lg p-1">
+                    {hiddenStandardFields.map((field) => (
+                      <DropdownMenuItem
+                        key={field.id}
+                        onClick={() => restoreSystemField(field.id)}
+                        className="text-xs font-bold text-slate-750 cursor-pointer rounded-lg hover:bg-slate-50 px-2 py-1.5 focus:bg-slate-50 focus:text-slate-900 outline-none"
+                      >
+                        {field.label}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              );
+            })()}
 
             {/* Add heading/title */}
             <Button

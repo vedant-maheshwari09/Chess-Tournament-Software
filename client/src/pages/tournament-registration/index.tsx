@@ -136,11 +136,13 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
 
     for (const field of visibleFields) {
       if (field.type === "section") {
-        if (currentPageFields.length > 0 || currentPageSection) {
-          pages.push({
-            section: currentPageSection,
-            fields: currentPageFields,
-          });
+        if (currentPageSection) {
+          if (currentPageFields.length > 0 || currentPageSection.id === "checkoutSection") {
+            pages.push({
+              section: currentPageSection,
+              fields: currentPageFields,
+            });
+          }
         }
         currentPageSection = field;
         currentPageFields = [];
@@ -148,11 +150,13 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
         currentPageFields.push(field);
       }
     }
-    if (currentPageFields.length > 0 || currentPageSection) {
-      pages.push({
-        section: currentPageSection,
-        fields: currentPageFields,
-      });
+    if (currentPageSection) {
+      if (currentPageFields.length > 0 || currentPageSection.id === "checkoutSection") {
+        pages.push({
+          section: currentPageSection,
+          fields: currentPageFields,
+        });
+      }
     }
 
     // Map pages to step definitions
@@ -1517,7 +1521,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
       {/* ===== Main Content ===== */}
       <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6">
         <FormProvider {...form}>
-          <form onSubmit={(event) => event.preventDefault()} className="space-y-4">
+          <form onSubmit={(event) => event.preventDefault()} autoComplete="off" className="space-y-4">
 
             {/* ===== Form Title Card (Google Forms style) ===== */}
             <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">

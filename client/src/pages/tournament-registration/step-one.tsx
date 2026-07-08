@@ -441,10 +441,28 @@ export default function StepOne({
                 <Field label="FIDE rating" name="fideRating" disabled={Boolean(config?.registers?.strictAutofillOnly)} />
               </>
             )}
+            {getFieldConfig(config, "city").visible && (
+              <Field
+                label={getFieldConfig(config, "city").label}
+                name="city"
+                required={getFieldConfig(config, "city").required}
+                placeholder={getFieldConfig(config, "city").placeholder}
+                description={getFieldConfig(config, "city").description}
+              />
+            )}
+            {getFieldConfig(config, "state").visible && (
+              <Field
+                label={getFieldConfig(config, "state").label}
+                name="state"
+                required={getFieldConfig(config, "state").required}
+                placeholder={getFieldConfig(config, "state").placeholder}
+                description={getFieldConfig(config, "state").description}
+              />
+            )}
           </div>
         </div>
 
-        {getFieldConfig(config, "email").visible && (
+        {(getFieldConfig(config, "email").visible || getFieldConfig(config, "ratingProvider").visible) && (
           <div className="space-y-3 pt-2">
             {getFieldConfig(config, "contactInfoHeading").visible !== false && (
               <h3 className="text-base font-bold text-slate-900 tracking-tight">
@@ -452,81 +470,15 @@ export default function StepOne({
               </h3>
             )}
             <div className="grid gap-5 sm:grid-cols-2">
-              <Field
-                label={getFieldConfig(config, "email").label}
-                name="email"
-                required={getFieldConfig(config, "email").required}
-                placeholder={getFieldConfig(config, "email").placeholder}
-                description={getFieldConfig(config, "email").description}
-                valueAs="email"
-              />
-            </div>
-          </div>
-        )}
-
-        {(getFieldConfig(config, "sectionChoice").visible || getFieldConfig(config, "ratingProvider").visible) && (
-          <div className="space-y-3 pt-2">
-            {getFieldConfig(config, "sectionRatingHeading").visible !== false && (
-              <h3 className="text-base font-bold text-slate-900 tracking-tight">
-                {getFieldConfig(config, "sectionRatingHeading").label || "Section & Rating"}
-              </h3>
-            )}
-            <div className="grid gap-5 sm:grid-cols-2">
-              {getFieldConfig(config, "sectionChoice").visible && (
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-slate-700">
-                    {getFieldConfig(config, "sectionChoice").label}
-                    {getFieldConfig(config, "sectionChoice").required && <span className="ml-1 text-red-500">*</span>}
-                  </Label>
-                  <Select
-                    onValueChange={(value) => form.setValue("sectionChoice", value, { shouldDirty: true })}
-                    value={form.watch("sectionChoice") ?? ""}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Choose a section" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {sectionDetails.length === 0 ? (
-                        <SelectItem value="" disabled>
-                          Sections will be announced soon
-                        </SelectItem>
-                      ) : (
-                        sectionDetails.map((section) => {
-                          const eligible = ratingWithinSectionRange(numericRating, section);
-                          const showEligibilityWarning = numericRating !== null && !eligible;
-                          return (
-                            <SelectItem
-                               key={section.id}
-                               value={section.name}
-                               disabled={showEligibilityWarning}
-                               className={cn(
-                                 "flex flex-col items-start gap-1",
-                                 showEligibilityWarning && "opacity-45 text-slate-400",
-                               )}
-                            >
-                              <span className="font-medium text-slate-900">{section.label}</span>
-                              {(section.ratingMin !== null || section.ratingMax !== null) && (
-                                <span className="text-xs text-slate-500">
-                                  {" · "}
-                                  {config?.details.primaryRatingSystem === "fide" ? "FIDE" : "USCF"} Rating:{" "}
-                                  {section.ratingMin ?? "Unrated"} – {section.ratingMax ?? "Open"}
-                                </span>
-                              )}
-                              {showEligibilityWarning && numericRating !== null && (
-                                <span className="text-[11px] text-blue-600">
-                                  Not eligible with {config?.details.primaryRatingSystem === "fide" ? "FIDE" : "USCF"} rating {numericRating}.
-                                </span>
-                              )}
-                            </SelectItem>
-                          );
-                        })
-                      )}
-                    </SelectContent>
-                  </Select>
-                  {form.formState.errors.sectionChoice && (
-                    <p className="mt-1 text-xs text-red-500">{form.formState.errors.sectionChoice.message}</p>
-                  )}
-                </div>
+              {getFieldConfig(config, "email").visible && (
+                <Field
+                  label={getFieldConfig(config, "email").label}
+                  name="email"
+                  required={getFieldConfig(config, "email").required}
+                  placeholder={getFieldConfig(config, "email").placeholder}
+                  description={getFieldConfig(config, "email").description}
+                  valueAs="email"
+                />
               )}
               {getFieldConfig(config, "ratingProvider").visible && (
                 <div className="space-y-2">

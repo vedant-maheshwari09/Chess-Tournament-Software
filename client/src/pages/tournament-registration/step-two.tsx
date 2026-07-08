@@ -182,6 +182,66 @@ export default function StepTwo({
                 );
               }
 
+              // --- SECTION CHOICE (PREFERRED SECTION) ---
+              if (field.id === "sectionChoice") {
+                return (
+                  <div key={field.id} className="col-span-2 space-y-2">
+                    <Label className="text-sm font-semibold text-slate-700">
+                      {field.label}
+                      {field.required && <span className="ml-1 text-red-500">*</span>}
+                    </Label>
+                    <Select
+                      onValueChange={(value) => form.setValue("sectionChoice", value, { shouldDirty: true, shouldValidate: true })}
+                      value={form.watch("sectionChoice") ?? ""}
+                    >
+                      <SelectTrigger className="bg-white border-slate-200 focus:ring-blue-200 focus:border-blue-400">
+                        <SelectValue placeholder="Choose a section" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {sectionDetails.length === 0 ? (
+                          <SelectItem value="" disabled>
+                            Sections will be announced soon
+                          </SelectItem>
+                        ) : (
+                          sectionDetails.map((section) => {
+                            const eligible = ratingWithinSectionRange(numericRating, section);
+                            const showEligibilityWarning = numericRating !== null && !eligible;
+                            return (
+                              <SelectItem
+                                key={section.id}
+                                value={section.name}
+                                disabled={showEligibilityWarning}
+                                className={cn(
+                                  "flex flex-col items-start gap-1",
+                                  showEligibilityWarning && "opacity-45 text-slate-400",
+                                )}
+                              >
+                                <span className="font-medium text-slate-900">{section.label}</span>
+                                {(section.ratingMin !== null || section.ratingMax !== null) && (
+                                  <span className="text-xs text-slate-500">
+                                    {" · "}
+                                    {config?.details.primaryRatingSystem === "fide" ? "FIDE" : "USCF"} Rating:{" "}
+                                    {section.ratingMin ?? "Unrated"} – {section.ratingMax ?? "Open"}
+                                  </span>
+                                )}
+                                {showEligibilityWarning && numericRating !== null && (
+                                  <span className="text-[11px] text-blue-600">
+                                    Not eligible with {config?.details.primaryRatingSystem === "fide" ? "FIDE" : "USCF"} rating {numericRating}.
+                                  </span>
+                                )}
+                              </SelectItem>
+                            );
+                          })
+                        )}
+                      </SelectContent>
+                    </Select>
+                    {form.formState.errors.sectionChoice && (
+                      <p className="mt-1 text-xs text-red-500">{form.formState.errors.sectionChoice.message}</p>
+                    )}
+                  </div>
+                );
+              }
+
               // --- ENTRY FEE SELECTION ---
               if (field.id === "entryFee") {
                 if (entryFees.length === 0) {

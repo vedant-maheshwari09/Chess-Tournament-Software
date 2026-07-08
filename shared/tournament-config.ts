@@ -294,71 +294,6 @@ export const DEFAULT_REGISTRATION_FIELDS: RegistrationFormField[] = [
     placeholder: "e.g. 1500021",
     description: "Your official World Chess Federation ID (if applicable)."
   },
-  {
-    id: "contactInfoHeading",
-    label: "Contact Information",
-    type: "heading",
-    required: false,
-    visible: true,
-  },
-  {
-    id: "email",
-    label: "Email Address",
-    type: "text",
-    required: true,
-    visible: true,
-    placeholder: "e.g. john.doe@example.com",
-    description: "We will send pairing notifications and receipts here."
-  },
-  {
-    id: "sectionRatingHeading",
-    label: "Section & Rating",
-    type: "heading",
-    required: false,
-    visible: true,
-  },
-  {
-    id: "sectionChoice",
-    label: "Preferred Section",
-    type: "select",
-    required: true,
-    visible: true,
-    description: "Choose the section you want to play in."
-  },
-  {
-    id: "ratingProvider",
-    label: "Rating Provider",
-    type: "select",
-    required: true,
-    visible: true,
-    description: "Select where we should verify your rating."
-  },
-  {
-    id: "detailsSection",
-    label: "Contact Information",
-    type: "section",
-    required: false,
-    visible: true,
-    description: "Provide your contact and mailing address details."
-  },
-  { 
-    id: "address1", 
-    label: "Address Line 1", 
-    type: "text", 
-    required: false, 
-    visible: true,
-    placeholder: "e.g. 123 Main Street",
-    description: "Your primary street address for billing and prize verification."
-  },
-  { 
-    id: "address2", 
-    label: "Address Line 2", 
-    type: "text", 
-    required: false, 
-    visible: true,
-    placeholder: "e.g. Suite 4B or Apt 12",
-    description: "Apartment, suite, unit, or floor (optional)."
-  },
   { 
     id: "city", 
     label: "City", 
@@ -377,12 +312,62 @@ export const DEFAULT_REGISTRATION_FIELDS: RegistrationFormField[] = [
     placeholder: "e.g. NY",
     description: "State or province abbreviation."
   },
+  {
+    id: "contactInfoHeading",
+    label: "Contact Information",
+    type: "heading",
+    required: false,
+    visible: true,
+  },
+  {
+    id: "email",
+    label: "Email Address",
+    type: "text",
+    required: true,
+    visible: true,
+    placeholder: "e.g. john.doe@example.com",
+    description: "We will send pairing notifications and receipts here."
+  },
+  {
+    id: "ratingProvider",
+    label: "Rating Provider",
+    type: "select",
+    required: true,
+    visible: true,
+    description: "Select where we should verify your rating."
+  },
+  {
+    id: "detailsSection",
+    label: "Contact Information",
+    type: "section",
+    required: false,
+    visible: false,
+    description: "Provide your contact and mailing address details."
+  },
+  { 
+    id: "address1", 
+    label: "Address Line 1", 
+    type: "text", 
+    required: false, 
+    visible: false,
+    placeholder: "e.g. 123 Main Street",
+    description: "Your primary street address for billing and prize verification."
+  },
+  { 
+    id: "address2", 
+    label: "Address Line 2", 
+    type: "text", 
+    required: false, 
+    visible: false,
+    placeholder: "e.g. Suite 4B or Apt 12",
+    description: "Apartment, suite, unit, or floor (optional)."
+  },
   { 
     id: "postalCode", 
     label: "Postal Code", 
     type: "text", 
     required: false, 
-    visible: true,
+    visible: false,
     placeholder: "e.g. 10001",
     description: "Postal/ZIP code."
   },
@@ -391,7 +376,7 @@ export const DEFAULT_REGISTRATION_FIELDS: RegistrationFormField[] = [
     label: "Country", 
     type: "text", 
     required: false, 
-    visible: true,
+    visible: false,
     placeholder: "e.g. United States",
     description: "Country of residence."
   },
@@ -402,6 +387,14 @@ export const DEFAULT_REGISTRATION_FIELDS: RegistrationFormField[] = [
     required: false,
     visible: true,
     description: "Select byes, arrival time, and notification settings."
+  },
+  {
+    id: "sectionChoice",
+    label: "Preferred Section",
+    type: "select",
+    required: true,
+    visible: true,
+    description: "Choose the section you want to play in."
   },
   { 
     id: "byePreference", 
@@ -416,7 +409,7 @@ export const DEFAULT_REGISTRATION_FIELDS: RegistrationFormField[] = [
     label: "Expected Arrival Time", 
     type: "text", 
     required: false, 
-    visible: true,
+    visible: false,
     placeholder: "e.g. Friday 6:30 PM",
     description: "Helpful for directors to manage section start times and check-ins."
   },
@@ -425,7 +418,7 @@ export const DEFAULT_REGISTRATION_FIELDS: RegistrationFormField[] = [
     label: "Notes / Requests", 
     type: "text", 
     required: false, 
-    visible: true,
+    visible: false,
     placeholder: "e.g. Wheelchair access, traveling with family, section-specific requests...",
     description: "Any special accommodations, travel issues, or messages for the Director."
   },
@@ -434,7 +427,7 @@ export const DEFAULT_REGISTRATION_FIELDS: RegistrationFormField[] = [
     label: "Receive Bulletins", 
     type: "boolean", 
     required: false, 
-    visible: true,
+    visible: false,
     description: "Opt-in to receive round pairings, final standings, and future event details."
   },
   {
@@ -677,8 +670,8 @@ export function createDefaultConfig(format: Tournament["format"], mode: Tourname
       allowSignup: false,
       allowPlayerToJoin: false,
       allowMultiPlayerSignup: false,
-      fideRated: mode === "rated",
-      uscfRated: mode === "rated",
+      fideRated: false,
+      uscfRated: true,
       hideTeams: false,
       notifyPairingsEmail: true,
       isTeamEvent: false,
@@ -691,12 +684,16 @@ export function createDefaultConfig(format: Tournament["format"], mode: Tourname
       isDoubleElimination: false,
       thirdPlaceMatch: false,
       pushNotifications: true,
-          allowExtraGames: false,
+      allowExtraGames: false,
       chatEnabled: false,
       autoAcceptRegistrations: false,
-      verifyUscfMembership: false,
+      verifyUscfMembership: true,
       uscfMinGamesThreshold: 4,
       allowLastRoundBye: true,
+      ratedSystem: "uscf",
+      entryRequirementType: "rated",
+      strictAutofillOnly: true,
+      collectPrizePayoutDetails: true,
     },
     fide: {
       prizeFund: "",
@@ -820,13 +817,16 @@ export function normalizeRegistrationFields(fields: RegistrationFormField[]): Re
   // 1. Lookup page fields first
   pushSystemField("lookupSection");
   pushSystemField("playerSearch");
+  pushSystemField("playerIdentityHeading");
   pushSystemField("firstName");
   pushSystemField("lastName");
-  pushSystemField("email");
-  pushSystemField("sectionChoice");
-  pushSystemField("ratingProvider");
   pushSystemField("uscfId");
   pushSystemField("fideId");
+  pushSystemField("city");
+  pushSystemField("state");
+  pushSystemField("contactInfoHeading");
+  pushSystemField("email");
+  pushSystemField("ratingProvider");
 
   // 2. Details section header
   pushSystemField("detailsSection");
@@ -835,8 +835,6 @@ export function normalizeRegistrationFields(fields: RegistrationFormField[]): Re
   const detailFieldIds = [
     "address1",
     "address2",
-    "city",
-    "state",
     "postalCode",
     "country"
   ];
@@ -860,6 +858,7 @@ export function normalizeRegistrationFields(fields: RegistrationFormField[]): Re
 
   // 4. Preferences page fields
   pushSystemField("preferencesSection");
+  pushSystemField("sectionChoice");
   const preferenceFieldIds = [
     "byePreference",
     "arrivalTime",
@@ -886,6 +885,7 @@ export function normalizeRegistrationFields(fields: RegistrationFormField[]): Re
   // 5. Payment page fields last
   pushSystemField("checkoutSection");
   pushSystemField("paymentFlow");
+  pushSystemField("entryFee");
 
   // 6. Append any remaining fields (should be empty but just in case)
   existingMap.forEach((field) => {
