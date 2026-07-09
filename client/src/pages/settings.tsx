@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -54,6 +54,12 @@ export default function SettingsPage() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
+  // Director global payment defaults
+  const [directorProvider, setDirectorProvider] = useState<"stripe" | "paypal">("stripe");
+  const [stripeAccountId, setStripeAccountId] = useState<string>("");
+  const [stripePublishableKey, setStripePublishableKey] = useState<string>("");
+  const [payoutStatementDescriptor, setPayoutStatementDescriptor] = useState<string>("");
+
   // Chat customizability states (syncs to/from localStorage)
   const [chatPlayChime, setChatPlayChime] = useState<boolean>(() => localStorage.getItem("chat_play_chime") !== "false");
   const [chatEnterToSend, setChatEnterToSend] = useState<boolean>(() => localStorage.getItem("chat_enter_to_send") !== "false");
@@ -96,6 +102,7 @@ export default function SettingsPage() {
   const [lastName, setLastName] = useState(user?.lastName ?? "");
   const [organizationName, setOrganizationName] = useState(user?.organizationName ?? "");
   const [profilePicture, setProfilePicture] = useState(user?.profilePicture ?? "");
+  const [imgError, setImgError] = useState(false);
 
   const updatePreferencesMutation = useMutation({
     mutationFn: async (preferences: {
@@ -155,6 +162,7 @@ export default function SettingsPage() {
     setLastName(user?.lastName ?? "");
     setOrganizationName(user?.organizationName ?? "");
     setProfilePicture(user?.profilePicture ?? "");
+    setImgError(false);
 
     const payment = (user?.paymentSettings as any) || {};
     setPrizePaymentEnabled(payment.prizePaymentEnabled ?? true);
@@ -196,6 +204,7 @@ export default function SettingsPage() {
         body: formData,
       });
       setProfilePicture(data.profilePicture);
+      setImgError(false);
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
       toast({ title: "Profile picture updated" });
     } catch (err: any) {
@@ -212,6 +221,59 @@ export default function SettingsPage() {
       firstName,
       lastName,
       organizationName: user?.role === 'tournament_director' ? organizationName : undefined
+    });
+  };
+
+  // Fetch and update global director payment settings
+  const { data: directorSettings, isLoading: isLoadingDirectorSettings } = useQuery<any>({
+    queryKey: ["/api/account/payments"],
+    enabled: user?.role === "tournament_director",
+  });
+
+  useEffect(() => {
+    if (directorSettings) {
+      setDirectorProvider(directorSettings.preferredProvider || "stripe");
+      setStripeAccountId(directorSettings.stripeAccountId || "");
+      setStripePublishableKey(directorSettings.stripePublishableKey || "");
+      setPayoutStatementDescriptor(directorSettings.payoutStatementDescriptor || "");
+    }
+  }, [directorSettings]);
+
+  const saveDirectorSettingsMutation = useMutation({
+    mutationFn: async (payload: {
+      preferredProvider: "stripe" | "paypal" | null;
+      stripeAccountId?: string;
+      stripePublishableKey?: string;
+      payoutStatementDescriptor?: string;
+    }) => {
+      const res = await apiRequest("/api/account/payments", {
+        method: "PUT",
+        body: JSON.stringify(payload),
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/account/payments"] });
+      toast({
+        title: "Director payments updated",
+        description: "Your global payment settings have been saved.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Unable to update payments",
+        description: error?.message ?? "An error occurred. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSaveDirectorSettings = () => {
+    saveDirectorSettingsMutation.mutate({
+      preferredProvider: directorProvider,
+      stripeAccountId: stripeAccountId.trim(),
+      stripePublishableKey: stripePublishableKey.trim(),
+      payoutStatementDescriptor: payoutStatementDescriptor.trim(),
     });
   };
 
@@ -429,10 +491,17 @@ export default function SettingsPage() {
           <CardContent className="space-y-4">
             <div className="flex flex-col sm:flex-row items-center gap-6 pb-4 border-b border-slate-100 dark:border-slate-800">
               <div className="relative group cursor-pointer w-24 h-24 rounded-full overflow-hidden border-2 border-indigo-100 dark:border-slate-800 shadow-inner flex items-center justify-center bg-indigo-50/50">
-                {profilePicture ? (
-                  <img src={profilePicture} alt="Avatar" className="w-full h-full object-cover" />
+                {profilePicture && !imgError ? (
+                  <img 
+                    src={profilePicture} 
+                    alt="Avatar" 
+                    onError={() => setImgError(true)} 
+                    className="w-full h-full object-cover" 
+                  />
                 ) : (
-                  <User2 className="w-10 h-10 text-indigo-300" />
+                  <div className="w-full h-full bg-gradient-to-br from-indigo-500 via-indigo-600 to-purple-600 flex items-center justify-center">
+                    <User2 className="w-10 h-10 text-white" />
+                  </div>
                 )}
                 <label className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
                   <span className="text-[10px] text-white font-bold tracking-wide">CHANGE</span>
@@ -773,14 +842,111 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
-        {/* Prize Payout Details Card */}
+        {/* Director Bank & Merchant Connection (Visible only to TDs) */}
+        {user?.role === "tournament_director" && (
+          <Card className="border border-indigo-100 shadow-sm overflow-hidden bg-gradient-to-br from-white to-slate-50/50">
+            <div className="h-1.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-600" />
+            <CardHeader className="flex flex-row items-start gap-4">
+              <div className="rounded-xl bg-indigo-50 p-2.5 text-indigo-600">
+                <BadgeCheck className="h-6 w-6" />
+              </div>
+              <div className="space-y-1">
+                <CardTitle className="text-xl font-bold tracking-tight text-slate-900">
+                  Director Merchant & Bank Connection
+                </CardTitle>
+                <p className="text-sm text-slate-500 max-w-xl leading-relaxed">
+                  Connect your Stripe account globally. Future tournaments will automatically route player entry fees directly to this account with zero security risk.
+                </p>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex gap-3">
+                <SlidersHorizontal className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="text-xs font-semibold text-amber-800">🛡️ Zero Security Risk Connect Policy</p>
+                  <p className="text-[11px] text-amber-700 leading-relaxed">
+                    By using Stripe Connect Destination Charges, our platform securely routes registrations to your bank. You <strong>never</strong> need to provide your developer private keys or secret credentials.
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="director-provider" className="text-sm font-semibold text-slate-700">Preferred Merchant Provider</Label>
+                  <Select
+                    value={directorProvider}
+                    onValueChange={(value: "stripe" | "paypal") => setDirectorProvider(value)}
+                  >
+                    <SelectTrigger id="director-provider" className="w-full md:w-[250px]">
+                      <SelectValue placeholder="Select provider" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="stripe">Stripe Connect (Recommended)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {directorProvider === "stripe" && (
+                  <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="stripe-account-id" className="text-sm font-semibold text-slate-700">Stripe Account ID (starts with acct_)</Label>
+                        <Input
+                          id="stripe-account-id"
+                          value={stripeAccountId}
+                          onChange={(e) => setStripeAccountId(e.target.value)}
+                          placeholder="acct_1NJ934..."
+                          className="font-mono"
+                        />
+                        <p className="text-[10px] text-slate-500 leading-normal">
+                          Find this in your{" "}
+                          <a href="https://dashboard.stripe.com" target="_blank" rel="noreferrer" className="text-indigo-600 underline hover:text-indigo-500">
+                            Stripe Dashboard
+                          </a>{" "}
+                          under Settings &gt; Business Settings &gt; Account Details.
+                        </p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="payout-descriptor" className="text-sm font-semibold text-slate-700">Statement Descriptor (Max 22 characters)</Label>
+                        <Input
+                          id="payout-descriptor"
+                          value={payoutStatementDescriptor}
+                          onChange={(e) => setPayoutStatementDescriptor(e.target.value)}
+                          placeholder="e.g. TOURNAMENT FEES"
+                          maxLength={22}
+                        />
+                        <p className="text-[10px] text-slate-500 leading-normal">
+                          This name is displayed on players' bank statements during checkout (e.g. AMERICAN OPEN CHESS).
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-end border-t pt-4">
+                <Button
+                  type="button"
+                  disabled={saveDirectorSettingsMutation.isPending || isLoadingDirectorSettings}
+                  onClick={handleSaveDirectorSettings}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold shadow-sm transition px-5"
+                >
+                  {saveDirectorSettingsMutation.isPending ? "Connecting Account..." : "Save Merchant Connection"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Player Prize & Refund Destination Card */}
         <Card>
           <CardHeader className="flex flex-row items-center gap-3">
             <Trophy className="h-5 w-5 text-primary" />
             <div>
-              <CardTitle>Prize Payout Details</CardTitle>
+              <CardTitle>Player Prize & Refund Destination</CardTitle>
               <p className="text-sm text-muted-foreground">
-                Manage your payment information to receive cash prizes and refunds via Stripe.
+                Manage your payment information to receive cash prizes and entry-fee refunds via Stripe or ACH.
               </p>
             </div>
           </CardHeader>

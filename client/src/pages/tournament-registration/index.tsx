@@ -740,7 +740,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
       paymentIntentRequestKeyRef.current = `${items.join(";")}|${email}`;
     },
     onError: (error: Error) => {
-      paymentIntentRequestKeyRef.current = null;
+      // Do NOT reset paymentIntentRequestKeyRef.current to null, to prevent infinite reload loop!
       toast({
         title: "Payment setup failed",
         description: error.message,
@@ -794,9 +794,14 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
         items: itemsPayload,
       });
     } catch {
-      paymentIntentRequestKeyRef.current = null;
+      // Do NOT reset paymentIntentRequestKeyRef to null, to prevent infinite reload loop!
     }
   }, [canProcessOnline, createPaymentIntent, form, clientSecret, requiresPayment, toast, allDraftValues]);
+
+  const forceRetryPaymentIntent = useCallback(() => {
+    paymentIntentRequestKeyRef.current = null;
+    ensurePaymentIntent();
+  }, [ensurePaymentIntent]);
 
   useEffect(() => {
     if (currentStep !== totalSteps) {
@@ -1822,7 +1827,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
                               paymentIntentError={paymentIntentErrorMessage}
                               canAcceptOnlinePayment={true}
                               tournamentId={tournamentId}
-                              retryPaymentIntent={ensurePaymentIntent}
+                              retryPaymentIntent={forceRetryPaymentIntent}
                             />
                           </Elements>
                         ) : (
@@ -1845,7 +1850,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
                             paymentIntentError={paymentIntentErrorMessage}
                             canAcceptOnlinePayment={false}
                             tournamentId={tournamentId}
-                            retryPaymentIntent={ensurePaymentIntent}
+                            retryPaymentIntent={forceRetryPaymentIntent}
                           />
                         )}
                       </>

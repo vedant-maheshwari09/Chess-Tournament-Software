@@ -330,6 +330,44 @@ export default function StepTwo({
                 );
               }
 
+                // --- PAIRING NOTIFICATIONS ---
+                if (field.id === "pairingNotifications") {
+                  const error = form.formState.errors.pairingNotifications;
+                  return (
+                    <div key={field.id} className="group space-y-2 col-span-1">
+                      <Label className="text-sm font-medium text-slate-700 transition-colors group-focus-within:text-blue-700 font-bold">
+                        {field.label}
+                        {field.required && <span className="ml-1 text-red-500">*</span>}
+                      </Label>
+                      <Select
+                        value={form.watch("pairingNotifications") ?? "email"}
+                        onValueChange={(value) =>
+                          form.setValue("pairingNotifications", value as RegistrationFormValues["pairingNotifications"], {
+                            shouldDirty: true,
+                            shouldValidate: true,
+                          })
+                        }
+                      >
+                        <SelectTrigger className="bg-white border-slate-200 focus:ring-blue-200 focus:border-blue-400">
+                          <SelectValue placeholder={field.placeholder || "Select preference"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">None</SelectItem>
+                          <SelectItem value="push">Push notifications</SelectItem>
+                          <SelectItem value="email">Email</SelectItem>
+                          <SelectItem value="both">Both (Email & Push)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {field.description && (
+                        <p className="text-[11px] text-slate-400 leading-normal mt-0.5">{field.description}</p>
+                      )}
+                      {error && (
+                        <p className="text-xs text-red-500 mt-1">{error.message}</p>
+                      )}
+                    </div>
+                  );
+                }
+
                 // --- BYE PREFERENCE ---
                 if (field.id === "byePreference") {
                   if (config?.format === "arena" || config?.format === "knockout") return null;
@@ -673,44 +711,6 @@ export default function StepTwo({
                     </div>
                   );
                 }
-
-               // --- PAIRING NOTIFICATIONS ---
-               if (field.id === "pairingNotifications") {
-                 const error = form.formState.errors.pairingNotifications;
-                 return (
-                   <div key={field.id} className="group space-y-2 col-span-1">
-                     <Label className="text-sm font-medium text-slate-700 transition-colors group-focus-within:text-blue-700">
-                       {field.label}
-                       {field.required && <span className="ml-1 text-red-500">*</span>}
-                     </Label>
-                     <Select
-                       value={form.watch("pairingNotifications") ?? "email"}
-                       onValueChange={(value) =>
-                         form.setValue("pairingNotifications", value as RegistrationFormValues["pairingNotifications"], {
-                           shouldDirty: true,
-                           shouldValidate: true,
-                         })
-                       }
-                     >
-                       <SelectTrigger className="bg-white border-slate-200 focus:ring-blue-200 focus:border-blue-400">
-                         <SelectValue placeholder={field.placeholder || "Select preference"} />
-                       </SelectTrigger>
-                       <SelectContent>
-                         <SelectItem value="none">None</SelectItem>
-                         <SelectItem value="push">Push notifications</SelectItem>
-                         <SelectItem value="email">Email</SelectItem>
-                         <SelectItem value="both">Both (Email & Push)</SelectItem>
-                       </SelectContent>
-                     </Select>
-                     {isCustom && field.description && (
-                       <p className="text-[11px] text-slate-400 leading-normal mt-0.5">{field.description}</p>
-                     )}
-                     {error && (
-                       <p className="text-xs text-red-500">{error.message}</p>
-                     )}
-                   </div>
-                 );
-               }
 
                // --- TEXT / NUMBER FIELDS ---
                return (

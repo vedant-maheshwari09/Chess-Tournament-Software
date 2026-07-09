@@ -429,7 +429,6 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
       "lastName",
       "email",
       "sectionChoice",
-      "ratingProvider",
       "lookupSection",
       "checkoutSection"
     ];
@@ -998,28 +997,6 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
                 <CardContent className="p-5 space-y-4">
                   <div className="flex items-center justify-between">
                     <div className="space-y-0.5">
-                      <Label className="text-sm font-bold text-slate-800">Show on Calendar</Label>
-                      <p className="text-xs text-slate-500 leading-normal font-semibold">Make this tournament visible on the public event calendar.</p>
-                    </div>
-                    <Switch
-                      checked={Boolean(config.registers?.showOnCalendar)}
-                      onCheckedChange={(checked) => handleRegistersChange("showOnCalendar", checked)}
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between border-t pt-4">
-                    <div className="space-y-0.5">
-                      <Label className="text-sm font-bold text-slate-800">Allow Online Registrations</Label>
-                      <p className="text-xs text-slate-500 leading-normal font-semibold">Allow users to register and sign up for this tournament online.</p>
-                    </div>
-                    <Switch
-                      checked={Boolean(config.registers?.allowSignup)}
-                      onCheckedChange={(checked) => handleRegistersChange("allowSignup", checked)}
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between border-t pt-4">
-                    <div className="space-y-0.5">
                       <Label className="text-sm font-bold text-slate-800">Enable Multi-Player Registration</Label>
                       <p className="text-xs text-slate-500 leading-normal font-semibold">Allow a player to register multiple participants in a single session (shopping cart mode).</p>
                     </div>
@@ -1042,37 +1019,50 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
                 </CardContent>
               </Card>
 
-              {/* Bye Request Settings */}
+              {/* Constraints */}
               <Card className="rounded-2xl border bg-white shadow-sm overflow-hidden">
                 <CardHeader className="bg-slate-50/50 p-5 border-b">
                   <CardTitle className="text-base font-extrabold text-slate-900 flex items-center gap-2">
-                    <CheckSquare className="h-4.5 w-4.5 text-slate-500" />
-                    Bye Request Settings
+                    <Settings className="h-4.5 w-4.5 text-slate-500" />
+                    Constraints
                   </CardTitle>
-                  <CardDescription className="text-xs font-semibold text-slate-500">Configure parameters for requesting byes before the event starts.</CardDescription>
+                  <CardDescription className="text-xs font-semibold text-slate-500">Configure participant capacity limits and registration deadlines.</CardDescription>
                 </CardHeader>
                 <CardContent className="p-5 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label className="text-sm font-bold text-slate-800">Allow Last Round Bye</Label>
-                      <p className="text-xs text-slate-500 leading-normal font-semibold">Allow players to request half-point byes for the final round.</p>
-                    </div>
-                    <Switch
-                      checked={config.registers?.allowLastRoundBye !== false}
-                      onCheckedChange={(checked) => handleRegistersChange("allowLastRoundBye", checked)}
+                  <div className="space-y-2">
+                    <Label className="text-sm font-bold text-slate-800 block">Participant Capacity</Label>
+                    <p className="text-xs text-slate-500 leading-normal font-semibold mb-2">Limit the number of registered players. Leave blank or 0 for no limit.</p>
+                    <Input
+                      type="number"
+                      placeholder="No limit"
+                      value={config.registers?.playerLimit || ""}
+                      onChange={(e) => handleRegistersChange("playerLimit", parseInt(e.target.value, 10) || null)}
+                      className="w-32 h-10 text-xs border-slate-200 rounded-xl"
+                      min={0}
                     />
                   </div>
 
                   <div className="space-y-2 border-t pt-4">
-                    <Label className="text-sm font-bold text-slate-800 block">Maximum Bye Limit</Label>
-                    <p className="text-xs text-slate-500 leading-normal font-semibold mb-2">Maximum number of half-point or zero-point byes a player is allowed to request.</p>
-                    <Input
-                      type="number"
-                      value={config.registers?.byeLimit ?? 2}
-                      onChange={(e) => handleRegistersChange("byeLimit", parseInt(e.target.value, 10) || 0)}
-                      className="w-32 h-10 text-xs border-slate-200 rounded-xl"
-                      min={0}
-                    />
+                    <Label className="text-sm font-bold text-slate-800 block">Registration Deadline</Label>
+                    <p className="text-xs text-slate-500 leading-normal font-semibold mb-2">Players will not be able to register online after this date and time.</p>
+                    <div className="flex gap-4">
+                      <div className="flex-1">
+                        <Input
+                          type="date"
+                          value={config.registers?.registrationDeadlineDate || ""}
+                          onChange={(e) => handleRegistersChange("registrationDeadlineDate", e.target.value || null)}
+                          className="h-10 text-xs border-slate-200 rounded-xl"
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <Input
+                          type="time"
+                          value={config.registers?.registrationDeadlineTime || ""}
+                          onChange={(e) => handleRegistersChange("registrationDeadlineTime", e.target.value || null)}
+                          className="h-10 text-xs border-slate-200 rounded-xl"
+                        />
+                      </div>
+                    </div>
                   </div>
                 </CardContent>
               </Card>

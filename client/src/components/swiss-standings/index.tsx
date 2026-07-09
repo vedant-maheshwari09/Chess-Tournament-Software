@@ -89,7 +89,8 @@ export default function SwissStandings({ tournamentId, showExportControls = true
     if (selectedSectionId === "extra_games" || !tournamentConfig?.details.tiebreaksEnabled) {
       return [];
     }
-    return tournamentConfig?.details.tiebreaks || [];
+    const rawTiebreaks = tournamentConfig?.details.tiebreaks || [];
+    return rawTiebreaks.filter((rule: string) => rule !== "Points" && rule !== "points" && rule !== "Pts" && rule !== "pts");
   }, [selectedSectionId, tournamentConfig]);
 
   useEffect(() => {
@@ -293,13 +294,13 @@ export default function SwissStandings({ tournamentId, showExportControls = true
     // Rows
     sectionStandings.forEach((standing, index) => {
       const playerRating = (isFide ? (standing.player.fideRating ?? standing.player.rating) : (standing.player.uscfRating ?? standing.player.rating)) || 'Unrated';
-      const playerID = standing.player.localId || '';
+      const playerID = standing.player.localId || (standing.player as any).userUscfId || '';
       const lastName = standing.player.lastName || '';
       const firstName = standing.player.firstName || '';
       const playerName = lastName && firstName ? `${lastName}, ${firstName}` : `${firstName} ${lastName}`.trim();
       
       const pairingNum = getPlayerPairingNumber(standing.player.id);
-      const uscfId = standing.player.localId;
+      const uscfId = standing.player.localId || (standing.player as any).userUscfId;
       const isDigitsOnly = uscfId && /^\d+$/.test(uscfId);
       
       const nameHtml = isDigitsOnly 
@@ -327,7 +328,7 @@ export default function SwissStandings({ tournamentId, showExportControls = true
       // Row 2: Empty, Rating/ID, Cumulative scores, Empty (Total), Prize Amount
       html += `  <tr style="border: 1px solid black; padding: 6px 8px;">\n`;
       html += `    <td style="background-color: #e8e8e8; border: 1px solid black; padding: 6px 8px; text-align: center;">&nbsp;</td>\n`;
-      html += `    <td style="border: 1px solid black; padding: 6px 8px; text-align: left;">${playerRating}${playerID ? ` &nbsp;&nbsp; ID: ${playerID}` : ''}</td>\n`;
+      html += `    <td style="border: 1px solid black; padding: 6px 8px; text-align: left;">${playerRating}${playerID ? ` &nbsp;&nbsp; ${playerID}` : ''}</td>\n`;
       
       standing.roundResults.forEach((res, roundIndex) => {
         const cumulative = standing.roundResults
@@ -733,6 +734,7 @@ a:hover { text-decoration: underline; }
           <StandingsTable
             standings={standings}
             totalRounds={totalRounds}
+            currentRound={currentRound}
             activeTiebreakRules={activeTiebreakRules}
             tournamentConfig={tournamentConfig}
             getPlayerPairingNumber={getPlayerPairingNumber}

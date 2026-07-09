@@ -2286,15 +2286,15 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                     </div>
                   ) : (
                     <div className="overflow-x-auto border border-black p-1 bg-white">
-                        <table style={{ borderCollapse: 'collapse', border: '1px solid black', width: '100%', fontFamily: 'Arial, sans-serif', fontSize: '13px', color: '#000', backgroundColor: '#fff' }}>
+                        <table style={{ borderCollapse: 'collapse', border: '1px solid black', width: '100%', fontFamily: 'Arial, sans-serif', fontSize: '14px', color: '#000', backgroundColor: '#fff' }}>
                           <thead>
                             <tr style={{ border: '1px solid black', backgroundColor: '#e8e8e8' }}>
-                              <th style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '13px', textAlign: 'center', width: '56px' }}>Bd</th>
-                              <th style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '13px', textAlign: 'center', width: '64px' }}>Res</th>
-                              <th style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '13px', textAlign: 'left' }}>White</th>
-                              <th style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '13px', textAlign: 'center', width: '64px' }}>Res</th>
-                              <th style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '13px', textAlign: 'left' }}>Black</th>
-                              {isOwner && <th style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '13px', textAlign: 'center', width: '60px' }}>Action</th>}
+                              <th style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '14px', textAlign: 'center', width: '56px' }}>Bd</th>
+                              <th style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '14px', textAlign: 'center', width: '64px' }}>Res</th>
+                              <th style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '14px', textAlign: 'left' }}>White</th>
+                              <th style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '14px', textAlign: 'center', width: '64px' }}>Res</th>
+                              <th style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '14px', textAlign: 'left' }}>Black</th>
+                              {isOwner && <th style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '14px', textAlign: 'center', width: '60px' }}>Action</th>}
                             </tr>
                           </thead>
                           <tbody>
@@ -2333,7 +2333,7 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                                     color: '#000'
                                   }}
                                 >
-                                  <td style={{ border: '1px solid black', padding: '6px 8px', color: '#000', textAlign: 'center', fontWeight: 'bold', fontSize: '13px', width: '56px', backgroundColor: '#f5f5f5' }}>
+                                  <td style={{ border: '1px solid black', padding: '6px 8px', color: '#000', textAlign: 'center', fontWeight: 'bold', fontSize: '14px', width: '56px', backgroundColor: '#f5f5f5' }}>
                                     {match.board}
                                   </td>
                                   <td
@@ -2345,7 +2345,7 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                                       textAlign: 'center',
                                       cursor: isEditMode ? 'pointer' : 'default',
                                       fontWeight: 'bold',
-                                      fontSize: '13px',
+                                      fontSize: '14px',
                                       width: '64px',
                                       userSelect: 'none'
                                     }}
@@ -2374,8 +2374,8 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                                     }}
                                     title={(!isEditMode && isOwner) ? "Click to select for swap" : ""}
                                   >
-                                    <span style={{ fontWeight: 'bold', fontSize: '13px', color: isWhiteSelected ? '#1e3a8a' : '#000' }}>
-                                      {whiteName} <span style={{ fontSize: '11px', color: '#555', fontWeight: 'normal' }}>({whiteRating} {whitePointsStr})</span>
+                                    <span style={{ fontWeight: 'bold', fontSize: '14px', color: isWhiteSelected ? '#1e3a8a' : '#000' }}>
+                                      {whiteName} <span style={{ fontSize: '12px', color: '#555', fontWeight: 'normal' }}>({whiteRating} {whitePointsStr})</span>
                                     </span>
                                   </td>
                                   <td
@@ -2387,7 +2387,7 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                                       textAlign: 'center',
                                       cursor: isEditMode ? 'pointer' : 'default',
                                       fontWeight: 'bold',
-                                      fontSize: '13px',
+                                      fontSize: '14px',
                                       width: '64px',
                                       userSelect: 'none'
                                     }}
@@ -2416,8 +2416,8 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                                     }}
                                     title={(!isEditMode && isOwner) ? "Click to select for swap" : ""}
                                   >
-                                    <span style={{ fontWeight: 'bold', fontSize: '13px', color: isBlackSelected ? '#1e3a8a' : '#000' }}>
-                                      {blackName} <span style={{ fontSize: '11px', color: '#555', fontWeight: 'normal' }}>({blackRating} {blackPointsStr})</span>
+                                    <span style={{ fontWeight: 'bold', fontSize: '14px', color: isBlackSelected ? '#1e3a8a' : '#000' }}>
+                                      {blackName} <span style={{ fontSize: '12px', color: '#555', fontWeight: 'normal' }}>({blackRating} {blackPointsStr})</span>
                                     </span>
                                   </td>
                                   {isOwner && (
@@ -2460,23 +2460,23 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                                     color: '#000'
                                   }}
                                 >
-                                  <td style={{ border: '1px solid black', padding: '6px 8px', color: '#000', textAlign: 'center', fontWeight: 'bold', fontSize: '13px', width: '56px', backgroundColor: '#f5f5f5' }}>
+                                  <td style={{ border: '1px solid black', padding: '6px 8px', color: '#000', textAlign: 'center', fontWeight: 'bold', fontSize: '14px', width: '56px', backgroundColor: '#f5f5f5' }}>
                                     
                                   </td>
-                                  <td style={{ border: '1px solid black', padding: '6px 8px', color: '#000', textAlign: 'center', fontWeight: 'bold', fontSize: '13px', width: '64px' }}>
+                                  <td style={{ border: '1px solid black', padding: '6px 8px', color: '#000', textAlign: 'center', fontWeight: 'bold', fontSize: '14px', width: '64px' }}>
                                     <div className="flex items-center justify-center">
                                       {byePointsDisplay}
                                     </div>
                                   </td>
-                                  <td style={{ border: '1px solid black', padding: '6px 8px', color: '#000', textAlign: 'left', fontWeight: 'bold', fontSize: '13px' }}>
+                                  <td style={{ border: '1px solid black', padding: '6px 8px', color: '#000', textAlign: 'left', fontWeight: 'bold', fontSize: '14px' }}>
                                     <span>
-                                      {playerName} <span style={{ fontSize: '11px', color: '#555', fontWeight: 'normal' }}>({playerRating} {playerPointsStr})</span>
+                                      {playerName} <span style={{ fontSize: '12px', color: '#555', fontWeight: 'normal' }}>({playerRating} {playerPointsStr})</span>
                                     </span>
                                   </td>
-                                  <td style={{ border: '1px solid black', padding: '6px 8px', color: '#000', textAlign: 'center', fontSize: '13px', width: '64px' }}>
+                                  <td style={{ border: '1px solid black', padding: '6px 8px', color: '#000', textAlign: 'center', fontSize: '14px', width: '64px' }}>
                                     
                                   </td>
-                                  <td style={{ border: '1px solid black', padding: '6px 8px', color: '#555', textAlign: 'left', fontSize: '13px', fontStyle: 'italic' }}>
+                                  <td style={{ border: '1px solid black', padding: '6px 8px', color: '#555', textAlign: 'left', fontSize: '14px', fontStyle: 'italic' }}>
                                     {byeLabel}
                                   </td>
                                   {isOwner && (
@@ -2504,15 +2504,15 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                     </div>
                     {extraMatches.length > 0 ? (
                       <div className="overflow-x-auto border border-black p-1 bg-white">
-                        <table style={{ borderCollapse: 'collapse', border: '1px solid black', width: '100%', fontFamily: 'Arial, sans-serif', fontSize: '13px', color: '#000', backgroundColor: '#fff' }}>
+                        <table style={{ borderCollapse: 'collapse', border: '1px solid black', width: '100%', fontFamily: 'Arial, sans-serif', fontSize: '14px', color: '#000', backgroundColor: '#fff' }}>
                           <thead>
                             <tr style={{ border: '1px solid black', backgroundColor: '#e8e8e8' }}>
-                              <th style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '13px', textAlign: 'center', width: '56px' }}>Bd</th>
-                              <th style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '13px', textAlign: 'center', width: '64px' }}>Res</th>
-                              <th style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '13px', textAlign: 'left' }}>White</th>
-                              <th style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '13px', textAlign: 'center', width: '64px' }}>Res</th>
-                              <th style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '13px', textAlign: 'left' }}>Black</th>
-                              {isOwner && <th style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '13px', textAlign: 'center', width: '60px' }}>Action</th>}
+                              <th style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '14px', textAlign: 'center', width: '56px' }}>Bd</th>
+                              <th style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '14px', textAlign: 'center', width: '64px' }}>Res</th>
+                              <th style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '14px', textAlign: 'left' }}>White</th>
+                              <th style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '14px', textAlign: 'center', width: '64px' }}>Res</th>
+                              <th style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '14px', textAlign: 'left' }}>Black</th>
+                              {isOwner && <th style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '14px', textAlign: 'center', width: '60px' }}>Action</th>}
                             </tr>
                           </thead>
                           <tbody>
@@ -2551,7 +2551,7 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                                     color: '#000'
                                   }}
                                 >
-                                  <td style={{ border: '1px solid black', padding: '6px 8px', color: '#000', textAlign: 'center', fontWeight: 'bold', fontSize: '13px', width: '56px', backgroundColor: '#f5f5f5' }}>
+                                  <td style={{ border: '1px solid black', padding: '6px 8px', color: '#000', textAlign: 'center', fontWeight: 'bold', fontSize: '14px', width: '56px', backgroundColor: '#f5f5f5' }}>
                                     Extra
                                   </td>
                                   <td
@@ -2563,7 +2563,7 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                                       textAlign: 'center',
                                       cursor: isEditMode ? 'pointer' : 'default',
                                       fontWeight: 'bold',
-                                      fontSize: '13px',
+                                      fontSize: '14px',
                                       width: '64px',
                                       userSelect: 'none'
                                     }}
@@ -2592,8 +2592,8 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                                     }}
                                     title={(!isEditMode && isOwner) ? "Click to select for swap" : ""}
                                   >
-                                    <span style={{ fontWeight: 'bold', fontSize: '13px', color: isWhiteSelected ? '#1e3a8a' : '#000' }}>
-                                      {whiteName} <span style={{ fontSize: '11px', color: '#555', fontWeight: 'normal' }}>({whiteRating} {whitePointsStr})</span>
+                                    <span style={{ fontWeight: 'bold', fontSize: '14px', color: isWhiteSelected ? '#1e3a8a' : '#000' }}>
+                                      {whiteName} <span style={{ fontSize: '12px', color: '#555', fontWeight: 'normal' }}>({whiteRating} {whitePointsStr})</span>
                                     </span>
                                   </td>
                                   <td
@@ -2605,7 +2605,7 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                                       textAlign: 'center',
                                       cursor: isEditMode ? 'pointer' : 'default',
                                       fontWeight: 'bold',
-                                      fontSize: '13px',
+                                      fontSize: '14px',
                                       width: '64px',
                                       userSelect: 'none'
                                     }}
@@ -2634,8 +2634,8 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                                     }}
                                     title={(!isEditMode && isOwner) ? "Click to select for swap" : ""}
                                   >
-                                    <span style={{ fontWeight: 'bold', fontSize: '13px', color: isBlackSelected ? '#1e3a8a' : '#000' }}>
-                                      {blackName} <span style={{ fontSize: '11px', color: '#555', fontWeight: 'normal' }}>({blackRating} {blackPointsStr})</span>
+                                    <span style={{ fontWeight: 'bold', fontSize: '14px', color: isBlackSelected ? '#1e3a8a' : '#000' }}>
+                                      {blackName} <span style={{ fontSize: '12px', color: '#555', fontWeight: 'normal' }}>({blackRating} {blackPointsStr})</span>
                                     </span>
                                   </td>
                                   {isOwner && (

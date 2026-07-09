@@ -6,6 +6,7 @@ import type { SwissPlayerStanding, PlayerRoundResult } from "./types";
 interface StandingsTableProps {
   standings: SwissPlayerStanding[];
   totalRounds: number;
+  currentRound: number;
   activeTiebreakRules: string[];
   tournamentConfig: any;
   getPlayerPairingNumber: (playerId: number) => number;
@@ -16,6 +17,7 @@ interface StandingsTableProps {
 export function StandingsTable({
   standings,
   totalRounds,
+  currentRound,
   activeTiebreakRules,
   tournamentConfig,
   getPlayerPairingNumber,
@@ -26,33 +28,33 @@ export function StandingsTable({
 
   return (
     <div className="overflow-x-auto border border-black p-1 bg-white">
-      <table className="w-full border-collapse" style={{ borderCollapse: 'collapse', border: '1px solid black', width: '100%', fontFamily: 'Arial, sans-serif', fontSize: '13px', color: '#000', backgroundColor: '#fff' }}>
+      <table className="w-full border-collapse" style={{ borderCollapse: 'collapse', border: '1px solid black', width: '100%', fontFamily: 'Arial, sans-serif', fontSize: '14px', color: '#000', backgroundColor: '#fff' }}>
         <thead>
           <tr style={{ border: '1px solid black', backgroundColor: '#e8e8e8' }}>
-            <th className="font-sans" style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '13px', textAlign: 'center', width: '48px' }}>
+            <th className="font-sans" style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '14px', textAlign: 'center', width: '48px' }}>
               #
             </th>
-            <th className="font-sans" style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '13px', textAlign: 'left' }}>
+            <th className="font-sans" style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '14px', textAlign: 'left' }}>
               Name/Rating/ID
             </th>
             {Array.from({ length: totalRounds }, (_, i) => (
-              <th key={i} className="font-sans" style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '13px', textAlign: 'center', width: '64px' }}>
+              <th key={i} className="font-sans" style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '14px', textAlign: 'center', width: '64px' }}>
                 Rd {i + 1}
               </th>
             ))}
-            <th className="font-sans" style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '13px', textAlign: 'center', width: '80px' }}>
+            <th className="font-sans" style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '14px', textAlign: 'center', width: '80px' }}>
               Total
             </th>
             {activeTiebreakRules.map((rule) => (
-              <th key={rule} className="font-sans" style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '13px', textAlign: 'center', width: '80px' }}>
+              <th key={rule} className="font-sans" style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '14px', textAlign: 'center', width: '80px' }}>
                 {rule}
               </th>
             ))}
-            <th className="font-sans" style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '13px', textAlign: 'center', width: '80px' }}>
-              Est. Post
+            <th className="font-sans" style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '14px', textAlign: 'center', width: '80px' }}>
+              Performance
             </th>
-            <th className="font-sans" style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '13px', textAlign: 'center', width: '80px' }}>
-              Prize
+            <th className="font-sans" style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '14px', textAlign: 'center', width: '80px' }}>
+              Est. Post
             </th>
           </tr>
         </thead>
@@ -62,60 +64,93 @@ export function StandingsTable({
             const lastName = standing.player.lastName || '';
             const firstName = standing.player.firstName || '';
             const nameStr = lastName && firstName ? lastName + ", " + firstName : (firstName + " " + lastName).trim();
-            const uscfId = standing.player.localId;
-            const isDigitsOnly = !!(uscfId && /^\d+$/.test(uscfId));
+            
+            // Robust multi-field USCF ID fallback
+            const uscfId = standing.player.localId || (standing.player as any).local_id || (standing.player as any).userUscfId || (standing.player as any).uscfId || (standing.player as any).uscf_id;
+            
             const isWithdrawn = standing.player.status === 'withdrawn' || standing.isWithdrawn;
-            const pairingNum = getPlayerPairingNumber(standing.player.id);
 
             return (
-              <tr key={standing.player.id} style={{ border: '1px solid black', height: '40px', backgroundColor: isWithdrawn ? '#f1f5f9' : '#fff' }}>
-                <td style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'center', fontWeight: 'bold' }}>
-                  {standing.position}
-                </td>
-                <td style={{ border: '1px solid black', padding: '6px 8px' }}>
-                  <div className="font-bold flex items-center justify-between">
-                    <span>
-                      {pairingNum}. {nameStr}
-                    </span>
-                    {isWithdrawn && (
-                      <Badge variant="secondary" className="ml-2 text-[10px] font-sans scale-90 border-slate-300 text-slate-650 bg-slate-100">
-                        WD
-                      </Badge>
-                    )}
-                  </div>
-                  <div className="text-[11px] text-gray-500 font-sans flex items-center gap-1.5 leading-none mt-0.5">
-                    <span>Rtg: {playerRating}</span>
-                    {uscfId && (
-                      <>
-                        <span>•</span>
-                        <span>ID: {uscfId}</span>
-                      </>
-                    )}
-                  </div>
-                </td>
-                {standing.roundResults.map((res, roundIdx) => (
-                  <td key={roundIdx} style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'center' }}>
-                    {renderRoundOutcomeBadge(res)}
+              <React.Fragment key={standing.player.id}>
+                {/* Row 1: Position, Name, Round outcomes, Total, Tiebreaks, Performance, Est. Post */}
+                <tr style={{ border: '1px solid black', height: '24px', backgroundColor: isWithdrawn ? '#f1f5f9' : '#fff' }}>
+                  <td style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'center', fontWeight: 'bold' }}>
+                    {standing.position}
                   </td>
-                ))}
-                <td style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'center', fontWeight: 'bold', fontSize: '14px' }}>
-                  {formatPoints(standing)}
-                </td>
-                {activeTiebreakRules.map((rule) => {
-                  const val = standing.tiebreakValues[rule];
-                  return (
-                    <td key={rule} style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'center' }}>
-                      {typeof val === 'number' ? val.toFixed(1).replace(/\.0$/, "") : '0'}
+                  <td style={{ border: '1px solid black', padding: '6px 8px', fontWeight: 'bold' }}>
+                    <div className="flex items-center justify-between">
+                      <span>{nameStr}</span>
+                      {isWithdrawn && (
+                        <Badge variant="secondary" className="ml-2 text-[10px] font-sans scale-90 border-slate-300 text-slate-650 bg-slate-100">
+                          WD
+                        </Badge>
+                      )}
+                    </div>
+                  </td>
+                  {standing.roundResults.map((res, roundIdx) => (
+                    <td key={roundIdx} style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'center' }}>
+                      {renderRoundOutcomeBadge(res)}
                     </td>
-                  );
-                })}
-                <td style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'center', color: '#1e293b' }}>
-                  {isWithdrawn ? '---' : standing.postRating || playerRating}
-                </td>
-                <td style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'center', fontWeight: 'bold', color: '#15803d' }}>
-                  {standing.prizeAmount ? "$" + standing.prizeAmount : '---'}
-                </td>
-              </tr>
+                  ))}
+                  <td style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'center', fontWeight: 'bold', fontSize: '15px' }}>
+                    {formatPoints(standing)}
+                  </td>
+                  {activeTiebreakRules.map((rule) => {
+                    const val = standing.tiebreakValues[rule];
+                    return (
+                      <td key={rule} style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'center' }}>
+                        {typeof val === 'number' ? val.toFixed(1).replace(/\.0$/, "") : '0'}
+                      </td>
+                    );
+                  })}
+                  <td style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'center', color: '#1e293b' }}>
+                    {isWithdrawn ? '---' : standing.performanceRating || playerRating}
+                  </td>
+                  <td style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'center', color: '#1e293b' }}>
+                    {isWithdrawn ? '---' : standing.postRating || playerRating}
+                  </td>
+                </tr>
+
+                {/* Row 2: Empty Position, Rating & ID, Cumulative scores, Empty Total, Tiebreaks, Empty Performance, Est. Post */}
+                <tr style={{ border: '1px solid black', height: '20px', backgroundColor: isWithdrawn ? '#f1f5f9' : '#fff' }}>
+                  <td style={{ backgroundColor: '#e8e8e8', border: '1px solid black', padding: '6px 8px', textAlign: 'center' }}>
+                    &nbsp;
+                  </td>
+                  <td style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'left' }}>
+                    <div className="text-[12px] text-gray-500 font-sans leading-none mt-1">
+                      {playerRating}{uscfId ? ` \u00a0\u00a0 ID: ${uscfId}` : ''}
+                    </div>
+                  </td>
+                  {standing.roundResults.map((res, roundIdx) => {
+                    const cumulative = standing.roundResults
+                      .slice(0, roundIdx + 1)
+                      .reduce((sum, entry) => sum + entry.points, 0);
+                    
+                    // Cumulative scores are only shown for unwithdrawn/active matches of past/current rounds
+                    const showCumulative = roundIdx < currentRound && res.result && res.result !== 'unplayed' && !res.isInProgress && res.result !== 'withdrawn';
+                    
+                    return (
+                      <td key={roundIdx} style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'center', fontSize: '12px', color: '#475569' }}>
+                        {showCumulative ? cumulative.toFixed(1).replace(/\.0$/, "") : '\u00a0'}
+                      </td>
+                    );
+                  })}
+                  <td style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'center' }}>
+                    &nbsp;
+                  </td>
+                  {activeTiebreakRules.map((rule) => (
+                    <td key={rule} style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'center' }}>
+                      &nbsp;
+                    </td>
+                  ))}
+                  <td style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'center' }}>
+                    &nbsp;
+                  </td>
+                  <td style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'center' }}>
+                    &nbsp;
+                  </td>
+                </tr>
+              </React.Fragment>
             );
           })}
         </tbody>

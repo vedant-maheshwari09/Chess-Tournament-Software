@@ -233,6 +233,9 @@ app.post("/api/tournaments/:id/payments/intent", requireAuth, async (req, res) =
         paymentDescription = `${description} for ${summaryNames[0]}`;
       }
 
+      const stripeAccountId = payments.stripeAccountId?.trim();
+      const isConnectedAccount = Boolean(stripeAccountId && stripeAccountId.startsWith("acct_"));
+
       const paymentIntent = await stripe.paymentIntents.create({
         amount: amountInMinorUnits,
         currency: totals.currency.toLowerCase(),
@@ -247,6 +250,11 @@ app.post("/api/tournaments/:id/payments/intent", requireAuth, async (req, res) =
         receipt_email: receiptEmail,
         description: paymentDescription,
         ...(descriptorSuffix ? { statement_descriptor_suffix: descriptorSuffix } : {}),
+        ...(isConnectedAccount ? {
+          transfer_data: {
+            destination: stripeAccountId as string,
+          }
+        } : {})
       });
 
       res.json({

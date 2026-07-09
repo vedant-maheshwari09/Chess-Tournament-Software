@@ -15,6 +15,7 @@ import type { Tournament } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 import clsx from "clsx";
 import { slugify } from "@/lib/utils";
+import { BadgeCheck, AlertCircle } from "lucide-react";
 
 
 interface TournamentPaymentSetupPageProps {
@@ -131,16 +132,7 @@ export default function TournamentPaymentSetupPage({ tournamentId }: TournamentP
     },
   });
 
-  const updateAccountPayments = useMutation({
-    mutationFn: async (payload: Record<string, unknown>) =>
-      apiRequest("/api/account/payments", {
-        method: "PUT",
-        body: JSON.stringify(payload),
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/account/payments"] });
-    },
-  });
+
 
   if (authLoading || tournamentLoading || !parsedConfig || !hydrated) {
     return (
@@ -159,7 +151,7 @@ export default function TournamentPaymentSetupPage({ tournamentId }: TournamentP
 
   const accountDefaults: AccountPaymentSettings = accountSettings ?? { preferredProvider: null };
 
-  const providerCards = (Object.keys(providerDescriptions) as PaymentProvider[]).map((provider) => {
+  const providerCards = (["stripe"] as PaymentProvider[]).map((provider) => {
     const active = form.provider === provider;
     const { title, subtitle } = providerDescriptions[provider];
     return (
@@ -191,29 +183,22 @@ export default function TournamentPaymentSetupPage({ tournamentId }: TournamentP
     return Math.max(0, Math.min(100, Number(numeric.toFixed(2))));
   };
 
-  const buildTournamentPayload = (connectionScope: "tournament" | "account") => ({
+  const buildTournamentPayload = () => ({
     provider: form.provider,
     defaultCurrency: sanitizeCurrency(form.defaultCurrency),
     onlineEnabled: form.onlineEnabled,
     requirePaymentOnRegistration: form.requirePaymentOnRegistration,
     allowProcessingContribution: form.allowProcessingContribution,
     processingFeePercent: safeProcessingFee(),
-    stripeAccountId: form.stripeAccountId.trim(),
-    stripePublishableKey: form.stripePublishableKey.trim(),
-    payoutStatementDescriptor: form.payoutStatementDescriptor.trim(),
-    connectionScope,
-  });
-
-  const buildAccountPayload = () => ({
-    preferredProvider: form.provider,
-    stripeAccountId: form.stripeAccountId.trim(),
-    stripePublishableKey: form.stripePublishableKey.trim(),
-    payoutStatementDescriptor: form.payoutStatementDescriptor.trim(),
+    stripeAccountId: accountSettings?.stripeAccountId?.trim() ?? "",
+    stripePublishableKey: accountSettings?.stripePublishableKey?.trim() ?? "",
+    payoutStatementDescriptor: accountSettings?.payoutStatementDescriptor?.trim() ?? "",
+    connectionScope: "tournament",
   });
 
   const handleSaveTournament = async () => {
     try {
-      await updateTournamentPayments.mutateAsync(buildTournamentPayload("tournament"));
+      await updateTournamentPayments.mutateAsync(buildTournamentPayload());
       toast({ title: "Payment settings updated", description: "Tournament payments are ready to use." });
       queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}`] });
     } catch (error: any) {
@@ -225,25 +210,7 @@ export default function TournamentPaymentSetupPage({ tournamentId }: TournamentP
     }
   };
 
-  const handleSaveAccount = async () => {
-    try {
-      await updateAccountPayments.mutateAsync(buildAccountPayload());
-      await updateTournamentPayments.mutateAsync(buildTournamentPayload("account"));
-      toast({
-        title: "Saved as account default",
-        description: "Future tournaments will start with these payment details.",
-      });
-      queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}`] });
-    } catch (error: any) {
-      toast({
-        title: "Unable to save payment defaults",
-        description: error?.message ?? "Please try again",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const isBusy = updateTournamentPayments.isPending || updateAccountPayments.isPending;
+  const isBusy = updateTournamentPayments.isPending;
 
   return (
     <div className="min-h-screen bg-transparent">
@@ -264,13 +231,28 @@ export default function TournamentPaymentSetupPage({ tournamentId }: TournamentP
         <div className="grid gap-6 lg:grid-cols-[2fr,1fr]">
           <Card className="shadow-sm">
             <CardHeader className="border-b border-slate-100 bg-white">
-              <CardTitle>Choose your provider</CardTitle>
-              <CardDescription>Select the platform you want to process payments with.</CardDescription>
+              <CardTitle>Tournament Checkout Rules</CardTitle>
+              <CardDescription>Configure rules and fees for online player registrations.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6 bg-white">
-              <div className="grid gap-4 md:grid-cols-2">{providerCards}</div>
+            <CardContent className="space-y-6 bg-white pt-6">
+              <div className="space-y-4">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <ToggleField
+                    label="Enable Online Registration Payments"
+                    description="Allow players to register and pay entry fees online."
+                    checked={form.onlineEnabled}
+                    onCheckedChange={(checked) => setForm((prev) => ({ ...prev, onlineEnabled: checked }))}
+                  />
+                  <ToggleField
+                    label="Require Payment on Registration"
+                    description="Players must complete entry checkout immediately to register."
+                    checked={form.requirePaymentOnRegistration}
+                    onCheckedChange={(checked) => setForm((prev) => ({ ...prev, requirePaymentOnRegistration: checked }))}
+                  />
+                </div>
+              </div>
 
-              <div className="grid gap-4 md:grid-cols-3">
+              <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="defaultCurrency">Default currency</Label>
                   <Select
@@ -302,48 +284,82 @@ export default function TournamentPaymentSetupPage({ tournamentId }: TournamentP
                   />
                   <p className="text-xs text-slate-500">Leave blank to disable additional fees.</p>
                 </div>
-                {form.provider === "stripe" ? (
-                  <ProviderSection title="Stripe connection">
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <TextField
-                        id="stripeAccountId"
-                        label="Stripe account ID"
-                        value={form.stripeAccountId}
-                        onChange={(value) => setForm((prev) => ({ ...prev, stripeAccountId: value }))}
-                        placeholder="acct_123ABC..."
-                      />
-                      <TextField
-                        id="stripePublishableKey"
-                        label="Publishable key"
-                        value={form.stripePublishableKey}
-                        onChange={(value) => setForm((prev) => ({ ...prev, stripePublishableKey: value }))}
-                        placeholder="pk_live_..."
-                      />
-                    </div>
-                    <TextField
-                      id="stripeDescriptor"
-                      label="Statement descriptor"
-                      value={form.payoutStatementDescriptor}
-                      onChange={(value) => setForm((prev) => ({ ...prev, payoutStatementDescriptor: value }))}
-                      placeholder="Tournament name on bank statements"
-                    />
-                  </ProviderSection>
-                ) : null}
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-3">
+              {form.provider === "stripe" ? (
+                <div className={clsx(
+                  "space-y-4 rounded-xl border p-5 mt-4 animate-in fade-in duration-200 shadow-sm transition-colors",
+                  accountSettings?.stripeAccountId 
+                    ? "bg-emerald-50/70 border-emerald-200 text-emerald-900" 
+                    : "bg-rose-50/70 border-rose-200 text-rose-900"
+                )}>
+                  <div className="flex items-start gap-4">
+                    <div className={clsx(
+                      "rounded-xl p-2 shrink-0 mt-0.5 shadow-sm border",
+                      accountSettings?.stripeAccountId 
+                        ? "bg-emerald-100/80 text-emerald-600 border-emerald-200" 
+                        : "bg-rose-100/80 text-rose-600 border-rose-200"
+                    )}>
+                      {accountSettings?.stripeAccountId ? (
+                        <BadgeCheck className="h-6 w-6 text-emerald-600" />
+                      ) : (
+                        <AlertCircle className="h-6 w-6 text-rose-600" />
+                      )}
+                    </div>
+                    <div className="space-y-1">
+                      <h4 className={clsx(
+                        "text-sm font-bold",
+                        accountSettings?.stripeAccountId ? "text-emerald-900" : "text-rose-900"
+                      )}>
+                        {accountSettings?.stripeAccountId ? "Stripe Connected successfully" : "Stripe Connection Required"}
+                      </h4>
+                      <p className={clsx(
+                        "text-xs leading-relaxed",
+                        accountSettings?.stripeAccountId ? "text-emerald-700/90" : "text-rose-700/90"
+                      )}>
+                        {accountSettings?.stripeAccountId ? (
+                          <>
+                            Your tournament is connected to your global Stripe account: <code className="font-mono bg-emerald-100/60 px-1.5 py-0.5 rounded text-[11px] font-bold text-emerald-800">{accountSettings.stripeAccountId}</code>. All online registration fees will route directly to your connected bank account.
+                          </>
+                        ) : (
+                          <>
+                            You must connect your Stripe Account under Settings in order to collect online registration payments.
+                          </>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3 pt-1">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setLocation("/settings")}
+                      className={clsx(
+                        "text-xs font-semibold gap-1.5 h-8 shadow-sm transition",
+                        accountSettings?.stripeAccountId 
+                          ? "bg-white border-emerald-200 text-emerald-700 hover:bg-emerald-50" 
+                          : "bg-white border-rose-200 text-rose-700 hover:bg-rose-50"
+                      )}
+                    >
+                      ✏️ {accountSettings?.stripeAccountId ? "Manage Stripe Connection in Settings" : "Configure Stripe Connection in Settings"}
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="flex justify-end gap-3 border-t pt-5">
                 <Button
                   variant="outline"
+                  type="button"
                   onClick={() => setLocation(`/tournaments/${tournament ? slugify(tournament.name) : tournamentId}/manage`)}
                   disabled={isBusy}
                 >
                   Cancel
                 </Button>
-                <Button onClick={handleSaveTournament} disabled={isBusy}>
-                  {updateTournamentPayments.isPending ? "Saving..." : "Save for this tournament"}
-                </Button>
-                <Button onClick={handleSaveAccount} disabled={isBusy} variant="secondary">
-                  {updateAccountPayments.isPending ? "Saving..." : "Save & set as my default"}
+                <Button onClick={handleSaveTournament} disabled={isBusy || (form.provider === "stripe" && !accountSettings?.stripeAccountId)}>
+                  {updateTournamentPayments.isPending ? "Saving..." : "Save payment settings"}
                 </Button>
               </div>
             </CardContent>
@@ -403,44 +419,6 @@ function ToggleField({ label, description, checked, onCheckedChange }: ToggleFie
         <p className="text-xs text-slate-600">{description}</p>
       </div>
       <Switch checked={checked} onCheckedChange={onCheckedChange} />
-    </div>
-  );
-}
-
-interface ProviderSectionProps {
-  title: string;
-  children: React.ReactNode;
-}
-
-function ProviderSection({ title, children }: ProviderSectionProps) {
-  return (
-    <div className="space-y-4 rounded-lg border border-slate-200 bg-slate-50/70 p-4">
-      <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
-      {children}
-    </div>
-  );
-}
-
-interface TextFieldProps {
-  id: string;
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  placeholder?: string;
-  type?: string;
-}
-
-function TextField({ id, label, value, onChange, placeholder, type = "text" }: TextFieldProps) {
-  return (
-    <div className="space-y-2">
-      <Label htmlFor={id}>{label}</Label>
-      <Input
-        id={id}
-        type={type}
-        value={value}
-        placeholder={placeholder}
-        onChange={(event) => onChange(event.target.value)}
-      />
     </div>
   );
 }

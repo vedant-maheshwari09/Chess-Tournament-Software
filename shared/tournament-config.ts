@@ -332,8 +332,8 @@ export const DEFAULT_REGISTRATION_FIELDS: RegistrationFormField[] = [
     id: "ratingProvider",
     label: "Rating Provider",
     type: "select",
-    required: true,
-    visible: true,
+    required: false,
+    visible: false,
     description: "Select where we should verify your rating."
   },
   {
