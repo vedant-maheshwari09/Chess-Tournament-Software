@@ -286,9 +286,6 @@ export default function SwissStandings({ tournamentId, showExportControls = true
       html += `    <td style="background-color: #e8e8e8; border: 1px solid black; font-weight: bold; padding: 6px 8px; text-align: center; width: 55px; white-space: nowrap;">Rd ${r}</td>\n`;
     }
     html += `    <td style="background-color: #e8e8e8; border: 1px solid black; font-weight: bold; padding: 6px 8px; text-align: center; width: 50px;">Total</td>\n`;
-    if (tournamentConfig?.prizesEnabled && showPrizes) {
-      html += `    <td style="background-color: #e8e8e8; border: 1px solid black; font-weight: bold; padding: 6px 8px; text-align: left; width: 110px;">Prizes</td>\n`;
-    }
     html += `  </tr>\n</thead>\n<tbody>\n`;
     
     // Rows
@@ -307,7 +304,7 @@ export default function SwissStandings({ tournamentId, showExportControls = true
         ? `<a href="http://www.uschess.org/msa/MbrDtlMain.php?${uscfId}" target="_blank" style="color: #0066cc; text-decoration: none; font-weight: bold;">${playerName}</a>` 
         : playerName;
         
-      // Row 1: Pairing No, Name, Round results, Total Points, Prize Category
+      // Row 1: Pairing No, Name, Round results, Total Points
       html += `  <tr style="border: 1px solid black; padding: 6px 8px;">\n`;
       html += `    <td style="background-color: #e8e8e8; border: 1px solid black; font-weight: bold; padding: 6px 8px; text-align: center;">${index + 1}</td>\n`;
       html += `    <td style="border: 1px solid black; font-weight: bold; padding: 6px 8px; text-align: left;">${nameHtml}</td>\n`;
@@ -319,13 +316,9 @@ export default function SwissStandings({ tournamentId, showExportControls = true
       
       const totalPointsStr = standing.totalPoints.toFixed(1).replace(/\.0$/, "");
       html += `    <td style="border: 1px solid black; font-weight: bold; padding: 6px 8px; text-align: center;">${totalPointsStr}</td>\n`;
-      
-      if (tournamentConfig?.prizesEnabled && showPrizes) {
-        html += `    <td style="border: 1px solid black; padding: 6px 8px; text-align: left;">${standing.prizeCategory || '---'}</td>\n`;
-      }
       html += `  </tr>\n`;
       
-      // Row 2: Empty, Rating/ID, Cumulative scores, Empty (Total), Prize Amount
+      // Row 2: Empty, Rating/ID, Cumulative scores, Empty (Total)
       html += `  <tr style="border: 1px solid black; padding: 6px 8px;">\n`;
       html += `    <td style="background-color: #e8e8e8; border: 1px solid black; padding: 6px 8px; text-align: center;">&nbsp;</td>\n`;
       html += `    <td style="border: 1px solid black; padding: 6px 8px; text-align: left;">${playerRating}${playerID ? ` &nbsp;&nbsp; ${playerID}` : ''}</td>\n`;
@@ -339,17 +332,12 @@ export default function SwissStandings({ tournamentId, showExportControls = true
       });
       
       html += `    <td style="border: 1px solid black; padding: 6px 8px; text-align: center;">&nbsp;</td>\n`;
-      
-      if (tournamentConfig?.prizesEnabled && showPrizes) {
-        const amountText = standing.prizeAmount || '---';
-        html += `    <td style="border: 1px solid black; padding: 6px 8px; text-align: left; font-weight: bold;">${amountText}</td>\n`;
-      }
       html += `  </tr>\n`;
     });
     
     html += `</tbody>\n</table>\n`;
     return html;
-  }, [tournament, totalRounds, showPrizes, getPlayerPairingNumber, formatRoundResultDisplay, currentRound, tournamentConfig]);
+  }, [tournament, totalRounds, getPlayerPairingNumber, formatRoundResultDisplay, currentRound, tournamentConfig]);
 
   const handlePrintStandings = useCallback(() => {
     if (standings.length === 0 || typeof window === 'undefined') return;
@@ -494,14 +482,14 @@ a:hover { text-decoration: underline; }
       return `GIP${result.board ?? ""}`;
     }
 
-    if (result.result === 'bye' || result.result === 'unplayed') {
-      if (result.isRequested) {
-        if (result.points === 1) return 'B';
-        if (result.points === 0.5) return 'H';
-        return 'U';
-      } else {
-        return 'U';
-      }
+    if (result.result === 'bye') {
+      if (result.points === 1) return 'B';
+      if (result.points === 0.5) return 'H';
+      return 'U';
+    }
+
+    if (result.result === 'unplayed') {
+      return 'U';
     }
 
     if (result.result === 'withdrawn') {
@@ -512,24 +500,23 @@ a:hover { text-decoration: underline; }
       return '---';
     }
 
-    const colorPrefix = result.color === 'white' ? 'W' : 'B';
     const opponentNum = result.opponent?.isActiveTd 
       ? 'TD' 
       : (result.opponentPosition && result.opponentPosition > 0 ? result.opponentPosition : getPlayerPairingNumber(result.opponent.id));
 
     if (result.result === 'forfeit-win') {
-      return `X ${opponentNum}`;
+      return `X`;
     }
 
     if (result.result === 'forfeit-loss') {
-      return `F ${opponentNum}`;
+      return `F`;
     }
 
     if (result.result === 'double-forfeit') {
-      return `FF ${opponentNum}`;
+      return `FF`;
     }
 
-    return `${colorPrefix} ${opponentNum}`;
+    return `${result.result} ${opponentNum}`;
   }
 
   function formatRoundOpponent(result: PlayerRoundResult): string {
@@ -566,14 +553,14 @@ a:hover { text-decoration: underline; }
       return `GIP${result.board ?? ""}`;
     }
 
-    if (result.result === 'bye' || result.result === 'unplayed') {
-      if (result.isRequested) {
-        if (result.points === 1) return 'B';
-        if (result.points === 0.5) return 'H';
-        return 'U';
-      } else {
-        return 'U';
-      }
+    if (result.result === 'bye') {
+      if (result.points === 1) return 'B';
+      if (result.points === 0.5) return 'H';
+      return 'U';
+    }
+
+    if (result.result === 'unplayed') {
+      return 'U';
     }
 
     if (result.result === 'withdrawn') {
@@ -584,28 +571,26 @@ a:hover { text-decoration: underline; }
       return '---';
     }
 
-    const colorPrefix = result.color === 'white' ? 'W' : 'B';
-
     // Show "TD" instead of position number if opponent is the houseplayer
     const opponentDisplayText = result.opponent?.isActiveTd 
       ? 'TD' 
       : (result.opponentPosition && result.opponentPosition > 0 ? result.opponentPosition : getPlayerPairingNumber(result.opponent.id));
 
     if (result.result === 'forfeit-win') {
-      return `X ${opponentDisplayText}`;
+      return `X`;
     }
 
     if (result.result === 'forfeit-loss') {
-      return `F ${opponentDisplayText}`;
+      return `F`;
     }
 
     if (result.result === 'double-forfeit') {
-      return `FF ${opponentDisplayText}`;
+      return `FF`;
     }
 
     // Direct result outcomes: won (W), lost (L), drawn (D)
-    // Format matches SwissSys format Color + Opponent Pairing Number (e.g. W 3, B 9, etc.)
-    return `${colorPrefix} ${opponentDisplayText}`;
+    // Format matches SwissSys format (e.g. W 3, L 9, D 29, etc.)
+    return `${result.result} ${opponentDisplayText}`;
   }
 
   function formatPoints(standing: SwissPlayerStanding): string {
@@ -618,7 +603,7 @@ a:hover { text-decoration: underline; }
   const renderRoundOutcomeBadge = (res: PlayerRoundResult) => {
     const text = formatRoundResultDisplay(res);
     if (text === '---') return <span className="text-slate-400 dark:text-slate-600">—</span>;
-    return <span className="text-slate-800 dark:text-slate-200 text-[15px] font-bold font-sans">{text}</span>;
+    return <span className="text-slate-800 dark:text-slate-200 text-[13px] font-bold font-sans">{text}</span>;
   };
 
 

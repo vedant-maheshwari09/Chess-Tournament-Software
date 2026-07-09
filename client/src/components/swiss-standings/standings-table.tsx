@@ -118,7 +118,7 @@ export function StandingsTable({
                   </td>
                   <td style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'left' }}>
                     <div className="text-[13px] text-gray-500 font-sans leading-none mt-1">
-                      {playerRating}{uscfId ? ` \u00a0\u00a0 ID: ${uscfId}` : ''}
+                      <span style={{ fontWeight: 'bold', color: '#000' }}>{playerRating}</span>{uscfId ? ` \u00a0\u00a0 ID: ${uscfId}` : ''}
                     </div>
                   </td>
                   {standing.roundResults.map((res, roundIdx) => {
