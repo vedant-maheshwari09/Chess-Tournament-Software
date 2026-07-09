@@ -602,7 +602,7 @@ a:hover { text-decoration: underline; }
 
   const renderRoundOutcomeBadge = (res: PlayerRoundResult) => {
     const text = formatRoundResultDisplay(res);
-    if (text === '---') return <span className="text-slate-400 dark:text-slate-600">—</span>;
+    if (text === '---') return <span className="text-slate-400 dark:text-slate-600">&nbsp;</span>;
     return <span className="text-slate-800 dark:text-slate-200 text-[13px] font-bold font-sans">{text}</span>;
   };
 

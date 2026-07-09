@@ -74,7 +74,7 @@ export function StandingsTable({
               <React.Fragment key={standing.player.id}>
                 {/* Row 1: Position, Name, Round outcomes, Total, Tiebreaks, Performance, Est. Post */}
                 <tr style={{ border: '1px solid black', height: '24px', backgroundColor: isWithdrawn ? '#f1f5f9' : '#fff' }}>
-                  <td style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'center', fontWeight: 'bold' }}>
+                  <td style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'center', fontWeight: 'bold', backgroundColor: '#e8e8e8' }}>
                     {standing.position}
                   </td>
                   <td style={{ border: '1px solid black', padding: '6px 8px', fontWeight: 'bold' }}>
@@ -118,7 +118,7 @@ export function StandingsTable({
                   </td>
                   <td style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'left' }}>
                     <div className="text-[13px] text-gray-500 font-sans leading-none mt-1">
-                      <span style={{ fontWeight: 'bold', color: '#000' }}>{playerRating}</span>{uscfId ? ` \u00a0\u00a0 ID: ${uscfId}` : ''}
+                      <span style={{ fontWeight: 'bold', color: '#334155' }}>{playerRating}</span>{uscfId ? ` \u00a0\u00a0 ID: ${uscfId}` : ''}
                     </div>
                   </td>
                   {standing.roundResults.map((res, roundIdx) => {
@@ -130,7 +130,7 @@ export function StandingsTable({
                     const showCumulative = roundIdx < currentRound && res.result && res.result !== 'unplayed' && !res.isInProgress && res.result !== 'withdrawn';
                     
                     return (
-                      <td key={roundIdx} style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'center', fontSize: '13px', color: '#475569' }}>
+                      <td key={roundIdx} style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'center', fontSize: '13px', color: '#334155', fontWeight: 'bold' }}>
                         {showCumulative ? cumulative.toFixed(1).replace(/\.0$/, "") : '\u00a0'}
                       </td>
                     );
