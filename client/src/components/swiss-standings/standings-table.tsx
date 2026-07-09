@@ -74,10 +74,10 @@ export function StandingsTable({
               <React.Fragment key={standing.player.id}>
                 {/* Row 1: Position, Name, Round outcomes, Total, Tiebreaks, Performance, Est. Post */}
                 <tr style={{ border: '1px solid black', height: '24px', backgroundColor: isWithdrawn ? '#f1f5f9' : '#fff' }}>
-                  <td style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'center', fontWeight: 'bold', backgroundColor: '#e8e8e8' }}>
+                  <td style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'center', fontWeight: 'bold', backgroundColor: '#e8e8e8', verticalAlign: 'middle' }}>
                     {standing.position}
                   </td>
-                  <td style={{ border: '1px solid black', padding: '6px 8px', fontWeight: 'bold' }}>
+                  <td style={{ border: '1px solid black', padding: '6px 8px', fontWeight: 'bold', verticalAlign: 'middle' }}>
                     <div className="flex items-center justify-between">
                       <span>{nameStr}</span>
                       {isWithdrawn && (
@@ -88,35 +88,35 @@ export function StandingsTable({
                     </div>
                   </td>
                   {standing.roundResults.map((res, roundIdx) => (
-                    <td key={roundIdx} style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'center' }}>
+                    <td key={roundIdx} style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'center', verticalAlign: 'middle' }}>
                       {renderRoundOutcomeBadge(res)}
                     </td>
                   ))}
-                  <td style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'center', fontWeight: 'bold', fontSize: '16px' }}>
+                  <td style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'center', fontWeight: 'bold', fontSize: '16px', verticalAlign: 'middle' }}>
                     {formatPoints(standing)}
                   </td>
                   {activeTiebreakRules.map((rule) => {
                     const val = standing.tiebreakValues[rule];
                     return (
-                      <td key={rule} style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'center', fontSize: '15px' }}>
+                      <td key={rule} style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'center', fontSize: '15px', verticalAlign: 'middle' }}>
                         {typeof val === 'number' ? val.toFixed(1).replace(/\.0$/, "") : '0'}
                       </td>
                     );
                   })}
-                  <td style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'center', color: '#1e293b', fontSize: '15px' }}>
+                  <td style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'center', color: '#1e293b', fontSize: '15px', verticalAlign: 'middle' }}>
                     {isWithdrawn ? '---' : standing.performanceRating || playerRating}
                   </td>
-                  <td style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'center', color: '#1e293b', fontSize: '15px' }}>
+                  <td style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'center', color: '#1e293b', fontSize: '15px', verticalAlign: 'middle' }}>
                     {isWithdrawn ? '---' : standing.postRating || playerRating}
                   </td>
                 </tr>
 
                 {/* Row 2: Empty Position, Rating & ID, Cumulative scores, Empty Total, Tiebreaks, Empty Performance, Est. Post */}
                 <tr style={{ border: '1px solid black', height: '20px', backgroundColor: isWithdrawn ? '#f1f5f9' : '#fff' }}>
-                  <td style={{ backgroundColor: '#e8e8e8', border: '1px solid black', padding: '6px 8px', textAlign: 'center' }}>
+                  <td style={{ backgroundColor: '#e8e8e8', border: '1px solid black', padding: '6px 8px', textAlign: 'center', verticalAlign: 'middle' }}>
                     &nbsp;
                   </td>
-                  <td style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'left' }}>
+                  <td style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'left', verticalAlign: 'middle' }}>
                     <div className="text-[13px] text-gray-500 font-sans leading-none mt-1">
                       <span style={{ fontWeight: 'normal', color: '#000', fontSize: '14px' }}>{playerRating}</span>{uscfId ? ` \u00a0\u00a0 ID: ${uscfId}` : ''}
                     </div>
@@ -130,23 +130,23 @@ export function StandingsTable({
                     const showCumulative = roundIdx < currentRound && res.result && res.result !== 'unplayed' && !res.isInProgress && res.result !== 'withdrawn';
                     
                     return (
-                      <td key={roundIdx} style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'center', fontSize: '13px', fontWeight: 'bold', color: '#000' }}>
+                      <td key={roundIdx} style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'center', fontSize: '13px', fontWeight: 'bold', color: '#000', verticalAlign: 'middle' }}>
                         {showCumulative ? cumulative.toFixed(1).replace(/\.0$/, "") : '\u00a0'}
                       </td>
                     );
                   })}
-                  <td style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'center' }}>
+                  <td style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'center', verticalAlign: 'middle' }}>
                     &nbsp;
                   </td>
                   {activeTiebreakRules.map((rule) => (
-                    <td key={rule} style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'center' }}>
+                    <td key={rule} style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'center', verticalAlign: 'middle' }}>
                       &nbsp;
                     </td>
                   ))}
-                  <td style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'center' }}>
+                  <td style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'center', verticalAlign: 'middle' }}>
                     &nbsp;
                   </td>
-                  <td style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'center' }}>
+                  <td style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'center', verticalAlign: 'middle' }}>
                     &nbsp;
                   </td>
                 </tr>

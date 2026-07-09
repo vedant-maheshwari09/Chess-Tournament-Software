@@ -310,7 +310,7 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
 
         club: formState.club || null,
         title: formState.title || null,
-        localId: formState.localId || null,
+        localId: formState.uscfId.trim() || formState.localId.trim() || null,
         ratingLocal: parseInt(formState.ratingLocal, 10) || null,
         ratingRapid: parseInt(formState.ratingRapid, 10) || null,
         ratingBlitz: parseInt(formState.ratingBlitz, 10) || null,
@@ -433,6 +433,7 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
     const matchedSection = sections.find((section) => section.id === editingPlayer.sectionId) ??
       sections.find((section) => section.name === editingPlayer.sectionName) ??
       primarySection;
+    const isUscfFed = (editingPlayer.federation?.toLowerCase().includes("united states") || editingPlayer.federation?.toLowerCase() === "uscf" || !editingPlayer.federation);
     setFormState((prev) => ({
       ...prev,
       firstName: editingPlayer.firstName ?? prev.firstName,
@@ -449,7 +450,8 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
 
       club: editingPlayer.club ?? prev.club,
       title: editingPlayer.title ?? prev.title,
-      localId: editingPlayer.localId ?? prev.localId,
+      uscfId: isUscfFed ? (editingPlayer.localId ?? "") : "",
+      localId: !isUscfFed ? (editingPlayer.localId ?? "") : "",
       ratingLocal: editingPlayer.ratingLocal != null ? String(editingPlayer.ratingLocal) : prev.ratingLocal,
       ratingRapid: editingPlayer.ratingRapid != null ? String(editingPlayer.ratingRapid) : prev.ratingRapid,
       ratingBlitz: editingPlayer.ratingBlitz != null ? String(editingPlayer.ratingBlitz) : prev.ratingBlitz,
