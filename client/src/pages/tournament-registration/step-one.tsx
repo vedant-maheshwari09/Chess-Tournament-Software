@@ -126,7 +126,11 @@ export default function StepOne({
 
     const timeoutId = window.setTimeout(async () => {
       try {
-        const params = new URLSearchParams({ q: term, limit: "10" });
+        const params = new URLSearchParams({ 
+          q: term, 
+          limit: "10",
+          uscfMinGamesThreshold: String(config?.registers?.uscfMinGamesThreshold ?? 4)
+        });
         const response = (await apiRequest(`/api/rating-lookup?${params.toString()}`)) as RatingLookupResponse;
         if (cancelled) return;
         const combined = [...(response.uscf ?? []), ...(response.fide ?? [])];
@@ -189,6 +193,7 @@ export default function StepOne({
       form.setValue("ratingProvider", "uscf", { shouldDirty: true });
       form.setValue("uscfId", result.id, { shouldDirty: true });
       form.setValue("uscfRating", result.ratingDisplay ?? result.rating ?? "", { shouldDirty: true });
+      form.setValue("uscfRatingRaw", result.ratingRaw ?? result.ratingDisplay ?? result.rating ?? "", { shouldDirty: true });
       
       if (result.location) {
         const parts = result.location.split(",").map(s => s.trim());
@@ -214,6 +219,7 @@ export default function StepOne({
       form.setValue("ratingProvider", "fide", { shouldDirty: true });
       form.setValue("fideId", result.id, { shouldDirty: true });
       form.setValue("fideRating", result.ratingDisplay ?? result.rating ?? "", { shouldDirty: true });
+      form.setValue("fideRatingRaw", result.ratingRaw ?? result.ratingDisplay ?? result.rating ?? "", { shouldDirty: true });
       if (result.location) {
         form.setValue("country", result.location, { shouldDirty: false });
       }
@@ -437,7 +443,7 @@ export default function StepOne({
               </>
             ) : (
               <>
-                <Field label="USCF rating (Primary)" name="uscfRating" disabled={Boolean(config?.registers?.strictAutofillOnly)} />
+                <Field label="USCF rating" name="uscfRating" disabled={Boolean(config?.registers?.strictAutofillOnly)} />
                 <Field label="FIDE rating" name="fideRating" disabled={Boolean(config?.registers?.strictAutofillOnly)} />
               </>
             )}

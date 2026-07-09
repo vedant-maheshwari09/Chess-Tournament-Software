@@ -207,6 +207,8 @@ export const playerRegistrationSchema = z.object({
   playerName: z.string().min(1, "Player name is required").transform(normalizePlayerName),
   uscfRating: z.coerce.number().optional().nullable(),
   fideRating: z.coerce.number().optional().nullable(),
+  uscfRatingRaw: z.string().trim().optional().nullable(),
+  fideRatingRaw: z.string().trim().optional().nullable(),
   ratingProvider: z.string().trim().optional().nullable(),
   uscfId: z.string().trim().optional().nullable(),
   fideId: z.string().trim().optional().nullable(),

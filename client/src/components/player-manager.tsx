@@ -57,6 +57,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { parseTournamentConfig } from "@/lib/tournament-config";
 import type { Tournament, Player, Pairing } from "@shared/schema";
 import { cn } from "@/lib/utils";
+import { resolveDisplayRating } from "@shared/tournament-config";
 
 type SortKey = "name" | "rating";
 type SortDirection = "asc" | "desc";
@@ -662,7 +663,23 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
                                 <div className="flex items-center gap-2">
                                   <div className="flex flex-col gap-1">
                                     <span className="text-sm font-medium text-slate-900">
-                                      {player.lastName}, {player.firstName}
+                                      {player.localId || (player as any).userUscfId ? (
+                                        <a
+                                          href={
+                                            player.federation?.toLowerCase() === 'fide'
+                                              ? `https://ratings.fide.com/profile/${player.localId}`
+                                              : `https://ratings.uschess.org/player/${player.localId || (player as any).userUscfId}`
+                                          }
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="text-blue-600 hover:underline cursor-pointer"
+                                          onClick={(e) => e.stopPropagation()}
+                                        >
+                                          {player.lastName}, {player.firstName}
+                                        </a>
+                                      ) : (
+                                        `${player.lastName}, ${player.firstName}`
+                                      )}
                                     </span>
                                     {!tournamentConfig.registers?.verifyUscfMembership && (player as any).userUscfId && (
                                       <div className="flex items-center gap-1.5 mt-0.5" onClick={(e) => e.stopPropagation()}>
@@ -702,9 +719,15 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
                                 </div>
                               </TableCell>
                               <TableCell>
-                                {tournamentConfig.details.primaryRatingSystem === 'fide' 
-                                  ? (player.fideRating ?? player.rating ?? "-")
-                                  : (player.uscfRating ?? player.rating ?? "-")}
+                                {(() => {
+                                  const threshold = tournamentConfig?.registers?.uscfMinGamesThreshold ?? 4;
+                                  const uscfDisp = resolveDisplayRating((player as any).uscfRatingRaw, player.uscfRating, threshold, false);
+                                  const fideDisp = resolveDisplayRating((player as any).fideRatingRaw, player.fideRating, 0, true);
+                                  const display = tournamentConfig.details.primaryRatingSystem === 'fide'
+                                    ? (fideDisp !== "Unrated" ? fideDisp : uscfDisp)
+                                    : (uscfDisp !== "Unrated" ? uscfDisp : fideDisp);
+                                  return display === "Unrated" ? "-" : display;
+                                })()}
                               </TableCell>
                               {tournamentConfig.registers?.verifyUscfMembership && (
                                 <TableCell onClick={(e) => e.stopPropagation()}>

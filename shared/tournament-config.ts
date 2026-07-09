@@ -1816,3 +1816,63 @@ export function formatBoardNumber(
   const suffix = settings?.suffix ?? "";
   return `${prefix}${board}${suffix}`;
 }
+
+/**
+ * Parses USCF games played from raw rating string (e.g. "372/5" or "1234/15" -> 5 or 15).
+ */
+export function parseUscfGamesFromRaw(raw: string | null | undefined): number {
+  if (!raw) return 25;
+  const trimmed = raw.trim();
+  if (!trimmed) return 25;
+  const slashIndex = trimmed.indexOf("/");
+  if (slashIndex !== -1) {
+    const gamesPart = trimmed.slice(slashIndex + 1).replace(/\D/g, "");
+    const games = parseInt(gamesPart, 10);
+    return Number.isFinite(games) ? games : 25;
+  }
+  if (trimmed.toLowerCase().endsWith("p")) {
+    return 10; // Default to typical provisional game count if we only have 'p'
+  }
+  return 25; // Default to established
+}
+
+/**
+ * Resolves and formats a player's rating considering USCF minimum games threshold.
+ */
+export function resolveDisplayRating(
+  raw: string | null | undefined,
+  cleanVal: number | string | null | undefined,
+  threshold = 4,
+  isFide = false
+): string {
+  if (isFide) {
+    if (raw && raw.trim()) return raw.trim();
+    if (cleanVal != null && String(cleanVal).trim()) return String(cleanVal).trim();
+    return "Unrated";
+  }
+
+  const rawStr = raw ? raw.trim() : "";
+  const cleanStr = cleanVal != null ? String(cleanVal).trim() : "";
+
+  if (!rawStr && !cleanStr) {
+    return "Unrated";
+  }
+
+  const games = parseUscfGamesFromRaw(rawStr || cleanStr);
+  const ratingValue = cleanStr || rawStr.split("/")[0].replace(/\D/g, "");
+
+  if (!ratingValue) {
+    return "Unrated";
+  }
+
+  if (games < threshold) {
+    return "Unrated";
+  }
+
+  if (games < 25) {
+    return `${ratingValue}p`;
+  }
+
+  return ratingValue;
+}
+

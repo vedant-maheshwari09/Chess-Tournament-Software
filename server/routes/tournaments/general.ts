@@ -145,12 +145,13 @@ export function applyGeneralRoutes(app: Express) {
         return res.status(400).json({ message: "At least one search parameter is required" });
       }
 
+      const uscfMinGamesThreshold = req.query.uscfMinGamesThreshold ? parseInt(String(req.query.uscfMinGamesThreshold), 10) : 4;
       const limit = parseLimitParam(req.query.limit, 30, 100);
       const errors: Partial<Record<RatingSource, string>> = {};
 
       const [uscf, fide] = await Promise.all(["uscf", "fide"].map(async (source) => {
         try {
-          if (source === "uscf") return await lookupUSCF(normalizedParams, limit);
+          if (source === "uscf") return await lookupUSCF(normalizedParams, limit, 1);
           if (source === "fide") return await lookupFide(normalizedParams, limit);
           return [] as RatingLookupResult[];
         } catch (error) {

@@ -628,10 +628,14 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
 
   const registerMutation = useMutation({
     mutationFn: async (values: RegistrationFormValues) => {
+      const parsedUscf = parseInt(values.uscfRating || "", 10);
+      const parsedFide = parseInt(values.fideRating || "", 10);
       const payload = {
         playerName: `${values.firstName} ${values.lastName}`.trim(),
-        uscfRating: (values.uscfRating !== undefined && values.uscfRating !== null && values.uscfRating !== "") ? Number(values.uscfRating) : null,
-        fideRating: (values.fideRating !== undefined && values.fideRating !== null && values.fideRating !== "") ? Number(values.fideRating) : null,
+        uscfRating: Number.isFinite(parsedUscf) ? parsedUscf : null,
+        fideRating: Number.isFinite(parsedFide) ? parsedFide : null,
+        uscfRatingRaw: values.uscfRatingRaw || values.uscfRating || null,
+        fideRatingRaw: values.fideRatingRaw || values.fideRating || null,
         ratingProvider: values.ratingProvider === "none" ? null : (values.ratingProvider || null),
         uscfId: values.uscfId || null,
         fideId: values.fideId || null,
@@ -832,14 +836,19 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
 
   const groupRegisterMutation = useMutation({
     mutationFn: async (players: RegistrationFormValues[]) => {
-      const payloadArray = players.map(values => ({
-        playerName: `${values.firstName} ${values.lastName}`.trim(),
-        uscfRating: (values.uscfRating !== undefined && values.uscfRating !== null && values.uscfRating !== "") ? Number(values.uscfRating) : null,
-        fideRating: (values.fideRating !== undefined && values.fideRating !== null && values.fideRating !== "") ? Number(values.fideRating) : null,
-        ratingProvider: values.ratingProvider === "none" ? null : (values.ratingProvider || null),
-        uscfId: values.uscfId || null,
-        fideId: values.fideId || null,
-        sectionChoice: values.sectionChoice,
+      const payloadArray = players.map(values => {
+        const parsedUscf = parseInt(values.uscfRating || "", 10);
+        const parsedFide = parseInt(values.fideRating || "", 10);
+        return {
+          playerName: `${values.firstName} ${values.lastName}`.trim(),
+          uscfRating: Number.isFinite(parsedUscf) ? parsedUscf : null,
+          fideRating: Number.isFinite(parsedFide) ? parsedFide : null,
+          uscfRatingRaw: values.uscfRatingRaw || values.uscfRating || null,
+          fideRatingRaw: values.fideRatingRaw || values.fideRating || null,
+          ratingProvider: values.ratingProvider === "none" ? null : (values.ratingProvider || null),
+          uscfId: values.uscfId || null,
+          fideId: values.fideId || null,
+          sectionChoice: values.sectionChoice,
         email: values.email,
         address1: values.address1,
         address2: values.address2,
@@ -863,7 +872,8 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
         amountDue: typeof values.amountDue === "number" ? values.amountDue : undefined,
         amountPaid: typeof values.amountPaid === "number" ? values.amountPaid : undefined,
         customAnswers: values.customAnswers ?? {},
-      }));
+      };
+    });
 
       DEBUG_LOG("Submitting batch registration mutation payload", payloadArray);
 

@@ -60,7 +60,7 @@ export function StandingsTable({
         </thead>
         <tbody>
           {standings.map((standing) => {
-            const playerRating = (isFide ? (standing.player.fideRating ?? standing.player.rating) : (standing.player.uscfRating ?? standing.player.rating)) || 'Unrated';
+            const playerRating = (isFide ? ((standing.player as any).fideRatingRaw || standing.player.fideRating || standing.player.rating) : ((standing.player as any).uscfRatingRaw || standing.player.uscfRating || standing.player.rating)) || 'Unrated';
             const lastName = standing.player.lastName || '';
             const firstName = standing.player.firstName || '';
             const nameStr = lastName && firstName ? lastName + ", " + firstName : (firstName + " " + lastName).trim();
@@ -117,8 +117,8 @@ export function StandingsTable({
                     &nbsp;
                   </td>
                   <td style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'left', verticalAlign: 'middle' }}>
-                    <div className="text-[13px] text-gray-500 font-sans leading-none mt-1">
-                      <span style={{ fontWeight: 'normal', color: '#000', fontSize: '14px' }}>{playerRating}</span>{uscfId ? ` \u00a0\u00a0 ID: ${uscfId}` : ''}
+                    <div style={{ fontWeight: 'normal', color: '#000', fontSize: '14px' }} className="font-sans leading-none mt-1">
+                      <span>{playerRating}</span>{uscfId ? ` \u00a0\u00a0 ID: ${uscfId}` : ''}
                     </div>
                   </td>
                   {standing.roundResults.map((res, roundIdx) => {

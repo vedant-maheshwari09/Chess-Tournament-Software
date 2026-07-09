@@ -12,6 +12,62 @@ import { load } from "cheerio";
 
 const execAsync = util.promisify(exec);
 
+// ─── Bot Mitigation Config and Helpers ──────────────────────────────────────
+
+const USER_AGENTS = [
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/121.0",
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2.1 Safari/605.1.15",
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0"
+];
+
+function getRandomUserAgent() {
+  return USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
+}
+
+async function fetchWithBotMitigation(url: string, retries = 3, initialDelay = 1000): Promise<Response> {
+  let delay = initialDelay;
+  const userAgent = getRandomUserAgent();
+  const headers = {
+    "User-Agent": userAgent,
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Connection": "keep-alive",
+    "Upgrade-Insecure-Requests": "1",
+    "Sec-Ch-Ua": '"Not A(Brand";v="99", "Google Chrome";v="121", "Chromium";v="121"',
+    "Sec-Ch-Ua-Mobile": "?0",
+    "Sec-Ch-Ua-Platform": '"Windows"',
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "none",
+    "Sec-Fetch-User": "?1",
+    "Cache-Control": "max-age=0"
+  };
+
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const jitter = Math.random() * 500;
+      await new Promise(resolve => setTimeout(resolve, delay + jitter));
+
+      const response = await fetch(url, { headers, method: "GET" });
+      if (response.ok) {
+        return response;
+      }
+      if (response.status === 429 || (response.status >= 500 && response.status < 600)) {
+        console.warn(`Fetch returned ${response.status}. Retrying (attempt ${attempt}/${retries})...`);
+      } else {
+        return response;
+      }
+    } catch (error) {
+      console.warn(`Fetch error: ${error instanceof Error ? error.message : error}. Retrying (attempt ${attempt}/${retries})...`);
+    }
+    delay *= 2;
+  }
+  throw new Error(`Failed to fetch ${url} after ${retries} attempts.`);
+}
+
 // ─── Logging Helpers ────────────────────────────────────────────────────────
 
 const TAG = "[USCF-Verify]";
@@ -605,12 +661,7 @@ export async function analyzeUscfVideo(
 
       try {
         const fetchStart = Date.now();
-        const response = await fetch(`https://www.uschess.org/msa/thin.php?${finalMemberId}`, {
-          headers: {
-            "User-Agent":
-              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-          },
-        });
+        const response = await fetchWithBotMitigation(`https://www.uschess.org/msa/thin.php?${finalMemberId}`);
 
         log("ThinPHP", `HTTP response received in ${Date.now() - fetchStart}ms`, {
           status: response.status,

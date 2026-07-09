@@ -8,6 +8,7 @@ import type { Player, Match, Pairing, Tournament } from "@shared/schema";
 import { parseTournamentConfig } from "@/lib/tournament-config";
 import type { SectionDefinition } from "@shared/tournament-config";
 import { cn } from "@/lib/utils";
+import { resolveDisplayRating } from "@shared/tournament-config";
 
 interface StandingsProps {
   tournamentId: number;
@@ -204,7 +205,12 @@ export default function Standings({ tournamentId, showExportControls = true }: S
     printWindow.document.write(`<table><thead><tr><th>Rank</th><th>Player</th><th>Points</th><th>Games</th><th>W-D-L</th><th>Rating</th></tr></thead><tbody>`);
     standings.forEach((standing) => {
       const isFide = tournamentConfig?.details.primaryRatingSystem === 'fide';
-      const playerRating = (isFide ? (standing.player.fideRating ?? standing.player.rating) : (standing.player.uscfRating ?? standing.player.rating)) ?? '';
+      const threshold = tournamentConfig?.registers?.uscfMinGamesThreshold ?? 4;
+      const uscfDisp = resolveDisplayRating((standing.player as any).uscfRatingRaw, standing.player.uscfRating, threshold, false);
+      const fideDisp = resolveDisplayRating((standing.player as any).fideRatingRaw, standing.player.fideRating, 0, true);
+      const playerRating = isFide
+        ? (fideDisp !== "Unrated" ? fideDisp : uscfDisp)
+        : (uscfDisp !== "Unrated" ? uscfDisp : fideDisp);
       const playerName = `${standing.player.firstName} ${standing.player.lastName}`.trim();
       const record = `${standing.wins}-${standing.draws}-${standing.losses}`;
       printWindow.document.write(
@@ -224,7 +230,7 @@ export default function Standings({ tournamentId, showExportControls = true }: S
       const playerName = `${standing.player.firstName} ${standing.player.lastName}`.trim();
       const record = `${standing.wins}-${standing.draws}-${standing.losses}`;
       const isFide = tournamentConfig?.details.primaryRatingSystem === 'fide';
-      const playerRating = (isFide ? (standing.player.fideRating ?? standing.player.rating) : (standing.player.uscfRating ?? standing.player.rating));
+      const playerRating = (isFide ? ((standing.player as any).fideRatingRaw || standing.player.fideRating || standing.player.rating) : ((standing.player as any).uscfRatingRaw || standing.player.uscfRating || standing.player.rating));
       rows.push([
         String(standing.position),
         playerName,
@@ -432,9 +438,16 @@ export default function Standings({ tournamentId, showExportControls = true }: S
                         </Badge>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-center font-medium text-slate-600 dark:text-slate-400">
-                        {tournamentConfig?.details.primaryRatingSystem === 'fide' 
-                          ? (standing.player.fideRating ?? standing.player.rating ?? 'Unrated')
-                          : (standing.player.uscfRating ?? standing.player.rating ?? 'Unrated')}
+                                {(() => {
+                                  const isFide = tournamentConfig?.details.primaryRatingSystem === 'fide';
+                                  const threshold = tournamentConfig?.registers?.uscfMinGamesThreshold ?? 4;
+                                  const uscfDisp = resolveDisplayRating((standing.player as any).uscfRatingRaw, standing.player.uscfRating, threshold, false);
+                                  const fideDisp = resolveDisplayRating((standing.player as any).fideRatingRaw, standing.player.fideRating, 0, true);
+                                  const display = isFide
+                                    ? (fideDisp !== "Unrated" ? fideDisp : uscfDisp)
+                                    : (uscfDisp !== "Unrated" ? uscfDisp : fideDisp);
+                                  return display;
+                                })()}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-center">
                         <Badge

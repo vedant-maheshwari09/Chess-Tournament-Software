@@ -43,6 +43,7 @@ import { apiRequest } from "@/lib/queryClient";
 import type { PlayerRegistration, Tournament } from "@shared/schema";
 import { cn } from "@/lib/utils";
 import { parseTournamentConfig } from "@/lib/tournament-config";
+import { resolveDisplayRating } from "@shared/tournament-config";
 
 interface RegistrationManagementProps {
   tournamentId: number;
@@ -248,9 +249,12 @@ export default function RegistrationManagement({ tournamentId, tournament }: Reg
             ) : (
               filteredRegs.map((reg, index) => {
                 const primarySystem = tournamentConfig?.details?.primaryRatingSystem || "uscf";
-                const rating = primarySystem === "fide" 
-                  ? reg.fideRating || reg.uscfRating || "Unrated"
-                  : reg.uscfRating || reg.fideRating || "Unrated";
+                const threshold = tournamentConfig?.registers?.uscfMinGamesThreshold ?? 4;
+                const uscfDisp = resolveDisplayRating((reg as any).uscfRatingRaw, reg.uscfRating, threshold, false);
+                const fideDisp = resolveDisplayRating((reg as any).fideRatingRaw, reg.fideRating, 0, true);
+                const rating = primarySystem === "fide"
+                  ? (fideDisp !== "Unrated" ? fideDisp : uscfDisp)
+                  : (uscfDisp !== "Unrated" ? uscfDisp : fideDisp);
 
                 return (
                   <TableRow key={reg.id} className="hover:bg-slate-50/50 transition">
@@ -258,7 +262,29 @@ export default function RegistrationManagement({ tournamentId, tournament }: Reg
                     <TableCell>
                       <div className="flex flex-col gap-1">
                         <div className="flex items-center gap-2">
-                          <span className="font-semibold text-slate-950">{reg.playerName}</span>
+                          {reg.uscfId || reg.fideId ? (
+                            <a
+                              href={
+                                reg.ratingProvider === "fide" && reg.fideId
+                                  ? `https://ratings.fide.com/profile/${reg.fideId}`
+                                  : reg.ratingProvider === "uscf" && reg.uscfId
+                                  ? `https://ratings.uschess.org/player/${reg.uscfId}`
+                                  : reg.uscfId
+                                  ? `https://ratings.uschess.org/player/${reg.uscfId}`
+                                  : reg.fideId
+                                  ? `https://ratings.fide.com/profile/${reg.fideId}`
+                                  : undefined
+                              }
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-semibold text-blue-600 hover:underline cursor-pointer"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {reg.playerName}
+                            </a>
+                          ) : (
+                            <span className="font-semibold text-slate-950">{reg.playerName}</span>
+                          )}
                           {(reg as any).uscfId && (
                             <span className="text-[10px] text-slate-400 font-mono">({(reg as any).uscfId})</span>
                           )}
@@ -409,7 +435,26 @@ export default function RegistrationManagement({ tournamentId, tournament }: Reg
             <DialogHeader className="border-b pb-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <DialogTitle className="text-xl font-bold text-slate-900">{selectedReg.playerName}</DialogTitle>
+                  <DialogTitle className="text-xl font-bold text-slate-900">
+                    {selectedReg.uscfId || selectedReg.fideId ? (
+                      <a
+                        href={
+                          (tournamentConfig?.details?.primaryRatingSystem || "uscf") === "fide" && selectedReg.fideId
+                            ? `https://ratings.fide.com/profile/${selectedReg.fideId}`
+                            : selectedReg.uscfId
+                            ? `https://ratings.uschess.org/player/${selectedReg.uscfId}`
+                            : `https://ratings.fide.com/profile/${selectedReg.fideId}`
+                        }
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:underline cursor-pointer"
+                      >
+                        {selectedReg.playerName}
+                      </a>
+                    ) : (
+                      selectedReg.playerName
+                    )}
+                  </DialogTitle>
                   <DialogDescription className="text-slate-400">Roster registration request details</DialogDescription>
                 </div>
                 <Badge 
@@ -469,7 +514,14 @@ export default function RegistrationManagement({ tournamentId, tournament }: Reg
                   <div>
                     <span className="text-[10px] text-slate-400 font-semibold uppercase">USCF Rating</span>
                     <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium text-slate-900">{selectedReg.uscfRating || "—"}</p>
+                      <p className="text-sm font-medium text-slate-900">
+                        {resolveDisplayRating(
+                          (selectedReg as any).uscfRatingRaw,
+                          selectedReg.uscfRating,
+                          tournamentConfig?.registers?.uscfMinGamesThreshold ?? 4,
+                          false
+                        )}
+                      </p>
                       {(selectedReg as any).isProvisional && (
                         <Badge 
                           variant="outline" 
@@ -482,7 +534,14 @@ export default function RegistrationManagement({ tournamentId, tournament }: Reg
                   </div>
                   <div>
                     <span className="text-[10px] text-slate-400 font-semibold uppercase">FIDE Rating</span>
-                    <p className="text-sm font-medium text-slate-900">{selectedReg.fideRating || "—"}</p>
+                    <p className="text-sm font-medium text-slate-900">
+                      {resolveDisplayRating(
+                        (selectedReg as any).fideRatingRaw,
+                        selectedReg.fideRating,
+                        0,
+                        true
+                      )}
+                    </p>
                   </div>
                 </div>
               </div>

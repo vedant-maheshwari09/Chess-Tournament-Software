@@ -119,6 +119,12 @@ export function applyPlayersRoutes(app: Express) {
             updates.fideRating = Math.max(0, Math.round(numeric));
           }
         }
+        if (req.body?.uscfRatingRaw !== undefined) {
+          updates.uscfRatingRaw = req.body.uscfRatingRaw;
+        }
+        if (req.body?.fideRatingRaw !== undefined) {
+          updates.fideRatingRaw = req.body.fideRatingRaw;
+        }
         if (typeof req.body?.federation === "string" && req.body.federation.trim()) {
           updates.federation = req.body.federation.trim();
         }
@@ -353,6 +359,8 @@ export function applyPlayersRoutes(app: Express) {
             rating: p.rating,
             uscfRating: p.uscfRating,
             fideRating: p.fideRating,
+            uscfRatingRaw: p.uscfRatingRaw,
+            fideRatingRaw: p.fideRatingRaw,
             federation: p.federation || 'USCF',
             email: p.email,
             club: p.club,
