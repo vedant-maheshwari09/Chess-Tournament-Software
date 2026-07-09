@@ -118,7 +118,7 @@ export function StandingsTable({
                   </td>
                   <td style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'left' }}>
                     <div className="text-[13px] text-gray-500 font-sans leading-none mt-1">
-                      <span style={{ fontWeight: 'bold', color: '#334155' }}>{playerRating}</span>{uscfId ? ` \u00a0\u00a0 ID: ${uscfId}` : ''}
+                      <span style={{ fontWeight: 'normal', color: '#000', fontSize: '14px' }}>{playerRating}</span>{uscfId ? ` \u00a0\u00a0 ID: ${uscfId}` : ''}
                     </div>
                   </td>
                   {standing.roundResults.map((res, roundIdx) => {
@@ -130,7 +130,7 @@ export function StandingsTable({
                     const showCumulative = roundIdx < currentRound && res.result && res.result !== 'unplayed' && !res.isInProgress && res.result !== 'withdrawn';
                     
                     return (
-                      <td key={roundIdx} style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'center', fontSize: '13px', color: '#334155', fontWeight: 'bold' }}>
+                      <td key={roundIdx} style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'center', fontSize: '13px', fontWeight: 'bold', color: '#000' }}>
                         {showCumulative ? cumulative.toFixed(1).replace(/\.0$/, "") : '\u00a0'}
                       </td>
                     );
