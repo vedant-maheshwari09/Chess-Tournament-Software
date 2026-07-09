@@ -339,7 +339,7 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
       setLastSaved(new Date());
 
       if (mode === "close") {
-        setLocation(`/tournaments/${tournamentId}/manage`);
+        setLocation(`/tournaments/${tournamentId}/manage/players`);
         return;
       }
       if (!isEditing && mode !== "autosave" && mode !== "stay") {
@@ -374,7 +374,7 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
 
   useEffect(() => {
     if (!tournamentLoading && !tournament) {
-      setLocation(`/tournaments/${tournamentId}/manage`);
+      setLocation(`/tournaments/${tournamentId}/manage/players`);
     }
   }, [tournament, tournamentId, tournamentLoading, setLocation]);
 
@@ -427,7 +427,7 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
     if (editingPlayerLoading) return;
     if (!editingPlayer) {
       toast({ title: "Player not found", variant: "destructive" });
-      setLocation(`/tournaments/${tournamentId}/manage`);
+      setLocation(`/tournaments/${tournamentId}/manage/players`);
       return;
     }
     const matchedSection = sections.find((section) => section.id === editingPlayer.sectionId) ??
@@ -1131,7 +1131,7 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
                       <Button
                         type="button"
                         className="bg-slate-800 px-8 text-white hover:bg-slate-900 shadow-sm"
-                        onClick={() => setLocation(`/tournaments/${tournamentId}/manage`)}
+                        onClick={() => setLocation(`/tournaments/${tournamentId}/manage/players`)}
                       >
                         Done
                       </Button>
@@ -1168,7 +1168,7 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
                     <Button type="button" variant="outline" size="icon" disabled>
                       <ChevronRight className="h-4 w-4" />
                     </Button>
-                    <Button type="button" variant="outline" onClick={() => setLocation(`/tournaments/${tournamentId}/manage`)}>
+                    <Button type="button" variant="outline" onClick={() => setLocation(`/tournaments/${tournamentId}/manage/players`)}>
                       Cancel
                     </Button>
                   </div>

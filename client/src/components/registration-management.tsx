@@ -103,6 +103,23 @@ export default function RegistrationManagement({ tournamentId, tournament }: Reg
     return tournament ? parseTournamentConfig(tournament) : null;
   }, [tournament]);
 
+  const getUscfActiveStatus = (reg: any) => {
+    const uscfExpiration = reg.customAnswers?.uscfExpiration;
+    if (!uscfExpiration) {
+      return reg.uscfActive === true || reg.uscfActive === "true" || reg.uscfActive === 1;
+    }
+    try {
+      const expDate = new Date(uscfExpiration);
+      if (isNaN(expDate.getTime())) {
+        return reg.uscfActive === true || reg.uscfActive === "true" || reg.uscfActive === 1;
+      }
+      const tourneyStart = tournament?.startDate ? new Date(tournament.startDate) : new Date();
+      return expDate >= tourneyStart;
+    } catch {
+      return reg.uscfActive === true || reg.uscfActive === "true" || reg.uscfActive === 1;
+    }
+  };
+
   // Filter registrations
   const filteredRegs = useMemo(() => {
     return registrations.filter(reg => {
@@ -254,12 +271,12 @@ export default function RegistrationManagement({ tournamentId, tournament }: Reg
                                 variant="outline" 
                                 className={cn(
                                   "text-[9px] font-bold px-1.5 py-0.5",
-                                  (reg as any).uscfActive 
+                                  getUscfActiveStatus(reg) 
                                     ? "bg-emerald-50 text-emerald-700 border-emerald-200" 
                                     : "bg-rose-50 text-rose-700 border-rose-200"
                                 )}
                               >
-                                {(reg as any).uscfActive ? "USCF Active" : "USCF Expired"}
+                                {getUscfActiveStatus(reg) ? "USCF Active" : "USCF Expired"}
                               </Badge>
                             )}
                             {(reg as any).isProvisional && (
@@ -435,12 +452,12 @@ export default function RegistrationManagement({ tournamentId, tournament }: Reg
                           variant="outline" 
                           className={cn(
                             "text-[9px] font-bold px-1.5 py-0.5",
-                            (selectedReg as any).uscfActive 
+                            getUscfActiveStatus(selectedReg) 
                               ? "bg-emerald-50 text-emerald-700 border-emerald-200" 
                               : "bg-rose-50 text-rose-700 border-rose-200"
                           )}
                         >
-                          {(selectedReg as any).uscfActive ? "Active" : "Expired"}
+                          {getUscfActiveStatus(selectedReg) ? "Active" : "Expired"}
                         </Badge>
                       )}
                     </div>

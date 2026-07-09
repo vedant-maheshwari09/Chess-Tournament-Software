@@ -1720,7 +1720,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
                                 const entryFee = entryFees.find((fee) => fee.id === values.entryFeeId) ?? null;
                                 const contribution = parseContribution(values.processingContribution);
                                 const totals = computePaymentTotals(entryFee, contribution, paymentSettings, values.customAnswers);
-                                const isDraft = entry.id !== 'edit-draft';
+                                const isDraft = entry.id !== 'single' && entry.id !== 'current-form' && entry.id !== 'placeholder' && entry.id !== 'edit-draft';
 
                                 return (
                                   <div key={entry.id} className="flex items-center justify-between px-6 py-4 transition hover:bg-slate-50/50">
