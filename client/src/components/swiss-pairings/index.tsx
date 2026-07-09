@@ -5,6 +5,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+} from "@/components/ui/dropdown-menu";
 import { Play, RefreshCw, RotateCcw, Printer, Download, ChevronDown, ChevronUp, Camera, ScanLine } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
@@ -534,6 +542,7 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
       queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/matches`] });
       queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/pairings`] });
       queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/players`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/standings/${tournamentId}`] });
 
       toast({
         title: "Result Updated",
@@ -548,6 +557,90 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
       });
     },
   });
+
+  const renderMatchActionsDropdown = (match: Match) => {
+    const isByeMatch = !match.blackPlayerId;
+    
+    // Quick results options based on match type
+    const options = isByeMatch
+      ? [
+          { value: "1-bye", label: "1-Point Bye (1-bye)" },
+          { value: "1/2-bye", label: "1/2-Point Bye (1/2-bye)" },
+          { value: "0-bye", label: "0-Point Bye (0-bye)" },
+          { value: "1-byeU", label: "1-Point Bye, Unrated (1-byeU)" },
+          { value: "1/2-byeU", label: "1/2-Point Bye, Unrated (1/2-byeU)" },
+          { value: "0-byeU", label: "0-Point Bye, Unrated (0-byeU)" },
+        ]
+      : [
+          { value: "1-0", label: "1-0 (White Win)", className: "text-emerald-600 dark:text-emerald-400 font-bold" },
+          { value: "0-1", label: "0-1 (Black Win)", className: "text-blue-600 dark:text-blue-400 font-bold" },
+          { value: "1/2-1/2", label: "½-½ (Draw)", className: "text-amber-600 dark:text-amber-450 font-bold" },
+          { value: "1F-0F", label: "1F-0F (White Forfeit Win)", className: "text-emerald-500 font-medium" },
+          { value: "0F-1F", label: "0F-1F (Black Forfeit Win)", className: "text-blue-500 font-medium" },
+          { value: "1F-1F", label: "1F-1F (Double Forfeit)", className: "text-red-500" },
+          { value: "0F-0F", label: "0F-0F (No Result)", className: "text-slate-500" },
+          { value: "1-0U", label: "1-0U (White Win, Unrated)" },
+          { value: "0-1U", label: "0-1U (Black Win, Unrated)" },
+          { value: "1/2-1/2U", label: "½-½U (Draw, Unrated)" },
+          { value: "1F-0FU", label: "1F-0FU (White Forfeit, Unrated)" },
+          { value: "0F-1FU", label: "0F-1FU (Black Forfeit, Unrated)" },
+        ];
+
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-slate-500 hover:text-blue-600 hover:bg-slate-100 dark:hover:bg-slate-800"
+            title="Manage Match Results"
+          >
+            <Settings className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 shadow-lg max-h-[300px] overflow-y-auto p-1 font-sans rounded-lg z-[100] w-64">
+          <DropdownMenuLabel className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest px-2 py-1.5">
+            {isByeMatch ? "Select Bye Points" : "Quick Results"}
+          </DropdownMenuLabel>
+          {options.map((opt) => (
+            <DropdownMenuItem
+              key={opt.value}
+              className={opt.className || "text-slate-800 dark:text-slate-200"}
+              onClick={() => {
+                if (isEditMode) {
+                  handleResultChange(match.id, opt.value);
+                } else {
+                  updateMatchMutation.mutate({ matchId: match.id, result: opt.value });
+                }
+              }}
+            >
+              {opt.label}
+            </DropdownMenuItem>
+          ))}
+          <DropdownMenuSeparator className="border-slate-100 dark:border-slate-800" />
+          <DropdownMenuItem
+            className="text-red-600 dark:text-red-400 font-semibold"
+            onClick={() => {
+              if (isEditMode) {
+                handleResultChange(match.id, "Pending");
+              } else {
+                updateMatchMutation.mutate({ matchId: match.id, result: "Pending" });
+              }
+            }}
+          >
+            Clear / Pending
+          </DropdownMenuItem>
+          <DropdownMenuSeparator className="border-slate-100 dark:border-slate-800" />
+          <DropdownMenuItem
+            className="text-slate-600 dark:text-slate-400 font-medium"
+            onClick={() => setSelectedMatchForManagement(match)}
+          >
+            Advanced Match Management...
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+  };
 
   const swapPlayersMutation = useMutation({
     mutationFn: async ({ match1Id, match2Id, player1Id, player2Id, color1, color2 }: {
@@ -784,9 +877,9 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
         const whiteLabel = getFormattedPlayerLabel(match.whitePlayerId, round);
         const blackLabel = match.blackPlayerId ? getFormattedPlayerLabel(match.blackPlayerId, round) : "BYE";
 
-        const isWhiteWin = match.result === "1-0" || match.result === "1F-0F";
-        const isBlackWin = match.result === "0-1" || match.result === "0F-1F";
-        const isDraw = match.result === "1/2-1/2";
+        const isWhiteWin = match.result ? (match.result.startsWith("1-0") || match.result.startsWith("1F-0F")) : false;
+        const isBlackWin = match.result ? (match.result.startsWith("0-1") || match.result.startsWith("0F-1F")) : false;
+        const isDraw = match.result ? match.result.startsWith("1/2-1/2") : false;
         const wRes = isWhiteWin ? "1" : isDraw ? "½" : isBlackWin ? "0" : "";
         const bRes = isBlackWin ? "1" : isDraw ? "½" : isWhiteWin ? "0" : "";
 
@@ -1324,9 +1417,9 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
   // CaissaChess TD click-to-set result helper
   const renderTdResultCells = (match: Match) => {
     const currentRes = pendingResults[match.id] !== undefined ? pendingResults[match.id] : match.result;
-    const isWhiteWin = currentRes === "1-0" || currentRes === "1F-0F";
-    const isBlackWin = currentRes === "0-1" || currentRes === "0F-1F";
-    const isDraw = currentRes === "1/2-1/2";
+    const isWhiteWin = currentRes ? (currentRes.startsWith("1-0") || currentRes.startsWith("1F-0F")) : false;
+    const isBlackWin = currentRes ? (currentRes.startsWith("0-1") || currentRes.startsWith("0F-1F")) : false;
+    const isDraw = currentRes ? currentRes.startsWith("1/2-1/2") : false;
     const isPending = !currentRes || currentRes === "Pending";
     const hasUnsavedChange = pendingResults[match.id] !== undefined;
 
@@ -1405,9 +1498,9 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
     const blackName = match.blackPlayerId ? getPlayerName(match.blackPlayerId) : "Bye";
     
     const currentRes = pendingResults[match.id] !== undefined ? pendingResults[match.id] : match.result;
-    const isWhiteWin = currentRes === "1-0" || currentRes === "1F-0F";
-    const isBlackWin = currentRes === "0-1" || currentRes === "0F-1F";
-    const isDraw = currentRes === "1/2-1/2";
+    const isWhiteWin = currentRes ? (currentRes.startsWith("1-0") || currentRes.startsWith("1F-0F")) : false;
+    const isBlackWin = currentRes ? (currentRes.startsWith("0-1") || currentRes.startsWith("0F-1F")) : false;
+    const isDraw = currentRes ? currentRes.startsWith("1/2-1/2") : false;
     const hasUnsavedChange = pendingResults[match.id] !== undefined;
 
     const isWhiteSelected = selectedPlayers.some(p => p.playerId === match.whitePlayerId && p.matchId === match.id && p.color === 'white');
@@ -1989,9 +2082,9 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
 
                                   const effectiveResult = getEffectiveResult(match);
                                   const isPending = pendingResults[match.id] !== undefined;
-                                  const isWhiteWin = effectiveResult === "1-0" || effectiveResult === "1F-0F";
-                                  const isBlackWin = effectiveResult === "0-1" || effectiveResult === "0F-1F";
-                                  const isDraw = effectiveResult === "1/2-1/2";
+                                  const isWhiteWin = effectiveResult ? (effectiveResult.startsWith("1-0") || effectiveResult.startsWith("1F-0F")) : false;
+                                  const isBlackWin = effectiveResult ? (effectiveResult.startsWith("0-1") || effectiveResult.startsWith("0F-1F")) : false;
+                                  const isDraw = effectiveResult ? effectiveResult.startsWith("1/2-1/2") : false;
 
                                   const whiteObj = getPlayerObject(match.whitePlayerId);
                                   const blackObj = getPlayerObject(match.blackPlayerId);
@@ -2040,7 +2133,7 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                                         title={(!isEditMode && isOwner) ? "Click to select for swap" : ""}
                                       >
                                         <span className="font-bold text-sm text-slate-800 dark:text-slate-200">
-                                          {whiteName} <span className="font-sans text-xs text-slate-500 dark:text-slate-400 font-normal">({whiteRating} {whitePointsStr})</span>
+                                          {whiteName} <span className="font-sans text-sm text-slate-500 dark:text-slate-400 font-normal">({whiteRating} {whitePointsStr})</span>
                                         </span>
                                       </td>
                                       <td
@@ -2071,20 +2164,12 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                                         title={(!isEditMode && isOwner) ? "Click to select for swap" : ""}
                                       >
                                         <span className="font-bold text-sm text-slate-800 dark:text-slate-200">
-                                          {blackName} <span className="font-sans text-xs text-slate-500 dark:text-slate-400 font-normal">({blackRating} {blackPointsStr})</span>
+                                          {blackName} <span className="font-sans text-sm text-slate-500 dark:text-slate-400 font-normal">({blackRating} {blackPointsStr})</span>
                                         </span>
                                       </td>
                                       {isOwner && (
                                         <td className="px-3 py-2 text-center border-slate-200 dark:border-slate-800 w-16">
-                                          <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className="h-8 w-8 text-slate-500 hover:text-blue-600 hover:bg-slate-100 dark:hover:bg-slate-800"
-                                            onClick={() => setSelectedMatchForManagement(match)}
-                                            title="Manage Match Results"
-                                          >
-                                            <Settings className="h-4 w-4" />
-                                          </Button>
+                                          {renderMatchActionsDropdown(match)}
                                         </td>
                                       )}
                                     </tr>
@@ -2306,9 +2391,9 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                               
                               const effectiveResult = getEffectiveResult(match);
                               const isPending = pendingResults[match.id] !== undefined;
-                              const isWhiteWin = effectiveResult === "1-0" || effectiveResult === "1F-0F";
-                              const isBlackWin = effectiveResult === "0-1" || effectiveResult === "0F-1F";
-                              const isDraw = effectiveResult === "1/2-1/2";
+                              const isWhiteWin = effectiveResult ? (effectiveResult.startsWith("1-0") || effectiveResult.startsWith("1F-0F")) : false;
+                              const isBlackWin = effectiveResult ? (effectiveResult.startsWith("0-1") || effectiveResult.startsWith("0F-1F")) : false;
+                              const isDraw = effectiveResult ? effectiveResult.startsWith("1/2-1/2") : false;
                               
                               const whiteObj = getPlayerObject(match.whitePlayerId);
                               const blackObj = getPlayerObject(match.blackPlayerId);
@@ -2375,7 +2460,7 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                                     title={(!isEditMode && isOwner) ? "Click to select for swap" : ""}
                                   >
                                     <span style={{ fontWeight: 'bold', fontSize: '14px', color: isWhiteSelected ? '#1e3a8a' : '#000' }}>
-                                      {whiteName} <span style={{ fontSize: '12px', color: '#555', fontWeight: 'normal' }}>({whiteRating} {whitePointsStr})</span>
+                                      {whiteName} <span style={{ fontSize: '14px', color: '#555', fontWeight: 'normal' }}>({whiteRating} {whitePointsStr})</span>
                                     </span>
                                   </td>
                                   <td
@@ -2417,20 +2502,12 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                                     title={(!isEditMode && isOwner) ? "Click to select for swap" : ""}
                                   >
                                     <span style={{ fontWeight: 'bold', fontSize: '14px', color: isBlackSelected ? '#1e3a8a' : '#000' }}>
-                                      {blackName} <span style={{ fontSize: '12px', color: '#555', fontWeight: 'normal' }}>({blackRating} {blackPointsStr})</span>
+                                      {blackName} <span style={{ fontSize: '14px', color: '#555', fontWeight: 'normal' }}>({blackRating} {blackPointsStr})</span>
                                     </span>
                                   </td>
                                   {isOwner && (
                                     <td style={{ border: '1px solid black', padding: '4px', textAlign: 'center', width: '60px' }}>
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-8 w-8 text-slate-500 hover:text-blue-600 hover:bg-slate-100"
-                                        onClick={() => setSelectedMatchForManagement(match)}
-                                        title="Manage Match Results"
-                                      >
-                                        <Settings className="h-4 w-4" />
-                                      </Button>
+                                      {renderMatchActionsDropdown(match)}
                                     </td>
                                   )}
                                 </tr>
@@ -2524,9 +2601,9 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                               
                               const effectiveResult = getEffectiveResult(match);
                               const isPending = pendingResults[match.id] !== undefined;
-                              const isWhiteWin = effectiveResult === "1-0" || effectiveResult === "1F-0F";
-                              const isBlackWin = effectiveResult === "0-1" || effectiveResult === "0F-1F";
-                              const isDraw = effectiveResult === "1/2-1/2";
+                              const isWhiteWin = effectiveResult ? (effectiveResult.startsWith("1-0") || effectiveResult.startsWith("1F-0F")) : false;
+                              const isBlackWin = effectiveResult ? (effectiveResult.startsWith("0-1") || effectiveResult.startsWith("0F-1F")) : false;
+                              const isDraw = effectiveResult ? effectiveResult.startsWith("1/2-1/2") : false;
                               
                               const whiteObj = getPlayerObject(match.whitePlayerId);
                               const blackObj = getPlayerObject(match.blackPlayerId);
@@ -2593,7 +2670,7 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                                     title={(!isEditMode && isOwner) ? "Click to select for swap" : ""}
                                   >
                                     <span style={{ fontWeight: 'bold', fontSize: '14px', color: isWhiteSelected ? '#1e3a8a' : '#000' }}>
-                                      {whiteName} <span style={{ fontSize: '12px', color: '#555', fontWeight: 'normal' }}>({whiteRating} {whitePointsStr})</span>
+                                      {whiteName} <span style={{ fontSize: '14px', color: '#555', fontWeight: 'normal' }}>({whiteRating} {whitePointsStr})</span>
                                     </span>
                                   </td>
                                   <td
@@ -2635,20 +2712,12 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                                     title={(!isEditMode && isOwner) ? "Click to select for swap" : ""}
                                   >
                                     <span style={{ fontWeight: 'bold', fontSize: '14px', color: isBlackSelected ? '#1e3a8a' : '#000' }}>
-                                      {blackName} <span style={{ fontSize: '12px', color: '#555', fontWeight: 'normal' }}>({blackRating} {blackPointsStr})</span>
+                                      {blackName} <span style={{ fontSize: '14px', color: '#555', fontWeight: 'normal' }}>({blackRating} {blackPointsStr})</span>
                                     </span>
                                   </td>
                                   {isOwner && (
                                     <td style={{ border: '1px solid black', padding: '4px', textAlign: 'center', width: '60px' }}>
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-8 w-8 text-slate-500 hover:text-blue-600 hover:bg-slate-100"
-                                        onClick={() => setSelectedMatchForManagement(match)}
-                                        title="Manage Match Results"
-                                      >
-                                        <Settings className="h-4 w-4" />
-                                      </Button>
+                                      {renderMatchActionsDropdown(match)}
                                     </td>
                                   )}
                                 </tr>

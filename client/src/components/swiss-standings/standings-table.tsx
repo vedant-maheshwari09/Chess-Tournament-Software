@@ -51,7 +51,7 @@ export function StandingsTable({
               </th>
             ))}
             <th className="font-sans" style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '14px', textAlign: 'center', width: '80px' }}>
-              Performance
+              Perf.
             </th>
             <th className="font-sans" style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '14px', textAlign: 'center', width: '80px' }}>
               Est. Post
@@ -92,21 +92,21 @@ export function StandingsTable({
                       {renderRoundOutcomeBadge(res)}
                     </td>
                   ))}
-                  <td style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'center', fontWeight: 'bold', fontSize: '15px' }}>
+                  <td style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'center', fontWeight: 'bold', fontSize: '16px' }}>
                     {formatPoints(standing)}
                   </td>
                   {activeTiebreakRules.map((rule) => {
                     const val = standing.tiebreakValues[rule];
                     return (
-                      <td key={rule} style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'center' }}>
+                      <td key={rule} style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'center', fontSize: '15px' }}>
                         {typeof val === 'number' ? val.toFixed(1).replace(/\.0$/, "") : '0'}
                       </td>
                     );
                   })}
-                  <td style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'center', color: '#1e293b' }}>
+                  <td style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'center', color: '#1e293b', fontSize: '15px' }}>
                     {isWithdrawn ? '---' : standing.performanceRating || playerRating}
                   </td>
-                  <td style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'center', color: '#1e293b' }}>
+                  <td style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'center', color: '#1e293b', fontSize: '15px' }}>
                     {isWithdrawn ? '---' : standing.postRating || playerRating}
                   </td>
                 </tr>
@@ -117,7 +117,7 @@ export function StandingsTable({
                     &nbsp;
                   </td>
                   <td style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'left' }}>
-                    <div className="text-[12px] text-gray-500 font-sans leading-none mt-1">
+                    <div className="text-[13px] text-gray-500 font-sans leading-none mt-1">
                       {playerRating}{uscfId ? ` \u00a0\u00a0 ID: ${uscfId}` : ''}
                     </div>
                   </td>
@@ -130,7 +130,7 @@ export function StandingsTable({
                     const showCumulative = roundIdx < currentRound && res.result && res.result !== 'unplayed' && !res.isInProgress && res.result !== 'withdrawn';
                     
                     return (
-                      <td key={roundIdx} style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'center', fontSize: '12px', color: '#475569' }}>
+                      <td key={roundIdx} style={{ border: '1px solid black', padding: '6px 8px', textAlign: 'center', fontSize: '13px', color: '#475569' }}>
                         {showCumulative ? cumulative.toFixed(1).replace(/\.0$/, "") : '\u00a0'}
                       </td>
                     );

@@ -283,7 +283,7 @@ export default function SwissStandings({ tournamentId, showExportControls = true
     html += `    <td style="background-color: #e8e8e8; border: 1px solid black; font-weight: bold; padding: 6px 8px; text-align: center; width: 45px;">#</td>\n`;
     html += `    <td style="background-color: #e8e8e8; border: 1px solid black; font-weight: bold; padding: 6px 8px; text-align: left; width: 200px;">Name/Rating/ID</td>\n`;
     for (let r = 1; r <= totalRounds; r++) {
-      html += `    <td style="background-color: #e8e8e8; border: 1px solid black; font-weight: bold; padding: 6px 8px; text-align: center; width: 55px;">Rd ${r}</td>\n`;
+      html += `    <td style="background-color: #e8e8e8; border: 1px solid black; font-weight: bold; padding: 6px 8px; text-align: center; width: 55px; white-space: nowrap;">Rd ${r}</td>\n`;
     }
     html += `    <td style="background-color: #e8e8e8; border: 1px solid black; font-weight: bold; padding: 6px 8px; text-align: center; width: 50px;">Total</td>\n`;
     if (tournamentConfig?.prizesEnabled && showPrizes) {
@@ -314,7 +314,7 @@ export default function SwissStandings({ tournamentId, showExportControls = true
       
       standing.roundResults.forEach((res) => {
         const resultText = formatRoundResultDisplay(res);
-        html += `    <td style="border: 1px solid black; padding: 6px 8px; text-align: center;">${resultText}</td>\n`;
+        html += `    <td style="border: 1px solid black; padding: 6px 8px; text-align: center; white-space: nowrap;">${resultText}</td>\n`;
       });
       
       const totalPointsStr = standing.totalPoints.toFixed(1).replace(/\.0$/, "");
@@ -335,7 +335,7 @@ export default function SwissStandings({ tournamentId, showExportControls = true
           .slice(0, roundIndex + 1)
           .reduce((sum, entry) => sum + entry.points, 0);
         const cumulativeText = roundIndex < currentRound ? cumulative.toFixed(1) : '';
-        html += `    <td style="border: 1px solid black; padding: 6px 8px; text-align: center;">${cumulativeText}</td>\n`;
+        html += `    <td style="border: 1px solid black; padding: 6px 8px; text-align: center; white-space: nowrap;">${cumulativeText}</td>\n`;
       });
       
       html += `    <td style="border: 1px solid black; padding: 6px 8px; text-align: center;">&nbsp;</td>\n`;
@@ -618,7 +618,7 @@ a:hover { text-decoration: underline; }
   const renderRoundOutcomeBadge = (res: PlayerRoundResult) => {
     const text = formatRoundResultDisplay(res);
     if (text === '---') return <span className="text-slate-400 dark:text-slate-600">—</span>;
-    return <span className="text-slate-800 dark:text-slate-200 text-xs font-bold font-sans">{text}</span>;
+    return <span className="text-slate-800 dark:text-slate-200 text-[15px] font-bold font-sans">{text}</span>;
   };
 
 
