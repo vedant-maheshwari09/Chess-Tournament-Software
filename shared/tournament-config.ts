@@ -1354,7 +1354,7 @@ function sanitizeSections(
 
   for (const raw of fromArray) {
     const section = sanitizeSectionDefinition(raw);
-    if (!section.name.trim()) continue;
+    // Do not discard sections with empty names during editing/autosave
     if (result.some((existing) => existing.id === section.id)) {
       section.id = generateSectionId();
     }

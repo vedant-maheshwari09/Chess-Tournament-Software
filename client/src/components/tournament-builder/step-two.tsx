@@ -472,7 +472,7 @@ export default function StepTwo({
 
   const addSection = () => {
 
-    const nextSection = createSectionDefinition();
+    const nextSection = createSectionDefinition(sections.length);
 
     onConfigChange({
 

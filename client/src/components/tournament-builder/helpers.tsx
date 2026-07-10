@@ -178,10 +178,11 @@ export function formatRatingRange(min: number | null, max: number | null): strin
   return "Open to all ratings";
 }
 
-export function createSectionDefinition(): SectionDefinition {
+export function createSectionDefinition(existingCount?: number): SectionDefinition {
+  const index = typeof existingCount === "number" ? existingCount : 0;
   return {
     id: generateSectionId(),
-    name: "",
+    name: `Section ${index + 1}`,
     ratingMin: null,
     ratingMax: null,
     description: undefined,
