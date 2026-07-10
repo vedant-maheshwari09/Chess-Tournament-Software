@@ -55,7 +55,9 @@ class NotificationService {
 
     if (user && pass) {
       const transportOptions: SMTPTransport.Options = {
-        service: "gmail",
+        host: "smtp.gmail.com",
+        port: 465,
+        secure: true,
         auth: {
           user,
           pass,
@@ -108,7 +110,24 @@ class NotificationService {
 
     const isGmailSender = this.fromAddress.toLowerCase().includes("gmail.com");
 
-    // Prioritize Resend if enabled, but rewrite the from address to onboarding@resend.dev
+    if (this.gmailReady && this.transporter) {
+      try {
+        log(`Attempting email send via Gmail SMTP to ${recipients.join(", ")}...`, "notifications");
+        await this.transporter.sendMail({
+          from: this.fromAddress,
+          to: recipients,
+          subject,
+          text: text ?? "",
+          html,
+        });
+        log(`Email sent successfully via Gmail SMTP to ${recipients.length} recipients`, "notifications");
+        return;
+      } catch (err) {
+        log(`Gmail send failed: ${err}, falling back...`, "notifications");
+      }
+    }
+
+    // Fallback to Resend if enabled, but rewrite the from address to onboarding@resend.dev
     // if the configured sender is a Gmail/webmail address to avoid unverified domain errors.
     if (this.resendEnabled && this.resend) {
       try {
@@ -127,28 +146,13 @@ class NotificationService {
         });
         
         if (error) {
-          log(`Resend API returned error: ${JSON.stringify(error)}, falling back...`, "notifications");
+          log(`Resend API returned error: ${JSON.stringify(error)}`, "notifications");
         } else {
           log(`Email sent successfully via Resend (ID: ${data?.id})`, "notifications");
           return;
         }
       } catch (err) {
-        log(`Resend exception: ${err}, falling back...`, "notifications");
-      }
-    }
-
-    if (this.gmailReady && this.transporter) {
-      try {
-        await this.transporter.sendMail({
-          from: this.fromAddress,
-          bcc: recipients,
-          subject,
-          text: text ?? "",
-          html,
-        });
-        log(`Email sent successfully via Gmail to ${recipients.length} recipients`, "notifications");
-      } catch (err) {
-        log(`Gmail send failed: ${err}`, "notifications");
+        log(`Resend exception: ${err}`, "notifications");
       }
     }
   }

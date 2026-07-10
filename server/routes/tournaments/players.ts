@@ -2,6 +2,7 @@ import type { Express, Request, Response } from "express";
 import { storage } from '../../storage';
 import { requireAuth, requireRole, requireTournamentAccess } from '../../auth';
 import { Player, insertPlayerSchema } from '@shared/schema';
+import { getLocalUSCFPlayerById } from "../../lib/localRatings";
 
 export function applyPlayersRoutes(app: Express) {
   // Player routes
@@ -20,6 +21,35 @@ export function applyPlayersRoutes(app: Express) {
       const tournamentId = parseInt(req.params.tournamentId);
       const { byeConfiguration, ...playerFields } = req.body;
       const playerData = { ...playerFields, tournamentId };
+
+      if (playerData.rating === "") {
+        delete playerData.rating;
+      }
+      if (playerData.uscfRating === "") {
+        playerData.uscfRating = null;
+      }
+      if (playerData.fideRating === "") {
+        playerData.fideRating = null;
+      }
+
+      if (playerData.localId) {
+        const localPlayer = await getLocalUSCFPlayerById(playerData.localId);
+        if (localPlayer) {
+          if (!playerData.uscfMemberExpiry && localPlayer.metadata?.expiration) {
+            playerData.uscfMemberExpiry = localPlayer.metadata.expiration;
+          }
+          if (!playerData.uscfRatingRaw && localPlayer.rating?.raw) {
+            playerData.uscfRatingRaw = localPlayer.rating.raw;
+          }
+          if ((playerData.uscfRating === undefined || playerData.uscfRating === null) && localPlayer.rating?.value) {
+            playerData.uscfRating = parseInt(localPlayer.rating.value, 10) || null;
+          }
+          if ((playerData.rating === undefined || playerData.rating === null) && localPlayer.rating?.value) {
+            playerData.rating = parseInt(localPlayer.rating.value, 10) || 0;
+          }
+        }
+      }
+
       const player = insertPlayerSchema.parse(playerData);
 
       // If this player is being set as houseplayer, deactivate any existing houseplayer
@@ -139,6 +169,44 @@ export function applyPlayersRoutes(app: Express) {
         } else if (typeof req.body?.sectionName === "string") {
           const trimmed = req.body.sectionName.trim();
           updates.sectionName = trimmed.length > 0 ? trimmed : null;
+        }
+
+        if (req.body?.paymentStatus !== undefined) {
+          updates.paymentStatus = req.body.paymentStatus;
+        }
+        if (req.body?.uscfMemberExpiry !== undefined) {
+          updates.uscfMemberExpiry = req.body.uscfMemberExpiry;
+        }
+        if (req.body?.club !== undefined) {
+          updates.club = req.body.club;
+        }
+        if (req.body?.email !== undefined) {
+          updates.email = req.body.email;
+        }
+        if (req.body?.birthdate !== undefined) {
+          updates.birthdate = req.body.birthdate;
+        }
+        if (req.body?.localId !== undefined) {
+          updates.localId = req.body.localId;
+          if (req.body.localId && req.body.localId !== existing.localId) {
+            const localPlayer = await getLocalUSCFPlayerById(req.body.localId);
+            if (localPlayer) {
+              if (localPlayer.metadata?.expiration && req.body.uscfMemberExpiry === undefined) {
+                updates.uscfMemberExpiry = localPlayer.metadata.expiration;
+              }
+              if (localPlayer.rating?.raw && req.body.uscfRatingRaw === undefined) {
+                updates.uscfRatingRaw = localPlayer.rating.raw;
+              }
+              if (localPlayer.rating?.value) {
+                if (req.body.uscfRating === undefined) {
+                  updates.uscfRating = parseInt(localPlayer.rating.value, 10) || null;
+                }
+                if (req.body.rating === undefined) {
+                  updates.rating = parseInt(localPlayer.rating.value, 10) || 0;
+                }
+              }
+            }
+          }
         }
 
         if (Object.keys(updates).length === 0) {

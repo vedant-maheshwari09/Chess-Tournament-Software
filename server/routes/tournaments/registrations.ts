@@ -17,6 +17,7 @@ import {
   playerRegistrationSchema
 } from "../common";
 import { normalizePlayerName } from "../util";
+import { getLocalUSCFPlayerById } from "../../lib/localRatings";
 
 export function applyRegistrationsRoutes(app: Express) {
   // Create player registration batch (for multi-player cart checkout)
@@ -91,8 +92,11 @@ export function applyRegistrationsRoutes(app: Express) {
       let amountDue = Number.isFinite(sampleItem.amountDue) ? Number(sampleItem.amountDue) : 0;
       let amountPaid = Number.isFinite(sampleItem.amountPaid) ? Number(sampleItem.amountPaid) : 0;
       let currency = normalizeCurrency(sampleItem.currency, payments.defaultCurrency ?? "USD");
-      let paymentStatus: PaymentStatus = sampleItem.paymentStatus ?? "unpaid";
       let paymentMethod = sampleItem.paymentMethod ?? null;
+      let paymentStatus: PaymentStatus = sampleItem.paymentStatus ?? "unpaid";
+      if (paymentMethod && ["offline", "cash", "check", "manual", "none"].includes(String(paymentMethod).toLowerCase())) {
+        paymentStatus = "N/A" as any;
+      }
       let paymentReceiptUrl = sampleItem.paymentReceiptUrl ?? null;
       let paidAt: Date | null = null;
       let notes = sampleItem.paymentNotes ?? null;
@@ -184,13 +188,21 @@ export function applyRegistrationsRoutes(app: Express) {
           localNotes = notes;
         }
 
+        let finalUscfRatingRaw = payload.uscfRatingRaw;
+        if (payload.uscfId) {
+          const localPlayer = await getLocalUSCFPlayerById(payload.uscfId);
+          if (localPlayer && localPlayer.rating?.raw) {
+            finalUscfRatingRaw = localPlayer.rating.raw;
+          }
+        }
+
         const newRegistration = await storage.createPlayerRegistration({
           tournamentId,
           userId: user.id,
           playerName: payload.playerName,
           uscfRating: payload.uscfRating,
           fideRating: payload.fideRating,
-          uscfRatingRaw: payload.uscfRatingRaw,
+          uscfRatingRaw: finalUscfRatingRaw,
           fideRatingRaw: payload.fideRatingRaw,
           ratingProvider: payload.ratingProvider,
           uscfId: payload.uscfId,
@@ -354,8 +366,11 @@ export function applyRegistrationsRoutes(app: Express) {
       let amountPaid = Number.isFinite(payload.amountPaid) ? Number(payload.amountPaid) : 0;
       amountPaid = Number(amountPaid.toFixed(2));
 
-      let paymentStatus: PaymentStatus = payload.paymentStatus ?? "unpaid";
       let paymentMethod = payload.paymentMethod ?? null;
+      let paymentStatus: PaymentStatus = payload.paymentStatus ?? "unpaid";
+      if (paymentMethod && ["offline", "cash", "check", "manual", "none"].includes(String(paymentMethod).toLowerCase())) {
+        paymentStatus = "N/A" as any;
+      }
       let paymentReceiptUrl = payload.paymentReceiptUrl ?? null;
       let currency = normalizeCurrency(payload.currency ?? entryFee?.currency, payments.defaultCurrency ?? "USD");
       let paidAt: Date | null = null;
@@ -415,13 +430,21 @@ export function applyRegistrationsRoutes(app: Express) {
         return res.status(400).json({ error: "Online payment is required for this tournament" });
       }
 
+      let finalUscfRatingRaw = payload.uscfRatingRaw ?? null;
+      if (payload.uscfId) {
+        const localPlayer = await getLocalUSCFPlayerById(payload.uscfId);
+        if (localPlayer && localPlayer.rating?.raw) {
+          finalUscfRatingRaw = localPlayer.rating.raw;
+        }
+      }
+
       const registrationData = {
         tournamentId,
         userId: user.id,
         playerName: payload.playerName,
         uscfRating: payload.uscfRating ?? null,
         fideRating: payload.fideRating ?? null,
-        uscfRatingRaw: payload.uscfRatingRaw ?? null,
+        uscfRatingRaw: finalUscfRatingRaw,
         fideRatingRaw: payload.fideRatingRaw ?? null,
         ratingProvider: payload.ratingProvider ?? null,
         uscfId: payload.uscfId ?? null,
@@ -698,15 +721,80 @@ export function applyRegistrationsRoutes(app: Express) {
           p.lastName.trim().toLowerCase() === lastName.toLowerCase()
         );
 
+        let sectionId: string | null = null;
+        let sectionName: string | null = null;
+        if (updatedRegistration.sectionChoice) {
+          const matchedSection = regConfig.sections?.find(
+            (s: any) =>
+              s.id === updatedRegistration.sectionChoice ||
+              s.name?.trim().toLowerCase() === updatedRegistration.sectionChoice!.trim().toLowerCase()
+          );
+          if (matchedSection) {
+            sectionId = matchedSection.id;
+            sectionName = matchedSection.name;
+          } else {
+            sectionId = updatedRegistration.sectionChoice;
+            sectionName = updatedRegistration.sectionChoice;
+          }
+        }
+
+        // Parse custom answers for club, birthdate, sex
+        let club: string | null = null;
+        let birthdate: string | null = null;
+        let sex: string | null = null;
+        const answers = updatedRegistration.customAnswers;
+        if (answers && typeof answers === 'object') {
+          for (const key of Object.keys(answers)) {
+            const lowerKey = key.toLowerCase();
+            const val = String((answers as any)[key] || '').trim();
+            if (!val) continue;
+
+            if (lowerKey.includes('club') || lowerKey.includes('school') || lowerKey.includes('team')) {
+              club = val;
+            } else if (lowerKey.includes('birthdate') || lowerKey.includes('dob') || lowerKey.includes('birth')) {
+              birthdate = val;
+            } else if (lowerKey.includes('sex') || lowerKey.includes('gender')) {
+              sex = val;
+            }
+          }
+        }
+
+        let uscfMemberExpiry = (updatedRegistration.customAnswers as any)?.uscfExpiration || null;
+        let uscfRatingRaw = updatedRegistration.uscfRatingRaw || null;
+
+        if (updatedRegistration.uscfId) {
+          const localPlayer = await getLocalUSCFPlayerById(updatedRegistration.uscfId);
+          if (localPlayer) {
+            if (localPlayer.metadata?.expiration) {
+              uscfMemberExpiry = localPlayer.metadata.expiration;
+            }
+            if (localPlayer.rating?.raw) {
+              uscfRatingRaw = localPlayer.rating.raw;
+            }
+          }
+        }
+
+        if (!uscfMemberExpiry) {
+          uscfMemberExpiry = user?.uscfMemberExpiry || null;
+        }
+
         const playerUpdatePayload = {
           rating: rating,
           uscfRating: updatedRegistration.uscfRating,
           fideRating: updatedRegistration.fideRating,
-          uscfRatingRaw: updatedRegistration.uscfRatingRaw,
+          uscfRatingRaw: uscfRatingRaw,
           fideRatingRaw: updatedRegistration.fideRatingRaw,
           localId: updatedRegistration.uscfId || updatedRegistration.fideId || null,
           federation: federation,
           userId: updatedRegistration.userId,
+          sectionId: sectionId,
+          sectionName: sectionName,
+          email: updatedRegistration.email || null,
+          club: club,
+          birthdate: birthdate,
+          sex: sex,
+          paymentStatus: updatedRegistration.paymentStatus || 'unpaid',
+          uscfMemberExpiry: uscfMemberExpiry,
         };
 
         let createdOrUpdatedPlayerId: number;

@@ -52,7 +52,12 @@ import {
   Plus,
   CreditCard,
   FilePlus2,
+  SlidersHorizontal,
+  Search,
+  Eye,
+  Filter,
 } from "lucide-react";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { parseTournamentConfig } from "@/lib/tournament-config";
 import type { Tournament, Player, Pairing } from "@shared/schema";
@@ -96,6 +101,33 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
 
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [filterFederation, setFilterFederation] = useState("all");
+  const [filterRatingType, setFilterRatingType] = useState("all");
+  const [filterVerification, setFilterVerification] = useState("all");
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
+
+  const [visibleColumns, setVisibleColumns] = useState<string[]>(() => {
+    if (typeof window !== "undefined") {
+      const stored = window.localStorage.getItem(`tournament-${tournamentId}-visible-columns`);
+      if (stored) {
+        try {
+          return JSON.parse(stored);
+        } catch (e) {
+          // ignore
+        }
+      }
+    }
+    return ["index", "name", "rating", "uscfId", "paymentStatus", "byes", "actions"];
+  });
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(`tournament-${tournamentId}-visible-columns`, JSON.stringify(visibleColumns));
+    }
+  }, [visibleColumns, tournamentId]);
+
   const tournamentConfig = useMemo(() => parseTournamentConfig(tournament), [tournament]);
   const sections = tournamentConfig.sections;
 
@@ -122,6 +154,26 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
       });
     }
   });
+ 
+  const updatePlayerPaymentStatusMutation = useMutation({
+    mutationFn: async ({ playerId, paymentStatus }: { playerId: number; paymentStatus: string }) => {
+      return apiRequest(`/api/tournaments/${tournamentId}/players/${playerId}`, {
+        method: "PUT",
+        body: JSON.stringify({ paymentStatus })
+      });
+    },
+    onSuccess: () => {
+      toast({ title: "Payment status updated successfully" });
+      queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/players`] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Update failed",
+        description: error?.message ?? "Unable to update player payment status.",
+        variant: "destructive",
+      });
+    }
+  });
 
   const processedPlayers = useMemo(() => {
     let processed = [...players];
@@ -129,7 +181,53 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
     if (activeSection !== "all") {
       processed = processed.filter(p => p.sectionId === activeSection || p.sectionName === activeSection);
     }
-    
+
+    if (searchTerm.trim() !== "") {
+      const q = searchTerm.toLowerCase().trim();
+      processed = processed.filter(p => {
+        const fullName = `${p.firstName} ${p.lastName}`.toLowerCase();
+        const email = (p.email || '').toLowerCase();
+        const club = (p.club || '').toLowerCase();
+        const localId = (p.localId || '').toLowerCase();
+        const userUscfId = ((p as any).userUscfId || '').toLowerCase();
+        return fullName.includes(q) || email.includes(q) || club.includes(q) || localId.includes(q) || userUscfId.includes(q);
+      });
+    }
+
+    if (filterStatus !== "all") {
+      processed = processed.filter(p => (p.status || 'active') === filterStatus);
+    }
+
+    if (filterFederation !== "all") {
+      processed = processed.filter(p => {
+        const fed = (p.federation || 'uscf').toLowerCase();
+        if (filterFederation === "uscf") return fed === "uscf";
+        if (filterFederation === "fide") return fed === "fide";
+        return fed !== "uscf" && fed !== "fide";
+      });
+    }
+
+    if (filterRatingType !== "all") {
+      processed = processed.filter(p => {
+        const ratingVal = p.rating ?? 0;
+        const rawRating = (p as any).uscfRatingRaw || '';
+        const isProvisional = rawRating.toLowerCase().includes('p');
+        const isUnrated = ratingVal === 0 || ratingVal === 1000 && !p.uscfRating && !p.fideRating;
+
+        if (filterRatingType === "unrated") return isUnrated;
+        if (filterRatingType === "provisional") return !isUnrated && isProvisional;
+        if (filterRatingType === "rated") return !isUnrated && !isProvisional;
+        return true;
+      });
+    }
+
+    if (filterVerification !== "all") {
+      processed = processed.filter(p => {
+        const status = ((p as any).userUscfVerificationStatus || 'unverified').toLowerCase();
+        return status === filterVerification;
+      });
+    }
+
     processed.sort((a, b) => {
       if (sortKey === 'name') {
         const nameA = `${a.lastName}, ${a.firstName}`;
@@ -146,7 +244,7 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
     });
 
     return processed;
-  }, [players, activeSection, sortKey, sortDirection]);
+  }, [players, activeSection, searchTerm, filterStatus, filterFederation, filterRatingType, filterVerification, sortKey, sortDirection, tournamentConfig]);
 
   const { data: pairings = [], isLoading: pairingsLoading } = useQuery<Pairing[]>({
     queryKey: [`/api/tournaments/${tournamentId}/pairings`],
@@ -592,295 +690,625 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
               {isTD && <Badge variant={hasSelection ? "default" : "outline"} className="rounded-lg px-2.5 py-1">{selectionSummary}</Badge>}
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
             {isLoading ? (
-              <p className="text-sm text-muted-foreground">Loading players…</p>
+              <p className="text-sm text-muted-foreground">Loading players...</p>
             ) : players.length === 0 ? (
               <div className="py-12 text-center">
                 <p className="text-sm text-muted-foreground">No players registered yet.</p>
               </div>
             ) : (
               <TooltipProvider>
+                {/* Search & Filters Controls Row */}
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between py-2">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                    <Input
+                      placeholder="Search by name, ID, email, or club..."
+                      className="pl-9 h-10 w-full bg-white"
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {/* Expandable Filter trigger */}
+                    <Button
+                      variant={showFilterPanel || filterStatus !== "all" || filterFederation !== "all" || filterRatingType !== "all" || filterVerification !== "all" ? "default" : "outline"}
+                      className="h-10"
+                      onClick={() => setShowFilterPanel(!showFilterPanel)}
+                    >
+                      <SlidersHorizontal className="mr-2 h-4 w-4" />
+                      Filters
+                      {(filterStatus !== "all" || filterFederation !== "all" || filterRatingType !== "all" || filterVerification !== "all") && (
+                        <Badge variant="secondary" className="ml-2 bg-slate-800 text-white rounded-full h-5 w-5 flex items-center justify-center p-0 text-[10px]">
+                          {[filterStatus !== "all", filterFederation !== "all", filterRatingType !== "all", filterVerification !== "all"].filter(Boolean).length}
+                        </Badge>
+                      )}
+                    </Button>
+
+                    {/* Column Selection Popover */}
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className="h-10">
+                          <Eye className="mr-2 h-4 w-4" />
+                          Columns
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-56 p-3 space-y-2.5 bg-white shadow-lg border border-slate-200 rounded-lg" align="end">
+                        <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 px-1">Visible Columns</div>
+                        <div className="space-y-2 max-h-[300px] overflow-y-auto no-scrollbar">
+                          {[
+                            { id: "index", label: "# Number" },
+                            { id: "name", label: "Surname, Name" },
+                            { id: "rating", label: "Unified Rating" },
+                            { id: "uscfRating", label: "USCF Rating" },
+                            { id: "fideRating", label: "FIDE Rating" },
+                            { id: "uscfId", label: "USCF ID" },
+                            { id: "fideId", label: "FIDE ID" },
+                            { id: "federation", label: "Federation" },
+                            { id: "section", label: "Section Name" },
+                            { id: "club", label: "Chess Club" },
+                            { id: "birthdate", label: "Birthdate" },
+                            { id: "createdAt", label: "Date Registered" },
+                            { id: "byes", label: "Byes List" },
+                            { id: "seed", label: "Tournament Seed" },
+                            { id: "paymentStatus", label: "Payment Status" },
+                            { id: "status", label: "Roster Status" },
+                            { id: "email", label: "Email Address" },
+                            { id: "actions", label: "Confirm & Select" },
+                          ].map((col) => (
+                            <label key={col.id} className="flex items-center gap-2 px-1 text-sm text-slate-700 cursor-pointer hover:bg-slate-50 rounded py-0.5">
+                              <Checkbox
+                                id={`col-${col.id}`}
+                                checked={visibleColumns.includes(col.id)}
+                                onCheckedChange={(checked) => {
+                                  if (checked) {
+                                    setVisibleColumns([...visibleColumns, col.id]);
+                                  } else {
+                                    setVisibleColumns(visibleColumns.filter((id) => id !== col.id));
+                                  }
+                                }}
+                              />
+                              <span>{col.label}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                </div>
+
+                {/* Expandable Advanced Filter Panel */}
+                {showFilterPanel && (
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 bg-slate-50 border border-slate-200/60 p-4 rounded-xl shadow-inner mb-2">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-slate-600">Roster Status</Label>
+                      <Select value={filterStatus} onValueChange={setFilterStatus}>
+                        <SelectTrigger className="bg-white h-9 border-slate-200">
+                          <SelectValue placeholder="All" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-white shadow-lg border border-slate-200 rounded-lg">
+                          <SelectItem value="all">All Statuses</SelectItem>
+                          <SelectItem value="active">Active Only</SelectItem>
+                          <SelectItem value="withdrawn">Withdrawn Only</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-slate-600">Representing Federation</Label>
+                      <Select value={filterFederation} onValueChange={setFilterFederation}>
+                        <SelectTrigger className="bg-white h-9 border-slate-200">
+                          <SelectValue placeholder="All" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-white shadow-lg border border-slate-200 rounded-lg">
+                          <SelectItem value="all">All Federations</SelectItem>
+                          <SelectItem value="uscf">USCF Representing</SelectItem>
+                          <SelectItem value="fide">FIDE Representing</SelectItem>
+                          <SelectItem value="other">Other Federation</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-slate-600">Rating Type</Label>
+                      <Select value={filterRatingType} onValueChange={setFilterRatingType}>
+                        <SelectTrigger className="bg-white h-9 border-slate-200">
+                          <SelectValue placeholder="All" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-white shadow-lg border border-slate-200 rounded-lg">
+                          <SelectItem value="all">All Rating Types</SelectItem>
+                          <SelectItem value="rated">Fully Rated</SelectItem>
+                          <SelectItem value="provisional">Provisional (p)</SelectItem>
+                          <SelectItem value="unrated">Unrated Only</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-slate-600">USCF ID Verification</Label>
+                      <Select value={filterVerification} onValueChange={setFilterVerification}>
+                        <SelectTrigger className="bg-white h-9 border-slate-200">
+                          <SelectValue placeholder="All" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-white shadow-lg border border-slate-200 rounded-lg">
+                          <SelectItem value="all">All Verification</SelectItem>
+                          <SelectItem value="verified">Verified Members</SelectItem>
+                          <SelectItem value="pending">Pending Status</SelectItem>
+                          <SelectItem value="unverified">Unverified Members</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex flex-col gap-6 lg:flex-row">
                   <div className="flex-1 overflow-x-auto no-scrollbar">
-                    <Table className="min-w-[800px] md:min-w-full">
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="w-12">#</TableHead>
-                          <TableHead>
-                            <Button variant="ghost" onClick={() => handleSort('name')}>
-                              Surname, Name
-                              {sortKey === 'name' && <ArrowUpDown className="ml-2 h-4 w-4 inline" />}
-                            </Button>
-                          </TableHead>
-                          <TableHead>
-                            <Button variant="ghost" onClick={() => handleSort('rating')}>
-                              {tournamentConfig.details.primaryRatingSystem === 'fide' ? 'FIDE' : 'USCF'} Rating
-                              {sortKey === 'rating' && <ArrowUpDown className="ml-2 h-4 w-4 inline" />}
-                            </Button>
-                          </TableHead>
-                          {tournamentConfig.registers?.verifyUscfMembership && (
-                            <TableHead>USCF ID & Status</TableHead>
-                          )}
-                          {tournament.format === 'knockout' && (
-                            <TableHead className="w-20">Seed</TableHead>
-                          )}
-                          {tournament.format !== 'arena' && <TableHead>Byes</TableHead>}
-                          <TableHead className="text-right whitespace-nowrap">
-                            <div className="flex items-center justify-end gap-2">
-                              <span>Birthdate</span>
-                              {isTD && (
-                                <Checkbox
-                                  checked={headerCheckboxValue}
-                                  onCheckedChange={(value) => toggleSelectAll(Boolean(value))}
-                                  aria-label="Select all players"
-                                  disabled={players.length === 0}
-                                  className="h-4 w-4"
-                                />
-                              )}
-                            </div>
-                          </TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {processedPlayers.map((player, index) => {
-                          const isSelected = selectedIds.includes(player.id);
-                          const isConfirmed = Boolean(confirmedMap[player.id]);
-                          const playerByes = playerByeMap.get(player.id) ?? [];
-                          const rowClasses = isSelected
-                            ? "border-b border-slate-200 cursor-pointer transition bg-indigo-50/40 hover:bg-indigo-100/40 dark:bg-indigo-900/20 dark:hover:bg-indigo-900/30"
-                            : "border-b border-slate-200 cursor-pointer transition hover:bg-slate-50 dark:bg-slate-800/60 dark:hover:bg-slate-700/60";
-                          return (
-                            <TableRow
-                              key={player.id}
-                              className={rowClasses}
-                              onClick={() => setLocation(`/tournaments/${tournamentId}/players/${player.id}`)}
-                            >
-                              <TableCell>
-                                <div className="text-sm font-medium text-gray-900">{index + 1}</div>
-                              </TableCell>
-                              <TableCell>
-                                <div className="flex items-center gap-2">
-                                  <div className="flex flex-col gap-1">
-                                    <span className="text-sm font-medium text-slate-900">
-                                      {player.localId || (player as any).userUscfId ? (
-                                        <a
-                                          href={
-                                            player.federation?.toLowerCase() === 'fide'
-                                              ? `https://ratings.fide.com/profile/${player.localId}`
-                                              : `https://ratings.uschess.org/player/${player.localId || (player as any).userUscfId}`
-                                          }
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="text-blue-600 hover:underline cursor-pointer"
-                                          onClick={(e) => e.stopPropagation()}
-                                        >
-                                          {player.lastName}, {player.firstName}
-                                        </a>
-                                      ) : (
-                                        `${player.lastName}, ${player.firstName}`
-                                      )}
-                                    </span>
-                                    {!tournamentConfig.registers?.verifyUscfMembership && (player as any).userUscfId && (
-                                      <div className="flex items-center gap-1.5 mt-0.5" onClick={(e) => e.stopPropagation()}>
-                                        <span className="text-[11px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
-                                          USCF: {(player as any).userUscfId}
-                                        </span>
-                                        {(player as any).userUscfVerificationStatus === "verified" ? (
-                                          <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border-emerald-200/50 text-[10px] px-1.5 py-0 rounded-full font-medium">
-                                            Verified
-                                          </Badge>
-                                        ) : (player as any).userUscfVerificationStatus === "pending" ? (
-                                          <div className="flex items-center gap-1">
-                                            <Badge className="bg-amber-50 text-amber-700 hover:bg-amber-50 border-amber-200/50 text-[10px] px-1.5 py-0 rounded-full font-medium animate-pulse">
-                                              Pending
-                                            </Badge>
-                                            {isTD && (
-                                              <button
-                                                onClick={() => verifyUscfMutation.mutate({ targetUserId: (player as any).userId, verified: true })}
-                                                disabled={verifyUscfMutation.isPending}
-                                                className="text-[10px] text-indigo-600 hover:text-indigo-800 font-bold hover:underline ml-1"
-                                              >
-                                                Verify
-                                              </button>
-                                            )}
-                                          </div>
-                                        ) : (
-                                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0 rounded-full font-medium">
-                                            Unverified
-                                          </Badge>
-                                        )}
-                                      </div>
-                                    )}
-                                  </div>
-                                  <span className="text-xs text-muted-foreground self-start mt-0.5">
-                                    ({new Date(player.createdAt).getMonth() + 1}/{new Date(player.createdAt).getDate()})
-                                  </span>
-                                </div>
-                              </TableCell>
-                              <TableCell>
-                                {(() => {
-                                  const threshold = tournamentConfig?.registers?.uscfMinGamesThreshold ?? 4;
-                                  const uscfDisp = resolveDisplayRating((player as any).uscfRatingRaw, player.uscfRating, threshold, false);
-                                  const fideDisp = resolveDisplayRating((player as any).fideRatingRaw, player.fideRating, 0, true);
-                                  const display = tournamentConfig.details.primaryRatingSystem === 'fide'
-                                    ? (fideDisp !== "Unrated" ? fideDisp : uscfDisp)
-                                    : (uscfDisp !== "Unrated" ? uscfDisp : fideDisp);
-                                  return display === "Unrated" ? "-" : display;
-                                })()}
-                              </TableCell>
-                              {tournamentConfig.registers?.verifyUscfMembership && (
-                                <TableCell onClick={(e) => e.stopPropagation()}>
-                                  {(player as any).userUscfId ? (
-                                    <div className="flex flex-col gap-1 items-start">
-                                      <span className="font-mono text-xs text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded border font-bold">
-                                        {(player as any).userUscfId}
-                                      </span>
-                                      {(player as any).userUscfVerificationStatus === "verified" ? (
-                                        <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border-emerald-250/30 text-[10px] px-1.5 py-0 rounded-full font-medium">
-                                          Verified
-                                        </Badge>
-                                      ) : (player as any).userUscfVerificationStatus === "pending" ? (
-                                        <div className="flex items-center gap-1.5">
-                                          <Badge className="bg-amber-50 text-amber-700 hover:bg-amber-50 border-amber-250/30 text-[10px] px-1.5 py-0 rounded-full font-medium animate-pulse">
-                                            Pending
-                                          </Badge>
-                                          {isTD && (
-                                            <button
-                                              onClick={() => verifyUscfMutation.mutate({ targetUserId: (player as any).userId, verified: true })}
-                                              disabled={verifyUscfMutation.isPending}
-                                              className="text-[10px] text-indigo-600 hover:text-indigo-850 font-bold hover:underline"
-                                            >
-                                              Verify
-                                            </button>
-                                          )}
-                                        </div>
-                                      ) : (
-                                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 rounded-full font-medium">
-                                          Unverified
-                                        </Badge>
-                                      )}
-                                    </div>
-                                  ) : (
-                                    <span className="text-xs text-slate-400">Not Provided</span>
-                                  )}
-                                </TableCell>
-                              )}
-                              {tournament.format === 'knockout' && (
-                                <TableCell>
-                                  {isTD && editingSeedId === player.id ? (
-                                    <Input
-                                      type="number"
-                                      className="h-8 w-16"
-                                      value={seedValue}
-                                      onChange={(e) => setSeedValue(e.target.value)}
-                                      onBlur={() => handleUpdateSeed(player.id, seedValue)}
-                                      onKeyDown={(e) => {
-                                        if (e.key === 'Enter') handleUpdateSeed(player.id, seedValue);
-                                        if (e.key === 'Escape') setEditingSeedId(null);
-                                      }}
-                                      onClick={(e) => e.stopPropagation()}
-                                      autoFocus
-                                    />
-                                  ) : (
-                                    <div 
-                                      className={cn(
-                                        "p-1 rounded min-w-[2rem] text-center",
-                                        isTD && "cursor-pointer hover:bg-slate-100"
-                                      )}
-                                      onClick={(e) => {
-                                        if (!isTD) return;
-                                        e.stopPropagation();
-                                        setEditingSeedId(player.id);
-                                        setSeedValue(player.seed?.toString() || "");
-                                      }}
-                                    >
-                                      {player.seed ?? "-"}
-                                    </div>
-                                  )}
-                                </TableCell>
-                              )}
-                              {tournament.format !== 'arena' && (
-                                <TableCell>
-                                  {pairingsLoading ? (
-                                    <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
-                                  ) : playerByes.length > 0 ? (
-                                    <div className="flex flex-wrap gap-2">
-                                      {playerByes.map((bye) => {
-                                        const isRequested = Boolean(bye.isRequested);
-                                        const isRemoving = removingByeIds.includes(bye.id);
-                                        const byeLabel = bye.byeType === "half_point"
-                                          ? "½"
-                                          : bye.byeType === "full_point"
-                                          ? "1"
-                                          : bye.byeType === "zero_point"
-                                          ? "0"
-                                          : bye.points === 1
-                                          ? "½"
-                                          : bye.points === 2
-                                          ? "1"
-                                          : "0";
-                                        const toneClass = isRequested
-                                          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                                          : "border-slate-200 bg-slate-100 text-slate-600";
-                                        return (
-                                          <div
-                                            key={bye.id}
-                                            className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs font-medium ${toneClass}`}
-                                            title={isRequested ? "Manual bye" : "System-assigned"}
-                                          >
-                                            <span>{bye.round}</span>
-                                            <span aria-hidden="true">·</span>
-                                            <span>{byeLabel}</span>
-                                            {isRequested && isTD ? (
-                                              <button
-                                                type="button"
-                                                onClick={(event) => {
-                                                  event.stopPropagation();
-                                                  handleRemoveBye(bye.id);
-                                                }}
-                                                className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full text-emerald-700 transition hover:bg-emerald-100 hover:text-emerald-900"
-                                                disabled={isRemoving}
-                                                aria-label={`Remove bye in round ${bye.round}`}
-                                              >
-                                                {isRemoving ? (
-                                                  <Loader2 className="h-3 w-3 animate-spin" />
-                                                ) : (
-                                                  <X className="h-3 w-3" />
-                                                )}
-                                              </button>
-                                            ) : null}
-                                          </div>
-                                        );
-                                      })}
-                                    </div>
-                                  ) : (
-                                    <span className="text-xs text-muted-foreground">—</span>
-                                  )}
-                                </TableCell>
-                              )}
-                              <TableCell className="text-right">
+                    {processedPlayers.length === 0 ? (
+                      <div className="py-16 text-center border border-dashed rounded-xl border-slate-200 bg-slate-50/50 w-full flex flex-col items-center justify-center">
+                        <p className="text-base font-semibold text-slate-600">No players match the applied filters.</p>
+                        <p className="text-xs text-slate-400 mt-1">Try resetting some filters or modifying your search query.</p>
+                        <Button
+                          variant="link"
+                          className="text-xs text-indigo-600 hover:text-indigo-850 mt-2 font-semibold"
+                          onClick={() => {
+                            setSearchTerm("");
+                            setFilterStatus("all");
+                            setFilterFederation("all");
+                            setFilterRatingType("all");
+                            setFilterVerification("all");
+                          }}
+                        >
+                          Reset Filters
+                        </Button>
+                      </div>
+                    ) : (
+                      <Table className="min-w-[800px] md:min-w-full">
+                        <TableHeader>
+                          <TableRow>
+                            {visibleColumns.includes("index") && <TableHead className="w-12">#</TableHead>}
+                            {visibleColumns.includes("name") && (
+                              <TableHead>
+                                <Button variant="ghost" onClick={() => handleSort('name')}>
+                                  Surname, Name
+                                  {sortKey === 'name' && <ArrowUpDown className="ml-2 h-4 w-4 inline" />}
+                                </Button>
+                              </TableHead>
+                            )}
+                            {visibleColumns.includes("rating") && (
+                              <TableHead>
+                                <Button variant="ghost" onClick={() => handleSort('rating')}>
+                                  {tournamentConfig.details.primaryRatingSystem === 'fide' ? 'FIDE' : 'USCF'} Rating
+                                  {sortKey === 'rating' && <ArrowUpDown className="ml-2 h-4 w-4 inline" />}
+                                </Button>
+                              </TableHead>
+                            )}
+                            {visibleColumns.includes("uscfRating") && (
+                              <TableHead>USCF Rating</TableHead>
+                            )}
+                            {visibleColumns.includes("fideRating") && (
+                              <TableHead>FIDE Rating</TableHead>
+                            )}
+                            {visibleColumns.includes("uscfId") && (
+                              <TableHead>USCF ID & Status</TableHead>
+                            )}
+                            {visibleColumns.includes("fideId") && (
+                              <TableHead>FIDE ID</TableHead>
+                            )}
+                            {visibleColumns.includes("federation") && (
+                              <TableHead>Federation</TableHead>
+                            )}
+                            {visibleColumns.includes("section") && (
+                              <TableHead>Section</TableHead>
+                            )}
+                            {visibleColumns.includes("club") && (
+                              <TableHead>Club</TableHead>
+                            )}
+                            {visibleColumns.includes("birthdate") && (
+                              <TableHead>Birthdate</TableHead>
+                            )}
+                            {visibleColumns.includes("createdAt") && (
+                              <TableHead>Registered</TableHead>
+                            )}
+                            {visibleColumns.includes("seed") && tournament.format === 'knockout' && (
+                              <TableHead className="w-20">Seed</TableHead>
+                            )}
+                            {visibleColumns.includes("paymentStatus") && (
+                              <TableHead>Payment Status</TableHead>
+                            )}
+                            {visibleColumns.includes("byes") && tournament.format !== 'arena' && (
+                              <TableHead>Byes</TableHead>
+                            )}
+                            {visibleColumns.includes("email") && (
+                              <TableHead>Email</TableHead>
+                            )}
+                            {visibleColumns.includes("status") && (
+                              <TableHead>Status</TableHead>
+                            )}
+                            {visibleColumns.includes("actions") && (
+                              <TableHead className="text-right whitespace-nowrap">
                                 <div className="flex items-center justify-end gap-2">
-                                  <span className="text-sm text-muted-foreground">—</span>
-                                  {isConfirmed ? (
-                                    <CheckCircle2 className="h-4 w-4 text-emerald-500" aria-label="Confirmed" />
-                                  ) : null}
+                                  <span>Confirm / Select</span>
                                   {isTD && (
                                     <Checkbox
-                                      checked={isSelected}
-                                      onCheckedChange={(value) => toggleSelectPlayer(player.id, Boolean(value))}
-                                      onClick={(event) => event.stopPropagation()}
-                                      aria-label={`Select ${player.lastName}, ${player.firstName}`}
-                                      disabled={isDeleting || isProcessingStatus}
+                                      checked={headerCheckboxValue}
+                                      onCheckedChange={(value) => toggleSelectAll(Boolean(value))}
+                                      aria-label="Select all players"
+                                      disabled={players.length === 0}
+                                      className="h-4 w-4"
                                     />
                                   )}
                                 </div>
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
+                              </TableHead>
+                            )}
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {processedPlayers.map((player, index) => {
+                            const isSelected = selectedIds.includes(player.id);
+                            const isConfirmed = Boolean(confirmedMap[player.id]);
+                            const playerByes = playerByeMap.get(player.id) ?? [];
+                            const rowClasses = isSelected
+                              ? "border-b border-slate-200 cursor-pointer transition bg-indigo-50/40 hover:bg-indigo-100/40 dark:bg-indigo-900/20 dark:hover:bg-indigo-900/30"
+                              : "border-b border-slate-200 cursor-pointer transition hover:bg-slate-50 dark:bg-slate-800/60 dark:hover:bg-slate-700/60";
+                            return (
+                              <TableRow
+                                key={player.id}
+                                className={rowClasses}
+                                onClick={() => setLocation(`/tournaments/${tournamentId}/players/${player.id}`)}
+                              >
+                                {visibleColumns.includes("index") && (
+                                  <TableCell>
+                                    <div className="text-sm font-medium text-gray-900">{index + 1}</div>
+                                  </TableCell>
+                                )}
+                                {visibleColumns.includes("name") && (
+                                  <TableCell>
+                                    <div className="flex items-center gap-2">
+                                      <div className="flex flex-col gap-1">
+                                        <span className="text-sm font-medium text-slate-900">
+                                          {player.localId || (player as any).userUscfId ? (
+                                            <a
+                                              href={
+                                                player.federation?.toLowerCase() === 'fide'
+                                                  ? `https://ratings.fide.com/profile/${player.localId}`
+                                                  : `https://ratings.uschess.org/player/${player.localId || (player as any).userUscfId}`
+                                              }
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="text-blue-600 hover:underline cursor-pointer"
+                                              onClick={(e) => e.stopPropagation()}
+                                            >
+                                              {player.lastName}, {player.firstName}
+                                            </a>
+                                          ) : (
+                                            `${player.lastName}, ${player.firstName}`
+                                          )}
+                                        </span>
+                                        {!tournamentConfig.registers?.verifyUscfMembership && (player as any).userUscfId && (
+                                          <div className="flex items-center gap-1.5 mt-0.5" onClick={(e) => e.stopPropagation()}>
+                                            <span className="text-[11px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                                              USCF: {(player as any).userUscfId}
+                                            </span>
+                                            {(player as any).userUscfVerificationStatus === "verified" ? (
+                                              <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border-emerald-200/50 text-[10px] px-1.5 py-0 rounded-full font-medium">
+                                                Verified
+                                              </Badge>
+                                            ) : (player as any).userUscfVerificationStatus === "pending" ? (
+                                              <div className="flex items-center gap-1">
+                                                <Badge className="bg-amber-50 text-amber-700 hover:bg-amber-50 border-amber-200/50 text-[10px] px-1.5 py-0 rounded-full font-medium animate-pulse">
+                                                  Pending
+                                                </Badge>
+                                                {isTD && (
+                                                  <button
+                                                    onClick={() => verifyUscfMutation.mutate({ targetUserId: (player as any).userId, verified: true })}
+                                                    disabled={verifyUscfMutation.isPending}
+                                                    className="text-[10px] text-indigo-600 hover:text-indigo-800 font-bold hover:underline ml-1"
+                                                  >
+                                                    Verify
+                                                  </button>
+                                                )}
+                                              </div>
+                                            ) : (
+                                              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 rounded-full font-medium">
+                                                Unverified
+                                              </Badge>
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </TableCell>
+                                )}
+                                {visibleColumns.includes("rating") && (
+                                  <TableCell>
+                                    {(() => {
+                                      const threshold = tournamentConfig?.registers?.uscfMinGamesThreshold ?? 4;
+                                      const uscfDisp = resolveDisplayRating((player as any).uscfRatingRaw, player.uscfRating, threshold, false);
+                                      const fideDisp = resolveDisplayRating((player as any).fideRatingRaw, player.fideRating, 0, true);
+                                      const display = tournamentConfig.details.primaryRatingSystem === 'fide'
+                                        ? (fideDisp !== "Unrated" ? fideDisp : uscfDisp)
+                                        : (uscfDisp !== "Unrated" ? uscfDisp : fideDisp);
+                                      return display === "Unrated" ? "-" : display;
+                                    })()}
+                                  </TableCell>
+                                )}
+                                {visibleColumns.includes("uscfRating") && (
+                                  <TableCell>
+                                    {player.uscfRating ? `${player.uscfRating}${player.uscfRatingRaw?.toLowerCase().includes('p') ? 'p' : ''}` : "Unrated"}
+                                  </TableCell>
+                                )}
+                                {visibleColumns.includes("fideRating") && (
+                                  <TableCell>
+                                    {player.fideRating || "Unrated"}
+                                  </TableCell>
+                                )}
+                                {visibleColumns.includes("uscfId") && (
+                                  <TableCell onClick={(e) => e.stopPropagation()}>
+                                    {(player as any).userUscfId || player.localId ? (
+                                      <div className="flex flex-col gap-1 items-start">
+                                        <span className="font-mono text-xs text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded border font-bold">
+                                          {(player as any).userUscfId || player.localId}
+                                        </span>
+                                        {(() => {
+                                          const rawExpiry = player.uscfMemberExpiry || (player as any).userUscfMemberExpiry;
+                                          if (!rawExpiry) {
+                                            return (
+                                              <Badge className="bg-slate-50 text-slate-500 hover:bg-slate-50 border-slate-200 text-[10px] px-1.5 py-0.5 rounded-full font-medium shadow-none">
+                                                No Expiry Info
+                                              </Badge>
+                                            );
+                                          }
+                                          try {
+                                            const expiryDate = new Date(rawExpiry);
+                                            if (isNaN(expiryDate.getTime())) {
+                                              return (
+                                                <Badge className="bg-slate-50 text-slate-500 hover:bg-slate-50 border-slate-200 text-[10px] px-1.5 py-0.5 rounded-full font-medium shadow-none">
+                                                  No Expiry Info
+                                                </Badge>
+                                              );
+                                            }
+                                            const now = new Date();
+                                            now.setHours(0, 0, 0, 0);
+                                            expiryDate.setHours(0, 0, 0, 0);
+                                            const formatted = `${expiryDate.getMonth() + 1}/${expiryDate.getDate()}/${expiryDate.getFullYear()}`;
+                                            if (expiryDate >= now) {
+                                              return (
+                                                <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border-emerald-200/50 text-[10px] px-1.5 py-0.5 rounded-full font-semibold shadow-none">
+                                                  Active (Exp: {formatted})
+                                                </Badge>
+                                              );
+                                            } else {
+                                              return (
+                                                <Badge className="bg-rose-50 text-rose-700 hover:bg-rose-50 border-rose-200/50 text-[10px] px-1.5 py-0.5 rounded-full font-semibold shadow-none">
+                                                  Expired (Exp: {formatted})
+                                                </Badge>
+                                              );
+                                            }
+                                          } catch (e) {
+                                            return (
+                                              <Badge className="bg-slate-50 text-slate-500 hover:bg-slate-50 border-slate-200 text-[10px] px-1.5 py-0.5 rounded-full font-medium shadow-none">
+                                                No Expiry Info
+                                              </Badge>
+                                            );
+                                          }
+                                        })()}
+                                      </div>
+                                    ) : (
+                                      <span className="text-xs text-slate-400">Not Provided</span>
+                                    )}
+                                  </TableCell>
+                                )}
+                                {visibleColumns.includes("fideId") && (
+                                  <TableCell>
+                                    {player.localId && player.federation?.toLowerCase() === 'fide' ? (
+                                      <span className="font-mono text-xs font-bold bg-slate-100 px-1.5 py-0.5 rounded border">{player.localId}</span>
+                                    ) : (
+                                      <span className="text-xs text-slate-400">—</span>
+                                    )}
+                                  </TableCell>
+                                )}
+                                {visibleColumns.includes("federation") && (
+                                  <TableCell>
+                                    <Badge variant="outline" className="text-[10px] uppercase font-bold">{player.federation || "USCF"}</Badge>
+                                  </TableCell>
+                                )}
+                                {visibleColumns.includes("section") && (
+                                  <TableCell>
+                                    <span className="text-xs font-semibold text-slate-700">{player.sectionName || "Default"}</span>
+                                  </TableCell>
+                                )}
+                                {visibleColumns.includes("club") && (
+                                  <TableCell>
+                                    <span className="text-xs text-slate-700">{player.club || "—"}</span>
+                                  </TableCell>
+                                )}
+                                {visibleColumns.includes("birthdate") && (
+                                  <TableCell>
+                                    <span className="text-xs text-slate-700">{player.birthdate || "—"}</span>
+                                  </TableCell>
+                                )}
+                                {visibleColumns.includes("createdAt") && (
+                                  <TableCell>
+                                    <span className="text-xs text-slate-700">{new Date(player.createdAt).toLocaleDateString()}</span>
+                                  </TableCell>
+                                )}
+                                {visibleColumns.includes("seed") && tournament.format === 'knockout' && (
+                                  <TableCell>
+                                    {isTD && editingSeedId === player.id ? (
+                                      <Input
+                                        type="number"
+                                        className="h-8 w-16"
+                                        value={seedValue}
+                                        onChange={(e) => setSeedValue(e.target.value)}
+                                        onBlur={() => handleUpdateSeed(player.id, seedValue)}
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter') handleUpdateSeed(player.id, seedValue);
+                                          if (e.key === 'Escape') setEditingSeedId(null);
+                                        }}
+                                        onClick={(e) => e.stopPropagation()}
+                                        autoFocus
+                                      />
+                                    ) : (
+                                      <div 
+                                        className={cn(
+                                          "p-1 rounded min-w-[2rem] text-center",
+                                          isTD && "cursor-pointer hover:bg-slate-100"
+                                        )}
+                                        onClick={(e) => {
+                                          if (!isTD) return;
+                                          e.stopPropagation();
+                                          setEditingSeedId(player.id);
+                                          setSeedValue(player.seed?.toString() || "");
+                                        }}
+                                      >
+                                        {player.seed ?? "-"}
+                                      </div>
+                                    )}
+                                  </TableCell>
+                                )}
+                                 {visibleColumns.includes("paymentStatus") && (
+                                   <TableCell onClick={(e) => e.stopPropagation()}>
+                                     {isTD ? (
+                                       <Select
+                                         value={player.paymentStatus || "N/A"}
+                                         onValueChange={(newVal) => {
+                                           updatePlayerPaymentStatusMutation.mutate({
+                                             playerId: player.id,
+                                             paymentStatus: newVal,
+                                           });
+                                         }}
+                                       >
+                                         <SelectTrigger className="h-8 w-[110px] text-xs font-semibold bg-white border-slate-200">
+                                           <SelectValue />
+                                         </SelectTrigger>
+                                         <SelectContent className="bg-white shadow-lg border border-slate-200">
+                                           <SelectItem value="N/A">N/A</SelectItem>
+                                           <SelectItem value="paid">Paid</SelectItem>
+                                           <SelectItem value="unpaid">Unpaid</SelectItem>
+                                           <SelectItem value="processing">Processing</SelectItem>
+                                           <SelectItem value="refunded">Refunded</SelectItem>
+                                           <SelectItem value="failed">Failed</SelectItem>
+                                         </SelectContent>
+                                       </Select>
+                                     ) : (
+                                       (() => {
+                                         const status = player.paymentStatus || "N/A";
+                                         let badgeColor = "bg-slate-50 text-slate-500 border-slate-200";
+                                         if (status === "paid") {
+                                           badgeColor = "bg-emerald-50 text-emerald-700 border-emerald-200/50";
+                                         } else if (status === "unpaid" || status === "failed") {
+                                           badgeColor = "bg-rose-50 text-rose-700 border-rose-200/50";
+                                         } else if (status === "processing") {
+                                           badgeColor = "bg-amber-50 text-amber-700 border-amber-200/50";
+                                         } else if (status === "refunded") {
+                                           badgeColor = "bg-indigo-50 text-indigo-750 border-indigo-200/50";
+                                         }
+                                         return (
+                                           <Badge className={`${badgeColor} border text-[10px] px-2 py-0.5 rounded-full font-bold shadow-none uppercase`}>
+                                             {status}
+                                           </Badge>
+                                         );
+                                       })()
+                                     )}
+                                   </TableCell>
+                                 )}
+                                {visibleColumns.includes("byes") && tournament.format !== 'arena' && (
+                                  <TableCell>
+                                    {pairingsLoading ? (
+                                      <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+                                    ) : playerByes.length > 0 ? (
+                                      <div className="flex flex-wrap gap-2">
+                                        {playerByes.map((bye) => {
+                                          const isRequested = Boolean(bye.isRequested);
+                                          const isRemoving = removingByeIds.includes(bye.id);
+                                          const byeLabel = bye.byeType === "half_point"
+                                            ? "½"
+                                            : bye.byeType === "full_point"
+                                            ? "1"
+                                            : bye.byeType === "zero_point"
+                                            ? "0"
+                                            : bye.points === 1
+                                            ? "½"
+                                            : bye.points === 2
+                                            ? "1"
+                                            : "0";
+                                          const toneClass = isRequested
+                                            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                                            : "border-slate-200 bg-slate-100 text-slate-600";
+                                          return (
+                                            <div
+                                              key={bye.id}
+                                              className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs font-medium ${toneClass}`}
+                                              title={isRequested ? "Manual bye" : "System-assigned"}
+                                            >
+                                              <span>{bye.round}</span>
+                                              <span aria-hidden="true">·</span>
+                                              <span>{byeLabel}</span>
+                                              {isRequested && isTD ? (
+                                                <button
+                                                  type="button"
+                                                  onClick={(event) => {
+                                                    event.stopPropagation();
+                                                    handleRemoveBye(bye.id);
+                                                  }}
+                                                  className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full text-emerald-700 transition hover:bg-emerald-100 hover:text-emerald-900"
+                                                  disabled={isRemoving}
+                                                  aria-label={`Remove bye in round ${bye.round}`}
+                                                >
+                                                  {isRemoving ? (
+                                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                                  ) : (
+                                                    <X className="h-3 w-3" />
+                                                  )}
+                                                </button>
+                                              ) : null}
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    ) : (
+                                      <span className="text-xs text-muted-foreground">—</span>
+                                    )}
+                                  </TableCell>
+                                )}
+                                {visibleColumns.includes("email") && (
+                                  <TableCell>
+                                    <span className="text-xs text-slate-700 font-mono">{player.email || "—"}</span>
+                                  </TableCell>
+                                )}
+                                {visibleColumns.includes("status") && (
+                                  <TableCell>
+                                    <Badge variant={(player.status || 'active') === 'active' ? 'default' : 'secondary'} className="text-[10px] capitalize">
+                                      {player.status || 'active'}
+                                    </Badge>
+                                  </TableCell>
+                                )}
+                                {visibleColumns.includes("actions") && (
+                                  <TableCell className="text-right">
+                                    <div className="flex items-center justify-end gap-2">
+                                      {isConfirmed ? (
+                                        <CheckCircle2 className="h-4 w-4 text-emerald-500" aria-label="Confirmed" />
+                                      ) : null}
+                                      {isTD && (
+                                        <Checkbox
+                                          checked={isSelected}
+                                          onCheckedChange={(value) => toggleSelectPlayer(player.id, Boolean(value))}
+                                          onClick={(event) => event.stopPropagation()}
+                                          aria-label={`Select ${player.lastName}, ${player.firstName}`}
+                                          disabled={isDeleting || isProcessingStatus}
+                                        />
+                                      )}
+                                    </div>
+                                  </TableCell>
+                                )}
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    )}
                   </div>
 
                     {isTD && (

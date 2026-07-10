@@ -1,3 +1,4 @@
+// Restart comment to force reload of .env configuration
 import path from "path";
 import { fileURLToPath } from 'url';
 import { config as loadEnv } from "dotenv";

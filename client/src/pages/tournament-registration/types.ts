@@ -186,6 +186,7 @@ export interface RatingLookupResult {
   name: string;
   rating?: string;
   ratingDisplay?: string;
+  ratingRaw?: string;
   location?: string;
   extra?: string;
   extraRatings?: Array<{

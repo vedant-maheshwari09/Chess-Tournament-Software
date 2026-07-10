@@ -224,6 +224,8 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
       paymentDate: "",
       paymentMethod: "",
       paymentAmount: "",
+      paymentStatus: "N/A",
+      uscfMemberExpiry: "",
       sectionId: initialSection?.id ?? "",
       sectionName: initialSection?.name ?? "",
       uscfRating: "",
@@ -314,6 +316,8 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
         ratingLocal: parseInt(formState.ratingLocal, 10) || null,
         ratingRapid: parseInt(formState.ratingRapid, 10) || null,
         ratingBlitz: parseInt(formState.ratingBlitz, 10) || null,
+        paymentStatus: formState.paymentStatus || "N/A",
+        uscfMemberExpiry: formState.uscfMemberExpiry || null,
       };
       if (isEditing && resolvedPlayerId) {
         return apiRequest(`/api/tournaments/${tournamentId}/players/${resolvedPlayerId}`, {
@@ -455,6 +459,8 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
       ratingLocal: editingPlayer.ratingLocal != null ? String(editingPlayer.ratingLocal) : prev.ratingLocal,
       ratingRapid: editingPlayer.ratingRapid != null ? String(editingPlayer.ratingRapid) : prev.ratingRapid,
       ratingBlitz: editingPlayer.ratingBlitz != null ? String(editingPlayer.ratingBlitz) : prev.ratingBlitz,
+      paymentStatus: editingPlayer.paymentStatus ?? prev.paymentStatus,
+      uscfMemberExpiry: editingPlayer.uscfMemberExpiry ?? prev.uscfMemberExpiry,
     }));
     setEditInitialized(true);
   }, [
@@ -524,6 +530,11 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
 
       if (source === "uscf") {
         next.federation = "United States";
+        if (item.metadata?.expiration) {
+          next.uscfMemberExpiry = item.metadata.expiration;
+        } else {
+          next.uscfMemberExpiry = "";
+        }
       } else if (item.location) {
         const rawLocation = item.location.trim();
         const mappedLocation = FEDERATION_CODE_MAP[rawLocation.toUpperCase()] ?? rawLocation;
@@ -1036,7 +1047,29 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
 
                   <TabsContent value="payments" className="space-y-4">
                     <div className="rounded-xl border bg-white p-6 shadow-sm">
-                      <div className="grid gap-4 md:grid-cols-3">
+                      <div className="grid gap-4 md:grid-cols-4">
+                        <div className="space-y-1">
+                          <Label className="text-sm font-semibold text-slate-700">Status</Label>
+                          <Select
+                            value={formState.paymentStatus}
+                            onValueChange={(value) => {
+                              setFormState((prev) => ({ ...prev, paymentStatus: value }));
+                              markDirty();
+                            }}
+                          >
+                            <SelectTrigger className="bg-white border-slate-200">
+                              <SelectValue placeholder="Select Status" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-white shadow-lg border border-slate-200">
+                              <SelectItem value="N/A">N/A (Non-applicable)</SelectItem>
+                              <SelectItem value="paid">Paid</SelectItem>
+                              <SelectItem value="unpaid">Unpaid</SelectItem>
+                              <SelectItem value="processing">Processing</SelectItem>
+                              <SelectItem value="refunded">Refunded</SelectItem>
+                              <SelectItem value="failed">Failed</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
                         <div className="space-y-1">
                           <Label className="text-sm font-semibold text-slate-700">Date</Label>
                           <Input
@@ -1060,7 +1093,7 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
                             <SelectTrigger>
                               <SelectValue placeholder="Select" />
                             </SelectTrigger>
-                            <SelectContent>
+                            <SelectContent className="bg-white shadow-lg border border-slate-200">
                               <SelectItem value="cash">Cash</SelectItem>
                               <SelectItem value="card">Card</SelectItem>
                               <SelectItem value="online">Online</SelectItem>
@@ -1082,7 +1115,7 @@ export default function AddPlayerPage({ tournamentId, playerId }: AddPlayerPageP
                       </div>
                     </div>
                     <p className="px-1 text-xs text-muted-foreground">
-                      Payment tracking fields are informational for now and will be stored in a later update.
+                      Payment fields are saved and synchronized with the tournament player record.
                     </p>
                   </TabsContent>
 

@@ -182,6 +182,8 @@ export const players = pgTable("players", {
   ratingLocal: integer("rating_local"),
   ratingRapid: integer("rating_rapid"),
   ratingBlitz: integer("rating_blitz"),
+  paymentStatus: text("payment_status").default('N/A').notNull(),
+  uscfMemberExpiry: text("uscf_member_expiry"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 

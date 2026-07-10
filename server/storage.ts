@@ -543,7 +543,8 @@ class SupabaseStorage implements IStorage {
         users (
           username,
           uscf_id,
-          uscf_verification_status
+          uscf_verification_status,
+          uscf_member_expiry
         )
       `)
       .eq("tournament_id", tournamentId);
@@ -562,6 +563,9 @@ class SupabaseStorage implements IStorage {
       }
       if ((p as any).users?.uscf_verification_status) {
         (camelPlayer as any).userUscfVerificationStatus = (p as any).users.uscf_verification_status;
+      }
+      if ((p as any).users?.uscf_member_expiry) {
+        (camelPlayer as any).userUscfMemberExpiry = (p as any).users.uscf_member_expiry;
       }
       return camelPlayer;
     });
