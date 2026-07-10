@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { useLocation } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Tournament, Player } from "@shared/schema";
@@ -106,6 +106,7 @@ export default function TournamentSettingsPage({ tournamentId, section }: Tourna
   const [baseline, setBaseline] = useState<TournamentConfig | null>(null);
   const [isDirty, setIsDirty] = useState(false);
   const [chessResultsEnabled, setChessResultsEnabled] = useState(false);
+  const lastSavedPayloadRef = useRef<string>("");
 
   const allowedSections = [
     "general",
@@ -253,6 +254,7 @@ export default function TournamentSettingsPage({ tournamentId, section }: Tourna
     mutationFn: async () => {
       if (!config || !tournament) throw new Error("Configuration not ready");
       const serialized = serializeTournamentConfig(cloneConfig(config));
+      lastSavedPayloadRef.current = JSON.stringify(serialized);
       const payload = buildTournamentPayload(serialized, { format: tournament.format });
       (payload as any).status = tournament.status;
       return apiRequest(`/api/tournaments/${tournamentId}`, {
@@ -263,9 +265,21 @@ export default function TournamentSettingsPage({ tournamentId, section }: Tourna
     onSuccess: (updatedTournament: Tournament) => {
       const parsed = parseTournamentConfig(updatedTournament);
       const cloned = cloneConfig(parsed);
-      setConfig(cloned);
       setBaseline(cloneConfig(parsed));
-      setIsDirty(false);
+      
+      if (config) {
+        const currentLocalSerialized = serializeTournamentConfig(cloneConfig(config));
+        const currentLocalStr = JSON.stringify(currentLocalSerialized);
+        if (currentLocalStr === lastSavedPayloadRef.current) {
+          setConfig(cloned);
+          setIsDirty(false);
+        } else {
+          setIsDirty(true);
+        }
+      } else {
+        setConfig(cloned);
+        setIsDirty(false);
+      }
       queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}`] });
     },
     onError: (error: any) => {

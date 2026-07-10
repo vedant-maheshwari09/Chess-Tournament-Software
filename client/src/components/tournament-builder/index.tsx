@@ -112,7 +112,9 @@ export function TournamentBuilder({
       if (createdTournament && typeof createdTournament === "object") {
         try {
           const nextConfig = parseTournamentConfig(createdTournament as Tournament);
-          setConfig(nextConfig);
+          if (JSON.stringify(config) === lastSavedConfigRef.current) {
+            setConfig(nextConfig);
+          }
         } catch (error) {
           console.warn("Failed to parse updated tournament config", error);
         }

@@ -80,6 +80,9 @@ export const pendingUsers = pgTable("pending_users", {
   notifyTournamentStatus: boolean("notify_tournament_status").default(true),
   verificationCode: varchar("verification_code", { length: 6 }).notNull(),
   expiresAt: timestamp("expires_at").notNull(),
+  uscfId: text("uscf_id"),
+  uscfName: text("uscf_name"),
+  uscfVerificationStatus: text("uscf_verification_status").default("unverified"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -323,14 +326,20 @@ export const registerSchema = z.object({
   notifyPairings: z.boolean().optional(),
   notifyRegistration: z.boolean().optional(),
   notifyTournamentStatus: z.boolean().optional(),
+  uscfId: z.string().optional().nullable(),
+  uscfName: z.string().optional().nullable(),
 });
 
 export const forgotPasswordSchema = z.object({
-  email: z.string().email().trim().toLowerCase(),
+  username: z.string().min(1).trim(),
 });
 
 export const forgotUsernameSchema = z.object({
-  email: z.string().email().trim().toLowerCase(),
+  email: z.string().trim().toLowerCase().optional().nullable(),
+  uscfId: z.string().trim().optional().nullable(),
+}).refine(data => data.email || data.uscfId, {
+  message: "Either email or USCF ID is required",
+  path: ["email"]
 });
 
 export const resetPasswordSchema = z.object({
@@ -563,4 +572,15 @@ export type Block = typeof blocks.$inferSelect;
 export type InsertBlock = z.infer<typeof insertBlockSchema>;
 export type MessageReaction = typeof messageReactions.$inferSelect;
 export type InsertMessageReaction = z.infer<typeof insertMessageReactionSchema>;
+
+export const forgetAccountSchema = z.object({
+  email: z.string().trim().toLowerCase().optional().nullable(),
+  username: z.string().trim().optional().nullable(),
+  uscfId: z.string().trim().optional().nullable(),
+}).refine(data => (data.email && data.username) || data.uscfId, {
+  message: "Either Email + Username or USCF ID is required",
+  path: ["email"]
+});
+
+export type ForgetAccountData = z.infer<typeof forgetAccountSchema>;
 

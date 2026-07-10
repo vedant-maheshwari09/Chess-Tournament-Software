@@ -19,17 +19,76 @@ import {
   resetPasswordSchema,
   verifyEmailSchema,
   resendVerificationSchema,
+  forgetAccountSchema,
   type LoginData,
   type RegisterData,
   type ForgotPasswordData,
   type ForgotUsernameData,
   type ResetPasswordData,
   type VerifyEmailData,
-  type ResendVerificationData
+  type ResendVerificationData,
+  type ForgetAccountData
 } from "@shared/schema";
 
+import { cn } from "@/lib/utils";
 import { z } from "zod";
 import { useLocation } from "wouter";
+
+function getPasswordStrength(password: string): { score: number; label: string; color: string; description: string } {
+  if (!password) return { score: 0, label: "", color: "bg-slate-200", description: "" };
+  let score = 0;
+  if (password.length >= 6) score += 1;
+  if (password.length >= 10) score += 1;
+  if (/[A-Z]/.test(password) && /[a-z]/.test(password)) score += 1;
+  if (/[0-9]/.test(password)) score += 1;
+  if (/[^A-Za-z0-9]/.test(password)) score += 1;
+
+  const finalScore = Math.min(score, 4);
+
+  switch (finalScore) {
+    case 1:
+      return { score: 1, label: "Weak", color: "bg-red-500", description: "Too short or simple" };
+    case 2:
+      return { score: 2, label: "Fair", color: "bg-orange-500", description: "Add numbers or capital letters" };
+    case 3:
+      return { score: 3, label: "Good", color: "bg-yellow-500", description: "Almost secure, add special characters" };
+    case 4:
+      return { score: 4, label: "Strong", color: "bg-emerald-500", description: "Excellent password" };
+    default:
+      return { score: 0, label: "Too Weak", color: "bg-red-500/30", description: "Must be at least 6 characters" };
+  }
+}
+
+function PasswordStrengthMeter({ password }: { password?: string }) {
+  if (!password) return null;
+  const { score, label, color, description } = getPasswordStrength(password);
+  
+  return (
+    <div className="space-y-1.5 mt-2 transition-all duration-300">
+      <div className="flex justify-between items-center text-xs">
+        <span className="font-semibold text-slate-500 dark:text-slate-400">Password Strength:</span>
+        <span className={cn("font-bold transition-colors duration-300", 
+          score === 1 ? "text-red-500" :
+          score === 2 ? "text-orange-500" :
+          score === 3 ? "text-yellow-600 dark:text-yellow-500" :
+          score === 4 ? "text-emerald-500" : "text-slate-400"
+        )}>{label}</span>
+      </div>
+      <div className="grid grid-cols-4 gap-1.5 h-1.5">
+        {[0, 1, 2, 3].map((index) => (
+          <div
+            key={index}
+            className={cn(
+              "h-full rounded-full transition-all duration-500",
+              index < score ? color : "bg-slate-200 dark:bg-slate-850"
+            )}
+          />
+        ))}
+      </div>
+      <p className="text-[11px] text-muted-foreground leading-none">{description}</p>
+    </div>
+  );
+}
 
 // Extended schema for client-side validation only
 const clientResetPasswordSchema = resetPasswordSchema.extend({
@@ -41,7 +100,7 @@ const clientResetPasswordSchema = resetPasswordSchema.extend({
 
 type ClientResetPasswordData = z.infer<typeof clientResetPasswordSchema>;
 
-type AuthMode = 'login' | 'register' | 'forgot-password' | 'forgot-username' | 'reset-password' | 'verify-email';
+type AuthMode = 'login' | 'register' | 'forgot-password' | 'forgot-username' | 'reset-password' | 'verify-email' | 'forget-account';
 
 export default function AuthForm() {
   const [authMode, setAuthMode] = useState<AuthMode>(() => {
@@ -63,6 +122,8 @@ export default function AuthForm() {
   const [showRegisterPassword, setShowRegisterPassword] = useState(false);
   const [showResetPassword, setShowResetPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [forgotUsernameMethod, setForgotUsernameMethod] = useState<'email' | 'uscf'>('email');
+  const [forgetAccountMethod, setForgetAccountMethod] = useState<'email_username' | 'uscf'>('email_username');
   const [, setLocation] = useLocation();
   const [usernameCheck, setUsernameCheck] = useState<{
     checking: boolean;
@@ -75,6 +136,11 @@ export default function AuthForm() {
     available: boolean | null;
     message: string;
   }>({ checking: false, available: null, message: '' });
+
+  const [uscfSearchQuery, setUscfSearchQuery] = useState("");
+  const [uscfSearchResults, setUscfSearchResults] = useState<any[]>([]);
+  const [isSearchingUscf, setIsSearchingUscf] = useState(false);
+  const [uscfSearchOpen, setUscfSearchOpen] = useState(false);
 
   const { login, register, isLoggingIn, isRegistering } = useAuth();
   const { toast } = useToast();
@@ -94,6 +160,8 @@ export default function AuthForm() {
       firstName: "",
       lastName: "",
       role: "player",
+      uscfId: "",
+      uscfName: "",
     },
     mode: "onChange",
   });
@@ -205,14 +273,41 @@ export default function AuthForm() {
     return () => clearTimeout(timeoutId);
   }, [registerForm.watch("email"), checkEmailAvailability]);
 
+  // Debounce effect for USCF search
+  useEffect(() => {
+    if (!uscfSearchQuery || uscfSearchQuery.length < 3) {
+      setUscfSearchResults([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      const selectedUscfName = registerForm.watch("uscfName");
+      if (selectedUscfName && uscfSearchQuery === selectedUscfName) return;
+
+      setIsSearchingUscf(true);
+      try {
+        const response = await fetch(`/api/rating-lookup?q=${encodeURIComponent(uscfSearchQuery)}`);
+        if (response.ok) {
+          const data = await response.json();
+          setUscfSearchResults(data.uscf || []);
+        }
+      } catch (err) {
+        console.error("USCF lookup failed:", err);
+      } finally {
+        setIsSearchingUscf(false);
+      }
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [uscfSearchQuery, registerForm.watch("uscfName")]);
+
   const forgotPasswordForm = useForm<ForgotPasswordData>({
     resolver: zodResolver(forgotPasswordSchema),
-    defaultValues: { email: "" },
+    defaultValues: { username: "" },
   });
 
   const forgotUsernameForm = useForm<ForgotUsernameData>({
     resolver: zodResolver(forgotUsernameSchema),
-    defaultValues: { email: "" },
+    defaultValues: { email: "", uscfId: "" },
   });
 
   const resetPasswordForm = useForm<ClientResetPasswordData>({
@@ -223,6 +318,11 @@ export default function AuthForm() {
   const verifyEmailForm = useForm<VerifyEmailData>({
     resolver: zodResolver(verifyEmailSchema),
     defaultValues: { code: "", email: "" },
+  });
+
+  const forgetAccountForm = useForm<ForgetAccountData>({
+    resolver: zodResolver(forgetAccountSchema),
+    defaultValues: { email: "", username: "", uscfId: "" },
   });
 
   // Update email field when pendingUserEmail changes
@@ -240,11 +340,11 @@ export default function AuthForm() {
         body: JSON.stringify(data),
       });
     },
-    onSuccess: (data) => {
+    onSuccess: (data: any) => {
       toast({ title: "Reset code sent", description: data.message });
-      setResetEmail(forgotPasswordForm.getValues('email'));
+      setResetEmail(data.email || "");
       setAuthMode('reset-password');
-      resetPasswordForm.setValue('email', forgotPasswordForm.getValues('email'));
+      resetPasswordForm.setValue('email', data.email || "");
     },
     onError: (error) => {
       toast({
@@ -274,6 +374,27 @@ export default function AuthForm() {
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to send username",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const forgetAccountMutation = useMutation({
+    mutationFn: async (data: ForgetAccountData) => {
+      return apiRequest("/api/auth/forget-account", {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+    },
+    onSuccess: (data: any) => {
+      toast({ title: "Account Forgotten", description: data.message });
+      setAuthMode('login');
+      forgetAccountForm.reset();
+    },
+    onError: (error) => {
+      toast({
+        title: "Deletion Failed",
+        description: error instanceof Error ? error.message : "Failed to forget account. Please check your inputs.",
         variant: "destructive",
       });
     },
@@ -411,6 +532,7 @@ export default function AuthForm() {
       case 'forgot-username': return 'Recover your username';
       case 'reset-password': return 'Set new password';
       case 'verify-email': return 'Verify your email';
+      case 'forget-account': return 'Permanently delete your profile';
     }
   };
 
@@ -468,12 +590,17 @@ export default function AuthForm() {
               <Button type="submit" className="w-full" disabled={isLoggingIn}>
                 {isLoggingIn ? "Signing in..." : "Sign In"}
               </Button>
-              <div className="flex justify-between text-sm">
-                <Button variant="link" size="sm" onClick={() => setAuthMode('forgot-username')}>
-                  Forgot username?
-                </Button>
-                <Button variant="link" size="sm" onClick={() => setAuthMode('forgot-password')}>
-                  Forgot password?
+              <div className="flex flex-col space-y-1 text-center text-sm pt-2">
+                <div className="flex justify-between">
+                  <Button variant="link" size="sm" onClick={() => setAuthMode('forgot-username')}>
+                    Forgot username?
+                  </Button>
+                  <Button variant="link" size="sm" onClick={() => setAuthMode('forgot-password')}>
+                    Forgot password?
+                  </Button>
+                </div>
+                <Button variant="link" size="sm" className="text-red-500 hover:text-red-600 font-semibold" onClick={() => setAuthMode('forget-account')}>
+                  Forget Account / Delete Profile
                 </Button>
               </div>
             </form>
@@ -491,6 +618,88 @@ export default function AuthForm() {
                 variant: "destructive",
               });
             })} className="space-y-4">
+              {registerForm.watch("role") === "player" && (
+                <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200/60 dark:border-slate-800/60 space-y-2 relative">
+                  <FormLabel className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                    Link Your USCF Profile (Recommended)
+                  </FormLabel>
+                  <div className="relative">
+                    <Input
+                      placeholder="Search USCF Database by name..."
+                      value={uscfSearchQuery}
+                      onChange={(e) => {
+                        setUscfSearchQuery(e.target.value);
+                        setUscfSearchOpen(true);
+                      }}
+                      className="bg-white dark:bg-slate-950"
+                    />
+                    {isSearchingUscf && (
+                      <Loader2 className="absolute right-3 top-3 h-4 w-4 animate-spin text-muted-foreground" />
+                    )}
+                  </div>
+                  
+                  {uscfSearchOpen && uscfSearchResults.length > 0 && (
+                    <div className="absolute Daniel-dropdown z-50 left-0 right-0 top-full mt-1 max-h-60 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg dark:border-slate-800 dark:bg-slate-950">
+                      {uscfSearchResults.map((player: any) => (
+                        <button
+                          key={player.id}
+                          type="button"
+                          className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-900 flex flex-col gap-0.5 border-b border-slate-100 dark:border-slate-900 last:border-0"
+                          onClick={() => {
+                            let fName = player.firstName || "";
+                            let lName = player.lastName || "";
+                            if (!fName && !lName && player.name) {
+                              const parts = player.name.split(",");
+                              if (parts.length === 2) {
+                                lName = parts[0].trim();
+                                fName = parts[1].trim();
+                              } else {
+                                fName = player.name;
+                              }
+                            }
+                            registerForm.setValue("firstName", fName, { shouldValidate: true });
+                            registerForm.setValue("lastName", lName, { shouldValidate: true });
+                            registerForm.setValue("uscfId", player.id, { shouldValidate: true });
+                            registerForm.setValue("uscfName", player.name || `${fName} ${lName}`.trim(), { shouldValidate: true });
+                            setUscfSearchQuery(player.name || `${fName} ${lName}`.trim());
+                            setUscfSearchOpen(false);
+                            toast({
+                              title: "USCF Profile Linked!",
+                              description: `Profile for ${fName} ${lName} (ID: ${player.id}) linked successfully.`,
+                            });
+                          }}
+                        >
+                          <span className="font-semibold text-sm text-slate-900 dark:text-slate-100">
+                            {player.name || `${player.firstName} ${player.lastName}`}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            ID: {player.id} | Rating: {player.rating || player.ratingRegular || "Unrated"} | State: {player.state || "N/A"}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {registerForm.watch("uscfId") && (
+                    <div className="flex items-center gap-1.5 text-xs text-green-600 dark:text-green-500 font-medium">
+                      <Check className="h-4 w-4" />
+                      Linked USCF ID: <span className="font-bold">{registerForm.watch("uscfId")}</span>
+                      <Button
+                        type="button"
+                        variant="link"
+                        className="h-auto p-0 text-red-500 text-xs font-semibold ml-auto"
+                        onClick={() => {
+                          registerForm.setValue("uscfId", null);
+                          registerForm.setValue("uscfName", null);
+                          setUscfSearchQuery("");
+                        }}
+                      >
+                        Unlink
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-4">
                 <FormField
                   control={registerForm.control}
@@ -624,6 +833,7 @@ export default function AuthForm() {
                           )}
                         </Button>
                       </div>
+                      <PasswordStrengthMeter password={field.value} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -663,12 +873,12 @@ export default function AuthForm() {
             <form onSubmit={forgotPasswordForm.handleSubmit((data) => forgotPasswordMutation.mutate(data))} className="space-y-4">
               <FormField
                 control={forgotPasswordForm.control}
-                name="email"
+                name="username"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Email</FormLabel>
+                    <FormLabel>Username</FormLabel>
                     <FormControl>
-                      <Input type="email" placeholder="Enter your email" {...field} />
+                      <Input placeholder="Enter your username" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -684,22 +894,167 @@ export default function AuthForm() {
       case 'forgot-username':
         return (
           <Form {...forgotUsernameForm} key="forgot-username">
-            <form onSubmit={forgotUsernameForm.handleSubmit((data) => forgotUsernameMutation.mutate(data))} className="space-y-4">
-              <FormField
-                control={forgotUsernameForm.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Email</FormLabel>
-                    <FormControl>
-                      <Input type="email" placeholder="Enter your email" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+            <form onSubmit={forgotUsernameForm.handleSubmit((data) => {
+              const submissionData = { ...data };
+              if (forgotUsernameMethod === 'email') {
+                submissionData.uscfId = "";
+              } else {
+                submissionData.email = "";
+              }
+              forgotUsernameMutation.mutate(submissionData);
+            })} className="space-y-4">
+              <div className="flex rounded-lg bg-slate-100 p-1 dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800/50">
+                <Button
+                  type="button"
+                  variant={forgotUsernameMethod === 'email' ? "default" : "ghost"}
+                  size="sm"
+                  className="flex-1 text-xs font-semibold"
+                  onClick={() => {
+                    setForgotUsernameMethod('email');
+                    forgotUsernameForm.setValue('uscfId', "");
+                  }}
+                >
+                  Email
+                </Button>
+                <Button
+                  type="button"
+                  variant={forgotUsernameMethod === 'uscf' ? "default" : "ghost"}
+                  size="sm"
+                  className="flex-1 text-xs font-semibold"
+                  onClick={() => {
+                    setForgotUsernameMethod('uscf');
+                    forgotUsernameForm.setValue('email', "");
+                  }}
+                >
+                  USCF ID
+                </Button>
+              </div>
+
+              {forgotUsernameMethod === 'email' ? (
+                <FormField
+                  control={forgotUsernameForm.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Email Address</FormLabel>
+                      <FormControl>
+                        <Input type="email" placeholder="Enter your email" {...field} value={field.value || ""} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              ) : (
+                <FormField
+                  control={forgotUsernameForm.control}
+                  name="uscfId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>USCF ID</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Enter your USCF ID" {...field} value={field.value || ""} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
               <Button type="submit" className="w-full" disabled={forgotUsernameMutation.isPending}>
-                {forgotUsernameMutation.isPending ? "Sending..." : "Send Username"}
+                {forgotUsernameMutation.isPending ? "Retrieving..." : "Retrieve Username"}
+              </Button>
+            </form>
+          </Form>
+        );
+
+      case 'forget-account':
+        return (
+          <Form {...forgetAccountForm} key="forget-account">
+            <form onSubmit={forgetAccountForm.handleSubmit((data) => {
+              const submissionData = { ...data };
+              if (forgetAccountMethod === 'email_username') {
+                submissionData.uscfId = "";
+              } else {
+                submissionData.email = "";
+                submissionData.username = "";
+              }
+              forgetAccountMutation.mutate(submissionData);
+            })} className="space-y-4">
+              <div className="flex rounded-lg bg-slate-100 p-1 dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800/50">
+                <Button
+                  type="button"
+                  variant={forgetAccountMethod === 'email_username' ? "default" : "ghost"}
+                  size="sm"
+                  className="flex-1 text-xs font-semibold"
+                  onClick={() => {
+                    setForgetAccountMethod('email_username');
+                    forgetAccountForm.setValue('uscfId', "");
+                  }}
+                >
+                  Email + Username
+                </Button>
+                <Button
+                  type="button"
+                  variant={forgetAccountMethod === 'uscf' ? "default" : "ghost"}
+                  size="sm"
+                  className="flex-1 text-xs font-semibold"
+                  onClick={() => {
+                    setForgetAccountMethod('uscf');
+                    forgetAccountForm.setValue('email', "");
+                    forgetAccountForm.setValue('username', "");
+                  }}
+                >
+                  USCF ID
+                </Button>
+              </div>
+
+              {forgetAccountMethod === 'email_username' ? (
+                <>
+                  <FormField
+                    control={forgetAccountForm.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Email Address</FormLabel>
+                        <FormControl>
+                          <Input type="email" placeholder="Enter your email" {...field} value={field.value || ""} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={forgetAccountForm.control}
+                    name="username"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Username</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Enter your username" {...field} value={field.value || ""} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </>
+              ) : (
+                <FormField
+                  control={forgetAccountForm.control}
+                  name="uscfId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>USCF ID</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Enter your USCF ID" {...field} value={field.value || ""} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              <Button type="submit" variant="destructive" className="w-full font-bold" disabled={forgetAccountMutation.isPending}>
+                {forgetAccountMutation.isPending ? "Forgetting Account..." : "Forget Account Immediately"}
               </Button>
             </form>
           </Form>
@@ -918,7 +1273,7 @@ export default function AuthForm() {
                 Already have an account? Sign in
               </Button>
             )}
-            {(authMode === 'forgot-password' || authMode === 'forgot-username' || authMode === 'reset-password') && (
+            {(authMode === 'forgot-password' || authMode === 'forgot-username' || authMode === 'reset-password' || authMode === 'forget-account') && (
               <Button variant="ghost" onClick={() => setAuthMode('login')} className="text-sm">
                 Back to sign in
               </Button>

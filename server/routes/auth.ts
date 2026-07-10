@@ -1,4 +1,4 @@
-import { registerSchema, loginSchema, changePasswordSchema, verifyEmailSchema, resendVerificationSchema, forgotPasswordSchema, forgotUsernameSchema, resetPasswordSchema, users, follows } from '@shared/schema';
+import { registerSchema, loginSchema, changePasswordSchema, verifyEmailSchema, resendVerificationSchema, forgotPasswordSchema, forgotUsernameSchema, resetPasswordSchema, forgetAccountSchema, users, follows } from '@shared/schema';
 import { AccountPaymentSettings } from '@shared/tournament-config';
 import { hashPassword, verifyPassword, createSession } from '../auth';
 import { sendEmailVerificationCode, sendPasswordResetCode } from '../emailVerification';
@@ -75,6 +75,9 @@ app.post("/api/auth/register", async (req, res) => {
         notifyTournamentStatus: userData.notifyTournamentStatus ?? true,
         verificationCode,
         expiresAt,
+        uscfId: userData.uscfId,
+        uscfName: userData.uscfName,
+        uscfVerificationStatus: userData.uscfId ? "verified" : "unverified",
       });
 
       console.log(`[AUTH] Registration verification code for ${userData.email}: ${verificationCode}`);
@@ -640,6 +643,9 @@ app.post("/api/auth/verify-email", async (req, res) => {
         notifyRegistration: pendingUser.notifyRegistration,
         notifyTournamentStatus: pendingUser.notifyTournamentStatus,
         emailVerified: true,
+        uscfId: pendingUser.uscfId,
+        uscfName: pendingUser.uscfName,
+        uscfVerificationStatus: pendingUser.uscfVerificationStatus || "unverified",
       });
 
       // Cleanup pending record
@@ -731,20 +737,21 @@ Chess Tournament Manager`
 // Forgot password routes
 app.post("/api/auth/forgot-password", async (req, res) => {
     try {
-      const { email } = forgotPasswordSchema.parse(req.body);
+      const { username } = forgotPasswordSchema.parse(req.body);
 
-      // Find user by email
-      const user = await storage.getUserByEmail(email);
+      // Find user by username
+      const user = await storage.getUserByUsername(username);
 
       if (!user) {
-        // Don't reveal if email exists for security
-        return res.json({ message: "If the email exists, a reset code will be sent." });
+        return res.json({ message: "If the account exists, a reset code will be sent to the associated email address." });
       }
 
-      // Send password reset code
       try {
         await sendPasswordResetCode(user.id, user.email, user.firstName);
-        res.json({ message: "If the email exists, a reset code will be sent." });
+        res.json({ 
+          message: "If the account exists, a reset code will be sent to the associated email address.",
+          email: user.email
+        });
       } catch (emailError) {
         console.error('Failed to send password reset email:', emailError);
         res.status(500).json({ message: "Failed to send reset code. Please try again later." });
@@ -758,28 +765,73 @@ app.post("/api/auth/forgot-password", async (req, res) => {
 
 app.post("/api/auth/forgot-username", async (req, res) => {
     try {
-      const { email } = forgotUsernameSchema.parse(req.body);
+      const { email, uscfId } = forgotUsernameSchema.parse(req.body);
 
-      // Find user by email
-      const user = await storage.getUserByEmail(email);
-
-      if (!user) {
-        // Don't reveal if email exists for security
-        return res.json({ message: "If the email exists, the username will be sent." });
+      let user;
+      if (email) {
+        user = await storage.getUserByEmail(email);
+      } else if (uscfId) {
+        user = await storage.getUserByUscfId(uscfId);
       }
 
-      // In a real app, you'd send an email here
-      // For now, we'll return the username (in production, never do this!)
-      console.log(`Username for ${email}: ${user.username}`);
+      if (!user) {
+        return res.json({ message: "If the account exists, the username will be sent." });
+      }
+
+      if (user.email) {
+        await notificationService.sendEmail({
+          to: user.email,
+          subject: 'Your Account Username Recovery',
+          text: `Hello ${user.firstName || 'there'},
+
+You requested your username for Chess Tournament Manager.
+Your username is: ${user.username}
+
+Best regards,
+Chess Tournament Manager`
+        }).catch(emailError => console.error('Failed to send username recovery email:', emailError));
+      }
 
       res.json({
-        message: "If the email exists, the username will be sent.",
-        // Remove this in production - only for demo
+        message: "If the account exists, the username will be sent.",
         username: user.username
       });
     } catch (error) {
       console.error('Forgot username error:', error);
       res.status(400).json({ message: "Invalid request" });
+    }
+  });
+
+
+app.post("/api/auth/forget-account", async (req, res) => {
+    try {
+      const { email, username, uscfId } = forgetAccountSchema.parse(req.body);
+
+      let user;
+      if (email && username) {
+        user = await storage.getUserByUsername(username);
+        if (user && user.email.toLowerCase() !== email.toLowerCase()) {
+          user = null;
+        }
+      } else if (uscfId) {
+        user = await storage.getUserByUscfId(uscfId);
+      }
+
+      if (!user) {
+        return res.status(404).json({ message: "No matching account found with the provided details." });
+      }
+
+      // Delete sessions and user profile (cascade deletes all related data)
+      await storage.deleteSessionsByUser(user.id);
+      await storage.deleteUser(user.id);
+
+      res.json({
+        message: "Your profile and all associated data have been permanently deleted.",
+        success: true
+      });
+    } catch (error) {
+      console.error('Forget account error:', error);
+      res.status(400).json({ message: "Invalid request details" });
     }
   });
 

@@ -260,6 +260,7 @@ export interface IStorage {
   getUserById(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
+  getUserByUscfId(uscfId: string): Promise<User | undefined>;
   updateUser(id: number, user: Partial<User>): Promise<User | undefined>;
   listUsersByIds(ids: number[]): Promise<User[]>;
   deleteUser(id: number): Promise<boolean>;
@@ -373,6 +374,10 @@ class SupabaseStorage implements IStorage {
 
   async getUserByEmail(email: string): Promise<User | undefined> {
     return fetchOne<User>("users", { email });
+  }
+
+  async getUserByUscfId(uscfId: string): Promise<User | undefined> {
+    return fetchOne<User>("users", { uscfId });
   }
 
   async updateUser(id: number, user: Partial<User>): Promise<User | undefined> {
