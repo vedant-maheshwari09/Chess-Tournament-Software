@@ -99,6 +99,11 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
   const [isAutosaving, setIsAutosaving] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
 
+  const queryParams = useMemo(() => new URLSearchParams(searchString), [searchString]);
+  const isPreviewMode = useMemo(() => {
+    return queryParams.get("preview") === "true" || user?.role === "tournament_director";
+  }, [queryParams, user]);
+
   const { data: tournament, isLoading } = useQuery<Tournament>({
     queryKey: [`/api/tournaments/${tournamentId}`],
   });
@@ -525,7 +530,12 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
   // --- Restore draft from localStorage on initial mount ---
   useEffect(() => {
     if (draftRestored) return;
-    const draft = loadDraft(tournamentId);
+    if (isPreviewMode) {
+      DEBUG_LOG("Preview mode or tournament director: skipping draft restoration");
+      setDraftRestored(true);
+      return;
+    }
+    const draft = loadDraft(tournamentId, user?.id);
     if (draft) {
       DEBUG_LOG("Draft found in localStorage, attempting restoration", draft);
       const { formValues, playerDrafts: savedRoster, currentStep: savedStep, editingDraftId: savedEditingId } = draft;
@@ -552,13 +562,14 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
       DEBUG_LOG("No draft found in localStorage for this tournament");
       setDraftRestored(true);
     }
-  }, [draftRestored, existingRegistration, form, toast, tournamentId]);
+  }, [draftRestored, existingRegistration, form, toast, tournamentId, isPreviewMode, user]);
 
   // --- Auto-save form to localStorage on changes (debounced) ---
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const entireFormState = form.watch(); // Watch everything
 
   useEffect(() => {
+    if (isPreviewMode) return;
     const values = form.getValues();
     const hasMeaningfulData = values.firstName || values.lastName || values.email || playerDrafts.length > 0;
 
@@ -591,7 +602,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
           playerDrafts,
           currentStep,
           editingDraftId
-        });
+        }, user?.id);
 
         lastSavedStateRef.current = currentStateFingerprint;
         setIsAutosaving(false);
@@ -605,11 +616,21 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
     tournamentId,
     playerDrafts,
     currentStep,
-    editingDraftId
+    editingDraftId,
+    isPreviewMode,
+    user
   ]);
 
   // --- Manual Save Draft handler ---
   const handleSaveDraft = useCallback(() => {
+    if (isPreviewMode) {
+      toast({
+        title: "Draft manual save disabled",
+        description: "You are currently in Preview/Testing mode. Progress is not saved.",
+        variant: "destructive"
+      });
+      return;
+    }
     const values = form.getValues();
     const draft = {
       formValues: values,
@@ -618,13 +639,13 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
       editingDraftId
     };
     DEBUG_LOG("Manually saving draft...", draft);
-    saveDraft(tournamentId, draft);
+    saveDraft(tournamentId, draft, user?.id);
     lastSavedStateRef.current = JSON.stringify(draft);
     setDraftSavedFlash(true);
     setLastSavedAt(new Date());
     toast({ title: "Draft saved", description: "Your progress has been saved. You can return later to finish." });
     setTimeout(() => setDraftSavedFlash(false), 2000);
-  }, [form, tournamentId, toast, playerDrafts, currentStep, editingDraftId]);
+  }, [form, tournamentId, toast, playerDrafts, currentStep, editingDraftId, isPreviewMode, user]);
 
   const registerMutation = useMutation({
     mutationFn: async (values: RegistrationFormValues) => {
@@ -675,7 +696,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
       return data;
     },
     onSuccess: (data) => {
-      clearDraft(tournamentId);
+      clearDraft(tournamentId, user?.id);
       toast({
         title: "Registration submitted",
         description: "Your registration request has been sent to the tournament director.",
@@ -885,7 +906,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
       return data;
     },
     onSuccess: (data) => {
-      clearDraft(tournamentId);
+      clearDraft(tournamentId, user?.id);
       toast({
         title: "Registrations submitted",
         description: "Your registration requests have been sent to the tournament director.",
@@ -1464,16 +1485,18 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
     setPlayerDrafts(updatedDrafts);
 
     // CRITICAL: Force immediate localStorage sync after removal to prevent "ghost" restores
-    try {
-      saveDraft(tournamentId, {
-        formValues: form.getValues(),
-        playerDrafts: updatedDrafts,
-        currentStep,
-        editingDraftId: editingDraftId === draftId ? null : editingDraftId,
-      });
-      DEBUG_LOG("LocalStorage synced successfully after draft removal");
-    } catch (saveError) {
-      console.error("Failed to sync localStorage after removal:", saveError);
+    if (!isPreviewMode) {
+      try {
+        saveDraft(tournamentId, {
+          formValues: form.getValues(),
+          playerDrafts: updatedDrafts,
+          currentStep,
+          editingDraftId: editingDraftId === draftId ? null : editingDraftId,
+        }, user?.id);
+        DEBUG_LOG("LocalStorage synced successfully after draft removal");
+      } catch (saveError) {
+        console.error("Failed to sync localStorage after removal:", saveError);
+      }
     }
   };
   const currentPlayerLabel =
@@ -1512,7 +1535,9 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
             >
               {tournament.status}
             </Badge>
-            {(isAutosaving || lastSavedAt) && (
+            {isPreviewMode ? (
+              <Badge className="bg-amber-50 text-amber-700 border-amber-200 text-[10px] font-semibold">Test Preview Mode</Badge>
+            ) : (isAutosaving || lastSavedAt) && (
               <div className={cn(
                 "flex items-center gap-1.5 transition-all duration-500",
                 isAutosaving ? "opacity-100" : "opacity-40"
@@ -1537,6 +1562,23 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
       <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6">
         <FormProvider {...form}>
           <form onSubmit={(event) => event.preventDefault()} autoComplete="off" className="space-y-4">
+
+            {/* ===== Live Preview Warning Banner ===== */}
+            {isPreviewMode && (
+              <div className="overflow-hidden rounded-xl border border-amber-200 bg-amber-50/90 p-4 shadow-sm animate-in fade-in duration-300">
+                <div className="flex gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-amber-100 border border-amber-200">
+                    <ShieldCheck className="h-5 w-5 text-amber-700" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-amber-800">Live Form Preview (Testing Mode)</h3>
+                    <p className="mt-1 text-xs leading-relaxed text-amber-750/90 font-medium">
+                      You are previewing this form as a Tournament Director. Draft autosaving is suspended, and any test inputs you enter will not affect actual registrations or drafts.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* ===== Form Title Card (Google Forms style) ===== */}
             <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">

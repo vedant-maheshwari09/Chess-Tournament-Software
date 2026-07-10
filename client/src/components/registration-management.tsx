@@ -142,6 +142,8 @@ export default function RegistrationManagement({ tournamentId, tournament }: Reg
       if (key === "prizeStripeEmail") label = "Prize Stripe Email";
       if (key === "prizeBankRouting") label = "Prize Bank Routing Number";
       if (key === "prizeBankAccount") label = "Prize Bank Account Number";
+      if (key === "prizeZelleEmail") label = "Prize Zelle Email";
+      if (key === "prizeZellePhone") label = "Prize Zelle Phone";
       
       let displayValue = "";
       if (typeof value === "boolean") {

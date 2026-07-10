@@ -320,36 +320,6 @@ export function UscfVerificationCard() {
             {!enableScreenRecording ? (
               // Simple Flow Form
               <form onSubmit={handleConnectSubmit} className="space-y-4">
-                {connectingError && (
-                  <Alert variant="destructive" className="rounded-xl">
-                    <AlertTriangle className="h-4 w-4" />
-                    <AlertTitle>Connection Failed</AlertTitle>
-                    <AlertDescription className="mt-1">
-                      {connectingError.message}
-                      {connectingError.code === "ALREADY_CONNECTED" && !reportingSuccess && (
-                        <div className="mt-3">
-                          <Button 
-                            type="button" 
-                            variant="outline" 
-                            size="sm" 
-                            className="bg-white hover:bg-slate-50 text-red-600 border-red-200 font-semibold"
-                            onClick={() => reportFalsificationMutation.mutate(uscfIdInput.trim() || uscfId || "")}
-                            disabled={reportFalsificationMutation.isPending}
-                          >
-                            {reportFalsificationMutation.isPending && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
-                            Report Identity Falsification
-                          </Button>
-                        </div>
-                      )}
-                      {reportingSuccess && (
-                        <p className="mt-2 text-xs font-semibold text-green-600 dark:text-green-400">
-                          ✓ Identity falsification report submitted. Administrators have been notified.
-                        </p>
-                      )}
-                    </AlertDescription>
-                  </Alert>
-                )}
-                
                 <div className="space-y-2">
                   <Label htmlFor="uscf-id-input" className="text-sm font-semibold text-slate-700 dark:text-slate-300">Enter your 8-digit USCF Member ID</Label>
                   <div className="flex gap-2">
@@ -357,9 +327,16 @@ export function UscfVerificationCard() {
                       id="uscf-id-input"
                       placeholder="e.g. 12345678"
                       value={uscfIdInput}
-                      onChange={(e) => setUscfIdInput(e.target.value.replace(/[^0-9]/g, ""))}
+                      onChange={(e) => {
+                        setUscfIdInput(e.target.value.replace(/[^0-9]/g, ""));
+                        setConnectingError(null);
+                      }}
                       maxLength={8}
-                      className="rounded-xl border-slate-200 font-mono tracking-wider h-11"
+                      className={`rounded-xl font-mono tracking-wider h-11 transition-all ${
+                        connectingError 
+                          ? 'border-red-500 focus-visible:ring-red-500 bg-red-50/10' 
+                          : 'border-slate-200'
+                      }`}
                     />
                     <Button 
                       type="submit" 
@@ -369,7 +346,39 @@ export function UscfVerificationCard() {
                       {connectUscfMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Link Profile"}
                     </Button>
                   </div>
-                  <p className="text-[11px] text-muted-foreground leading-normal">
+
+                  {connectingError && (
+                    <div className="text-xs font-semibold text-red-600 dark:text-red-400 mt-1.5 space-y-2 leading-relaxed animate-fade-in">
+                      <div className="flex items-start gap-1.5">
+                        <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0 text-red-500" />
+                        <span>{connectingError.message}</span>
+                      </div>
+                      
+                      {connectingError.code === "ALREADY_CONNECTED" && !reportingSuccess && (
+                        <div className="pl-5 pt-1">
+                          <Button 
+                            type="button" 
+                            variant="outline" 
+                            size="sm" 
+                            className="bg-white dark:bg-slate-900 hover:bg-red-50/50 dark:hover:bg-red-950/20 text-red-600 border-red-200 hover:border-red-300 dark:border-red-950/50 font-semibold rounded-xl text-[11px] h-8"
+                            onClick={() => reportFalsificationMutation.mutate(uscfIdInput.trim() || uscfId || "")}
+                            disabled={reportFalsificationMutation.isPending}
+                          >
+                            {reportFalsificationMutation.isPending && <Loader2 className="h-3 w-3 mr-1.5 animate-spin" />}
+                            Report Identity Falsification
+                          </Button>
+                        </div>
+                      )}
+                      
+                      {reportingSuccess && (
+                        <p className="pl-5 text-[11px] font-bold text-green-600 dark:text-green-400">
+                          ✓ Identity falsification report submitted. Administrators have been notified.
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  <p className="text-[11px] text-muted-foreground leading-normal pt-1">
                     Your account first name and last name must match your official USCF member record to connect.
                   </p>
                 </div>

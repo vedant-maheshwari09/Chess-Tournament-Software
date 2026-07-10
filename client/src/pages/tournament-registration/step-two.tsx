@@ -733,38 +733,29 @@ export default function StepTwo({
         {pageIndex === totalPages - 1 && config?.registers?.collectPrizePayoutDetails !== false && (
           <div className="space-y-4 border-t border-slate-100 pt-6 col-span-2">
             <div>
-              <h3 className="text-sm font-bold text-slate-900 tracking-tight">Prize Payout Details</h3>
+              <h3 className="text-sm font-bold text-slate-900 tracking-tight">Prize Payout Details (Zelle)</h3>
               <p className="text-xs text-slate-500 mt-1">
-                Provide your Stripe and direct payout information. The tournament director will use this if you win a cash prize.
+                Provide your Zelle contact information. The tournament director will use this if you win a cash prize.
               </p>
             </div>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="prizeStripeEmail" className="text-xs font-semibold text-slate-700">Stripe Email Address</Label>
+                <Label htmlFor="prizeZelleEmail" className="text-xs font-semibold text-slate-700">Zelle Email Address</Label>
                 <Input
-                  id="prizeStripeEmail"
+                  id="prizeZelleEmail"
                   type="email"
                   placeholder="email@example.com"
-                  {...form.register("customAnswers.prizeStripeEmail")}
+                  {...form.register("customAnswers.prizeZelleEmail")}
                   className="bg-white border-slate-200 focus:ring-blue-200 focus:border-blue-400"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="prizeBankRouting" className="text-xs font-semibold text-slate-700">Bank Routing Number</Label>
+                <Label htmlFor="prizeZellePhone" className="text-xs font-semibold text-slate-700">Zelle Phone Number</Label>
                 <Input
-                  id="prizeBankRouting"
-                  placeholder="9-digit routing number"
-                  {...form.register("customAnswers.prizeBankRouting")}
-                  className="bg-white border-slate-200 focus:ring-blue-200 focus:border-blue-400"
-                />
-              </div>
-              <div className="col-span-2 space-y-2">
-                <Label htmlFor="prizeBankAccount" className="text-xs font-semibold text-slate-700">Bank Account Number</Label>
-                <Input
-                  id="prizeBankAccount"
-                  type="password"
-                  placeholder="Account number"
-                  {...form.register("customAnswers.prizeBankAccount")}
+                  id="prizeZellePhone"
+                  type="tel"
+                  placeholder="(555) 000-0000"
+                  {...form.register("customAnswers.prizeZellePhone")}
                   className="bg-white border-slate-200 focus:ring-blue-200 focus:border-blue-400"
                 />
               </div>

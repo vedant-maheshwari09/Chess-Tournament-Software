@@ -260,6 +260,7 @@ export interface IStorage {
   getUserById(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
+  getUsersByEmail(email: string): Promise<User[]>;
   getUserByUscfId(uscfId: string): Promise<User | undefined>;
   updateUser(id: number, user: Partial<User>): Promise<User | undefined>;
   listUsersByIds(ids: number[]): Promise<User[]>;
@@ -269,6 +270,7 @@ export interface IStorage {
   createPendingUser(user: InsertPendingUser): Promise<PendingUser>;
   getPendingUserByEmail(email: string): Promise<PendingUser | undefined>;
   getPendingUserByUsername(username: string): Promise<PendingUser | undefined>;
+  getPendingUserByUscfId(uscfId: string): Promise<PendingUser | undefined>;
   getPendingUserByCode(code: string, email: string): Promise<PendingUser | undefined>;
   updatePendingUser(id: number, user: Partial<PendingUser>): Promise<PendingUser | undefined>;
   deletePendingUser(id: number): Promise<boolean>;
@@ -376,6 +378,10 @@ class SupabaseStorage implements IStorage {
     return fetchOne<User>("users", { email });
   }
 
+  async getUsersByEmail(email: string): Promise<User[]> {
+    return fetchMany<User>("users", { email });
+  }
+
   async getUserByUscfId(uscfId: string): Promise<User | undefined> {
     return fetchOne<User>("users", { uscfId });
   }
@@ -412,6 +418,10 @@ class SupabaseStorage implements IStorage {
 
   async getPendingUserByUsername(username: string): Promise<PendingUser | undefined> {
     return fetchOne<PendingUser>("pending_users", { username });
+  }
+
+  async getPendingUserByUscfId(uscfId: string): Promise<PendingUser | undefined> {
+    return fetchOne<PendingUser>("pending_users", { uscfId });
   }
 
   async getPendingUserByCode(code: string, email: string): Promise<PendingUser | undefined> {

@@ -5,7 +5,7 @@ import { useLocation, useRoute, Link } from "wouter";
 import {
   Trophy, Users, Eye, Medal, Info, Calculator, PauseCircle, Star,
   Loader2, MessageCircle, SlidersHorizontal, X, ChevronUp, ChevronDown,
-  ChevronsUpDown, CalendarDays, CheckSquare, Square,
+  ChevronsUpDown, CalendarDays, CheckSquare, Square, Search,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -34,8 +34,8 @@ import { RegistrationStatusCard } from "@/components/registration-status-card";
 import NotificationBell from "@/components/notification-bell";
 import { slugify } from "@/lib/utils";
 
-// ΓöÇΓöÇΓöÇ Types ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
-type SortKey = "players" | "date" | "state" | "name" | "format" | "rounds" | "following";
+// ───────────────── Types ────────────────────────────────────────────────────────────────
+type SortKey = "players" | "startDate" | "endDate" | "state" | "name" | "format" | "rounds" | "following";
 type FormatFilter = "swiss" | "roundrobin" | "knockout" | "arena";
 type DetailTabKey = "pairings" | "standings" | "byes" | "predictor" | "info";
 
@@ -212,17 +212,6 @@ function FilterPanel({
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-6">
 
-          {/* Search */}
-          <div className="space-y-2">
-            <Label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Search</Label>
-            <Input
-              placeholder="Search name, director, org..."
-              value={filters.searchText}
-              onChange={(e) => setFilters((f) => ({ ...f, searchText: e.target.value }))}
-              className="h-8 text-sm"
-            />
-          </div>
-
           {/* Format */}
           <div className="space-y-2">
             <Label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Format</Label>
@@ -391,7 +380,8 @@ export default function PlayerDashboard() {
   // Filter & sort state
   const [filterOpen, setFilterOpen] = useState(false);
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
-  const [sortKey, setSortKey] = useState<SortKey>("date");
+  const [sortKey, setSortKey] = useState<SortKey>("startDate");
+  const [showRegisteredOnlyPast, setShowRegisteredOnlyPast] = useState(false);
 
   const activeFilterCount = useMemo(() => {
     let count = 0;
@@ -635,8 +625,19 @@ export default function PlayerDashboard() {
         case "state":
           comparison = (a.state || "").localeCompare(b.state || "");
           break;
+        case "startDate": {
+          const aTime = a.startDate ? a.startDate.getTime() : Number.POSITIVE_INFINITY;
+          const bTime = b.startDate ? b.startDate.getTime() : Number.POSITIVE_INFINITY;
+          comparison = aTime - bTime;
+          break;
+        }
+        case "endDate": {
+          const aTime = a.endDate ? a.endDate.getTime() : Number.POSITIVE_INFINITY;
+          const bTime = b.endDate ? b.endDate.getTime() : Number.POSITIVE_INFINITY;
+          comparison = aTime - bTime;
+          break;
+        }
         case "following":
-        case "date":
         default: {
           const aTime = a.startDate ? a.startDate.getTime() : Number.POSITIVE_INFINITY;
           const bTime = b.startDate ? b.startDate.getTime() : Number.POSITIVE_INFINITY;
@@ -689,14 +690,18 @@ export default function PlayerDashboard() {
           key: "past",
           label: "Past Tournaments",
           description: "Completed events you can revisit.",
-          items: filterFn([...sectionsRaw.past]).sort(comparator),
-          empty: sortKey === "following"
-            ? "No completed tournaments from organizers you follow."
-            : "You haven't viewed any completed tournaments yet.",
+          items: filterFn([...sectionsRaw.past])
+            .filter((entry) => !showRegisteredOnlyPast || registrationMap.has(entry.tournament.id))
+            .sort(comparator),
+          empty: showRegisteredOnlyPast
+            ? "No completed tournaments found that you registered for."
+            : sortKey === "following"
+              ? "No completed tournaments from organizers you follow."
+              : "You haven't viewed any completed tournaments yet.",
         },
       ];
     },
-    [sectionsRaw, comparator, sortKey, followingIds]
+    [sectionsRaw, comparator, sortKey, followingIds, showRegisteredOnlyPast, registrationMap]
   );
 
   const getFormatName = (format: string) => {
@@ -769,8 +774,13 @@ export default function PlayerDashboard() {
         <td className="px-4 py-4 text-center align-middle text-sm text-slate-700 dark:text-slate-300">
           {playersCount} player{playersCount === 1 ? "" : "s"}
         </td>
-        <td className="px-4 py-4 text-center align-middle text-sm text-slate-700 dark:text-slate-300">{formatDateRange(startDate, endDate)}</td>
-        <td className="px-4 py-4 text-center align-middle text-sm text-slate-700 dark:text-slate-300">{sectionsCount ?? "ΓÇö"}</td>
+        <td className="px-4 py-4 text-center align-middle text-sm text-slate-700 dark:text-slate-300">
+          {startDate ? new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" }).format(startDate) : "TBD"}
+        </td>
+        <td className="px-4 py-4 text-center align-middle text-sm text-slate-700 dark:text-slate-300">
+          {endDate ? new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" }).format(endDate) : "TBD"}
+        </td>
+        <td className="px-4 py-4 text-center align-middle text-sm text-slate-700 dark:text-slate-300">{sectionsCount ?? "—"}</td>
         <td className="px-4 py-4 align-middle text-center">
           <Button
             variant="outline"
@@ -789,9 +799,25 @@ export default function PlayerDashboard() {
   const renderSection = (section: SectionData) => {
     return (
       <Card>
-        <CardHeader>
-          <CardTitle>{section.label}</CardTitle>
-          <CardDescription>{section.description}</CardDescription>
+        <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <CardTitle>{section.label}</CardTitle>
+            <CardDescription>{section.description}</CardDescription>
+          </div>
+          {section.key === "past" && (
+            <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800/40 px-3.5 py-2 rounded-xl border border-slate-100 dark:border-slate-800 animate-in fade-in duration-200">
+              <input
+                id="registered-past-filter"
+                type="checkbox"
+                checked={showRegisteredOnlyPast}
+                onChange={(e) => setShowRegisteredOnlyPast(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+              />
+              <label htmlFor="registered-past-filter" className="text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer select-none">
+                Registered Only
+              </label>
+            </div>
+          )}
         </CardHeader>
         <CardContent className="space-y-4">
           {section.items.length === 0 ? (
@@ -812,7 +838,7 @@ export default function PlayerDashboard() {
                     {/* Favorite column - sortable */}
                     <th className="px-4 py-3 text-center">
                       <button
-                        onClick={() => setSortKey(sortKey === "following" ? "date" : "following")}
+                        onClick={() => setSortKey(sortKey === "following" ? "startDate" : "following")}
                         className="inline-flex items-center gap-1 hover:text-slate-800 dark:hover:text-slate-200 transition-colors cursor-pointer"
                         title="Sort by favorites"
                       >
@@ -850,14 +876,24 @@ export default function PlayerDashboard() {
                         {sortKey === "players" ? <ChevronDown className="h-3 w-3" /> : <ChevronsUpDown className="h-3 w-3 opacity-40" />}
                       </button>
                     </th>
-                    {/* Date column - sortable */}
+                    {/* Start Date column - sortable */}
                     <th className="px-4 py-3 text-center">
                       <button
-                        onClick={() => setSortKey("date")}
+                        onClick={() => setSortKey("startDate")}
                         className="inline-flex items-center gap-1 hover:text-slate-800 dark:hover:text-slate-200 transition-colors cursor-pointer"
                       >
-                        Start Date – End Date
-                        {sortKey === "date" ? <ChevronUp className="h-3 w-3" /> : <ChevronsUpDown className="h-3 w-3 opacity-40" />}
+                        Start Date
+                        {sortKey === "startDate" ? <ChevronUp className="h-3 w-3" /> : <ChevronsUpDown className="h-3 w-3 opacity-40" />}
+                      </button>
+                    </th>
+                    {/* End Date column - sortable */}
+                    <th className="px-4 py-3 text-center">
+                      <button
+                        onClick={() => setSortKey("endDate")}
+                        className="inline-flex items-center gap-1 hover:text-slate-800 dark:hover:text-slate-200 transition-colors cursor-pointer"
+                      >
+                        End Date
+                        {sortKey === "endDate" ? <ChevronUp className="h-3 w-3" /> : <ChevronsUpDown className="h-3 w-3 opacity-40" />}
                       </button>
                     </th>
                     {/* Sections column - not sortable (no sort key) */}
@@ -933,6 +969,25 @@ export default function PlayerDashboard() {
               )}
             </Button>
 
+            <div className="relative w-72">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                placeholder="Search name, director, org..."
+                value={filters.searchText}
+                onChange={(e) => setFilters((f) => ({ ...f, searchText: e.target.value }))}
+                className="h-9 w-full pl-9 pr-4 text-sm rounded-lg bg-white border-slate-200 focus-visible:ring-1 focus-visible:ring-slate-300 focus-visible:ring-offset-0"
+              />
+              {filters.searchText && (
+                <button
+                  type="button"
+                  onClick={() => setFilters((f) => ({ ...f, searchText: "" }))}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
+            </div>
+
             {/* Active filter chips */}
             {filters.formats.length > 0 && (
               <Badge variant="secondary" className="gap-1 text-xs cursor-pointer rounded-lg" onClick={() => setFilters(f => ({ ...f, formats: [] }))}>
@@ -993,10 +1048,10 @@ export default function PlayerDashboard() {
             )}
           </div>
 
-          {sortKey !== "date" && (
+          {(sortKey !== "startDate" && sortKey !== "endDate") && (
             <button
               className="text-xs text-slate-400 hover:text-slate-600 underline-offset-2 hover:underline flex items-center gap-1"
-              onClick={() => setSortKey("date")}
+              onClick={() => setSortKey("startDate")}
             >
               <X className="h-3 w-3" />
               Clear sort

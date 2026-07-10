@@ -137,28 +137,29 @@ export interface RegistrationDraft {
 }
 
 export const DRAFT_KEY_PREFIX = "reg-draft";
-export function getDraftKey(tournamentId: number) {
-  return `${DRAFT_KEY_PREFIX}-${tournamentId}`;
+export function getDraftKey(tournamentId: number, userId?: number | null) {
+  const suffix = userId ? `user-${userId}` : "anonymous";
+  return `${DRAFT_KEY_PREFIX}-${suffix}-${tournamentId}`;
 }
-export function loadDraft(tournamentId: number): RegistrationDraft | null {
+export function loadDraft(tournamentId: number, userId?: number | null): RegistrationDraft | null {
   try {
-    const raw = localStorage.getItem(getDraftKey(tournamentId));
+    const raw = localStorage.getItem(getDraftKey(tournamentId, userId));
     if (!raw) return null;
     return JSON.parse(raw) as RegistrationDraft;
   } catch {
     return null;
   }
 }
-export function saveDraft(tournamentId: number, draft: RegistrationDraft) {
+export function saveDraft(tournamentId: number, draft: RegistrationDraft, userId?: number | null) {
   try {
-    localStorage.setItem(getDraftKey(tournamentId), JSON.stringify(draft));
+    localStorage.setItem(getDraftKey(tournamentId, userId), JSON.stringify(draft));
   } catch {
     // quota exceeded – silently ignore
   }
 }
-export function clearDraft(tournamentId: number) {
+export function clearDraft(tournamentId: number, userId?: number | null) {
   try {
-    localStorage.removeItem(getDraftKey(tournamentId));
+    localStorage.removeItem(getDraftKey(tournamentId, userId));
   } catch {
     // ignore
   }

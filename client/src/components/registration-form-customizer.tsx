@@ -1300,8 +1300,8 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
 
                   <div className="flex items-center justify-between border-t pt-4">
                     <div className="space-y-0.5">
-                      <Label className="text-sm font-bold text-slate-800">Collect Prize Payout Details</Label>
-                      <p className="text-xs text-slate-500 leading-normal font-semibold">Ask players for their Stripe email and bank info during registration to facilitate direct payouts.</p>
+                      <Label className="text-sm font-bold text-slate-800">Collect Zelle Payout Details</Label>
+                      <p className="text-xs text-slate-500 leading-normal font-semibold">Ask players for their Zelle email and phone number during registration to facilitate direct payouts.</p>
                     </div>
                     <Switch
                       checked={config.registers?.collectPrizePayoutDetails !== false}
@@ -1320,7 +1320,7 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
             {/* Live Preview (Eye Icon) */}
             {tournamentSlug && (
               <a
-                href={`/tournaments/${tournamentSlug}/register`}
+                href={`/tournaments/${tournamentSlug}/register?preview=true`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="h-8 w-8 rounded-lg hover:bg-slate-100 text-slate-650 hover:text-sky-600 transition flex items-center justify-center shrink-0"

@@ -6,7 +6,7 @@ import { z } from "zod";
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   username: varchar("username", { length: 50 }).notNull().unique(),
-  email: varchar("email", { length: 255 }).notNull().unique(),
+  email: varchar("email", { length: 255 }).notNull(),
   passwordHash: text("password_hash").notNull(),
   firstName: text("first_name").notNull(),
   lastName: text("last_name").notNull(),
@@ -331,7 +331,11 @@ export const registerSchema = z.object({
 });
 
 export const forgotPasswordSchema = z.object({
-  username: z.string().min(1).trim(),
+  username: z.string().trim().optional().nullable(),
+  uscfId: z.string().trim().optional().nullable(),
+}).refine(data => data.username || data.uscfId, {
+  message: "Either username or USCF ID is required",
+  path: ["username"]
 });
 
 export const forgotUsernameSchema = z.object({
@@ -343,7 +347,7 @@ export const forgotUsernameSchema = z.object({
 });
 
 export const resetPasswordSchema = z.object({
-  email: z.string().email().trim().toLowerCase(),
+  username: z.string().min(1).trim(),
   code: z.string().length(6).trim().regex(/^\d+$/),
   newPassword: z.string().min(6),
 });

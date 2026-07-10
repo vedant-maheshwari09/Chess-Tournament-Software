@@ -1,7 +1,7 @@
 import { registerSchema, loginSchema, changePasswordSchema, verifyEmailSchema, resendVerificationSchema, forgotPasswordSchema, forgotUsernameSchema, resetPasswordSchema, forgetAccountSchema, users, follows } from '@shared/schema';
 import { AccountPaymentSettings } from '@shared/tournament-config';
 import { hashPassword, verifyPassword, createSession } from '../auth';
-import { sendEmailVerificationCode, sendPasswordResetCode } from '../emailVerification';
+import { sendEmailVerificationCode, sendPasswordResetCode, sendUsernameRecoveryEmail, getPremiumHtmlTemplate } from '../emailVerification';
 import type { Express } from "express";
 import { db } from "../db";
 import { eq, and } from "drizzle-orm";
@@ -23,6 +23,8 @@ import { lookupFideProfiles, searchFideDirectory } from '../lib/fideDirectory';
 import { Player, Pairing, Match, PlayerRegistration } from "@shared/schema";
 
 
+const BASE_URL = process.env.APP_URL || 'http://localhost:5010';
+
 export function applyAuthRoutes(app: Express) {
 
 // Authentication routes
@@ -42,15 +44,40 @@ app.post("/api/auth/register", async (req, res) => {
         });
       }
 
-      // Check if email already exists in users or active pending_users
-      const existingEmail = await storage.getUserByEmail(userData.email);
+      // Check USCF ID uniqueness globally across the entire site
+      if (userData.uscfId) {
+        const existingUscfUser = await storage.getUserByUscfId(userData.uscfId);
+        const pendingUscfUser = await storage.getPendingUserByUscfId(userData.uscfId);
+        const isUscfPendingActive = pendingUscfUser && new Date() <= new Date(pendingUscfUser.expiresAt);
+
+        if (existingUscfUser || isUscfPendingActive) {
+          return res.status(400).json({
+            message: "This USCF ID is already linked to another account."
+          });
+        }
+      }
+
+      // Check email limits: an email address can be used for at most 5 accounts
+      const activeUsersWithEmail = await storage.getUsersByEmail(userData.email);
       const pendingEmail = await storage.getPendingUserByEmail(userData.email);
       const isEmailPendingActive = pendingEmail && new Date() <= new Date(pendingEmail.expiresAt);
       
-      if (existingEmail || isEmailPendingActive) {
+      const totalAccounts = activeUsersWithEmail.length + (isEmailPendingActive ? 1 : 0);
+      if (totalAccounts >= 5) {
         return res.status(400).json({
-          message: "An account with this email already exists. Please use a different email or try logging in."
+          message: "You have reached the maximum limit of 5 accounts for this email address."
         });
+      }
+
+      // Check Tournament Director ceiling: max 1 TD account per email address
+      if (userData.role === 'tournament_director') {
+        const hasActiveTD = activeUsersWithEmail.some(u => u.role === 'tournament_director');
+        const hasPendingTD = isEmailPendingActive && pendingEmail?.role === 'tournament_director';
+        if (hasActiveTD || hasPendingTD) {
+          return res.status(400).json({
+            message: "An email address can only be associated with at most one Tournament Director account."
+          });
+        }
       }
 
       // Hash password and create pending user
@@ -82,20 +109,23 @@ app.post("/api/auth/register", async (req, res) => {
 
       console.log(`[AUTH] Registration verification code for ${userData.email}: ${verificationCode}`);
 
+      const buttonUrl = `${BASE_URL}/login?mode=verify-email&email=${encodeURIComponent(userData.email)}&code=${verificationCode}`;
+      const htmlContent = getPremiumHtmlTemplate({
+        title: 'Verify Your Email Address',
+        preheader: 'Complete your registration with your verification code.',
+        greeting: `Hello ${userData.firstName},`,
+        bodyText: 'Thank you for creating an account! Please use the following code to verify your email address. You can also click the button below to instantly complete your verification.',
+        code: verificationCode,
+        buttonLabel: 'Verify My Email',
+        buttonUrl,
+      });
+
       // Send verification code in background
       notificationService.sendEmail({
         to: userData.email,
         subject: 'Verify Your Email Address',
-        text: `Hello ${userData.firstName},
-        
-Thank you for creating an account! Please use the following code to verify your email address:
-
-${verificationCode}
-
-This code will expire in 15 minutes.
-
-Best regards,
-Chess Tournament Manager`
+        text: `Hello ${userData.firstName},\n\nThank you for creating an account! Please use the code: ${verificationCode} to verify your email address.\n\nBest regards,\nChess Tournament Manager`,
+        html: htmlContent,
       }).catch(emailError => console.error('Failed to send background verification email:', emailError));
 
       res.status(201).json({
@@ -734,23 +764,44 @@ Chess Tournament Manager`
     }
   });
 
+// Helper to mask email for security/privacy
+const maskEmailAddress = (emailStr: string) => {
+  const [local, domain] = emailStr.split('@');
+  if (!local || !domain) return emailStr;
+  const maskedLocal = local.length > 2 
+    ? local.slice(0, 2) + '*'.repeat(local.length - 2)
+    : local + '*';
+  const domainParts = domain.split('.');
+  const domainName = domainParts[0] || '';
+  const tld = domainParts.slice(1).join('.');
+  const maskedDomain = domainName.length > 2
+    ? domainName.slice(0, 2) + '*'.repeat(domainName.length - 2)
+    : domainName + '*';
+  return `${maskedLocal}@${maskedDomain}.${tld}`;
+};
+
 // Forgot password routes
 app.post("/api/auth/forgot-password", async (req, res) => {
     try {
-      const { username } = forgotPasswordSchema.parse(req.body);
+      const { username, uscfId } = forgotPasswordSchema.parse(req.body);
 
-      // Find user by username
-      const user = await storage.getUserByUsername(username);
+      let user;
+      if (username) {
+        user = await storage.getUserByUsername(username);
+      } else if (uscfId) {
+        user = await storage.getUserByUscfId(uscfId);
+      }
 
       if (!user) {
-        return res.json({ message: "If the account exists, a reset code will be sent to the associated email address." });
+        return res.status(404).json({ message: "No registered account found with that identifier." });
       }
 
       try {
-        await sendPasswordResetCode(user.id, user.email, user.firstName);
+        await sendPasswordResetCode(user.id, user.email, user.firstName, user.username);
+        const masked = maskEmailAddress(user.email);
         res.json({ 
-          message: "If the account exists, a reset code will be sent to the associated email address.",
-          email: user.email
+          message: `Reset code sent successfully to ${masked}`,
+          email: masked
         });
       } catch (emailError) {
         console.error('Failed to send password reset email:', emailError);
@@ -767,35 +818,84 @@ app.post("/api/auth/forgot-username", async (req, res) => {
     try {
       const { email, uscfId } = forgotUsernameSchema.parse(req.body);
 
-      let user;
       if (email) {
-        user = await storage.getUserByEmail(email);
+        // Find all accounts under this email
+        const usersList = await storage.getUsersByEmail(email);
+        
+        if (usersList.length > 0) {
+          const primaryUser = usersList[0];
+          const code = Math.floor(100000 + Math.random() * 900000).toString();
+          const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 mins
+          
+          await storage.createVerificationCode({
+            userId: primaryUser.id,
+            code,
+            type: 'username_recovery',
+            expiresAt,
+            used: false,
+          });
+
+          await sendUsernameRecoveryEmail({
+            email,
+            firstName: primaryUser.firstName,
+            code,
+          });
+        } else {
+          // Privacy policy: send an email advising them that no accounts exist
+          const htmlContent = getPremiumHtmlTemplate({
+            title: 'Account Recovery Request',
+            preheader: 'Account recovery notification.',
+            greeting: `Hello,`,
+            bodyText: 'A request was made to retrieve the username associated with this email address, but we could not find any accounts registered under this email. If you do not have an account, you can easily create one using the button below.',
+            buttonLabel: 'Register New Account',
+            buttonUrl: `${BASE_URL}/register`,
+          });
+          notificationService.sendEmail({
+            to: email,
+            subject: 'Chess Tournament Manager - Account Recovery',
+            text: 'No accounts are registered with this email address.',
+            html: htmlContent,
+          }).catch(err => console.error('Failed to send privacy email:', err));
+        }
+
+        return res.json({
+          message: "If the account exists, the verification code will be sent to the associated email address.",
+          email: email
+        });
+
       } else if (uscfId) {
-        user = await storage.getUserByUscfId(uscfId);
+        const user = await storage.getUserByUscfId(uscfId);
+        if (!user) {
+          return res.status(404).json({ message: "No registered account found with this USCF ID." });
+        }
+
+        const code = Math.floor(100000 + Math.random() * 900000).toString();
+        const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 mins
+
+        await storage.createVerificationCode({
+          userId: user.id,
+          code,
+          type: 'username_recovery',
+          expiresAt,
+          used: false,
+        });
+
+        await sendUsernameRecoveryEmail({
+          email: user.email,
+          firstName: user.firstName,
+          code,
+          uscfId,
+        });
+
+        const masked = maskEmailAddress(user.email);
+        return res.json({
+          message: `Email sent to ${masked}`,
+          email: masked,
+          uscfId
+        });
       }
 
-      if (!user) {
-        return res.json({ message: "If the account exists, the username will be sent." });
-      }
-
-      if (user.email) {
-        await notificationService.sendEmail({
-          to: user.email,
-          subject: 'Your Account Username Recovery',
-          text: `Hello ${user.firstName || 'there'},
-
-You requested your username for Chess Tournament Manager.
-Your username is: ${user.username}
-
-Best regards,
-Chess Tournament Manager`
-        }).catch(emailError => console.error('Failed to send username recovery email:', emailError));
-      }
-
-      res.json({
-        message: "If the account exists, the username will be sent.",
-        username: user.username
-      });
+      res.status(400).json({ message: "Either Email or USCF ID is required." });
     } catch (error) {
       console.error('Forgot username error:', error);
       res.status(400).json({ message: "Invalid request" });
@@ -803,34 +903,47 @@ Chess Tournament Manager`
   });
 
 
-app.post("/api/auth/forget-account", async (req, res) => {
+app.post("/api/auth/verify-username", async (req, res) => {
     try {
-      const { email, username, uscfId } = forgetAccountSchema.parse(req.body);
+      const { email, uscfId, code } = req.body;
+      if (!code || code.length !== 6) {
+        return res.status(400).json({ message: "Verification code must be 6 digits." });
+      }
 
       let user;
-      if (email && username) {
-        user = await storage.getUserByUsername(username);
-        if (user && user.email.toLowerCase() !== email.toLowerCase()) {
-          user = null;
+      let usernames: string[] = [];
+
+      if (email) {
+        const usersList = await storage.getUsersByEmail(email);
+        if (usersList.length === 0) {
+          return res.status(400).json({ message: "Invalid or expired verification code" });
         }
+        user = usersList[0];
+        usernames = usersList.map(u => u.username);
       } else if (uscfId) {
         user = await storage.getUserByUscfId(uscfId);
+        if (!user) {
+          return res.status(400).json({ message: "Invalid or expired verification code" });
+        }
+        usernames = [user.username];
+      } else {
+        return res.status(400).json({ message: "Email or USCF ID is required." });
       }
 
-      if (!user) {
-        return res.status(404).json({ message: "No matching account found with the provided details." });
+      const verificationCode = await storage.getVerificationCodeByCode(code, user.id, 'username_recovery');
+      if (!verificationCode || verificationCode.used || new Date() > new Date(verificationCode.expiresAt)) {
+        return res.status(400).json({ message: "Invalid or expired verification code" });
       }
 
-      // Delete sessions and user profile (cascade deletes all related data)
-      await storage.deleteSessionsByUser(user.id);
-      await storage.deleteUser(user.id);
+      // Mark used
+      await storage.useVerificationCode(code, user.id, 'username_recovery');
 
       res.json({
-        message: "Your profile and all associated data have been permanently deleted.",
-        success: true
+        message: "Code verified successfully.",
+        usernames,
       });
     } catch (error) {
-      console.error('Forget account error:', error);
+      console.error('Verify username error:', error);
       res.status(400).json({ message: "Invalid request details" });
     }
   });
@@ -838,10 +951,10 @@ app.post("/api/auth/forget-account", async (req, res) => {
 
 app.post("/api/auth/reset-password", async (req, res) => {
     try {
-      const { email, code, newPassword } = resetPasswordSchema.parse(req.body);
+      const { username, code, newPassword } = resetPasswordSchema.parse(req.body);
 
-      // Find user by email
-      const user = await storage.getUserByEmail(email);
+      // Find user by username
+      const user = await storage.getUserByUsername(username);
       if (!user) {
         return res.status(400).json({ message: "Invalid reset code" });
       }

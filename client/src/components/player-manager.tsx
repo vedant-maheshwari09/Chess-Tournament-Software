@@ -64,7 +64,7 @@ import type { Tournament, Player, Pairing } from "@shared/schema";
 import { cn } from "@/lib/utils";
 import { resolveDisplayRating } from "@shared/tournament-config";
 
-type SortKey = "name" | "rating";
+type SortKey = "name" | "rating" | "uscfRating" | "section" | "createdAt" | "paymentStatus";
 type SortDirection = "asc" | "desc";
 
 interface PlayerManagerProps {
@@ -121,6 +121,8 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
     }
     return ["index", "name", "rating", "uscfId", "paymentStatus", "byes", "actions"];
   });
+
+  const isIndexVisible = visibleColumns.includes("index");
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -239,6 +241,26 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
         const ratingA = isFide ? (a.fideRating ?? a.rating ?? 0) : (a.uscfRating ?? a.rating ?? 0);
         const ratingB = isFide ? (b.fideRating ?? b.rating ?? 0) : (b.uscfRating ?? b.rating ?? 0);
         return sortDirection === 'asc' ? ratingA - ratingB : ratingB - ratingA;
+      }
+      if (sortKey === 'uscfRating') {
+        const ratingA = a.uscfRating ?? a.rating ?? 0;
+        const ratingB = b.uscfRating ?? b.rating ?? 0;
+        return sortDirection === 'asc' ? ratingA - ratingB : ratingB - ratingA;
+      }
+      if (sortKey === 'section') {
+        const secA = a.sectionName || "Default";
+        const secB = b.sectionName || "Default";
+        return sortDirection === 'asc' ? secA.localeCompare(secB) : secB.localeCompare(secA);
+      }
+      if (sortKey === 'createdAt') {
+        const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return sortDirection === 'asc' ? timeA - timeB : timeB - timeA;
+      }
+      if (sortKey === 'paymentStatus') {
+        const statusA = a.paymentStatus || "N/A";
+        const statusB = b.paymentStatus || "N/A";
+        return sortDirection === 'asc' ? statusA.localeCompare(statusB) : statusB.localeCompare(statusA);
       }
       return 0;
     });
@@ -633,42 +655,8 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
   };
 
   return (
-    <div className={cn("grid gap-4", isTD ? "lg:grid-cols-[240px,1fr]" : "grid-cols-1")}>
-      {isTD && (
-        <div className="flex flex-col gap-4">
-          <Card className="self-start w-full">
-            <CardHeader>
-              <CardTitle className="text-lg">Player tools</CardTitle>
-              <p className="text-sm text-muted-foreground">Manage roster actions for this tournament.</p>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <Button className="w-full" onClick={() => setLocation(`/tournaments/${tournamentId}/players/new`)}>
-                <Plus className="mr-2 h-4 w-4" />
-                Add Player
-              </Button>
-              <Button variant="outline" className="w-full" disabled>
-                <CreditCard className="mr-2 h-4 w-4" />
-                Entry fees
-              </Button>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                <Button variant="secondary" className="w-full" disabled>
-                  <FilePlus2 className="mr-2 h-4 w-4" />
-                  Export
-                </Button>
-                <Button variant="secondary" className="w-full" disabled>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Import
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Chess-Results syncing will use these controls once backend automation is enabled.
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      <Tabs value={activeSection} onValueChange={setActiveSection} className="lg:col-span-1">
+    <div className="grid grid-cols-1 gap-4">
+      <Tabs value={activeSection} onValueChange={setActiveSection} className="w-full">
         {sections.length > 1 && (
           <TabsList className="flex flex-nowrap overflow-x-auto no-scrollbar justify-start items-center bg-slate-100/50 p-1 mb-6 rounded-xl border border-slate-200/60 shadow-sm backdrop-blur-sm w-full sm:w-fit">
             <TabsTrigger value="all" className="flex-none sm:flex-1 data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-black transition-all font-medium rounded-lg px-4 py-2 text-xs xl:text-sm whitespace-nowrap">All</TabsTrigger>
@@ -685,9 +673,15 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
               <CardTitle className="text-lg font-bold">Players</CardTitle>
               <p className="text-sm text-muted-foreground">Overview of everyone registered for this event.</p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Badge variant="secondary" className="rounded-lg px-2.5 py-1">Total: {players.length}</Badge>
               {isTD && <Badge variant={hasSelection ? "default" : "outline"} className="rounded-lg px-2.5 py-1">{selectionSummary}</Badge>}
+              {isTD && (
+                <Button size="sm" className="h-9 rounded-lg ml-2 font-medium" onClick={() => setLocation(`/tournaments/${tournamentId}/players/new`)}>
+                  <Plus className="mr-1.5 h-4 w-4" />
+                  Add Player
+                </Button>
+              )}
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -864,13 +858,18 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
                         </Button>
                       </div>
                     ) : (
-                      <Table className="min-w-[800px] md:min-w-full">
+                      <Table className="min-w-[800px] md:min-w-full relative border-collapse">
                         <TableHeader>
-                          <TableRow>
-                            {visibleColumns.includes("index") && <TableHead className="w-12">#</TableHead>}
+                          <TableRow className="hover:bg-transparent">
+                            {visibleColumns.includes("index") && (
+                              <TableHead className="w-12 sticky left-0 bg-white dark:bg-slate-900 z-20 font-semibold border-b">#</TableHead>
+                            )}
                             {visibleColumns.includes("name") && (
-                              <TableHead>
-                                <Button variant="ghost" onClick={() => handleSort('name')}>
+                              <TableHead className={cn(
+                                "sticky bg-white dark:bg-slate-900 z-20 font-semibold border-b shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]",
+                                isIndexVisible ? "left-12" : "left-0"
+                              )}>
+                                <Button variant="ghost" onClick={() => handleSort('name')} className="h-8 px-2 -ml-2 text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-100/50">
                                   Surname, Name
                                   {sortKey === 'name' && <ArrowUpDown className="ml-2 h-4 w-4 inline" />}
                                 </Button>
@@ -885,7 +884,12 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
                               </TableHead>
                             )}
                             {visibleColumns.includes("uscfRating") && (
-                              <TableHead>USCF Rating</TableHead>
+                              <TableHead>
+                                <Button variant="ghost" onClick={() => handleSort('uscfRating')} className="h-8 px-2 -ml-2 text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-100/50">
+                                  USCF Rating
+                                  {sortKey === 'uscfRating' && <ArrowUpDown className="ml-2 h-4 w-4 inline" />}
+                                </Button>
+                              </TableHead>
                             )}
                             {visibleColumns.includes("fideRating") && (
                               <TableHead>FIDE Rating</TableHead>
@@ -900,7 +904,12 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
                               <TableHead>Federation</TableHead>
                             )}
                             {visibleColumns.includes("section") && (
-                              <TableHead>Section</TableHead>
+                              <TableHead>
+                                <Button variant="ghost" onClick={() => handleSort('section')} className="h-8 px-2 -ml-2 text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-100/50">
+                                  Section
+                                  {sortKey === 'section' && <ArrowUpDown className="ml-2 h-4 w-4 inline" />}
+                                </Button>
+                              </TableHead>
                             )}
                             {visibleColumns.includes("club") && (
                               <TableHead>Club</TableHead>
@@ -909,13 +918,23 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
                               <TableHead>Birthdate</TableHead>
                             )}
                             {visibleColumns.includes("createdAt") && (
-                              <TableHead>Registered</TableHead>
+                              <TableHead>
+                                <Button variant="ghost" onClick={() => handleSort('createdAt')} className="h-8 px-2 -ml-2 text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-100/50">
+                                  Registered
+                                  {sortKey === 'createdAt' && <ArrowUpDown className="ml-2 h-4 w-4 inline" />}
+                                </Button>
+                              </TableHead>
                             )}
                             {visibleColumns.includes("seed") && tournament.format === 'knockout' && (
                               <TableHead className="w-20">Seed</TableHead>
                             )}
                             {visibleColumns.includes("paymentStatus") && (
-                              <TableHead>Payment Status</TableHead>
+                              <TableHead>
+                                <Button variant="ghost" onClick={() => handleSort('paymentStatus')} className="h-8 px-2 -ml-2 text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-100/50">
+                                  Payment Status
+                                  {sortKey === 'paymentStatus' && <ArrowUpDown className="ml-2 h-4 w-4 inline" />}
+                                </Button>
+                              </TableHead>
                             )}
                             {visibleColumns.includes("byes") && tournament.format !== 'arena' && (
                               <TableHead>Byes</TableHead>
@@ -950,8 +969,8 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
                             const isConfirmed = Boolean(confirmedMap[player.id]);
                             const playerByes = playerByeMap.get(player.id) ?? [];
                             const rowClasses = isSelected
-                              ? "border-b border-slate-200 cursor-pointer transition bg-indigo-50/40 hover:bg-indigo-100/40 dark:bg-indigo-900/20 dark:hover:bg-indigo-900/30"
-                              : "border-b border-slate-200 cursor-pointer transition hover:bg-slate-50 dark:bg-slate-800/60 dark:hover:bg-slate-700/60";
+                              ? "group border-b border-slate-200 cursor-pointer transition bg-indigo-50/40 hover:bg-indigo-100/40 dark:bg-indigo-900/20 dark:hover:bg-indigo-900/30"
+                              : "group border-b border-slate-200 cursor-pointer transition hover:bg-slate-50 dark:bg-slate-800/60 dark:hover:bg-slate-700/60";
                             return (
                               <TableRow
                                 key={player.id}
@@ -959,12 +978,23 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
                                 onClick={() => setLocation(`/tournaments/${tournamentId}/players/${player.id}`)}
                               >
                                 {visibleColumns.includes("index") && (
-                                  <TableCell>
-                                    <div className="text-sm font-medium text-gray-900">{index + 1}</div>
+                                  <TableCell className={cn(
+                                    "sticky left-0 transition-colors z-10",
+                                    isSelected
+                                      ? "bg-indigo-50/45 dark:bg-indigo-950"
+                                      : "bg-white dark:bg-slate-900 group-hover:bg-slate-50 dark:group-hover:bg-slate-800/60"
+                                  )}>
+                                    <div className="text-sm font-medium text-gray-900 dark:text-slate-100">{index + 1}</div>
                                   </TableCell>
                                 )}
                                 {visibleColumns.includes("name") && (
-                                  <TableCell>
+                                  <TableCell className={cn(
+                                    "sticky transition-colors z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]",
+                                    isIndexVisible ? "left-12" : "left-0",
+                                    isSelected
+                                      ? "bg-indigo-50/45 dark:bg-indigo-950"
+                                      : "bg-white dark:bg-slate-900 group-hover:bg-slate-50 dark:group-hover:bg-slate-800/60"
+                                  )}>
                                     <div className="flex items-center gap-2">
                                       <div className="flex flex-col gap-1">
                                         <span className="text-sm font-medium text-slate-900">
