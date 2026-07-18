@@ -723,6 +723,500 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
     }
   };
 
+  const renderTable = (tablePlayers: Player[], onToggleSelectAll: (checked: boolean) => void, headerCheckboxStateValue: any) => {
+    return (
+      <Table className="min-w-[900px] md:min-w-full relative border-collapse">
+        <TableHeader className="bg-slate-50/50 sticky top-0 z-30 shadow-[0_1px_0_0_rgba(226,232,240,0.8)]">
+          <TableRow className="hover:bg-transparent border-b border-slate-200/80">
+            {visibleColumns.includes("index") && (
+              <TableHead className="w-12 text-xs font-bold text-slate-650 bg-slate-50/80 sticky left-0 z-20">#</TableHead>
+            )}
+            {visibleColumns.includes("uscfId") && (
+              <TableHead className="w-28 text-xs font-bold text-slate-650 bg-slate-50/80">USCF ID</TableHead>
+            )}
+            {visibleColumns.includes("name") && (
+              <TableHead className={cn(
+                "text-xs font-bold text-slate-655 bg-slate-50/80 sticky z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]",
+                isIndexVisible ? "left-12" : "left-0"
+              )}>
+                <button onClick={() => handleSort('name')} className="flex items-center gap-1 hover:text-slate-800 transition-colors uppercase tracking-wider text-[10px]">
+                  Name
+                  {sortKey === 'name' && <ArrowUpDown className="h-3 w-3 inline text-slate-550" />}
+                </button>
+              </TableHead>
+            )}
+            {visibleColumns.includes("rating") && (
+              <TableHead className="text-xs font-bold text-slate-655 bg-slate-50/80">
+                <button onClick={() => handleSort('rating')} className="flex items-center gap-1 hover:text-slate-800 transition-colors uppercase tracking-wider text-[10px]">
+                  {tournamentConfig.details.primaryRatingSystem === 'fide' ? 'FIDE' : 'USCF'} Rating
+                  {sortKey === 'rating' && <ArrowUpDown className="h-3 w-3 inline text-slate-555" />}
+                </button>
+              </TableHead>
+            )}
+            {visibleColumns.includes("uscfMembership") && (
+              <TableHead className="w-36 text-xs font-bold text-slate-655 bg-slate-50/80 uppercase tracking-wider text-[10px]">USCF Membership</TableHead>
+            )}
+            {visibleColumns.includes("byes") && tournament.format !== 'arena' && (
+              <TableHead className="text-xs font-bold text-slate-655 bg-slate-50/80 uppercase tracking-wider text-[10px]">Byes</TableHead>
+            )}
+            {visibleColumns.includes("paymentStatus") && (
+              <TableHead className="text-xs font-bold text-slate-655 bg-slate-50/80">
+                <button onClick={() => handleSort('paymentStatus')} className="flex items-center gap-1 hover:text-slate-800 transition-colors uppercase tracking-wider text-[10px]">
+                  Payment
+                  {sortKey === 'paymentStatus' && <ArrowUpDown className="h-3 w-3 inline text-slate-555" />}
+                </button>
+              </TableHead>
+            )}
+            {/* Optional columns */}
+            {visibleColumns.includes("uscfRating") && (
+              <TableHead className="text-xs font-bold text-slate-655 bg-slate-50/80">
+                <button onClick={() => handleSort('uscfRating')} className="flex items-center gap-1 hover:text-slate-800 transition-colors uppercase tracking-wider text-[10px]">
+                  USCF Rating
+                  {sortKey === 'uscfRating' && <ArrowUpDown className="h-3 w-3 inline text-slate-555" />}
+                </button>
+              </TableHead>
+            )}
+            {visibleColumns.includes("fideRating") && (
+              <TableHead className="text-xs font-bold text-slate-655 bg-slate-50/80 uppercase tracking-wider text-[10px]">FIDE Rating</TableHead>
+            )}
+            {visibleColumns.includes("fideId") && (
+              <TableHead className="text-xs font-bold text-slate-655 bg-slate-50/80 uppercase tracking-wider text-[10px]">FIDE ID</TableHead>
+            )}
+            {visibleColumns.includes("federation") && (
+              <TableHead className="text-xs font-bold text-slate-655 bg-slate-50/80 uppercase tracking-wider text-[10px]">Federation</TableHead>
+            )}
+            {visibleColumns.includes("section") && (
+              <TableHead className="text-xs font-bold text-slate-655 bg-slate-50/80">
+                <button onClick={() => handleSort('section')} className="flex items-center gap-1 hover:text-slate-800 transition-colors uppercase tracking-wider text-[10px]">
+                  Section
+                  {sortKey === 'section' && <ArrowUpDown className="h-3 w-3 inline text-slate-555" />}
+                </button>
+              </TableHead>
+            )}
+            {visibleColumns.includes("club") && (
+              <TableHead className="text-xs font-bold text-slate-655 bg-slate-50/80 uppercase tracking-wider text-[10px]">Club</TableHead>
+            )}
+            {visibleColumns.includes("birthdate") && (
+              <TableHead className="text-xs font-bold text-slate-655 bg-slate-50/80 uppercase tracking-wider text-[10px]">Birthdate</TableHead>
+            )}
+            {visibleColumns.includes("createdAt") && (
+              <TableHead className="text-xs font-bold text-slate-655 bg-slate-50/80">
+                <button onClick={() => handleSort('createdAt')} className="flex items-center gap-1 hover:text-slate-800 transition-colors uppercase tracking-wider text-[10px]">
+                  Registered
+                  {sortKey === 'createdAt' && <ArrowUpDown className="h-3 w-3 inline text-slate-555" />}
+                </button>
+              </TableHead>
+            )}
+            {visibleColumns.includes("seed") && tournament.format === 'knockout' && (
+              <TableHead className="w-20 text-xs font-bold text-slate-655 bg-slate-50/80 uppercase tracking-wider text-[10px]">Seed</TableHead>
+            )}
+            {visibleColumns.includes("status") && (
+              <TableHead className="text-xs font-bold text-slate-655 bg-slate-50/80 uppercase tracking-wider text-[10px]">Status</TableHead>
+            )}
+            {visibleColumns.includes("email") && (
+              <TableHead className="text-xs font-bold text-slate-655 bg-slate-50/80 uppercase tracking-wider text-[10px]">Email</TableHead>
+            )}
+            {visibleColumns.includes("actions") && (
+              <TableHead className="text-right text-xs font-bold text-slate-655 bg-slate-50/80 uppercase tracking-wider text-[10px] sticky right-0 z-20 shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.05)]">
+                <div className="flex items-center justify-end gap-2">
+                  <span>Confirm / Select</span>
+                  {isTD && (
+                    <Checkbox
+                      checked={headerCheckboxStateValue}
+                      onCheckedChange={(value) => onToggleSelectAll(Boolean(value))}
+                      aria-label="Select all players"
+                      disabled={tablePlayers.length === 0}
+                      className="h-3.5 w-3.5 rounded border-slate-350 text-indigo-650 focus:ring-indigo-500"
+                    />
+                  )}
+                </div>
+              </TableHead>
+            )}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {tablePlayers.map((player, index) => {
+            const isSelected = selectedIds.includes(player.id);
+            const isConfirmed = Boolean(confirmedMap[player.id]);
+            const playerByes = playerByeMap.get(player.id) ?? [];
+            const rowClasses = isSelected
+              ? "group border-b border-slate-100 cursor-pointer transition-colors bg-indigo-50/20 hover:bg-indigo-50/40 dark:bg-indigo-900/10 dark:hover:bg-indigo-900/20 h-11"
+              : "group border-b border-slate-100 cursor-pointer transition-colors hover:bg-slate-50/80 dark:bg-slate-800/40 dark:hover:bg-slate-700/40 h-11";
+            return (
+              <TableRow
+                key={player.id}
+                className={rowClasses}
+                onClick={() => setLocation(`/tournaments/${tournamentId}/players/${player.id}`)}
+              >
+                {visibleColumns.includes("index") && (
+                  <TableCell className={cn(
+                    "sticky left-0 transition-colors z-10 text-xs font-semibold text-slate-500",
+                    isSelected
+                      ? "bg-indigo-50/30"
+                      : "bg-white group-hover:bg-slate-50/85"
+                  )}>
+                    <div>{index + 1}</div>
+                  </TableCell>
+                )}
+                {visibleColumns.includes("uscfId") && (
+                  <TableCell>
+                    {(player as any).userUscfId || player.localId ? (
+                      <span className="font-mono text-xs font-semibold text-slate-700 bg-slate-100/80 px-1.5 py-0.5 rounded border border-slate-200/50">
+                        {(player as any).userUscfId || player.localId}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-slate-400">—</span>
+                    )}
+                  </TableCell>
+                )}
+                {visibleColumns.includes("name") && (
+                  <TableCell className={cn(
+                    "sticky transition-colors z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]",
+                    isIndexVisible ? "left-12" : "left-0",
+                    isSelected
+                      ? "bg-indigo-50/30"
+                      : "bg-white group-hover:bg-slate-50/85"
+                  )}>
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-sm font-semibold text-slate-800 hover:text-indigo-650 transition-colors">
+                        {player.localId || (player as any).userUscfId ? (
+                          <a
+                            href={
+                              player.federation?.toLowerCase() === 'fide'
+                                ? `https://ratings.fide.com/profile/${player.localId}`
+                                : `https://ratings.uschess.org/player/${player.localId || (player as any).userUscfId}`
+                            }
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-indigo-600 hover:text-indigo-805 hover:underline cursor-pointer"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {player.lastName}, {player.firstName}
+                          </a>
+                        ) : (
+                          `${player.lastName}, ${player.firstName}`
+                        )}
+                      </span>
+                      {!tournamentConfig.registers?.verifyUscfMembership && (player as any).userUscfId && (
+                        <div className="flex items-center gap-1.5 mt-0.5" onClick={(e) => e.stopPropagation()}>
+                          <span className="text-[10px] font-mono text-slate-505 bg-slate-100 px-1.5 py-0.2 rounded border">
+                            USCF: {(player as any).userUscfId}
+                          </span>
+                          {(player as any).userUscfVerificationStatus === "verified" ? (
+                            <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border-emerald-200/50 text-[9px] px-1.5 py-0 rounded-full font-bold shadow-none">
+                              Verified
+                            </Badge>
+                          ) : (player as any).userUscfVerificationStatus === "pending" ? (
+                            <div className="flex items-center gap-1">
+                              <Badge className="bg-amber-50 text-amber-700 hover:bg-amber-50 border-amber-200/50 text-[9px] px-1.5 py-0 rounded-full font-bold animate-pulse shadow-none">
+                                Pending
+                              </Badge>
+                              {isTD && (
+                                <button
+                                  onClick={() => verifyUscfMutation.mutate({ targetUserId: (player as any).userId, verified: true })}
+                                  disabled={verifyUscfMutation.isPending}
+                                  className="text-[9px] text-indigo-650 hover:text-indigo-800 font-bold hover:underline ml-1"
+                                >
+                                  Verify
+                                </button>
+                              )}
+                            </div>
+                          ) : (
+                            <Badge variant="secondary" className="text-[9px] px-1.5 py-0 rounded-full font-bold shadow-none bg-slate-100 text-slate-500">
+                              Unverified
+                            </Badge>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </TableCell>
+                )}
+                {visibleColumns.includes("rating") && (
+                  <TableCell className="text-xs font-semibold text-slate-700">
+                    {(() => {
+                      const threshold = tournamentConfig?.registers?.uscfMinGamesThreshold ?? 4;
+                      const uscfDisp = resolveDisplayRating((player as any).uscfRatingRaw, player.uscfRating, threshold, false);
+                      const fideDisp = resolveDisplayRating((player as any).fideRatingRaw, player.fideRating, 0, true);
+                      const display = tournamentConfig.details.primaryRatingSystem === 'fide'
+                        ? (fideDisp !== "Unrated" ? fideDisp : uscfDisp)
+                        : (uscfDisp !== "Unrated" ? uscfDisp : fideDisp);
+                      return display === "Unrated" ? "-" : display;
+                    })()}
+                  </TableCell>
+                )}
+                {visibleColumns.includes("uscfMembership") && (
+                  <TableCell onClick={(e) => e.stopPropagation()}>
+                    {(() => {
+                      const rawExpiry = player.uscfMemberExpiry || (player as any).userUscfMemberExpiry;
+                      if (!rawExpiry) {
+                        return (
+                          <Badge className="bg-slate-50 text-slate-400 hover:bg-slate-50 border-slate-200/80 text-[10px] px-1.5 py-0.5 rounded-full font-semibold shadow-none">
+                            No Expiry Info
+                          </Badge>
+                        );
+                      }
+                      try {
+                        const expiryDate = new Date(rawExpiry);
+                        if (isNaN(expiryDate.getTime())) {
+                          return (
+                            <Badge className="bg-slate-50 text-slate-400 hover:bg-slate-50 border-slate-200/80 text-[10px] px-1.5 py-0.5 rounded-full font-semibold shadow-none">
+                              No Expiry Info
+                            </Badge>
+                          );
+                        }
+                        const now = new Date();
+                        now.setHours(0, 0, 0, 0);
+                        expiryDate.setHours(0, 0, 0, 0);
+                        const formatted = `${expiryDate.getMonth() + 1}/${expiryDate.getDate()}/${expiryDate.getFullYear()}`;
+                        if (expiryDate >= now) {
+                          return (
+                            <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border-emerald-200/40 text-[10px] px-2 py-0.5 rounded-full font-bold shadow-none">
+                              Active (Exp: {formatted})
+                            </Badge>
+                          );
+                        } else {
+                          return (
+                            <Badge className="bg-rose-50 text-rose-700 hover:bg-rose-50 border-rose-200/40 text-[10px] px-2 py-0.5 rounded-full font-bold shadow-none">
+                              Expired (Exp: {formatted})
+                            </Badge>
+                          );
+                        }
+                      } catch (e) {
+                        return (
+                          <Badge className="bg-slate-50 text-slate-400 hover:bg-slate-50 border-slate-200/80 text-[10px] px-1.5 py-0.5 rounded-full font-semibold shadow-none">
+                            No Expiry Info
+                          </Badge>
+                        );
+                      }
+                    })()}
+                  </TableCell>
+                )}
+                {visibleColumns.includes("byes") && tournament.format !== 'arena' && (
+                  <TableCell>
+                    {pairingsLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+                    ) : playerByes.length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5 max-w-[220px]">
+                        {playerByes.map((bye) => {
+                          const isRequested = Boolean(bye.isRequested);
+                          const isRemoving = removingByeIds.includes(bye.id);
+                          const byeLabel = bye.byeType === "half_point"
+                            ? "½"
+                            : bye.byeType === "full_point"
+                            ? "1"
+                            : bye.byeType === "zero_point"
+                            ? "0"
+                            : bye.points === 1
+                            ? "½"
+                            : bye.points === 2
+                            ? "1"
+                            : "0";
+                          const toneClass = isRequested
+                            ? "border-emerald-205 bg-emerald-55/70 text-emerald-700 hover:bg-emerald-100/50"
+                            : "border-slate-200 bg-slate-105 text-slate-600";
+                          return (
+                            <div
+                              key={bye.id}
+                              className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors ${toneClass}`}
+                              title={isRequested ? "Manual bye" : "System-assigned"}
+                            >
+                              <span>Rd {bye.round}</span>
+                              <span aria-hidden="true" className="opacity-50">·</span>
+                              <span>{byeLabel} pt</span>
+                              {isRequested && isTD ? (
+                                <button
+                                  type="button"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    handleRemoveBye(bye.id);
+                                  }}
+                                  className="ml-1 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full text-emerald-750 transition hover:bg-emerald-100 hover:text-emerald-900"
+                                  disabled={isRemoving}
+                                  aria-label={`Remove bye in round ${bye.round}`}
+                                >
+                                  {isRemoving ? (
+                                    <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                                  ) : (
+                                    <X className="h-2.5 w-2.5" />
+                                  )}
+                                </button>
+                              ) : null}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+                )}
+                {visibleColumns.includes("paymentStatus") && (
+                  <TableCell onClick={(e) => e.stopPropagation()}>
+                    {isTD ? (
+                      <Select
+                        value={player.paymentStatus || "N/A"}
+                        onValueChange={(newVal) => {
+                          updatePlayerPaymentStatusMutation.mutate({
+                            playerId: player.id,
+                            paymentStatus: newVal,
+                          });
+                        }}
+                      >
+                        <SelectTrigger className="h-7 w-[100px] text-xs font-semibold bg-white border-slate-200 focus:ring-1 focus:ring-indigo-500 rounded-md">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-white shadow-lg border border-slate-200">
+                          <SelectItem value="N/A">N/A</SelectItem>
+                          <SelectItem value="paid">Paid</SelectItem>
+                          <SelectItem value="unpaid">Unpaid</SelectItem>
+                          <SelectItem value="processing">Processing</SelectItem>
+                          <SelectItem value="refunded">Refunded</SelectItem>
+                          <SelectItem value="failed">Failed</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      (() => {
+                        const status = player.paymentStatus || "N/A";
+                        let badgeColor = "bg-slate-50 text-slate-505 border-slate-200";
+                        if (status === "paid") {
+                          badgeColor = "bg-emerald-50 text-emerald-750 border-emerald-200/50";
+                        } else if (status === "unpaid" || status === "failed") {
+                          badgeColor = "bg-rose-50 text-rose-705 border-rose-200/50";
+                        } else if (status === "processing") {
+                          badgeColor = "bg-amber-50 text-amber-705 border-amber-200/50";
+                        } else if (status === "refunded") {
+                          badgeColor = "bg-indigo-50 text-indigo-705 border-indigo-200/50";
+                        }
+                        return (
+                          <Badge className={`${badgeColor} border text-[9px] px-2 py-0.5 rounded-full font-bold shadow-none uppercase tracking-wider`}>
+                            {status}
+                          </Badge>
+                        );
+                      })()
+                    )}
+                  </TableCell>
+                )}
+                {visibleColumns.includes("uscfRating") && (
+                  <TableCell className="text-xs font-semibold text-slate-700">
+                    {player.uscfRating ? `${player.uscfRating}${player.uscfRatingRaw?.toLowerCase().includes('p') ? 'p' : ''}` : "Unrated"}
+                  </TableCell>
+                )}
+                {visibleColumns.includes("fideRating") && (
+                  <TableCell className="text-xs font-semibold text-slate-700">
+                    {player.fideRating || "Unrated"}
+                  </TableCell>
+                )}
+                {visibleColumns.includes("fideId") && (
+                  <TableCell>
+                    {player.localId && player.federation?.toLowerCase() === 'fide' ? (
+                      <span className="font-mono text-xs font-semibold bg-slate-100/80 px-1.5 py-0.5 rounded border border-slate-200/50">{player.localId}</span>
+                    ) : (
+                      <span className="text-xs text-slate-400">—</span>
+                    )}
+                  </TableCell>
+                )}
+                {visibleColumns.includes("federation") && (
+                  <TableCell>
+                    <Badge variant="outline" className="text-[9px] uppercase font-bold text-slate-500 border-slate-200 bg-slate-50/20">{player.federation || "USCF"}</Badge>
+                  </TableCell>
+                )}
+                {visibleColumns.includes("section") && (
+                  <TableCell className="text-xs font-medium text-slate-705">
+                    {player.sectionName || "Default"}
+                  </TableCell>
+                )}
+                {visibleColumns.includes("club") && (
+                  <TableCell className="text-xs text-slate-600 max-w-[150px] truncate">
+                    {player.club || "—"}
+                  </TableCell>
+                )}
+                {visibleColumns.includes("birthdate") && (
+                  <TableCell className="text-xs text-slate-650 font-mono">
+                    {player.birthdate || "—"}
+                  </TableCell>
+                )}
+                {visibleColumns.includes("createdAt") && (
+                  <TableCell className="text-xs text-slate-600">
+                    {new Date(player.createdAt).toLocaleDateString()}
+                  </TableCell>
+                )}
+                {visibleColumns.includes("seed") && tournament.format === 'knockout' && (
+                  <TableCell>
+                    {isTD && editingSeedId === player.id ? (
+                      <Input
+                        type="number"
+                        className="h-7 w-16 text-xs font-semibold"
+                        value={seedValue}
+                        onChange={(e) => setSeedValue(e.target.value)}
+                        onBlur={() => handleUpdateSeed(player.id, seedValue)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleUpdateSeed(player.id, seedValue);
+                          if (e.key === 'Escape') setEditingSeedId(null);
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        autoFocus
+                      />
+                    ) : (
+                      <div 
+                        className={cn(
+                          "p-1 rounded text-xs font-semibold text-slate-700 min-w-[2rem] text-center transition-colors",
+                          isTD && "cursor-pointer hover:bg-slate-100"
+                        )}
+                        onClick={(e) => {
+                          if (!isTD) return;
+                          e.stopPropagation();
+                          setEditingSeedId(player.id);
+                          setSeedValue(player.seed?.toString() || "");
+                        }}
+                      >
+                        {player.seed ?? "-"}
+                      </div>
+                    )}
+                  </TableCell>
+                )}
+                {visibleColumns.includes("status") && (
+                  <TableCell>
+                    <Badge variant={(player.status || 'active') === 'active' ? 'default' : 'secondary'} className="text-[10px] font-bold uppercase tracking-wider shadow-none">
+                      {player.status || 'active'}
+                    </Badge>
+                  </TableCell>
+                )}
+                {visibleColumns.includes("email") && (
+                  <TableCell className="text-xs text-slate-600 font-mono">
+                    {player.email || "—"}
+                  </TableCell>
+                )}
+                {visibleColumns.includes("actions") && (
+                  <TableCell className={cn(
+                    "text-right sticky right-0 z-10 transition-colors shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.05)]",
+                    isSelected
+                      ? "bg-indigo-50/30"
+                      : "bg-white group-hover:bg-slate-50/85"
+                  )}>
+                    <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+                      {isConfirmed ? (
+                        <CheckCircle2 className="h-4 w-4 text-emerald-500" aria-label="Confirmed" />
+                      ) : null}
+                      {isTD && (
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={(value) => toggleSelectPlayer(player.id, Boolean(value))}
+                          aria-label={`Select ${player.lastName}, ${player.firstName}`}
+                          disabled={isDeleting || isProcessingStatus}
+                          className="h-3.5 w-3.5 rounded border-slate-350 text-indigo-650 focus:ring-indigo-500"
+                        />
+                      )}
+                    </div>
+                  </TableCell>
+                )}
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+    );
+  };
+
   return (
     <div className="grid grid-cols-1 gap-4">
       <Tabs value={activeSection} onValueChange={setActiveSection} className="w-full">
@@ -1056,518 +1550,75 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
                     </div>
                   </div>
                 )}
+                {processedPlayers.length === 0 ? (
+                  <div className="overflow-x-auto no-scrollbar border border-slate-200/80 rounded-xl bg-white shadow-sm py-16 text-center bg-slate-50/30 w-full flex flex-col items-center justify-center">
+                    <p className="text-sm font-semibold text-slate-605">No players match the applied filters.</p>
+                    <p className="text-xs text-slate-405 mt-1">Try resetting some filters or modifying your search query.</p>
+                    <Button
+                      variant="link"
+                      className="text-xs text-indigo-605 hover:text-indigo-800 mt-2 font-semibold"
+                      onClick={() => {
+                        setSearchTerm("");
+                        setFilterStatus("all");
+                        setFilterFederation("all");
+                        setFilterRatingType("all");
+                        setFilterVerification("all");
+                      }}
+                    >
+                      Reset Filters
+                    </Button>
+                  </div>
+                ) : activeSection === "all" && sections.length > 1 ? (
+                  <div className="space-y-6">
+                    {sections.map((section) => {
+                      const sectionPlayers = processedPlayers.filter(
+                        (p) => p.sectionId === section.id || p.sectionName === section.name
+                      );
+                      const sectionIds = sectionPlayers.map((p) => p.id);
+                      const sectionSelectedCount = selectedIds.filter((id) => sectionIds.includes(id)).length;
+                      const isSectionAllSelected = sectionSelectedCount > 0 && sectionSelectedCount === sectionIds.length;
+                      const isSectionIndeterminate = sectionSelectedCount > 0 && sectionSelectedCount < sectionIds.length;
+                      const sectionCheckboxState = isSectionAllSelected ? true : isSectionIndeterminate ? "indeterminate" : false;
 
-                <div className="overflow-x-auto no-scrollbar border border-slate-200/80 rounded-xl bg-white shadow-sm">
-                  {processedPlayers.length === 0 ? (
-                    <div className="py-16 text-center bg-slate-50/30 w-full flex flex-col items-center justify-center">
-                      <p className="text-sm font-semibold text-slate-600">No players match the applied filters.</p>
-                      <p className="text-xs text-slate-400 mt-1">Try resetting some filters or modifying your search query.</p>
-                      <Button
-                        variant="link"
-                        className="text-xs text-indigo-600 hover:text-indigo-800 mt-2 font-semibold"
-                        onClick={() => {
-                          setSearchTerm("");
-                          setFilterStatus("all");
-                          setFilterFederation("all");
-                          setFilterRatingType("all");
-                          setFilterVerification("all");
-                        }}
-                      >
-                        Reset Filters
-                      </Button>
-                    </div>
-                  ) : (
-                    <Table className="min-w-[900px] md:min-w-full relative border-collapse">
-                      <TableHeader className="bg-slate-50/50 sticky top-0 z-30 shadow-[0_1px_0_0_rgba(226,232,240,0.8)]">
-                        <TableRow className="hover:bg-transparent border-b border-slate-200/80">
-                          {visibleColumns.includes("index") && (
-                            <TableHead className="w-12 text-xs font-bold text-slate-600 bg-slate-50/80 sticky left-0 z-20">#</TableHead>
-                          )}
-                          {visibleColumns.includes("uscfId") && (
-                            <TableHead className="w-28 text-xs font-bold text-slate-600 bg-slate-50/80">USCF ID</TableHead>
-                          )}
-                          {visibleColumns.includes("name") && (
-                            <TableHead className={cn(
-                              "text-xs font-bold text-slate-600 bg-slate-50/80 sticky z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]",
-                              isIndexVisible ? "left-12" : "left-0"
-                            )}>
-                              <button onClick={() => handleSort('name')} className="flex items-center gap-1 hover:text-slate-800 transition-colors uppercase tracking-wider text-[10px]">
-                                Name
-                                {sortKey === 'name' && <ArrowUpDown className="h-3 w-3 inline text-slate-500" />}
-                              </button>
-                            </TableHead>
-                          )}
-                          {visibleColumns.includes("rating") && (
-                            <TableHead className="text-xs font-bold text-slate-600 bg-slate-50/80">
-                              <button onClick={() => handleSort('rating')} className="flex items-center gap-1 hover:text-slate-800 transition-colors uppercase tracking-wider text-[10px]">
-                                {tournamentConfig.details.primaryRatingSystem === 'fide' ? 'FIDE' : 'USCF'} Rating
-                                {sortKey === 'rating' && <ArrowUpDown className="h-3 w-3 inline text-slate-500" />}
-                              </button>
-                            </TableHead>
-                          )}
-                          {visibleColumns.includes("uscfMembership") && (
-                            <TableHead className="w-36 text-xs font-bold text-slate-600 bg-slate-50/80 uppercase tracking-wider text-[10px]">USCF Membership</TableHead>
-                          )}
-                          {visibleColumns.includes("byes") && tournament.format !== 'arena' && (
-                            <TableHead className="text-xs font-bold text-slate-600 bg-slate-50/80 uppercase tracking-wider text-[10px]">Byes</TableHead>
-                          )}
-                          {visibleColumns.includes("paymentStatus") && (
-                            <TableHead className="text-xs font-bold text-slate-600 bg-slate-50/80">
-                              <button onClick={() => handleSort('paymentStatus')} className="flex items-center gap-1 hover:text-slate-800 transition-colors uppercase tracking-wider text-[10px]">
-                                Payment
-                                {sortKey === 'paymentStatus' && <ArrowUpDown className="h-3 w-3 inline text-slate-500" />}
-                              </button>
-                            </TableHead>
-                          )}
-                          {/* Optional columns */}
-                          {visibleColumns.includes("uscfRating") && (
-                            <TableHead className="text-xs font-bold text-slate-600 bg-slate-50/80">
-                              <button onClick={() => handleSort('uscfRating')} className="flex items-center gap-1 hover:text-slate-800 transition-colors uppercase tracking-wider text-[10px]">
-                                USCF Rating
-                                {sortKey === 'uscfRating' && <ArrowUpDown className="h-3 w-3 inline text-slate-500" />}
-                              </button>
-                            </TableHead>
-                          )}
-                          {visibleColumns.includes("fideRating") && (
-                            <TableHead className="text-xs font-bold text-slate-600 bg-slate-50/80 uppercase tracking-wider text-[10px]">FIDE Rating</TableHead>
-                          )}
-                          {visibleColumns.includes("fideId") && (
-                            <TableHead className="text-xs font-bold text-slate-600 bg-slate-50/80 uppercase tracking-wider text-[10px]">FIDE ID</TableHead>
-                          )}
-                          {visibleColumns.includes("federation") && (
-                            <TableHead className="text-xs font-bold text-slate-600 bg-slate-50/80 uppercase tracking-wider text-[10px]">Federation</TableHead>
-                          )}
-                          {visibleColumns.includes("section") && (
-                            <TableHead className="text-xs font-bold text-slate-600 bg-slate-50/80">
-                              <button onClick={() => handleSort('section')} className="flex items-center gap-1 hover:text-slate-800 transition-colors uppercase tracking-wider text-[10px]">
-                                Section
-                                {sortKey === 'section' && <ArrowUpDown className="h-3 w-3 inline text-slate-500" />}
-                              </button>
-                            </TableHead>
-                          )}
-                          {visibleColumns.includes("club") && (
-                            <TableHead className="text-xs font-bold text-slate-600 bg-slate-50/80 uppercase tracking-wider text-[10px]">Club</TableHead>
-                          )}
-                          {visibleColumns.includes("birthdate") && (
-                            <TableHead className="text-xs font-bold text-slate-600 bg-slate-50/80 uppercase tracking-wider text-[10px]">Birthdate</TableHead>
-                          )}
-                          {visibleColumns.includes("createdAt") && (
-                            <TableHead className="text-xs font-bold text-slate-600 bg-slate-50/80">
-                              <button onClick={() => handleSort('createdAt')} className="flex items-center gap-1 hover:text-slate-800 transition-colors uppercase tracking-wider text-[10px]">
-                                Registered
-                                {sortKey === 'createdAt' && <ArrowUpDown className="h-3 w-3 inline text-slate-500" />}
-                              </button>
-                            </TableHead>
-                          )}
-                          {visibleColumns.includes("seed") && tournament.format === 'knockout' && (
-                            <TableHead className="w-20 text-xs font-bold text-slate-600 bg-slate-50/80 uppercase tracking-wider text-[10px]">Seed</TableHead>
-                          )}
-                          {visibleColumns.includes("status") && (
-                            <TableHead className="text-xs font-bold text-slate-600 bg-slate-50/80 uppercase tracking-wider text-[10px]">Status</TableHead>
-                          )}
-                          {visibleColumns.includes("email") && (
-                            <TableHead className="text-xs font-bold text-slate-600 bg-slate-50/80 uppercase tracking-wider text-[10px]">Email</TableHead>
-                          )}
-                          {visibleColumns.includes("actions") && (
-                            <TableHead className="text-right text-xs font-bold text-slate-600 bg-slate-50/80 uppercase tracking-wider text-[10px] sticky right-0 z-20 shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.05)]">
-                              <div className="flex items-center justify-end gap-2">
-                                <span>Confirm / Select</span>
-                                {isTD && (
-                                  <Checkbox
-                                    checked={headerCheckboxValue}
-                                    onCheckedChange={(value) => toggleSelectAll(Boolean(value))}
-                                    aria-label="Select all players"
-                                    disabled={players.length === 0}
-                                    className="h-3.5 w-3.5 rounded border-slate-350 text-indigo-600 focus:ring-indigo-500"
-                                  />
-                                )}
+                      const handleToggleSectionAll = (checked: boolean) => {
+                        setSelectedIds((prev) => {
+                          if (checked) {
+                            const newIds = sectionIds.filter((id) => !prev.includes(id));
+                            return [...prev, ...newIds];
+                          } else {
+                            return prev.filter((id) => !sectionIds.includes(id));
+                          }
+                        });
+                      };
+
+                      return (
+                        <div key={section.id} className="border border-slate-200/80 rounded-xl bg-white shadow-sm overflow-hidden animate-fade-in">
+                          <div className="bg-slate-50/80 border-b border-slate-100 px-5 py-3 flex items-center justify-between">
+                            <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
+                              <span>{section.name}</span>
+                              <span className="text-[10px] font-mono text-slate-400 font-semibold lowercase">
+                                ({sectionPlayers.length} {sectionPlayers.length === 1 ? "player" : "players"})
+                              </span>
+                            </h3>
+                          </div>
+                          <div className="overflow-x-auto no-scrollbar">
+                            {sectionPlayers.length === 0 ? (
+                              <div className="py-8 text-center text-xs text-slate-400 font-medium bg-slate-50/10">
+                                No players in this section matching filters.
                               </div>
-                            </TableHead>
-                          )}
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {processedPlayers.map((player, index) => {
-                          const isSelected = selectedIds.includes(player.id);
-                          const isConfirmed = Boolean(confirmedMap[player.id]);
-                          const playerByes = playerByeMap.get(player.id) ?? [];
-                          const rowClasses = isSelected
-                            ? "group border-b border-slate-100 cursor-pointer transition-colors bg-indigo-50/20 hover:bg-indigo-50/40 dark:bg-indigo-900/10 dark:hover:bg-indigo-900/20 h-11"
-                            : "group border-b border-slate-100 cursor-pointer transition-colors hover:bg-slate-50/80 dark:bg-slate-800/40 dark:hover:bg-slate-700/40 h-11";
-                          return (
-                            <TableRow
-                              key={player.id}
-                              className={rowClasses}
-                              onClick={() => setLocation(`/tournaments/${tournamentId}/players/${player.id}`)}
-                            >
-                              {visibleColumns.includes("index") && (
-                                <TableCell className={cn(
-                                  "sticky left-0 transition-colors z-10 text-xs font-semibold text-slate-500",
-                                  isSelected
-                                    ? "bg-indigo-50/30"
-                                    : "bg-white group-hover:bg-slate-50/85"
-                                )}>
-                                  <div>{index + 1}</div>
-                                </TableCell>
-                              )}
-                              {visibleColumns.includes("uscfId") && (
-                                <TableCell>
-                                  {(player as any).userUscfId || player.localId ? (
-                                    <span className="font-mono text-xs font-semibold text-slate-700 bg-slate-100/80 px-1.5 py-0.5 rounded border border-slate-200/50">
-                                      {(player as any).userUscfId || player.localId}
-                                    </span>
-                                  ) : (
-                                    <span className="text-xs text-slate-400">—</span>
-                                  )}
-                                </TableCell>
-                              )}
-                              {visibleColumns.includes("name") && (
-                                <TableCell className={cn(
-                                  "sticky transition-colors z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]",
-                                  isIndexVisible ? "left-12" : "left-0",
-                                  isSelected
-                                    ? "bg-indigo-50/30"
-                                    : "bg-white group-hover:bg-slate-50/85"
-                                )}>
-                                  <div className="flex flex-col gap-0.5">
-                                    <span className="text-sm font-semibold text-slate-850">
-                                      {player.localId || (player as any).userUscfId ? (
-                                        <a
-                                          href={
-                                            player.federation?.toLowerCase() === 'fide'
-                                              ? `https://ratings.fide.com/profile/${player.localId}`
-                                              : `https://ratings.uschess.org/player/${player.localId || (player as any).userUscfId}`
-                                          }
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer"
-                                          onClick={(e) => e.stopPropagation()}
-                                        >
-                                          {player.lastName}, {player.firstName}
-                                        </a>
-                                      ) : (
-                                        `${player.lastName}, ${player.firstName}`
-                                      )}
-                                    </span>
-                                    {!tournamentConfig.registers?.verifyUscfMembership && (player as any).userUscfId && (
-                                      <div className="flex items-center gap-1.5 mt-0.5" onClick={(e) => e.stopPropagation()}>
-                                        <span className="text-[10px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.2 rounded border">
-                                          USCF: {(player as any).userUscfId}
-                                        </span>
-                                        {(player as any).userUscfVerificationStatus === "verified" ? (
-                                          <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border-emerald-200/50 text-[9px] px-1.5 py-0 rounded-full font-bold shadow-none">
-                                            Verified
-                                          </Badge>
-                                        ) : (player as any).userUscfVerificationStatus === "pending" ? (
-                                          <div className="flex items-center gap-1">
-                                            <Badge className="bg-amber-50 text-amber-700 hover:bg-amber-50 border-amber-200/50 text-[9px] px-1.5 py-0 rounded-full font-bold animate-pulse shadow-none">
-                                              Pending
-                                            </Badge>
-                                            {isTD && (
-                                              <button
-                                                onClick={() => verifyUscfMutation.mutate({ targetUserId: (player as any).userId, verified: true })}
-                                                disabled={verifyUscfMutation.isPending}
-                                                className="text-[9px] text-indigo-650 hover:text-indigo-800 font-bold hover:underline ml-1"
-                                              >
-                                                Verify
-                                              </button>
-                                            )}
-                                          </div>
-                                        ) : (
-                                          <Badge variant="secondary" className="text-[9px] px-1.5 py-0 rounded-full font-bold shadow-none bg-slate-100 text-slate-500">
-                                            Unverified
-                                          </Badge>
-                                        )}
-                                      </div>
-                                    )}
-                                  </div>
-                                </TableCell>
-                              )}
-                              {visibleColumns.includes("rating") && (
-                                <TableCell className="text-xs font-semibold text-slate-700">
-                                  {(() => {
-                                    const threshold = tournamentConfig?.registers?.uscfMinGamesThreshold ?? 4;
-                                    const uscfDisp = resolveDisplayRating((player as any).uscfRatingRaw, player.uscfRating, threshold, false);
-                                    const fideDisp = resolveDisplayRating((player as any).fideRatingRaw, player.fideRating, 0, true);
-                                    const display = tournamentConfig.details.primaryRatingSystem === 'fide'
-                                      ? (fideDisp !== "Unrated" ? fideDisp : uscfDisp)
-                                      : (uscfDisp !== "Unrated" ? uscfDisp : fideDisp);
-                                    return display === "Unrated" ? "-" : display;
-                                  })()}
-                                </TableCell>
-                              )}
-                              {visibleColumns.includes("uscfMembership") && (
-                                <TableCell onClick={(e) => e.stopPropagation()}>
-                                  {(() => {
-                                    const rawExpiry = player.uscfMemberExpiry || (player as any).userUscfMemberExpiry;
-                                    if (!rawExpiry) {
-                                      return (
-                                        <Badge className="bg-slate-50 text-slate-400 hover:bg-slate-50 border-slate-200/80 text-[10px] px-1.5 py-0.5 rounded-full font-semibold shadow-none">
-                                          No Expiry Info
-                                        </Badge>
-                                      );
-                                    }
-                                    try {
-                                      const expiryDate = new Date(rawExpiry);
-                                      if (isNaN(expiryDate.getTime())) {
-                                        return (
-                                          <Badge className="bg-slate-50 text-slate-400 hover:bg-slate-50 border-slate-200/80 text-[10px] px-1.5 py-0.5 rounded-full font-semibold shadow-none">
-                                            No Expiry Info
-                                          </Badge>
-                                        );
-                                      }
-                                      const now = new Date();
-                                      now.setHours(0, 0, 0, 0);
-                                      expiryDate.setHours(0, 0, 0, 0);
-                                      const formatted = `${expiryDate.getMonth() + 1}/${expiryDate.getDate()}/${expiryDate.getFullYear()}`;
-                                      if (expiryDate >= now) {
-                                        return (
-                                          <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border-emerald-200/40 text-[10px] px-2 py-0.5 rounded-full font-bold shadow-none">
-                                            Active (Exp: {formatted})
-                                          </Badge>
-                                        );
-                                      } else {
-                                        return (
-                                          <Badge className="bg-rose-50 text-rose-700 hover:bg-rose-50 border-rose-200/40 text-[10px] px-2 py-0.5 rounded-full font-bold shadow-none">
-                                            Expired (Exp: {formatted})
-                                          </Badge>
-                                        );
-                                      }
-                                    } catch (e) {
-                                      return (
-                                        <Badge className="bg-slate-50 text-slate-400 hover:bg-slate-50 border-slate-200/80 text-[10px] px-1.5 py-0.5 rounded-full font-semibold shadow-none">
-                                          No Expiry Info
-                                        </Badge>
-                                      );
-                                    }
-                                  })()}
-                                </TableCell>
-                              )}
-                              {visibleColumns.includes("byes") && tournament.format !== 'arena' && (
-                                <TableCell>
-                                  {pairingsLoading ? (
-                                    <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
-                                  ) : playerByes.length > 0 ? (
-                                    <div className="flex flex-wrap gap-1.5 max-w-[220px]">
-                                      {playerByes.map((bye) => {
-                                        const isRequested = Boolean(bye.isRequested);
-                                        const isRemoving = removingByeIds.includes(bye.id);
-                                        const byeLabel = bye.byeType === "half_point"
-                                          ? "½"
-                                          : bye.byeType === "full_point"
-                                          ? "1"
-                                          : bye.byeType === "zero_point"
-                                          ? "0"
-                                          : bye.points === 1
-                                          ? "½"
-                                          : bye.points === 2
-                                          ? "1"
-                                          : "0";
-                                        const toneClass = isRequested
-                                          ? "border-emerald-205 bg-emerald-55/70 text-emerald-700 hover:bg-emerald-100/50"
-                                          : "border-slate-200 bg-slate-105 text-slate-600";
-                                        return (
-                                          <div
-                                            key={bye.id}
-                                            className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors ${toneClass}`}
-                                            title={isRequested ? "Manual bye" : "System-assigned"}
-                                          >
-                                            <span>Rd {bye.round}</span>
-                                            <span aria-hidden="true" className="opacity-50">·</span>
-                                            <span>{byeLabel} pt</span>
-                                            {isRequested && isTD ? (
-                                              <button
-                                                type="button"
-                                                onClick={(event) => {
-                                                  event.stopPropagation();
-                                                  handleRemoveBye(bye.id);
-                                                }}
-                                                className="ml-1 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full text-emerald-750 transition hover:bg-emerald-100 hover:text-emerald-900"
-                                                disabled={isRemoving}
-                                                aria-label={`Remove bye in round ${bye.round}`}
-                                              >
-                                                {isRemoving ? (
-                                                  <Loader2 className="h-2.5 w-2.5 animate-spin" />
-                                                ) : (
-                                                  <X className="h-2.5 w-2.5" />
-                                                )}
-                                              </button>
-                                            ) : null}
-                                          </div>
-                                        );
-                                      })}
-                                    </div>
-                                  ) : (
-                                    <span className="text-xs text-muted-foreground">—</span>
-                                  )}
-                                </TableCell>
-                              )}
-                              {visibleColumns.includes("paymentStatus") && (
-                                <TableCell onClick={(e) => e.stopPropagation()}>
-                                  {isTD ? (
-                                    <Select
-                                      value={player.paymentStatus || "N/A"}
-                                      onValueChange={(newVal) => {
-                                        updatePlayerPaymentStatusMutation.mutate({
-                                          playerId: player.id,
-                                          paymentStatus: newVal,
-                                        });
-                                      }}
-                                    >
-                                      <SelectTrigger className="h-7 w-[100px] text-xs font-semibold bg-white border-slate-200 focus:ring-1 focus:ring-indigo-500 rounded-md">
-                                        <SelectValue />
-                                      </SelectTrigger>
-                                      <SelectContent className="bg-white shadow-lg border border-slate-200">
-                                        <SelectItem value="N/A">N/A</SelectItem>
-                                        <SelectItem value="paid">Paid</SelectItem>
-                                        <SelectItem value="unpaid">Unpaid</SelectItem>
-                                        <SelectItem value="processing">Processing</SelectItem>
-                                        <SelectItem value="refunded">Refunded</SelectItem>
-                                        <SelectItem value="failed">Failed</SelectItem>
-                                      </SelectContent>
-                                    </Select>
-                                  ) : (
-                                    (() => {
-                                      const status = player.paymentStatus || "N/A";
-                                      let badgeColor = "bg-slate-50 text-slate-500 border-slate-200";
-                                      if (status === "paid") {
-                                        badgeColor = "bg-emerald-50 text-emerald-700 border-emerald-200/50";
-                                      } else if (status === "unpaid" || status === "failed") {
-                                        badgeColor = "bg-rose-50 text-rose-700 border-rose-200/50";
-                                      } else if (status === "processing") {
-                                        badgeColor = "bg-amber-50 text-amber-700 border-amber-200/50";
-                                      } else if (status === "refunded") {
-                                        badgeColor = "bg-indigo-50 text-indigo-700 border-indigo-200/50";
-                                      }
-                                      return (
-                                        <Badge className={`${badgeColor} border text-[9px] px-2 py-0.5 rounded-full font-bold shadow-none uppercase tracking-wider`}>
-                                          {status}
-                                        </Badge>
-                                      );
-                                    })()
-                                  )}
-                                </TableCell>
-                              )}
-                              {visibleColumns.includes("uscfRating") && (
-                                <TableCell className="text-xs font-semibold text-slate-700">
-                                  {player.uscfRating ? `${player.uscfRating}${player.uscfRatingRaw?.toLowerCase().includes('p') ? 'p' : ''}` : "Unrated"}
-                                </TableCell>
-                              )}
-                              {visibleColumns.includes("fideRating") && (
-                                <TableCell className="text-xs font-semibold text-slate-700">
-                                  {player.fideRating || "Unrated"}
-                                </TableCell>
-                              )}
-                              {visibleColumns.includes("fideId") && (
-                                <TableCell>
-                                  {player.localId && player.federation?.toLowerCase() === 'fide' ? (
-                                    <span className="font-mono text-xs font-semibold bg-slate-100/80 px-1.5 py-0.5 rounded border border-slate-200/50">{player.localId}</span>
-                                  ) : (
-                                    <span className="text-xs text-slate-400">—</span>
-                                  )}
-                                </TableCell>
-                              )}
-                              {visibleColumns.includes("federation") && (
-                                <TableCell>
-                                  <Badge variant="outline" className="text-[9px] uppercase font-bold text-slate-500 border-slate-200 bg-slate-50/20">{player.federation || "USCF"}</Badge>
-                                </TableCell>
-                              )}
-                              {visibleColumns.includes("section") && (
-                                <TableCell className="text-xs font-medium text-slate-700">
-                                  {player.sectionName || "Default"}
-                                </TableCell>
-                              )}
-                              {visibleColumns.includes("club") && (
-                                <TableCell className="text-xs text-slate-600 max-w-[150px] truncate">
-                                  {player.club || "—"}
-                                </TableCell>
-                              )}
-                              {visibleColumns.includes("birthdate") && (
-                                <TableCell className="text-xs text-slate-600 font-mono">
-                                  {player.birthdate || "—"}
-                                </TableCell>
-                              )}
-                              {visibleColumns.includes("createdAt") && (
-                                <TableCell className="text-xs text-slate-600">
-                                  {new Date(player.createdAt).toLocaleDateString()}
-                                </TableCell>
-                              )}
-                              {visibleColumns.includes("seed") && tournament.format === 'knockout' && (
-                                <TableCell>
-                                  {isTD && editingSeedId === player.id ? (
-                                    <Input
-                                      type="number"
-                                      className="h-7 w-16 text-xs font-semibold"
-                                      value={seedValue}
-                                      onChange={(e) => setSeedValue(e.target.value)}
-                                      onBlur={() => handleUpdateSeed(player.id, seedValue)}
-                                      onKeyDown={(e) => {
-                                        if (e.key === 'Enter') handleUpdateSeed(player.id, seedValue);
-                                        if (e.key === 'Escape') setEditingSeedId(null);
-                                      }}
-                                      onClick={(e) => e.stopPropagation()}
-                                      autoFocus
-                                    />
-                                  ) : (
-                                    <div 
-                                      className={cn(
-                                        "p-1 rounded text-xs font-semibold text-slate-700 min-w-[2rem] text-center transition-colors",
-                                        isTD && "cursor-pointer hover:bg-slate-100"
-                                      )}
-                                      onClick={(e) => {
-                                        if (!isTD) return;
-                                        e.stopPropagation();
-                                        setEditingSeedId(player.id);
-                                        setSeedValue(player.seed?.toString() || "");
-                                      }}
-                                    >
-                                      {player.seed ?? "-"}
-                                    </div>
-                                  )}
-                                </TableCell>
-                              )}
-                              {visibleColumns.includes("status") && (
-                                <TableCell>
-                                  <Badge variant={(player.status || 'active') === 'active' ? 'default' : 'secondary'} className="text-[10px] font-bold uppercase tracking-wider shadow-none">
-                                    {player.status || 'active'}
-                                  </Badge>
-                                </TableCell>
-                              )}
-                              {visibleColumns.includes("email") && (
-                                <TableCell className="text-xs text-slate-600 font-mono">
-                                  {player.email || "—"}
-                                </TableCell>
-                              )}
-                              {visibleColumns.includes("actions") && (
-                                <TableCell className={cn(
-                                  "text-right sticky right-0 z-10 transition-colors shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.05)]",
-                                  isSelected
-                                    ? "bg-indigo-50/30"
-                                    : "bg-white group-hover:bg-slate-50/85"
-                                )}>
-                                  <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
-                                    {isConfirmed ? (
-                                      <CheckCircle2 className="h-4 w-4 text-emerald-500" aria-label="Confirmed" />
-                                    ) : null}
-                                    {isTD && (
-                                      <Checkbox
-                                        checked={isSelected}
-                                        onCheckedChange={(value) => toggleSelectPlayer(player.id, Boolean(value))}
-                                        aria-label={`Select ${player.lastName}, ${player.firstName}`}
-                                        disabled={isDeleting || isProcessingStatus}
-                                        className="h-3.5 w-3.5 rounded border-slate-350 text-indigo-650 focus:ring-indigo-500"
-                                      />
-                                    )}
-                                  </div>
-                                </TableCell>
-                              )}
-                            </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
-                  )}
-                </div>
+                            ) : (
+                              renderTable(sectionPlayers, handleToggleSectionAll, sectionCheckboxState)
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto no-scrollbar border border-slate-200/80 rounded-xl bg-white shadow-sm">
+                    {renderTable(processedPlayers, toggleSelectAll, headerCheckboxValue)}
+                  </div>
+                )}
               </TooltipProvider>
             )}
           </CardContent>
