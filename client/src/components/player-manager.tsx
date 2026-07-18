@@ -1557,267 +1557,296 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
                                         disabled={isDeleting || isProcessingStatus}
                                         className="h-3.5 w-3.5 rounded border-slate-350 text-indigo-650 focus:ring-indigo-500"
                                       />
-                    onOpenChange={(open) => {
-                      setStatusDialogOpen(open);
-                      if (!open) {
-                        resetStatusForm();
-                      }
-                    }}
-                  >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Manage player availability</DialogTitle>
-            <DialogDescription>
-              Withdraw selected players from upcoming rounds or assign custom byes.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="status-scope">Action</Label>
-              <Select
-                value={withdrawScope}
-                onValueChange={(value) => setWithdrawScope(value as typeof withdrawScope)}
-              >
-                <SelectTrigger id="status-scope" className="w-full">
-                  <SelectValue placeholder="Choose action" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Withdraw from all future rounds</SelectItem>
-                  <SelectItem value="specific">Assign custom byes for specific rounds</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {withdrawScope === "specific" ? (
-              <div className="space-y-3">
-                <div className="space-y-2">
-                  <Label>Rounds</Label>
-                  {roundOptions.length ? (
-                    <div className="flex flex-wrap gap-2">
-                      {roundOptions.map((round) => {
-                        const active = selectedRounds.includes(round);
-                        return (
-                          <Button
-                            key={round}
-                            type="button"
-                            variant={active ? "default" : "outline"}
-                            size="sm"
-                            onClick={() => handleRoundToggle(round)}
-                          >
-                            Rd {round}
-                          </Button>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">
-                      No rounds scheduled yet. Update the tournament to enable bye assignments.
-                    </p>
+                                    )}
+                                  </div>
+                                </TableCell>
+                              )}
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
                   )}
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="bye-type">Bye result</Label>
+              </TooltipProvider>
+            )}
+          </CardContent>
+        </Card>
+      </Tabs>
+
+      {/* TD Dialog overlays */}
+      {isTD && (
+        <>
+          <Dialog
+            open={isStatusDialogOpen}
+            onOpenChange={(open) => {
+              setStatusDialogOpen(open);
+              if (!open) {
+                resetStatusForm();
+              }
+            }}
+          >
+            <DialogContent className="bg-white rounded-xl shadow-xl border border-slate-200">
+              <DialogHeader>
+                <DialogTitle className="text-base font-bold text-slate-800">Manage player availability</DialogTitle>
+                <DialogDescription className="text-xs text-slate-500">
+                  Withdraw selected players from upcoming rounds or assign custom byes.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="status-scope" className="text-xs font-semibold text-slate-600">Action</Label>
                   <Select
-                    value={byeType}
-                    onValueChange={(value) => setByeType(value as typeof byeType)}
+                    value={withdrawScope}
+                    onValueChange={(value) => setWithdrawScope(value as typeof withdrawScope)}
                   >
-                    <SelectTrigger id="bye-type" className="w-full">
-                      <SelectValue placeholder="Select bye result" />
+                    <SelectTrigger id="status-scope" className="w-full text-xs h-9">
+                      <SelectValue placeholder="Choose action" />
                     </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="zero_point">Zero-point bye</SelectItem>
-                      <SelectItem value="half_point">Half-point bye</SelectItem>
-                      <SelectItem value="full_point">Full-point bye</SelectItem>
+                    <SelectContent className="bg-white border text-xs">
+                      <SelectItem value="all">Withdraw from all future rounds</SelectItem>
+                      <SelectItem value="specific">Assign custom byes for specific rounds</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                Confirming will issue zero-point byes for every remaining round and mark players as withdrawn.
-              </p>
-            )}
-          </div>
-          <DialogFooter className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => {
-                setStatusDialogOpen(false);
-                resetStatusForm();
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              onClick={handleStatusSubmit}
-              disabled={
-                isProcessingStatus ||
-                !hasSelection ||
-                (withdrawScope === "specific" && (selectedRounds.length === 0 || roundOptions.length === 0))
-              }
-            >
-              {isProcessingStatus ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Apply
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={isMessageDialogOpen} onOpenChange={setMessageDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Message selected players</DialogTitle>
-            <DialogDescription>
-              Choose delivery channels, draft your note, then copy it into the tools you use.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Recipients</Label>
-              <div className="min-h-[48px] rounded-md border bg-muted/40 p-3 text-sm text-muted-foreground">
-                {recipientsList || "Select at least one player to populate recipients."}
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleCopyRecipients}
-                disabled={!recipientsList || isCopyingRecipients}
-              >
-                {isCopyingRecipients ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Copy className="mr-2 h-4 w-4" />
-                )}
-                Copy recipients
-              </Button>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="message-subject">Subject</Label>
-              <Input
-                id="message-subject"
-                value={messageSubject}
-                onChange={(event) => setMessageSubject(event.target.value)}
-                placeholder="Message from tournament director"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="message-body">Message</Label>
-              <Textarea
-                id="message-body"
-                rows={6}
-                value={messageBody}
-                onChange={(event) => setMessageBody(event.target.value)}
-                placeholder="Draft your message here…"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Send via</Label>
-              <div className="flex flex-col gap-2 pt-1">
-                <label className="flex items-center gap-2 text-sm text-slate-700">
-                  <Checkbox
-                    checked={messageChannels.email}
-                    onCheckedChange={(checked) =>
-                      setMessageChannels((prev) => ({ ...prev, email: checked === true }))
-                    }
-                  />
-                  <span>Email</span>
-                </label>
-
-                <label className="flex items-center gap-2 text-sm text-slate-700">
-                  <Checkbox
-                    checked={messageChannels.push}
-                    onCheckedChange={(checked) =>
-                      setMessageChannels((prev) => ({ ...prev, push: checked === true }))
-                    }
-                  />
-                  <span>Push Notification</span>
-                </label>
-                {!hasChannelSelected && (
-                  <p className="text-xs text-destructive">Select at least one channel to continue.</p>
-                )}
-              </div>
-            </div>
-          </div>
-          <DialogFooter className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleCopyMessage}
-              disabled={!messageBody || isCopyingMessage}
-            >
-              {isCopyingMessage ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Copy className="mr-2 h-4 w-4" />
-              )}
-              Copy message
-            </Button>
-            <div className="flex w-full justify-end gap-2 sm:w-auto">
-              <Button type="button" variant="ghost" onClick={() => setMessageDialogOpen(false)}>
-                Close
-              </Button>
-              <Button
-                type="button"
-                onClick={handleSendMessage}
-                disabled={!messageBody || !hasChannelSelected || isSending}
-              >
-                {isSending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Mail className="mr-2 h-4 w-4" />}
-                Done
-              </Button>
-            </div>
-          </DialogFooter>
-        </DialogContent>
-        </Dialog>
-
-        {/* Bulk USCF Sync Progress Dialog */}
-        <Dialog open={syncDialogOpen} onOpenChange={(open) => { if (!isSyncingRatings) setSyncDialogOpen(open); }}>
-          <DialogContent className="sm:max-w-[425px] bg-white">
-            <DialogHeader>
-              <DialogTitle>Syncing USCF Ratings</DialogTitle>
-              <DialogDescription>
-                Checking US Chess database for live rating updates. This is done sequentially to prevent server blocks.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="flex justify-between text-sm font-medium">
-                <span className="text-slate-600">Progress</span>
-                <span className="text-blue-600 font-bold">{syncProgress} / {syncTotal}</span>
-              </div>
-              <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
-                <div 
-                  className="bg-blue-600 h-full rounded-full transition-all duration-300"
-                  style={{ width: `${(syncProgress / (syncTotal || 1)) * 100}%` }}
-                />
-              </div>
-              {isSyncingRatings ? (
-                <div className="flex items-center gap-2 text-sm text-slate-500 bg-slate-50 border border-slate-100 rounded-md p-3">
-                  <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
-                  <span>Checking <span className="font-semibold text-slate-700">{syncCurrentName}</span>...</span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2 text-sm text-green-600 bg-green-50 border border-green-100 rounded-md p-3">
-                  <CheckCircle2 className="h-4 w-4 text-green-500" />
-                  <span>Syncing completed successfully!</span>
-                </div>
-              )}
-            </div>
-            <DialogFooter>
-              <Button type="button" disabled={isSyncingRatings} onClick={() => setSyncDialogOpen(false)}>
-                Close
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-                      </>
-                    )}
+                {withdrawScope === "specific" ? (
+                  <div className="space-y-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-slate-600">Rounds</Label>
+                      {roundOptions.length ? (
+                        <div className="flex flex-wrap gap-1.5">
+                          {roundOptions.map((round) => {
+                            const active = selectedRounds.includes(round);
+                            return (
+                              <Button
+                                key={round}
+                                type="button"
+                                variant={active ? "default" : "outline"}
+                                size="sm"
+                                className={cn(
+                                  "h-7 text-xs px-2.5 font-semibold rounded-md",
+                                  active ? "bg-indigo-600 hover:bg-indigo-755 text-white" : "border-slate-200 hover:bg-slate-50"
+                                )}
+                                onClick={() => handleRoundToggle(round)}
+                              >
+                                Rd {round}
+                              </Button>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-slate-400">
+                          No rounds scheduled yet. Update the tournament to enable bye assignments.
+                        </p>
+                      )}
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="bye-type" className="text-xs font-semibold text-slate-600">Bye result</Label>
+                      <Select
+                        value={byeType}
+                        onValueChange={(value) => setByeType(value as typeof byeType)}
+                      >
+                        <SelectTrigger id="bye-type" className="w-full text-xs h-9">
+                          <SelectValue placeholder="Select bye result" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-white border text-xs">
+                          <SelectItem value="zero_point">Zero-point bye</SelectItem>
+                          <SelectItem value="half_point">Half-point bye</SelectItem>
+                          <SelectItem value="full_point">Full-point bye</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
-                </TooltipProvider>
-              )}
-            </CardContent>
-          </Card>
-        </Tabs>
-      </div>
-    );
+                ) : (
+                  <p className="text-xs text-slate-400">
+                    Confirming will issue zero-point byes for every remaining round and mark players as withdrawn.
+                  </p>
+                )}
+              </div>
+              <DialogFooter className="flex flex-col gap-1.5 sm:flex-row sm:justify-end">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="h-9 text-xs font-semibold"
+                  onClick={() => {
+                    setStatusDialogOpen(false);
+                    resetStatusForm();
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  className="h-9 text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg"
+                  onClick={handleStatusSubmit}
+                  disabled={
+                    isProcessingStatus ||
+                    !hasSelection ||
+                    (withdrawScope === "specific" && (selectedRounds.length === 0 || roundOptions.length === 0))
+                  }
+                >
+                  {isProcessingStatus ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
+                  Apply
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={isMessageDialogOpen} onOpenChange={setMessageDialogOpen}>
+            <DialogContent className="bg-white rounded-xl shadow-xl border border-slate-200 max-w-lg">
+              <DialogHeader>
+                <DialogTitle className="text-base font-bold text-slate-800">Message selected players</DialogTitle>
+                <DialogDescription className="text-xs text-slate-500">
+                  Choose delivery channels, draft your note, then copy it into the tools you use.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-2">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-slate-600">Recipients</Label>
+                  <div className="max-h-[80px] overflow-y-auto rounded-lg border border-slate-150 bg-slate-50/50 p-2.5 text-xs text-slate-500 font-mono leading-relaxed">
+                    {recipientsList || "Select at least one player to populate recipients."}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 text-xs font-semibold border-slate-200 hover:bg-slate-50 text-slate-700"
+                    onClick={handleCopyRecipients}
+                    disabled={!recipientsList || isCopyingRecipients}
+                  >
+                    {isCopyingRecipients ? (
+                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Copy className="mr-1.5 h-3.5 w-3.5" />
+                    )}
+                    Copy recipients
+                  </Button>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="message-subject" className="text-xs font-semibold text-slate-600">Subject</Label>
+                  <Input
+                    id="message-subject"
+                    className="text-xs h-9 border-slate-250 focus-visible:ring-indigo-500"
+                    value={messageSubject}
+                    onChange={(event) => setMessageSubject(event.target.value)}
+                    placeholder="Message from tournament director"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="message-body" className="text-xs font-semibold text-slate-600">Message</Label>
+                  <Textarea
+                    id="message-body"
+                    rows={5}
+                    className="text-xs border-slate-250 focus-visible:ring-indigo-500"
+                    value={messageBody}
+                    onChange={(event) => setMessageBody(event.target.value)}
+                    placeholder="Draft your message here…"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-slate-600">Send via</Label>
+                  <div className="flex gap-4 pt-0.5">
+                    <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer select-none">
+                      <Checkbox
+                        checked={messageChannels.email}
+                        className="h-4 w-4 rounded text-indigo-650 focus:ring-indigo-500 border-slate-300"
+                        onCheckedChange={(checked) =>
+                          setMessageChannels((prev) => ({ ...prev, email: checked === true }))
+                        }
+                      />
+                      <span>Email</span>
+                    </label>
+
+                    <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer select-none">
+                      <Checkbox
+                        checked={messageChannels.push}
+                        className="h-4 w-4 rounded text-indigo-650 focus:ring-indigo-500 border-slate-300"
+                        onCheckedChange={(checked) =>
+                          setMessageChannels((prev) => ({ ...prev, push: checked === true }))
+                        }
+                      />
+                      <span>Push Notification</span>
+                    </label>
+                  </div>
+                  {!hasChannelSelected && (
+                    <p className="text-[10px] text-rose-500 font-medium">Select at least one channel to continue.</p>
+                  )}
+                </div>
+              </div>
+              <DialogFooter className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-9 text-xs font-semibold border-slate-200 hover:bg-slate-50 text-slate-700"
+                  onClick={handleCopyMessage}
+                  disabled={!messageBody || isCopyingMessage}
+                >
+                  {isCopyingMessage ? (
+                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Copy className="mr-1.5 h-3.5 w-3.5" />
+                  )}
+                  Copy message
+                </Button>
+                <div className="flex w-full justify-end gap-1.5 sm:w-auto">
+                  <Button type="button" variant="ghost" className="h-9 text-xs font-semibold" onClick={() => setMessageDialogOpen(false)}>
+                    Close
+                  </Button>
+                  <Button
+                    type="button"
+                    className="h-9 text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg"
+                    onClick={handleSendMessage}
+                    disabled={!messageBody || !hasChannelSelected || isSending}
+                  >
+                    {isSending ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Mail className="mr-1.5 h-3.5 w-3.5" />}
+                    Send Message
+                  </Button>
+                </div>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Bulk USCF Sync Progress Dialog */}
+          <Dialog open={syncDialogOpen} onOpenChange={(open) => { if (!isSyncingRatings) setSyncDialogOpen(open); }}>
+            <DialogContent className="sm:max-w-[425px] bg-white rounded-xl shadow-xl border border-slate-200">
+              <DialogHeader>
+                <DialogTitle className="text-base font-bold text-slate-800">Syncing USCF Ratings</DialogTitle>
+                <DialogDescription className="text-xs text-slate-500">
+                  Checking US Chess database for live rating updates. This is done sequentially to prevent server blocks.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-3">
+                <div className="flex justify-between text-xs font-semibold">
+                  <span className="text-slate-500">Progress</span>
+                  <span className="text-indigo-650 font-bold font-mono">{syncProgress} / {syncTotal}</span>
+                </div>
+                <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden border">
+                  <div 
+                    className="bg-indigo-600 h-full rounded-full transition-all duration-300"
+                    style={{ width: `${(syncProgress / (syncTotal || 1)) * 100}%` }}
+                  />
+                </div>
+                {isSyncingRatings ? (
+                  <div className="flex items-center gap-2 text-xs text-slate-605 bg-slate-50 border border-slate-100 rounded-lg p-3 shadow-inner">
+                    <Loader2 className="h-4 w-4 animate-spin text-indigo-500" />
+                    <span>Checking <span className="font-semibold text-slate-800">{syncCurrentName}</span>...</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 text-xs text-emerald-605 bg-emerald-50 border border-emerald-100 rounded-lg p-3">
+                    <CheckCircle2 className="h-4.5 w-4.5 text-emerald-500 shrink-0" />
+                    <span className="font-semibold">Syncing completed successfully!</span>
+                  </div>
+                )}
+              </div>
+              <DialogFooter>
+                <Button type="button" className="h-9 text-xs font-semibold" disabled={isSyncingRatings} onClick={() => setSyncDialogOpen(false)}>
+                  Close
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </>
+      )}
+    </div>
+  );
 }
