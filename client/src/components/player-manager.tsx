@@ -754,95 +754,94 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
         <TableHeader className="bg-slate-50/50 sticky top-0 z-30 shadow-[0_1px_0_0_rgba(226,232,240,0.8)] font-sans">
           <TableRow className="hover:bg-transparent border-b border-slate-100 font-sans text-sm">
             {visibleColumns.includes("index") && (
-              <TableHead className="w-10 px-2 py-2 text-center text-sm font-bold text-slate-500 bg-slate-50/80 sticky left-0 z-20 font-sans">#</TableHead>
+              <TableHead className="w-10 px-2 py-2 text-center text-sm font-semibold text-slate-500 bg-slate-50/80 sticky left-0 z-20 font-sans">#</TableHead>
             )}
             {visibleColumns.includes("uscfId") && (
-              <TableHead className="w-28 px-2 py-2 text-sm font-bold text-slate-500 bg-slate-50/80 font-sans">USCF ID</TableHead>
+              <TableHead className="w-28 px-2 py-2 text-sm font-semibold text-slate-500 bg-slate-50/80 font-sans">USCF ID</TableHead>
             )}
             {visibleColumns.includes("name") && (
               <TableHead className={cn(
-                "w-44 px-2 py-2 text-sm font-bold text-slate-500 bg-slate-50/80 sticky z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] font-sans",
+                "w-44 px-2 py-2 text-sm font-semibold text-slate-500 bg-slate-50/80 sticky z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] font-sans",
                 isIndexVisible ? "left-10" : "left-0"
               )}>
-                <button onClick={() => handleSort('name')} className="flex items-center gap-1 hover:text-slate-800 transition-colors uppercase tracking-wider text-sm font-sans">
+                <button onClick={() => handleSort('name')} className="flex items-center gap-1 hover:text-slate-800 transition-colors text-sm font-sans font-semibold">
                   Name
                   {sortKey === 'name' && <ArrowUpDown className="h-3 w-3 inline text-slate-500" />}
                 </button>
               </TableHead>
             )}
             {visibleColumns.includes("rating") && (
-              <TableHead className="w-28 px-2 py-2 text-sm font-bold text-slate-500 bg-slate-50/80 font-sans">
-                <button onClick={() => handleSort('rating')} className="flex items-center gap-1 hover:text-slate-800 transition-colors uppercase tracking-wider text-sm font-sans">
+              <TableHead className="w-28 px-2 py-2 text-sm font-semibold text-slate-500 bg-slate-50/80 font-sans">
+                <button onClick={() => handleSort('rating')} className="flex items-center gap-1 hover:text-slate-800 transition-colors text-sm font-sans font-semibold">
                   {tournamentConfig.details.primaryRatingSystem === 'fide' ? 'FIDE' : 'USCF'} Rating
                   {sortKey === 'rating' && <ArrowUpDown className="h-3 w-3 inline text-slate-500" />}
                 </button>
               </TableHead>
             )}
             {visibleColumns.includes("uscfMembership") && (
-              <TableHead className="w-44 px-2 py-2 text-sm font-bold text-slate-500 bg-slate-50/80 uppercase tracking-wider whitespace-nowrap font-sans">USCF Membership</TableHead>
+              <TableHead className="w-44 px-2 py-2 text-sm font-semibold text-slate-500 bg-slate-50/80 whitespace-nowrap font-sans">USCF Membership</TableHead>
             )}
             {visibleColumns.includes("byes") && tournament.format !== 'arena' && (
-              <TableHead className="w-44 px-2 py-2 text-sm font-bold text-slate-500 bg-slate-50/80 uppercase tracking-wider font-sans">Byes</TableHead>
+              <TableHead className="w-44 px-2 py-2 text-sm font-semibold text-slate-500 bg-slate-50/80 font-sans">Byes</TableHead>
             )}
             {visibleColumns.includes("paymentStatus") && (
-              <TableHead className="w-28 px-2 py-2 text-sm font-bold text-slate-500 bg-slate-50/80 font-sans">
-                <button onClick={() => handleSort('paymentStatus')} className="flex items-center gap-1 hover:text-slate-800 transition-colors uppercase tracking-wider text-sm font-sans">
+              <TableHead className="w-28 px-2 py-2 text-sm font-semibold text-slate-500 bg-slate-50/80 font-sans">
+                <button onClick={() => handleSort('paymentStatus')} className="flex items-center gap-1 hover:text-slate-800 transition-colors text-sm font-sans font-semibold">
                   Payment
                   {sortKey === 'paymentStatus' && <ArrowUpDown className="h-3 w-3 inline text-slate-500" />}
                 </button>
               </TableHead>
             )}
-            {/* Optional columns */}
             {visibleColumns.includes("uscfRating") && (
-              <TableHead className="w-28 px-2 py-2 text-sm font-bold text-slate-500 bg-slate-50/80 font-sans">
-                <button onClick={() => handleSort('uscfRating')} className="flex items-center gap-1 hover:text-slate-800 transition-colors uppercase tracking-wider text-sm font-sans">
+              <TableHead className="w-28 px-2 py-2 text-sm font-semibold text-slate-500 bg-slate-50/80 font-sans">
+                <button onClick={() => handleSort('uscfRating')} className="flex items-center gap-1 hover:text-slate-800 transition-colors text-sm font-sans font-semibold">
                   USCF Rating
                   {sortKey === 'uscfRating' && <ArrowUpDown className="h-3 w-3 inline text-slate-500" />}
                 </button>
               </TableHead>
             )}
             {visibleColumns.includes("fideRating") && (
-              <TableHead className="w-28 px-2 py-2 text-sm font-bold text-slate-500 bg-slate-50/80 uppercase tracking-wider font-sans">FIDE Rating</TableHead>
+              <TableHead className="w-28 px-2 py-2 text-sm font-semibold text-slate-500 bg-slate-50/80 font-sans">FIDE Rating</TableHead>
             )}
             {visibleColumns.includes("fideId") && (
-              <TableHead className="w-28 px-2 py-2 text-sm font-bold text-slate-500 bg-slate-50/80 uppercase tracking-wider font-sans">FIDE ID</TableHead>
+              <TableHead className="w-28 px-2 py-2 text-sm font-semibold text-slate-500 bg-slate-50/80 font-sans">FIDE ID</TableHead>
             )}
             {visibleColumns.includes("federation") && (
-              <TableHead className="w-24 px-2 py-2 text-sm font-bold text-slate-500 bg-slate-50/80 uppercase tracking-wider font-sans">Federation</TableHead>
+              <TableHead className="w-24 px-2 py-2 text-sm font-semibold text-slate-500 bg-slate-50/80 font-sans">Federation</TableHead>
             )}
             {visibleColumns.includes("section") && (
-              <TableHead className="w-28 px-2 py-2 text-sm font-bold text-slate-500 bg-slate-50/80 font-sans">
-                <button onClick={() => handleSort('section')} className="flex items-center gap-1 hover:text-slate-800 transition-colors uppercase tracking-wider text-sm font-sans">
+              <TableHead className="w-28 px-2 py-2 text-sm font-semibold text-slate-500 bg-slate-50/80 font-sans">
+                <button onClick={() => handleSort('section')} className="flex items-center gap-1 hover:text-slate-800 transition-colors text-sm font-sans font-semibold">
                   Section
                   {sortKey === 'section' && <ArrowUpDown className="h-3 w-3 inline text-slate-500" />}
                 </button>
               </TableHead>
             )}
             {visibleColumns.includes("club") && (
-              <TableHead className="w-32 px-2 py-2 text-sm font-bold text-slate-500 bg-slate-50/80 uppercase tracking-wider font-sans">Club</TableHead>
+              <TableHead className="w-32 px-2 py-2 text-sm font-semibold text-slate-500 bg-slate-50/80 font-sans">Club</TableHead>
             )}
             {visibleColumns.includes("birthdate") && (
-              <TableHead className="w-24 px-2 py-2 text-sm font-bold text-slate-500 bg-slate-50/80 uppercase tracking-wider font-sans">Birthdate</TableHead>
+              <TableHead className="w-24 px-2 py-2 text-sm font-semibold text-slate-500 bg-slate-50/80 font-sans">Birthdate</TableHead>
             )}
             {visibleColumns.includes("createdAt") && (
-              <TableHead className="w-28 px-2 py-2 text-sm font-bold text-slate-500 bg-slate-50/80 font-sans">
-                <button onClick={() => handleSort('createdAt')} className="flex items-center gap-1 hover:text-slate-800 transition-colors uppercase tracking-wider text-sm font-sans">
+              <TableHead className="w-28 px-2 py-2 text-sm font-semibold text-slate-500 bg-slate-50/80 font-sans">
+                <button onClick={() => handleSort('createdAt')} className="flex items-center gap-1 hover:text-slate-800 transition-colors text-sm font-sans font-semibold">
                   Registered
                   {sortKey === 'createdAt' && <ArrowUpDown className="h-3 w-3 inline text-slate-500" />}
                 </button>
               </TableHead>
             )}
             {visibleColumns.includes("seed") && tournament.format === 'knockout' && (
-              <TableHead className="w-16 px-2 py-2 text-sm font-bold text-slate-500 bg-slate-50/80 uppercase tracking-wider font-sans">Seed</TableHead>
+              <TableHead className="w-16 px-2 py-2 text-sm font-semibold text-slate-500 bg-slate-50/80 font-sans">Seed</TableHead>
             )}
             {visibleColumns.includes("status") && (
-              <TableHead className="w-24 px-2 py-2 text-sm font-bold text-slate-500 bg-slate-50/80 uppercase tracking-wider font-sans">Status</TableHead>
+              <TableHead className="w-24 px-2 py-2 text-sm font-semibold text-slate-500 bg-slate-50/80 font-sans">Status</TableHead>
             )}
             {visibleColumns.includes("email") && (
-              <TableHead className="w-32 px-2 py-2 text-sm font-bold text-slate-500 bg-slate-50/80 uppercase tracking-wider font-sans">Email</TableHead>
+              <TableHead className="w-32 px-2 py-2 text-sm font-semibold text-slate-500 bg-slate-50/80 font-sans">Email</TableHead>
             )}
             {visibleColumns.includes("actions") && (
-              <TableHead className="w-32 px-2 py-2 text-right text-sm font-bold text-slate-500 bg-slate-50/80 uppercase tracking-wider sticky right-0 z-20 shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.05)] font-sans">
+              <TableHead className="w-32 px-2 py-2 text-right text-sm font-semibold text-slate-500 bg-slate-50/80 sticky right-0 z-20 shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.05)] font-sans">
                 <div className="flex items-center justify-end gap-2 font-sans text-sm">
                   <span>Confirm / Select</span>
                   {isTD && (
@@ -851,7 +850,7 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
                       onCheckedChange={(value) => onToggleSelectAll(Boolean(value))}
                       aria-label="Select all players"
                       disabled={tablePlayers.length === 0}
-                      className="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                      className="h-3.5 w-3.5 rounded border-slate-300 text-indigo-650 focus:ring-indigo-500"
                     />
                   )}
                 </div>
@@ -928,26 +927,26 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
                             USCF: {(player as any).userUscfId}
                           </span>
                           {(player as any).userUscfVerificationStatus === "verified" ? (
-                            <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border-emerald-200/50 text-sm px-1.5 py-0 rounded-full font-bold shadow-none font-sans">
+                            <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border-emerald-200/50 text-sm px-1.5 py-0 rounded-full font-medium shadow-none font-sans">
                               Verified
                             </Badge>
                           ) : (player as any).userUscfVerificationStatus === "pending" ? (
                             <div className="flex items-center gap-1 font-sans text-sm">
-                              <Badge className="bg-amber-50 text-amber-700 hover:bg-amber-50 border-amber-200/50 text-sm px-1.5 py-0 rounded-full font-bold animate-pulse shadow-none font-sans">
+                              <Badge className="bg-amber-50 text-amber-700 hover:bg-amber-50 border-amber-200/50 text-sm px-1.5 py-0 rounded-full font-medium animate-pulse shadow-none font-sans">
                                 Pending
                               </Badge>
                               {isTD && (
                                 <button
                                   onClick={() => verifyUscfMutation.mutate({ targetUserId: (player as any).userId, verified: true })}
                                   disabled={verifyUscfMutation.isPending}
-                                  className="text-sm text-indigo-650 hover:text-indigo-800 font-bold hover:underline ml-1 font-sans"
+                                  className="text-sm text-indigo-650 hover:text-indigo-800 font-semibold hover:underline ml-1 font-sans"
                                 >
                                   Verify
                                 </button>
                               )}
                             </div>
                           ) : (
-                            <Badge variant="secondary" className="text-sm px-1.5 py-0 rounded-full font-bold shadow-none bg-slate-100 text-slate-500 font-sans">
+                            <Badge variant="secondary" className="text-sm px-1.5 py-0 rounded-full font-medium shadow-none bg-slate-100 text-slate-500 font-sans">
                               Unverified
                             </Badge>
                           )}
@@ -957,7 +956,7 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
                   </TableCell>
                 )}
                 {visibleColumns.includes("rating") && (
-                  <TableCell className="px-2 py-2 text-sm font-bold text-slate-850 overflow-hidden font-sans">
+                  <TableCell className="px-2 py-2 text-sm font-medium text-slate-850 overflow-hidden font-sans">
                     {(() => {
                       const threshold = tournamentConfig?.registers?.uscfMinGamesThreshold ?? 4;
                       const uscfDisp = resolveDisplayRating((player as any).uscfRatingRaw, player.uscfRating, threshold, false);
@@ -995,13 +994,13 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
                         const formatted = `${expiryDate.getMonth() + 1}/${expiryDate.getDate()}/${expiryDate.getFullYear()}`;
                         if (expiryDate >= now) {
                           return (
-                            <Badge className="whitespace-nowrap bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border border-emerald-250/30 text-sm px-2 py-0.5 rounded-full font-bold shadow-none font-sans">
+                            <Badge className="whitespace-nowrap bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border border-emerald-250/30 text-sm px-2 py-0.5 rounded-full font-medium shadow-none font-sans">
                               Active (Exp: {formatted})
                             </Badge>
                           );
                         } else {
                           return (
-                            <Badge className="whitespace-nowrap bg-rose-50 text-rose-700 hover:bg-rose-50 border border-rose-250/30 text-sm px-2 py-0.5 rounded-full font-bold shadow-none font-sans">
+                            <Badge className="whitespace-nowrap bg-rose-50 text-rose-700 hover:bg-rose-50 border border-rose-250/30 text-sm px-2 py-0.5 rounded-full font-medium shadow-none font-sans">
                               Expired (Exp: {formatted})
                             </Badge>
                           );
@@ -1040,10 +1039,10 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
                             <div
                               key={bye.id}
                               className={cn(
-                                "inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-sm font-semibold transition-colors whitespace-nowrap shadow-none font-sans",
+                                "inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-sm font-medium transition-colors whitespace-nowrap shadow-none font-sans",
                                 isRequested
-                                  ? "border-orange-200 bg-orange-50 text-orange-800 hover:bg-orange-100/50"
-                                  : "border-orange-100/70 bg-orange-50/40 text-orange-700/80 hover:bg-orange-100/30"
+                                  ? "border-orange-200 bg-orange-50 text-orange-850 hover:bg-orange-100/50"
+                                  : "border-orange-100/70 bg-orange-50/40 text-orange-700/85 hover:bg-orange-100/30"
                               )}
                               title={isRequested ? "Manual bye" : "System-assigned"}
                             >
@@ -1097,7 +1096,7 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
                       }
                       
                       return (
-                        <Badge className={`${badgeColor} border text-sm px-2.5 py-0.5 rounded-full font-bold shadow-none font-sans whitespace-nowrap`}>
+                        <Badge className={`${badgeColor} border text-sm px-2.5 py-0.5 rounded-full font-medium shadow-none font-sans whitespace-nowrap`}>
                           {status}
                         </Badge>
                       );
@@ -1105,12 +1104,12 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
                   </TableCell>
                 )}
                 {visibleColumns.includes("uscfRating") && (
-                  <TableCell className="px-2 py-2 text-sm font-bold text-slate-850 overflow-hidden font-sans">
+                  <TableCell className="px-2 py-2 text-sm font-medium text-slate-850 overflow-hidden font-sans">
                     {player.uscfRating ? `${player.uscfRating}${player.uscfRatingRaw?.toLowerCase().includes('p') ? 'p' : ''}` : "Unrated"}
                   </TableCell>
                 )}
                 {visibleColumns.includes("fideRating") && (
-                  <TableCell className="px-2 py-2 text-sm font-bold text-slate-850 overflow-hidden font-sans">
+                  <TableCell className="px-2 py-2 text-sm font-medium text-slate-850 overflow-hidden font-sans">
                     {player.fideRating || "Unrated"}
                   </TableCell>
                 )}
@@ -1125,7 +1124,7 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
                 )}
                 {visibleColumns.includes("federation") && (
                   <TableCell className="px-2 py-2 font-sans text-sm">
-                    <Badge variant="outline" className="text-sm uppercase font-bold text-slate-500 border-slate-200 bg-slate-50/20 font-sans">{player.federation || "USCF"}</Badge>
+                    <Badge variant="outline" className="text-sm font-medium text-slate-500 border-slate-200 bg-slate-50/20 font-sans">{player.federation || "USCF"}</Badge>
                   </TableCell>
                 )}
                 {visibleColumns.includes("section") && (
@@ -1184,7 +1183,7 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
                 )}
                 {visibleColumns.includes("status") && (
                   <TableCell className="px-2 py-2 font-sans text-sm">
-                    <Badge variant={(player.status || 'active') === 'active' ? 'default' : 'secondary'} className="text-sm font-bold uppercase tracking-wider shadow-none font-sans">
+                    <Badge variant={(player.status || 'active') === 'active' ? 'default' : 'secondary'} className="text-sm font-medium shadow-none font-sans">
                       {player.status || 'active'}
                     </Badge>
                   </TableCell>
