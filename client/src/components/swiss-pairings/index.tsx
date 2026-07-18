@@ -2593,11 +2593,8 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                       </div>
                     </div>
                   )}
-                </>
-              )}
-
-                {/* Extra Games Section */}
-                {tournament?.format === 'swiss' && tournamentConfig?.registers?.allowExtraGames && activeSection === "extra_games" && (
+                  {/* Extra Games Section */}
+                  {tournament?.format === 'swiss' && tournamentConfig?.registers?.allowExtraGames && activeSection === "extra_games" && (
                   <div className="space-y-4">
                     <div className="flex items-center justify-between mb-2">
                       <h3 className="text-sm font-semibold text-slate-500">
@@ -2838,8 +2835,8 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                     )}
                   </div>
                 )}
-              </>
-            )}
+                </>
+              )}
           </div>
         )}
       </div>
@@ -2867,8 +2864,7 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
           queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/players`] });
         }}
       />
-
-          </div>
+    </div>
   );
 }
 );
