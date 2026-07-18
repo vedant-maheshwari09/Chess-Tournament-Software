@@ -781,6 +781,9 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
             {visibleColumns.includes("uscfMembership") && (
               <TableHead className="w-44 px-2 py-2 text-sm font-semibold text-slate-500 bg-slate-50/80 whitespace-nowrap font-sans">USCF Membership</TableHead>
             )}
+            {visibleColumns.includes("byes") && tournament.format !== 'arena' && (
+              <TableHead className="w-44 pl-8 pr-2 py-2 text-sm font-semibold text-slate-500 bg-slate-50/80 font-sans">Byes</TableHead>
+            )}
             {visibleColumns.includes("paymentStatus") && (
               <TableHead className="w-28 px-2 py-2 text-sm font-semibold text-slate-500 bg-slate-50/80 font-sans">
                 <button onClick={() => handleSort('paymentStatus')} className="flex items-center gap-1 hover:text-slate-800 transition-colors text-sm font-sans font-semibold">
@@ -788,9 +791,6 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
                   {sortKey === 'paymentStatus' && <ArrowUpDown className="h-3 w-3 inline text-slate-500" />}
                 </button>
               </TableHead>
-            )}
-            {visibleColumns.includes("byes") && tournament.format !== 'arena' && (
-              <TableHead className="w-44 px-2 py-2 text-sm font-semibold text-slate-500 bg-slate-50/80 font-sans">Byes</TableHead>
             )}
             {visibleColumns.includes("uscfRating") && (
               <TableHead className="w-28 px-2 py-2 text-sm font-semibold text-slate-500 bg-slate-50/80 font-sans">
@@ -1022,35 +1022,8 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
                     })()}
                   </TableCell>
                 )}
-                {visibleColumns.includes("paymentStatus") && (
-                  <TableCell
-                    className="px-2 py-2 overflow-hidden font-sans text-sm select-none cursor-pointer"
-                    onClick={(e) => e.stopPropagation()}
-                    onDoubleClick={() => handlePaymentDoubleClick(player)}
-                    title={isTD && getPlayerEntryFee(player) > 0 ? "Double-click to toggle Paid / Unpaid status" : undefined}
-                  >
-                    {(() => {
-                      const entryFee = getPlayerEntryFee(player);
-                      const isFree = entryFee === 0;
-                      const status = isFree ? "N/A" : (player.paymentStatus === "paid" ? "Paid" : "Unpaid");
-                      
-                      let badgeColor = "bg-slate-50 text-slate-500 border-slate-200";
-                      if (status === "Paid") {
-                        badgeColor = "bg-emerald-50 text-emerald-700 border-emerald-200/50";
-                      } else if (status === "Unpaid") {
-                        badgeColor = "bg-rose-50 text-rose-700 border-rose-200/50";
-                      }
-                      
-                      return (
-                        <Badge className={`${badgeColor} border text-sm px-2.5 py-0.5 rounded-full font-medium shadow-none font-sans whitespace-nowrap`}>
-                          {status}
-                        </Badge>
-                      );
-                    })()}
-                  </TableCell>
-                )}
                 {visibleColumns.includes("byes") && tournament.format !== 'arena' && (
-                  <TableCell className="px-2 py-2 overflow-hidden font-sans text-sm">
+                  <TableCell className="pl-8 pr-2 py-2 overflow-hidden font-sans text-sm">
                     {pairingsLoading ? (
                       <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
                     ) : playerByes.length > 0 ? (
@@ -1108,6 +1081,33 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
                     ) : (
                       <span className="text-sm text-slate-400 font-sans">—</span>
                     )}
+                  </TableCell>
+                )}
+                {visibleColumns.includes("paymentStatus") && (
+                  <TableCell
+                    className="px-2 py-2 overflow-hidden font-sans text-sm select-none cursor-pointer"
+                    onClick={(e) => e.stopPropagation()}
+                    onDoubleClick={() => handlePaymentDoubleClick(player)}
+                    title={isTD && getPlayerEntryFee(player) > 0 ? "Double-click to toggle Paid / Unpaid status" : undefined}
+                  >
+                    {(() => {
+                      const entryFee = getPlayerEntryFee(player);
+                      const isFree = entryFee === 0;
+                      const status = isFree ? "N/A" : (player.paymentStatus === "paid" ? "Paid" : "Unpaid");
+                      
+                      let badgeColor = "bg-slate-50 text-slate-500 border-slate-200";
+                      if (status === "Paid") {
+                        badgeColor = "bg-emerald-50 text-emerald-700 border-emerald-200/50";
+                      } else if (status === "Unpaid") {
+                        badgeColor = "bg-rose-50 text-rose-700 border-rose-200/50";
+                      }
+                      
+                      return (
+                        <Badge className={`${badgeColor} border text-sm px-2.5 py-0.5 rounded-full font-medium shadow-none font-sans whitespace-nowrap`}>
+                          {status}
+                        </Badge>
+                      );
+                    })()}
                   </TableCell>
                 )}
                 {visibleColumns.includes("uscfRating") && (
