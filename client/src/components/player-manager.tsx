@@ -841,9 +841,9 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
               <TableHead className="w-32 px-2 py-2 text-sm font-semibold text-slate-500 bg-slate-50/80 font-sans">Email</TableHead>
             )}
             {visibleColumns.includes("actions") && (
-              <TableHead className="w-32 px-2 py-2 text-right text-sm font-semibold text-slate-500 bg-slate-50/80 sticky right-0 z-20 shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.05)] font-sans">
+              <TableHead className="w-32 pl-2 pr-6 py-2 text-right text-sm font-semibold text-slate-500 bg-slate-50/80 sticky right-0 z-20 shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.05)] font-sans">
                 <div className="flex items-center justify-end gap-2 font-sans text-sm">
-                  <span>Confirm / Select</span>
+                  <span>Select</span>
                   {isTD && (
                     <Checkbox
                       checked={headerCheckboxStateValue}
@@ -1214,7 +1214,7 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
                 )}
                 {visibleColumns.includes("actions") && (
                   <TableCell className={cn(
-                    "text-right sticky right-0 z-10 transition-colors shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.05)] px-2 py-2 w-32 font-sans text-sm",
+                    "text-right sticky right-0 z-10 transition-colors shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.05)] pl-2 pr-6 py-2 w-32 font-sans text-sm",
                     isSelected
                       ? "bg-indigo-50/30"
                       : "bg-white group-hover:bg-slate-50/85"
