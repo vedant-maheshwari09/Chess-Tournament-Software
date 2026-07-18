@@ -1688,6 +1688,210 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
     );
   };
 
+  const renderPairingsTable = (tableMatches: Match[], tableByes: Pairing[], sectionLabel?: string) => {
+    if (tableMatches.length === 0 && tableByes.length === 0) {
+      return (
+        <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+          No pairings or byes {sectionLabel ? `for ${sectionLabel} ` : ""}in Round {currentRound}.
+        </div>
+      );
+    }
+    return (
+      <div className="overflow-x-auto border border-black p-1 bg-white">
+        <table style={{ borderCollapse: 'collapse', border: '1px solid black', width: '100%', fontFamily: 'Arial, sans-serif', fontSize: '14px', color: '#000', backgroundColor: '#fff' }}>
+          <thead>
+            <tr style={{ border: '1px solid black', backgroundColor: '#e8e8e8' }}>
+              <th style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '14px', textAlign: 'center', width: '56px' }}>Bd</th>
+              <th style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '14px', textAlign: 'center', width: '64px' }}>Res</th>
+              <th style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '14px', textAlign: 'left' }}>White</th>
+              <th style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '14px', textAlign: 'center', width: '64px' }}>Res</th>
+              <th style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '14px', textAlign: 'left' }}>Black</th>
+              {isOwner && <th style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '14px', textAlign: 'center', width: '60px' }}>Action</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {tableMatches.map((match) => {
+              const whiteName = getPlayerName(match.whitePlayerId);
+              const whiteRating = getPlayerRating(match.whitePlayerId);
+              const blackName = match.blackPlayerId ? getPlayerName(match.blackPlayerId) : "Bye";
+              const blackRating = match.blackPlayerId ? getPlayerRating(match.blackPlayerId) : 0;
+              
+              const effectiveResult = getEffectiveResult(match);
+              const isPending = pendingResults[match.id] !== undefined;
+              const isWhiteWin = effectiveResult ? (effectiveResult.startsWith("1-0") || effectiveResult.startsWith("1F-0F")) : false;
+              const isBlackWin = effectiveResult ? (effectiveResult.startsWith("0-1") || effectiveResult.startsWith("0F-1F")) : false;
+              const isDraw = effectiveResult ? effectiveResult.startsWith("1/2-1/2") : false;
+              
+              const whitePoints = getPlayerPoints(match.whitePlayerId, currentRound);
+              const whitePointsStr = formatPointsWithFractions(whitePoints);
+              const blackPoints = match.blackPlayerId ? getPlayerPoints(match.blackPlayerId, currentRound) : 0;
+              const blackPointsStr = formatPointsWithFractions(blackPoints);
+              
+              const whiteClicked = isEditMode && (clickState[match.id]?.has('white') ?? false);
+              const blackClicked = isEditMode && (clickState[match.id]?.has('black') ?? false);
+
+              const isWhiteSelected = selectedPlayers.some(p => p.playerId === match.whitePlayerId && p.matchId === match.id);
+              const isBlackSelected = match.blackPlayerId ? selectedPlayers.some(p => p.playerId === match.blackPlayerId && p.matchId === match.id) : false;
+
+              return (
+                <tr
+                  key={match.id}
+                  style={{
+                    border: '1px solid black',
+                    backgroundColor: isPending ? '#fff9e6' : '#fff',
+                    color: '#000'
+                  }}
+                >
+                  <td style={{ border: '1px solid black', padding: '6px 8px', color: '#000', textAlign: 'center', fontWeight: 'bold', fontSize: '14px', width: '56px', backgroundColor: '#f5f5f5' }}>
+                    {match.board}
+                  </td>
+                  <td
+                    style={{
+                      border: '1px solid black',
+                      padding: '6px 8px',
+                      color: whiteClicked ? '#854d0e' : '#000',
+                      backgroundColor: whiteClicked ? '#fef3c7' : '#fff',
+                      textAlign: 'center',
+                      cursor: isEditMode ? 'pointer' : 'default',
+                      fontWeight: 'bold',
+                      fontSize: '14px',
+                      width: '64px',
+                      userSelect: 'none'
+                    }}
+                    onClick={() => isEditMode && handleResultCellClick(match.id, 'white')}
+                    onDoubleClick={() => isEditMode && handleResultCellDoubleClick(match.id, 'white')}
+                    title={isEditMode ? "Double-click to set White Win; click both sides once for Draw" : ""}
+                  >
+                    <div className="flex items-center justify-center">
+                      {isWhiteWin ? "1" : isDraw ? "½" : isBlackWin ? "0" : ""}
+                    </div>
+                  </td>
+                  <td
+                    style={{
+                      border: '1px solid black',
+                      padding: '6px 8px',
+                      color: isWhiteSelected ? '#1e3a8a' : '#000',
+                      backgroundColor: isWhiteSelected ? '#dbeafe' : 'transparent',
+                      textAlign: 'left',
+                      cursor: (!isEditMode && match.whitePlayerId && isOwner) ? 'pointer' : 'default',
+                      userSelect: 'none'
+                    }}
+                    onClick={() => {
+                      if (!isEditMode && match.whitePlayerId && isOwner) {
+                        handlePlayerClick(match.whitePlayerId, match.id, 'white', whiteName);
+                      }
+                    }}
+                    title={(!isEditMode && isOwner) ? "Click to select for swap" : ""}
+                  >
+                    <span style={{ fontWeight: 'bold', fontSize: '14px', color: isWhiteSelected ? '#1e3a8a' : '#000' }}>
+                      {whiteName} <span style={{ fontSize: '14px', color: '#555', fontWeight: 'normal' }}>({whiteRating} {whitePointsStr})</span>
+                    </span>
+                  </td>
+                  <td
+                    style={{
+                      border: '1px solid black',
+                      padding: '6px 8px',
+                      color: blackClicked ? '#854d0e' : '#000',
+                      backgroundColor: blackClicked ? '#fef3c7' : '#fff',
+                      textAlign: 'center',
+                      cursor: isEditMode ? 'pointer' : 'default',
+                      fontWeight: 'bold',
+                      fontSize: '14px',
+                      width: '64px',
+                      userSelect: 'none'
+                    }}
+                    onClick={() => isEditMode && handleResultCellClick(match.id, 'black')}
+                    onDoubleClick={() => isEditMode && handleResultCellDoubleClick(match.id, 'black')}
+                    title={isEditMode ? "Double-click to set Black Win; click both sides once for Draw" : ""}
+                  >
+                    <div className="flex items-center justify-center">
+                      {isBlackWin ? "1" : isDraw ? "½" : isWhiteWin ? "0" : ""}
+                    </div>
+                  </td>
+                  <td
+                    style={{
+                      border: '1px solid black',
+                      padding: '6px 8px',
+                      color: isBlackSelected ? '#1e3a8a' : '#000',
+                      backgroundColor: isBlackSelected ? '#dbeafe' : 'transparent',
+                      textAlign: 'left',
+                      cursor: (!isEditMode && match.blackPlayerId && isOwner) ? 'pointer' : 'default',
+                      userSelect: 'none'
+                    }}
+                    onClick={() => {
+                      if (!isEditMode && match.blackPlayerId && isOwner) {
+                        handlePlayerClick(match.blackPlayerId, match.id, 'black', blackName);
+                      }
+                    }}
+                    title={(!isEditMode && isOwner) ? "Click to select for swap" : ""}
+                  >
+                    <span style={{ fontWeight: 'bold', fontSize: '14px', color: isBlackSelected ? '#1e3a8a' : '#000' }}>
+                      {blackName} <span style={{ fontSize: '14px', color: '#555', fontWeight: 'normal' }}>({blackRating} {blackPointsStr})</span>
+                    </span>
+                  </td>
+                  {isOwner && (
+                    <td style={{ border: '1px solid black', padding: '4px', textAlign: 'center', width: '60px' }}>
+                      {renderMatchActionsDropdown(match)}
+                    </td>
+                  )}
+                </tr>
+              );
+            })}
+
+            {tableByes.map((bye) => {
+              const playerName = getPlayerName(bye.playerId);
+              const playerRating = getPlayerRating(bye.playerId);
+              const playerPoints = getPlayerPoints(bye.playerId, currentRound);
+              const playerPointsStr = formatPointsWithFractions(playerPoints);
+              const byePointsRaw = bye.points === 1 ? 0.5 : bye.points === 2 ? 1.0 : bye.points === 0 ? 0.0 : null;
+              const byePointsDisplay = byePointsRaw !== null
+                ? formatPointsWithFractions(byePointsRaw)
+                : '';
+              const byeLabel = bye.isRequested
+                ? (bye.points === 0 ? 'Requested 0-Point Bye' : bye.points === 2 ? 'Requested 1-Point Bye' : 'Requested 1/2-Point Bye')
+                : '1-Point Bye';
+
+              return (
+                <tr
+                  key={`bye-${bye.id}`}
+                  style={{
+                    border: '1px solid black',
+                    backgroundColor: '#fff',
+                    color: '#000'
+                  }}
+                >
+                  <td style={{ border: '1px solid black', padding: '6px 8px', color: '#000', textAlign: 'center', fontWeight: 'bold', fontSize: '14px', width: '56px', backgroundColor: '#f5f5f5' }}>
+                    
+                  </td>
+                  <td style={{ border: '1px solid black', padding: '6px 8px', color: '#000', textAlign: 'center', fontWeight: 'bold', fontSize: '14px', width: '64px' }}>
+                    <div className="flex items-center justify-center">
+                      {byePointsDisplay}
+                    </div>
+                  </td>
+                  <td style={{ border: '1px solid black', padding: '6px 8px', color: '#000', textAlign: 'left', fontWeight: 'bold', fontSize: '14px' }}>
+                    <span>
+                      {playerName} <span style={{ fontSize: '14px', color: '#555', fontWeight: 'normal' }}>({playerRating} {playerPointsStr})</span>
+                    </span>
+                  </td>
+                  <td style={{ border: '1px solid black', padding: '6px 8px', color: '#000', textAlign: 'center', fontSize: '14px', width: '64px' }}>
+                    
+                  </td>
+                  <td style={{ border: '1px solid black', padding: '6px 8px', color: '#555', textAlign: 'left', fontSize: '14px', fontStyle: 'italic' }}>
+                    {byeLabel}
+                  </td>
+                  {isOwner && (
+                    <td style={{ border: '1px solid black', padding: '6px 8px', width: '60px' }}>
+                    </td>
+                  )}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6">
       <div className="space-y-6">
@@ -2359,217 +2563,38 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                 <>
                   {activeSection !== "extra_games" && (
                     <div className="space-y-6">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-sm font-semibold text-slate-500">
-                    Matches
-                  </h3>
-                </div>
-                <div className="overflow-x-auto">
-                  {swissMatches.length === 0 && filteredByes.length === 0 ? (
-                    <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-                      No pairings or byes for this section in Round {currentRound}.
-                    </div>
-                  ) : (
-                    <div className="overflow-x-auto border border-black p-1 bg-white">
-                        <table style={{ borderCollapse: 'collapse', border: '1px solid black', width: '100%', fontFamily: 'Arial, sans-serif', fontSize: '14px', color: '#000', backgroundColor: '#fff' }}>
-                          <thead>
-                            <tr style={{ border: '1px solid black', backgroundColor: '#e8e8e8' }}>
-                              <th style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '14px', textAlign: 'center', width: '56px' }}>Bd</th>
-                              <th style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '14px', textAlign: 'center', width: '64px' }}>Res</th>
-                              <th style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '14px', textAlign: 'left' }}>White</th>
-                              <th style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '14px', textAlign: 'center', width: '64px' }}>Res</th>
-                              <th style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '14px', textAlign: 'left' }}>Black</th>
-                              {isOwner && <th style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '14px', textAlign: 'center', width: '60px' }}>Action</th>}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {swissMatches.map((match) => {
-                              const whiteName = getPlayerName(match.whitePlayerId);
-                              const whiteRating = getPlayerRating(match.whitePlayerId);
-                              const blackName = match.blackPlayerId ? getPlayerName(match.blackPlayerId) : "Bye";
-                              const blackRating = match.blackPlayerId ? getPlayerRating(match.blackPlayerId) : 0;
-                              
-                              const effectiveResult = getEffectiveResult(match);
-                              const isPending = pendingResults[match.id] !== undefined;
-                              const isWhiteWin = effectiveResult ? (effectiveResult.startsWith("1-0") || effectiveResult.startsWith("1F-0F")) : false;
-                              const isBlackWin = effectiveResult ? (effectiveResult.startsWith("0-1") || effectiveResult.startsWith("0F-1F")) : false;
-                              const isDraw = effectiveResult ? effectiveResult.startsWith("1/2-1/2") : false;
-                              
-                              const whiteObj = getPlayerObject(match.whitePlayerId);
-                              const blackObj = getPlayerObject(match.blackPlayerId);
-
-                              const whitePoints = getPlayerPoints(match.whitePlayerId, currentRound);
-                              const whitePointsStr = formatPointsWithFractions(whitePoints);
-                              const blackPoints = match.blackPlayerId ? getPlayerPoints(match.blackPlayerId, currentRound) : 0;
-                              const blackPointsStr = formatPointsWithFractions(blackPoints);
-                              
-                              const whiteClicked = isEditMode && (clickState[match.id]?.has('white') ?? false);
-                              const blackClicked = isEditMode && (clickState[match.id]?.has('black') ?? false);
-
-                              const isWhiteSelected = selectedPlayers.some(p => p.playerId === match.whitePlayerId && p.matchId === match.id);
-                              const isBlackSelected = match.blackPlayerId ? selectedPlayers.some(p => p.playerId === match.blackPlayerId && p.matchId === match.id) : false;
-
-                              return (
-                                <tr
-                                  key={match.id}
-                                  style={{
-                                    border: '1px solid black',
-                                    backgroundColor: isPending ? '#fff9e6' : '#fff',
-                                    color: '#000'
-                                  }}
-                                >
-                                  <td style={{ border: '1px solid black', padding: '6px 8px', color: '#000', textAlign: 'center', fontWeight: 'bold', fontSize: '14px', width: '56px', backgroundColor: '#f5f5f5' }}>
-                                    {match.board}
-                                  </td>
-                                  <td
-                                    style={{
-                                      border: '1px solid black',
-                                      padding: '6px 8px',
-                                      color: whiteClicked ? '#854d0e' : '#000',
-                                      backgroundColor: whiteClicked ? '#fef3c7' : '#fff',
-                                      textAlign: 'center',
-                                      cursor: isEditMode ? 'pointer' : 'default',
-                                      fontWeight: 'bold',
-                                      fontSize: '14px',
-                                      width: '64px',
-                                      userSelect: 'none'
-                                    }}
-                                    onClick={() => isEditMode && handleResultCellClick(match.id, 'white')}
-                                    onDoubleClick={() => isEditMode && handleResultCellDoubleClick(match.id, 'white')}
-                                    title={isEditMode ? "Double-click to set White Win; click both sides once for Draw" : ""}
-                                  >
-                                    <div className="flex items-center justify-center">
-                                      {isWhiteWin ? "1" : isDraw ? "½" : isBlackWin ? "0" : ""}
-                                    </div>
-                                  </td>
-                                  <td
-                                    style={{
-                                      border: '1px solid black',
-                                      padding: '6px 8px',
-                                      color: isWhiteSelected ? '#1e3a8a' : '#000',
-                                      backgroundColor: isWhiteSelected ? '#dbeafe' : 'transparent',
-                                      textAlign: 'left',
-                                      cursor: (!isEditMode && match.whitePlayerId && isOwner) ? 'pointer' : 'default',
-                                      userSelect: 'none'
-                                    }}
-                                    onClick={() => {
-                                      if (!isEditMode && match.whitePlayerId && isOwner) {
-                                        handlePlayerClick(match.whitePlayerId, match.id, 'white', whiteName);
-                                      }
-                                    }}
-                                    title={(!isEditMode && isOwner) ? "Click to select for swap" : ""}
-                                  >
-                                    <span style={{ fontWeight: 'bold', fontSize: '14px', color: isWhiteSelected ? '#1e3a8a' : '#000' }}>
-                                      {whiteName} <span style={{ fontSize: '14px', color: '#555', fontWeight: 'normal' }}>({whiteRating} {whitePointsStr})</span>
-                                    </span>
-                                  </td>
-                                  <td
-                                    style={{
-                                      border: '1px solid black',
-                                      padding: '6px 8px',
-                                      color: blackClicked ? '#854d0e' : '#000',
-                                      backgroundColor: blackClicked ? '#fef3c7' : '#fff',
-                                      textAlign: 'center',
-                                      cursor: isEditMode ? 'pointer' : 'default',
-                                      fontWeight: 'bold',
-                                      fontSize: '14px',
-                                      width: '64px',
-                                      userSelect: 'none'
-                                    }}
-                                    onClick={() => isEditMode && handleResultCellClick(match.id, 'black')}
-                                    onDoubleClick={() => isEditMode && handleResultCellDoubleClick(match.id, 'black')}
-                                    title={isEditMode ? "Double-click to set Black Win; click both sides once for Draw" : ""}
-                                  >
-                                    <div className="flex items-center justify-center">
-                                      {isBlackWin ? "1" : isDraw ? "½" : isWhiteWin ? "0" : ""}
-                                    </div>
-                                  </td>
-                                  <td
-                                    style={{
-                                      border: '1px solid black',
-                                      padding: '6px 8px',
-                                      color: isBlackSelected ? '#1e3a8a' : '#000',
-                                      backgroundColor: isBlackSelected ? '#dbeafe' : 'transparent',
-                                      textAlign: 'left',
-                                      cursor: (!isEditMode && match.blackPlayerId && isOwner) ? 'pointer' : 'default',
-                                      userSelect: 'none'
-                                    }}
-                                    onClick={() => {
-                                      if (!isEditMode && match.blackPlayerId && isOwner) {
-                                        handlePlayerClick(match.blackPlayerId, match.id, 'black', blackName);
-                                      }
-                                    }}
-                                    title={(!isEditMode && isOwner) ? "Click to select for swap" : ""}
-                                  >
-                                    <span style={{ fontWeight: 'bold', fontSize: '14px', color: isBlackSelected ? '#1e3a8a' : '#000' }}>
-                                      {blackName} <span style={{ fontSize: '14px', color: '#555', fontWeight: 'normal' }}>({blackRating} {blackPointsStr})</span>
-                                    </span>
-                                  </td>
-                                  {isOwner && (
-                                    <td style={{ border: '1px solid black', padding: '4px', textAlign: 'center', width: '60px' }}>
-                                      {renderMatchActionsDropdown(match)}
-                                    </td>
-                                  )}
-                                </tr>
-                              );
-                            })}
-
-                            {filteredByes.map((bye) => {
-                              const playerName = getPlayerName(bye.playerId);
-                              const playerRating = getPlayerRating(bye.playerId);
-                              const playerObj = getPlayerObject(bye.playerId);
-                              const playerPoints = getPlayerPoints(bye.playerId, currentRound);
-                              const playerPointsStr = formatPointsWithFractions(playerPoints);
-                              const byePointsRaw = bye.points === 1 ? 0.5 : bye.points === 2 ? 1.0 : bye.points === 0 ? 0.0 : null;
-                              const byePointsDisplay = byePointsRaw !== null
-                                ? formatPointsWithFractions(byePointsRaw)
-                                : '';
-                              const byeLabel = bye.isRequested
-                                ? (bye.points === 0 ? 'Requested 0-Point Bye' : bye.points === 2 ? 'Requested 1-Point Bye' : 'Requested 1/2-Point Bye')
-                                : '1-Point Bye';
-
-                              return (
-                                <tr
-                                  key={`bye-${bye.id}`}
-                                  style={{
-                                    border: '1px solid black',
-                                    backgroundColor: '#fff',
-                                    color: '#000'
-                                  }}
-                                >
-                                  <td style={{ border: '1px solid black', padding: '6px 8px', color: '#000', textAlign: 'center', fontWeight: 'bold', fontSize: '14px', width: '56px', backgroundColor: '#f5f5f5' }}>
-                                    
-                                  </td>
-                                  <td style={{ border: '1px solid black', padding: '6px 8px', color: '#000', textAlign: 'center', fontWeight: 'bold', fontSize: '14px', width: '64px' }}>
-                                    <div className="flex items-center justify-center">
-                                      {byePointsDisplay}
-                                    </div>
-                                  </td>
-                                  <td style={{ border: '1px solid black', padding: '6px 8px', color: '#000', textAlign: 'left', fontWeight: 'bold', fontSize: '14px' }}>
-                                    <span>
-                                      {playerName} <span style={{ fontSize: '14px', color: '#555', fontWeight: 'normal' }}>({playerRating} {playerPointsStr})</span>
-                                    </span>
-                                  </td>
-                                  <td style={{ border: '1px solid black', padding: '6px 8px', color: '#000', textAlign: 'center', fontSize: '14px', width: '64px' }}>
-                                    
-                                  </td>
-                                  <td style={{ border: '1px solid black', padding: '6px 8px', color: '#555', textAlign: 'left', fontSize: '14px', fontStyle: 'italic' }}>
-                                    {byeLabel}
-                                  </td>
-                                  {isOwner && (
-                                    <td style={{ border: '1px solid black', padding: '6px 8px', width: '60px' }}>
-                                    </td>
-                                  )}
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="text-sm font-semibold text-slate-500">
+                          Matches
+                        </h3>
                       </div>
+                      <div className="overflow-x-auto">
+                        {activeSection === "all" ? (
+                          <div className="space-y-8">
+                            {sections.map((section) => {
+                              const sectionMatches = swissMatches.filter(m => matchSectionFilter(m, section.id));
+                              const sectionByes = filteredByes.filter(b => playerSectionMap.get(b.playerId)?.id === section.id);
+                              return (
+                                <div key={section.id} className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm space-y-4">
+                                  <h4 className="text-md font-semibold text-slate-800 dark:text-slate-100 border-b dark:border-slate-800 pb-2 flex items-center justify-between font-sans">
+                                    <span>{section.name} Section</span>
+                                    <Badge variant="secondary" className="text-xs font-semibold font-sans">
+                                      {sectionMatches.length} Boards
+                                    </Badge>
+                                  </h4>
+                                  {renderPairingsTable(sectionMatches, sectionByes, section.name)}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          renderPairingsTable(swissMatches, filteredByes)
+                        )}
+                      </div>
+                    </div>
                   )}
-                </div>
-              </div>
-            )}
+                </>
+              )}
 
                 {/* Extra Games Section */}
                 {tournament?.format === 'swiss' && tournamentConfig?.registers?.allowExtraGames && activeSection === "extra_games" && (
