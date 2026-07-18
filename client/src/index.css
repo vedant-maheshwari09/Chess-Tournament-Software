@@ -61,6 +61,10 @@
     position: relative;
   }
 
+  body, input, button, select, textarea {
+    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  }
+
   body {
     @apply font-sans antialiased bg-transparent text-foreground;
   }

@@ -275,8 +275,8 @@ export default function SwissStandings({ tournamentId, showExportControls = true
   const generateSwissSysHtmlTable = useCallback((sectionStandings: SwissPlayerStanding[], sectionLabel: string) => {
     const isFide = tournamentConfig?.details.primaryRatingSystem === 'fide';
     
-    let html = `<h3 style="font-family: Arial, sans-serif; font-size: 15px; font-weight: bold; margin: 0 0 10px 0; text-align: left;">SwissSys Wall Chart. ${tournament?.name ?? 'Tournament'}: ${sectionLabel}</h3>\n`;
-    html += `<table style="border-collapse: collapse; border: 1px solid black; width: 100%; font-family: Arial, sans-serif; font-size: 13px; color: #000; background-color: #fff;">\n`;
+    let html = `<h3 style="font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; font-size: 15px; font-weight: bold; margin: 0 0 10px 0; text-align: left;">SwissSys Wall Chart. ${tournament?.name ?? 'Tournament'}: ${sectionLabel}</h3>\n`;
+    html += `<table style="border-collapse: collapse; border: 1px solid black; width: 100%; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; font-size: 13px; color: #000; background-color: #fff;">\n`;
     
     // Headers
     html += `<thead>\n  <tr style="border: 1px solid black; padding: 6px 8px;">\n`;
@@ -351,7 +351,7 @@ export default function SwissStandings({ tournamentId, showExportControls = true
         @page { size: auto; margin: 0; }
         body { margin: 15mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       }
-      body { font-family: Arial, sans-serif; color: #000; background-color: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      body { font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; color: #000; background-color: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     </style></head><body>`);
 
     if (selectedSectionId === '__all__') {
@@ -394,8 +394,8 @@ export default function SwissStandings({ tournamentId, showExportControls = true
 <meta charset="UTF-8">
 <title>${title}</title>
 <style>
-body { font-family: Arial, sans-serif; padding: 20px; color: #000; background-color: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-h3 { font-family: Arial, sans-serif; margin-top: 20px; }
+body { font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; padding: 20px; color: #000; background-color: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+h3 { font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; margin-top: 20px; }
 a { color: #0066cc; text-decoration: none; }
 a:hover { text-decoration: underline; }
 </style>

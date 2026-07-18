@@ -199,7 +199,7 @@ export default function Standings({ tournamentId, showExportControls = true }: S
     if (!printWindow) return;
 
     printWindow.document.write(
-      `<html><head><title>${title}</title><style>body{font-family:Arial,Helvetica,sans-serif;padding:24px;color:#0f172a;}h1{font-size:24px;margin-bottom:16px;}table{width:100%;border-collapse:collapse;}th,td{border:1px solid #cbd5f5;padding:8px;text-align:left;font-size:14px;}th{background:#f1f5f9;text-transform:uppercase;font-size:12px;color:#475569;letter-spacing:0.05em;}</style></head><body>`,
+      `<html><head><title>${title}</title><style>body{font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;padding:24px;color:#0f172a;}h1{font-size:24px;margin-bottom:16px;}table{width:100%;border-collapse:collapse;}th,td{border:1px solid #cbd5f5;padding:8px;text-align:left;font-size:14px;}th{background:#f1f5f9;text-transform:uppercase;font-size:12px;color:#475569;letter-spacing:0.05em;}</style></head><body>`,
     );
     printWindow.document.write(`<h1>${title}</h1>`);
     printWindow.document.write(`<table><thead><tr><th>Rank</th><th>Player</th><th>Points</th><th>Games</th><th>W-D-L</th><th>Rating</th></tr></thead><tbody>`);

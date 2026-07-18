@@ -854,8 +854,8 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
           @page { size: auto; margin: 0; }
           body { margin: 15mm; }
         }
-        body { font-family: Arial, sans-serif; padding: 10px; color: #000; font-size: 13px; background-color: #fff; }
-        .round-header { font-size: 13px; margin: 5px 0 10px 0; font-weight: normal; font-family: Arial, sans-serif; text-align: left; }
+        body { font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; padding: 10px; color: #000; font-size: 13px; background-color: #fff; }
+        .round-header { font-size: 13px; margin: 5px 0 10px 0; font-weight: normal; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; text-align: left; }
         table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 13px; }
         th { padding: 6px 8px; border: 1px solid #000; background-color: #fff; font-weight: normal; }
         td { padding: 6px 8px; border: 1px solid #000; vertical-align: middle; }
@@ -1698,7 +1698,7 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
     }
     return (
       <div className="overflow-x-auto border border-black p-1 bg-white">
-        <table style={{ borderCollapse: 'collapse', border: '1px solid black', width: '100%', fontFamily: 'Arial, sans-serif', fontSize: '14px', color: '#000', backgroundColor: '#fff' }}>
+        <table style={{ borderCollapse: 'collapse', border: '1px solid black', width: '100%', fontFamily: 'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif', fontSize: '14px', color: '#000', backgroundColor: '#fff' }}>
           <thead>
             <tr style={{ border: '1px solid black', backgroundColor: '#e8e8e8' }}>
               <th style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '14px', textAlign: 'center', width: '56px' }}>Bd</th>
@@ -2603,7 +2603,7 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                     </div>
                     {extraMatches.length > 0 ? (
                       <div className="overflow-x-auto border border-black p-1 bg-white">
-                        <table style={{ borderCollapse: 'collapse', border: '1px solid black', width: '100%', fontFamily: 'Arial, sans-serif', fontSize: '14px', color: '#000', backgroundColor: '#fff' }}>
+                        <table style={{ borderCollapse: 'collapse', border: '1px solid black', width: '100%', fontFamily: 'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif', fontSize: '14px', color: '#000', backgroundColor: '#fff' }}>
                           <thead>
                             <tr style={{ border: '1px solid black', backgroundColor: '#e8e8e8' }}>
                               <th style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '14px', textAlign: 'center', width: '56px' }}>Bd</th>

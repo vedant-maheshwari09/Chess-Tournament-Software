@@ -28,7 +28,7 @@ export function StandingsTable({
 
   return (
     <div className="overflow-x-auto border border-black p-1 bg-white">
-      <table className="w-full border-collapse" style={{ borderCollapse: 'collapse', border: '1px solid black', width: '100%', fontFamily: 'Arial, sans-serif', fontSize: '14px', color: '#000', backgroundColor: '#fff' }}>
+      <table className="w-full border-collapse" style={{ borderCollapse: 'collapse', border: '1px solid black', width: '100%', fontFamily: 'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif', fontSize: '14px', color: '#000', backgroundColor: '#fff' }}>
         <thead>
           <tr style={{ border: '1px solid black', backgroundColor: '#e8e8e8' }}>
             <th className="font-sans" style={{ border: '1px solid black', padding: '6px 8px', color: '#000', backgroundColor: '#e8e8e8', fontWeight: 'bold', fontSize: '14px', textAlign: 'center', width: '48px' }}>
