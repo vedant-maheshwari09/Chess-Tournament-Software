@@ -725,99 +725,99 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
 
   const renderTable = (tablePlayers: Player[], onToggleSelectAll: (checked: boolean) => void, headerCheckboxStateValue: any) => {
     return (
-      <Table className="min-w-[900px] md:min-w-full relative border-collapse">
+      <Table className="min-w-[900px] md:min-w-full relative border-collapse table-fixed">
         <TableHeader className="bg-slate-50/50 sticky top-0 z-30 shadow-[0_1px_0_0_rgba(226,232,240,0.8)]">
-          <TableRow className="hover:bg-transparent border-b border-slate-200/80">
+          <TableRow className="hover:bg-transparent border-b border-slate-100">
             {visibleColumns.includes("index") && (
-              <TableHead className="w-12 text-xs font-bold text-slate-650 bg-slate-50/80 sticky left-0 z-20">#</TableHead>
+              <TableHead className="w-10 px-2 py-2 text-center text-[10px] font-bold text-slate-500 bg-slate-50/80 sticky left-0 z-20">#</TableHead>
             )}
             {visibleColumns.includes("uscfId") && (
-              <TableHead className="w-28 text-xs font-bold text-slate-650 bg-slate-50/80">USCF ID</TableHead>
+              <TableHead className="w-28 px-2 py-2 text-[10px] font-bold text-slate-500 bg-slate-50/80">USCF ID</TableHead>
             )}
             {visibleColumns.includes("name") && (
               <TableHead className={cn(
-                "text-xs font-bold text-slate-655 bg-slate-50/80 sticky z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]",
-                isIndexVisible ? "left-12" : "left-0"
+                "px-2 py-2 text-[10px] font-bold text-slate-500 bg-slate-50/80 sticky z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]",
+                isIndexVisible ? "left-10" : "left-0"
               )}>
                 <button onClick={() => handleSort('name')} className="flex items-center gap-1 hover:text-slate-800 transition-colors uppercase tracking-wider text-[10px]">
                   Name
-                  {sortKey === 'name' && <ArrowUpDown className="h-3 w-3 inline text-slate-550" />}
+                  {sortKey === 'name' && <ArrowUpDown className="h-3 w-3 inline text-slate-500" />}
                 </button>
               </TableHead>
             )}
             {visibleColumns.includes("rating") && (
-              <TableHead className="text-xs font-bold text-slate-655 bg-slate-50/80">
+              <TableHead className="w-24 px-2 py-2 text-[10px] font-bold text-slate-500 bg-slate-50/80">
                 <button onClick={() => handleSort('rating')} className="flex items-center gap-1 hover:text-slate-800 transition-colors uppercase tracking-wider text-[10px]">
                   {tournamentConfig.details.primaryRatingSystem === 'fide' ? 'FIDE' : 'USCF'} Rating
-                  {sortKey === 'rating' && <ArrowUpDown className="h-3 w-3 inline text-slate-555" />}
+                  {sortKey === 'rating' && <ArrowUpDown className="h-3 w-3 inline text-slate-500" />}
                 </button>
               </TableHead>
             )}
             {visibleColumns.includes("uscfMembership") && (
-              <TableHead className="w-36 text-xs font-bold text-slate-655 bg-slate-50/80 uppercase tracking-wider text-[10px]">USCF Membership</TableHead>
+              <TableHead className="w-44 px-2 py-2 text-[10px] font-bold text-slate-500 bg-slate-50/80 uppercase tracking-wider whitespace-nowrap">USCF Membership</TableHead>
             )}
             {visibleColumns.includes("byes") && tournament.format !== 'arena' && (
-              <TableHead className="text-xs font-bold text-slate-655 bg-slate-50/80 uppercase tracking-wider text-[10px]">Byes</TableHead>
+              <TableHead className="w-24 px-2 py-2 text-[10px] font-bold text-slate-500 bg-slate-50/80 uppercase tracking-wider">Byes</TableHead>
             )}
             {visibleColumns.includes("paymentStatus") && (
-              <TableHead className="text-xs font-bold text-slate-655 bg-slate-50/80">
+              <TableHead className="w-28 px-2 py-2 text-[10px] font-bold text-slate-500 bg-slate-50/80">
                 <button onClick={() => handleSort('paymentStatus')} className="flex items-center gap-1 hover:text-slate-800 transition-colors uppercase tracking-wider text-[10px]">
                   Payment
-                  {sortKey === 'paymentStatus' && <ArrowUpDown className="h-3 w-3 inline text-slate-555" />}
+                  {sortKey === 'paymentStatus' && <ArrowUpDown className="h-3 w-3 inline text-slate-500" />}
                 </button>
               </TableHead>
             )}
             {/* Optional columns */}
             {visibleColumns.includes("uscfRating") && (
-              <TableHead className="text-xs font-bold text-slate-655 bg-slate-50/80">
+              <TableHead className="w-24 px-2 py-2 text-[10px] font-bold text-slate-500 bg-slate-50/80">
                 <button onClick={() => handleSort('uscfRating')} className="flex items-center gap-1 hover:text-slate-800 transition-colors uppercase tracking-wider text-[10px]">
                   USCF Rating
-                  {sortKey === 'uscfRating' && <ArrowUpDown className="h-3 w-3 inline text-slate-555" />}
+                  {sortKey === 'uscfRating' && <ArrowUpDown className="h-3 w-3 inline text-slate-500" />}
                 </button>
               </TableHead>
             )}
             {visibleColumns.includes("fideRating") && (
-              <TableHead className="text-xs font-bold text-slate-655 bg-slate-50/80 uppercase tracking-wider text-[10px]">FIDE Rating</TableHead>
+              <TableHead className="w-24 px-2 py-2 text-[10px] font-bold text-slate-500 bg-slate-50/80 uppercase tracking-wider">FIDE Rating</TableHead>
             )}
             {visibleColumns.includes("fideId") && (
-              <TableHead className="text-xs font-bold text-slate-655 bg-slate-50/80 uppercase tracking-wider text-[10px]">FIDE ID</TableHead>
+              <TableHead className="w-28 px-2 py-2 text-[10px] font-bold text-slate-500 bg-slate-50/80 uppercase tracking-wider">FIDE ID</TableHead>
             )}
             {visibleColumns.includes("federation") && (
-              <TableHead className="text-xs font-bold text-slate-655 bg-slate-50/80 uppercase tracking-wider text-[10px]">Federation</TableHead>
+              <TableHead className="w-20 px-2 py-2 text-[10px] font-bold text-slate-500 bg-slate-50/80 uppercase tracking-wider">Federation</TableHead>
             )}
             {visibleColumns.includes("section") && (
-              <TableHead className="text-xs font-bold text-slate-655 bg-slate-50/80">
+              <TableHead className="w-28 px-2 py-2 text-[10px] font-bold text-slate-500 bg-slate-50/80">
                 <button onClick={() => handleSort('section')} className="flex items-center gap-1 hover:text-slate-800 transition-colors uppercase tracking-wider text-[10px]">
                   Section
-                  {sortKey === 'section' && <ArrowUpDown className="h-3 w-3 inline text-slate-555" />}
+                  {sortKey === 'section' && <ArrowUpDown className="h-3 w-3 inline text-slate-500" />}
                 </button>
               </TableHead>
             )}
             {visibleColumns.includes("club") && (
-              <TableHead className="text-xs font-bold text-slate-655 bg-slate-50/80 uppercase tracking-wider text-[10px]">Club</TableHead>
+              <TableHead className="w-32 px-2 py-2 text-[10px] font-bold text-slate-500 bg-slate-50/80 uppercase tracking-wider">Club</TableHead>
             )}
             {visibleColumns.includes("birthdate") && (
-              <TableHead className="text-xs font-bold text-slate-655 bg-slate-50/80 uppercase tracking-wider text-[10px]">Birthdate</TableHead>
+              <TableHead className="w-24 px-2 py-2 text-[10px] font-bold text-slate-500 bg-slate-50/80 uppercase tracking-wider">Birthdate</TableHead>
             )}
             {visibleColumns.includes("createdAt") && (
-              <TableHead className="text-xs font-bold text-slate-655 bg-slate-50/80">
+              <TableHead className="w-28 px-2 py-2 text-[10px] font-bold text-slate-500 bg-slate-50/80">
                 <button onClick={() => handleSort('createdAt')} className="flex items-center gap-1 hover:text-slate-800 transition-colors uppercase tracking-wider text-[10px]">
                   Registered
-                  {sortKey === 'createdAt' && <ArrowUpDown className="h-3 w-3 inline text-slate-555" />}
+                  {sortKey === 'createdAt' && <ArrowUpDown className="h-3 w-3 inline text-slate-500" />}
                 </button>
               </TableHead>
             )}
             {visibleColumns.includes("seed") && tournament.format === 'knockout' && (
-              <TableHead className="w-20 text-xs font-bold text-slate-655 bg-slate-50/80 uppercase tracking-wider text-[10px]">Seed</TableHead>
+              <TableHead className="w-16 px-2 py-2 text-[10px] font-bold text-slate-500 bg-slate-50/80 uppercase tracking-wider">Seed</TableHead>
             )}
             {visibleColumns.includes("status") && (
-              <TableHead className="text-xs font-bold text-slate-655 bg-slate-50/80 uppercase tracking-wider text-[10px]">Status</TableHead>
+              <TableHead className="w-20 px-2 py-2 text-[10px] font-bold text-slate-500 bg-slate-50/80 uppercase tracking-wider">Status</TableHead>
             )}
             {visibleColumns.includes("email") && (
-              <TableHead className="text-xs font-bold text-slate-655 bg-slate-50/80 uppercase tracking-wider text-[10px]">Email</TableHead>
+              <TableHead className="w-32 px-2 py-2 text-[10px] font-bold text-slate-500 bg-slate-50/80 uppercase tracking-wider">Email</TableHead>
             )}
             {visibleColumns.includes("actions") && (
-              <TableHead className="text-right text-xs font-bold text-slate-655 bg-slate-50/80 uppercase tracking-wider text-[10px] sticky right-0 z-20 shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.05)]">
+              <TableHead className="w-24 px-2 py-2 text-right text-[10px] font-bold text-slate-500 bg-slate-50/80 uppercase tracking-wider sticky right-0 z-20 shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.05)]">
                 <div className="flex items-center justify-end gap-2">
                   <span>Confirm / Select</span>
                   {isTD && (
@@ -850,7 +850,7 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
               >
                 {visibleColumns.includes("index") && (
                   <TableCell className={cn(
-                    "sticky left-0 transition-colors z-10 text-xs font-semibold text-slate-500",
+                    "sticky left-0 transition-colors z-10 text-xs font-semibold text-slate-500 text-center px-2 py-2",
                     isSelected
                       ? "bg-indigo-50/30"
                       : "bg-white group-hover:bg-slate-50/85"
@@ -859,9 +859,9 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
                   </TableCell>
                 )}
                 {visibleColumns.includes("uscfId") && (
-                  <TableCell>
+                  <TableCell className="px-2 py-2 overflow-hidden">
                     {(player as any).userUscfId || player.localId ? (
-                      <span className="font-mono text-xs font-semibold text-slate-700 bg-slate-100/80 px-1.5 py-0.5 rounded border border-slate-200/50">
+                      <span className="font-mono text-sm font-semibold text-slate-800 bg-slate-100/90 px-2 py-0.5 rounded border border-slate-200/60 shadow-sm whitespace-nowrap">
                         {(player as any).userUscfId || player.localId}
                       </span>
                     ) : (
@@ -871,14 +871,14 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
                 )}
                 {visibleColumns.includes("name") && (
                   <TableCell className={cn(
-                    "sticky transition-colors z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]",
-                    isIndexVisible ? "left-12" : "left-0",
+                    "sticky transition-colors z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] px-2 py-2 overflow-hidden truncate",
+                    isIndexVisible ? "left-10" : "left-0",
                     isSelected
                       ? "bg-indigo-50/30"
                       : "bg-white group-hover:bg-slate-50/85"
                   )}>
                     <div className="flex flex-col gap-0.5">
-                      <span className="text-sm font-semibold text-slate-800 hover:text-indigo-650 transition-colors">
+                      <span className="text-sm font-semibold text-slate-850 hover:text-indigo-650 transition-colors truncate">
                         {player.localId || (player as any).userUscfId ? (
                           <a
                             href={
@@ -932,7 +932,7 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
                   </TableCell>
                 )}
                 {visibleColumns.includes("rating") && (
-                  <TableCell className="text-xs font-semibold text-slate-700">
+                  <TableCell className="px-2 py-2 text-sm font-bold text-slate-850 overflow-hidden">
                     {(() => {
                       const threshold = tournamentConfig?.registers?.uscfMinGamesThreshold ?? 4;
                       const uscfDisp = resolveDisplayRating((player as any).uscfRatingRaw, player.uscfRating, threshold, false);
@@ -945,12 +945,12 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
                   </TableCell>
                 )}
                 {visibleColumns.includes("uscfMembership") && (
-                  <TableCell onClick={(e) => e.stopPropagation()}>
+                  <TableCell className="px-2 py-2 whitespace-nowrap overflow-hidden" onClick={(e) => e.stopPropagation()}>
                     {(() => {
                       const rawExpiry = player.uscfMemberExpiry || (player as any).userUscfMemberExpiry;
                       if (!rawExpiry) {
                         return (
-                          <Badge className="bg-slate-50 text-slate-400 hover:bg-slate-50 border-slate-200/80 text-[10px] px-1.5 py-0.5 rounded-full font-semibold shadow-none">
+                          <Badge className="whitespace-nowrap bg-slate-50 text-slate-400 hover:bg-slate-50 border border-slate-200/80 text-[10px] px-1.5 py-0.5 rounded-full font-semibold shadow-none">
                             No Expiry Info
                           </Badge>
                         );
@@ -959,7 +959,7 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
                         const expiryDate = new Date(rawExpiry);
                         if (isNaN(expiryDate.getTime())) {
                           return (
-                            <Badge className="bg-slate-50 text-slate-400 hover:bg-slate-50 border-slate-200/80 text-[10px] px-1.5 py-0.5 rounded-full font-semibold shadow-none">
+                            <Badge className="whitespace-nowrap bg-slate-50 text-slate-400 hover:bg-slate-50 border border-slate-200/80 text-[10px] px-1.5 py-0.5 rounded-full font-semibold shadow-none">
                               No Expiry Info
                             </Badge>
                           );
@@ -970,20 +970,20 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
                         const formatted = `${expiryDate.getMonth() + 1}/${expiryDate.getDate()}/${expiryDate.getFullYear()}`;
                         if (expiryDate >= now) {
                           return (
-                            <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border-emerald-200/40 text-[10px] px-2 py-0.5 rounded-full font-bold shadow-none">
+                            <Badge className="whitespace-nowrap bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border border-emerald-250/30 text-[10px] px-2 py-0.5 rounded-full font-bold shadow-none">
                               Active (Exp: {formatted})
                             </Badge>
                           );
                         } else {
                           return (
-                            <Badge className="bg-rose-50 text-rose-700 hover:bg-rose-50 border-rose-200/40 text-[10px] px-2 py-0.5 rounded-full font-bold shadow-none">
+                            <Badge className="whitespace-nowrap bg-rose-50 text-rose-700 hover:bg-rose-50 border border-rose-250/30 text-[10px] px-2 py-0.5 rounded-full font-bold shadow-none">
                               Expired (Exp: {formatted})
                             </Badge>
                           );
                         }
                       } catch (e) {
                         return (
-                          <Badge className="bg-slate-50 text-slate-400 hover:bg-slate-50 border-slate-200/80 text-[10px] px-1.5 py-0.5 rounded-full font-semibold shadow-none">
+                          <Badge className="whitespace-nowrap bg-slate-50 text-slate-400 hover:bg-slate-50 border border-slate-200/80 text-[10px] px-1.5 py-0.5 rounded-full font-semibold shadow-none">
                             No Expiry Info
                           </Badge>
                         );
@@ -992,7 +992,7 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
                   </TableCell>
                 )}
                 {visibleColumns.includes("byes") && tournament.format !== 'arena' && (
-                  <TableCell>
+                  <TableCell className="px-2 py-2 overflow-hidden">
                     {pairingsLoading ? (
                       <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
                     ) : playerByes.length > 0 ? (
@@ -1051,7 +1051,7 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
                   </TableCell>
                 )}
                 {visibleColumns.includes("paymentStatus") && (
-                  <TableCell onClick={(e) => e.stopPropagation()}>
+                  <TableCell className="px-2 py-2 overflow-hidden" onClick={(e) => e.stopPropagation()}>
                     {isTD ? (
                       <Select
                         value={player.paymentStatus || "N/A"}
@@ -1097,17 +1097,17 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
                   </TableCell>
                 )}
                 {visibleColumns.includes("uscfRating") && (
-                  <TableCell className="text-xs font-semibold text-slate-700">
+                  <TableCell className="px-2 py-2 text-sm font-bold text-slate-850 overflow-hidden">
                     {player.uscfRating ? `${player.uscfRating}${player.uscfRatingRaw?.toLowerCase().includes('p') ? 'p' : ''}` : "Unrated"}
                   </TableCell>
                 )}
                 {visibleColumns.includes("fideRating") && (
-                  <TableCell className="text-xs font-semibold text-slate-700">
+                  <TableCell className="px-2 py-2 text-sm font-bold text-slate-850 overflow-hidden">
                     {player.fideRating || "Unrated"}
                   </TableCell>
                 )}
                 {visibleColumns.includes("fideId") && (
-                  <TableCell>
+                  <TableCell className="px-2 py-2">
                     {player.localId && player.federation?.toLowerCase() === 'fide' ? (
                       <span className="font-mono text-xs font-semibold bg-slate-100/80 px-1.5 py-0.5 rounded border border-slate-200/50">{player.localId}</span>
                     ) : (
@@ -1116,32 +1116,32 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
                   </TableCell>
                 )}
                 {visibleColumns.includes("federation") && (
-                  <TableCell>
+                  <TableCell className="px-2 py-2">
                     <Badge variant="outline" className="text-[9px] uppercase font-bold text-slate-500 border-slate-200 bg-slate-50/20">{player.federation || "USCF"}</Badge>
                   </TableCell>
                 )}
                 {visibleColumns.includes("section") && (
-                  <TableCell className="text-xs font-medium text-slate-705">
+                  <TableCell className="px-2 py-2 text-xs font-medium text-slate-705">
                     {player.sectionName || "Default"}
                   </TableCell>
                 )}
                 {visibleColumns.includes("club") && (
-                  <TableCell className="text-xs text-slate-600 max-w-[150px] truncate">
+                  <TableCell className="px-2 py-2 text-xs text-slate-600 max-w-[150px] truncate">
                     {player.club || "—"}
                   </TableCell>
                 )}
                 {visibleColumns.includes("birthdate") && (
-                  <TableCell className="text-xs text-slate-650 font-mono">
+                  <TableCell className="px-2 py-2 text-xs text-slate-650 font-mono">
                     {player.birthdate || "—"}
                   </TableCell>
                 )}
                 {visibleColumns.includes("createdAt") && (
-                  <TableCell className="text-xs text-slate-600">
+                  <TableCell className="px-2 py-2 text-xs text-slate-600">
                     {new Date(player.createdAt).toLocaleDateString()}
                   </TableCell>
                 )}
                 {visibleColumns.includes("seed") && tournament.format === 'knockout' && (
-                  <TableCell>
+                  <TableCell className="px-2 py-2">
                     {isTD && editingSeedId === player.id ? (
                       <Input
                         type="number"
@@ -1175,20 +1175,20 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
                   </TableCell>
                 )}
                 {visibleColumns.includes("status") && (
-                  <TableCell>
+                  <TableCell className="px-2 py-2">
                     <Badge variant={(player.status || 'active') === 'active' ? 'default' : 'secondary'} className="text-[10px] font-bold uppercase tracking-wider shadow-none">
                       {player.status || 'active'}
                     </Badge>
                   </TableCell>
                 )}
                 {visibleColumns.includes("email") && (
-                  <TableCell className="text-xs text-slate-600 font-mono">
+                  <TableCell className="px-2 py-2 text-xs text-slate-600 font-mono truncate">
                     {player.email || "—"}
                   </TableCell>
                 )}
                 {visibleColumns.includes("actions") && (
                   <TableCell className={cn(
-                    "text-right sticky right-0 z-10 transition-colors shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.05)]",
+                    "text-right sticky right-0 z-10 transition-colors shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.05)] px-2 py-2 w-24",
                     isSelected
                       ? "bg-indigo-50/30"
                       : "bg-white group-hover:bg-slate-50/85"
@@ -1592,9 +1592,9 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
                       };
 
                       return (
-                        <div key={section.id} className="border border-slate-200/80 rounded-xl bg-white shadow-sm overflow-hidden animate-fade-in">
-                          <div className="bg-slate-50/80 border-b border-slate-100 px-5 py-3 flex items-center justify-between">
-                            <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
+                        <div key={section.id} className="rounded-xl bg-white shadow-[0_4px_20px_-4px_rgba(17,28,45,0.06)] overflow-hidden animate-fade-in">
+                          <div className="bg-slate-50/50 px-5 py-3.5 flex items-center justify-between">
+                            <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
                               <span>{section.name}</span>
                               <span className="text-[10px] font-mono text-slate-400 font-semibold lowercase">
                                 ({sectionPlayers.length} {sectionPlayers.length === 1 ? "player" : "players"})
@@ -1615,7 +1615,7 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
                     })}
                   </div>
                 ) : (
-                  <div className="overflow-x-auto no-scrollbar border border-slate-200/80 rounded-xl bg-white shadow-sm">
+                  <div className="overflow-x-auto no-scrollbar rounded-xl bg-white shadow-[0_4px_20px_-4px_rgba(17,28,45,0.06)]">
                     {renderTable(processedPlayers, toggleSelectAll, headerCheckboxValue)}
                   </div>
                 )}
