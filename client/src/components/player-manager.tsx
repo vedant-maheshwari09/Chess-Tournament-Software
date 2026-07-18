@@ -781,9 +781,6 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
             {visibleColumns.includes("uscfMembership") && (
               <TableHead className="w-44 px-2 py-2 text-sm font-semibold text-slate-500 bg-slate-50/80 whitespace-nowrap font-sans">USCF Membership</TableHead>
             )}
-            {visibleColumns.includes("byes") && tournament.format !== 'arena' && (
-              <TableHead className="w-44 px-2 py-2 text-sm font-semibold text-slate-500 bg-slate-50/80 font-sans">Byes</TableHead>
-            )}
             {visibleColumns.includes("paymentStatus") && (
               <TableHead className="w-28 px-2 py-2 text-sm font-semibold text-slate-500 bg-slate-50/80 font-sans">
                 <button onClick={() => handleSort('paymentStatus')} className="flex items-center gap-1 hover:text-slate-800 transition-colors text-sm font-sans font-semibold">
@@ -791,6 +788,9 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
                   {sortKey === 'paymentStatus' && <ArrowUpDown className="h-3 w-3 inline text-slate-500" />}
                 </button>
               </TableHead>
+            )}
+            {visibleColumns.includes("byes") && tournament.format !== 'arena' && (
+              <TableHead className="w-44 px-2 py-2 text-sm font-semibold text-slate-500 bg-slate-50/80 font-sans">Byes</TableHead>
             )}
             {visibleColumns.includes("uscfRating") && (
               <TableHead className="w-28 px-2 py-2 text-sm font-semibold text-slate-500 bg-slate-50/80 font-sans">
@@ -964,7 +964,14 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
                       const display = tournamentConfig.details.primaryRatingSystem === 'fide'
                         ? (fideDisp !== "Unrated" ? fideDisp : uscfDisp)
                         : (uscfDisp !== "Unrated" ? uscfDisp : fideDisp);
-                      return display === "Unrated" ? "-" : display;
+                      const displayVal = display === "Unrated" ? "-" : display;
+                      return displayVal === "-" ? (
+                        <span className="text-sm text-slate-400 font-sans">—</span>
+                      ) : (
+                        <span className="font-sans text-sm font-semibold text-slate-800 bg-slate-50 px-2 py-0.5 rounded border border-slate-200/60 shadow-sm whitespace-nowrap">
+                          {displayVal}
+                        </span>
+                      );
                     })()}
                   </TableCell>
                 )}
@@ -1012,6 +1019,33 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
                           </Badge>
                         );
                       }
+                    })()}
+                  </TableCell>
+                )}
+                {visibleColumns.includes("paymentStatus") && (
+                  <TableCell
+                    className="px-2 py-2 overflow-hidden font-sans text-sm select-none cursor-pointer"
+                    onClick={(e) => e.stopPropagation()}
+                    onDoubleClick={() => handlePaymentDoubleClick(player)}
+                    title={isTD && getPlayerEntryFee(player) > 0 ? "Double-click to toggle Paid / Unpaid status" : undefined}
+                  >
+                    {(() => {
+                      const entryFee = getPlayerEntryFee(player);
+                      const isFree = entryFee === 0;
+                      const status = isFree ? "N/A" : (player.paymentStatus === "paid" ? "Paid" : "Unpaid");
+                      
+                      let badgeColor = "bg-slate-50 text-slate-500 border-slate-200";
+                      if (status === "Paid") {
+                        badgeColor = "bg-emerald-50 text-emerald-700 border-emerald-200/50";
+                      } else if (status === "Unpaid") {
+                        badgeColor = "bg-rose-50 text-rose-700 border-rose-200/50";
+                      }
+                      
+                      return (
+                        <Badge className={`${badgeColor} border text-sm px-2.5 py-0.5 rounded-full font-medium shadow-none font-sans whitespace-nowrap`}>
+                          {status}
+                        </Badge>
+                      );
                     })()}
                   </TableCell>
                 )}
@@ -1076,41 +1110,26 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
                     )}
                   </TableCell>
                 )}
-                {visibleColumns.includes("paymentStatus") && (
-                  <TableCell
-                    className="px-2 py-2 overflow-hidden font-sans text-sm select-none cursor-pointer"
-                    onClick={(e) => e.stopPropagation()}
-                    onDoubleClick={() => handlePaymentDoubleClick(player)}
-                    title={isTD && getPlayerEntryFee(player) > 0 ? "Double-click to toggle Paid / Unpaid status" : undefined}
-                  >
-                    {(() => {
-                      const entryFee = getPlayerEntryFee(player);
-                      const isFree = entryFee === 0;
-                      const status = isFree ? "N/A" : (player.paymentStatus === "paid" ? "Paid" : "Unpaid");
-                      
-                      let badgeColor = "bg-slate-50 text-slate-500 border-slate-200";
-                      if (status === "Paid") {
-                        badgeColor = "bg-emerald-50 text-emerald-700 border-emerald-200/50";
-                      } else if (status === "Unpaid") {
-                        badgeColor = "bg-rose-50 text-rose-700 border-rose-200/50";
-                      }
-                      
-                      return (
-                        <Badge className={`${badgeColor} border text-sm px-2.5 py-0.5 rounded-full font-medium shadow-none font-sans whitespace-nowrap`}>
-                          {status}
-                        </Badge>
-                      );
-                    })()}
-                  </TableCell>
-                )}
                 {visibleColumns.includes("uscfRating") && (
                   <TableCell className="px-2 py-2 text-sm font-medium text-slate-850 overflow-hidden font-sans">
-                    {player.uscfRating ? `${player.uscfRating}${player.uscfRatingRaw?.toLowerCase().includes('p') ? 'p' : ''}` : "Unrated"}
+                    {player.uscfRating ? (
+                      <span className="font-sans text-sm font-semibold text-slate-800 bg-slate-50 px-2 py-0.5 rounded border border-slate-200/60 shadow-sm whitespace-nowrap">
+                        {player.uscfRating}{player.uscfRatingRaw?.toLowerCase().includes('p') ? 'p' : ''}
+                      </span>
+                    ) : (
+                      <span className="text-sm text-slate-400 font-sans">—</span>
+                    )}
                   </TableCell>
                 )}
                 {visibleColumns.includes("fideRating") && (
                   <TableCell className="px-2 py-2 text-sm font-medium text-slate-850 overflow-hidden font-sans">
-                    {player.fideRating || "Unrated"}
+                    {player.fideRating ? (
+                      <span className="font-sans text-sm font-semibold text-slate-800 bg-slate-50 px-2 py-0.5 rounded border border-slate-200/60 shadow-sm whitespace-nowrap">
+                        {player.fideRating}
+                      </span>
+                    ) : (
+                      <span className="text-sm text-slate-400 font-sans">—</span>
+                    )}
                   </TableCell>
                 )}
                 {visibleColumns.includes("fideId") && (
