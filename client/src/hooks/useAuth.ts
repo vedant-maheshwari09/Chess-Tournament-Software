@@ -20,9 +20,16 @@ export function useAuth() {
   const [, setLocation] = useLocation();
 
   // Get current user from token
+  const authQueryFn = getQueryFn({ on401: "returnNull" });
   const { data: user, isLoading, error } = useQuery<User | null>({
     queryKey: ["/api/auth/me"],
-    queryFn: getQueryFn({ on401: "returnNull" }),
+    queryFn: async (ctx) => {
+      // Wrap with a 10-second timeout to prevent infinite loading spinner
+      const timeoutPromise = new Promise<null>((resolve) =>
+        setTimeout(() => resolve(null), 10000)
+      );
+      return Promise.race([authQueryFn(ctx) as Promise<User | null>, timeoutPromise]);
+    },
     retry: false,
     enabled: !!localStorage.getItem("auth_token"),
     refetchOnMount: true, // Allow refetch on mount to verify session

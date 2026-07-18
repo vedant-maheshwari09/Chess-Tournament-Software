@@ -40,7 +40,7 @@ if (!process.env.GEMINI_API_KEY) {
   }
 }
 import helmet from "helmet";
-import { rateLimit } from "express-rate-limit";
+import { rateLimit, ipKeyGenerator } from "express-rate-limit";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { preloadRatingData } from "./lib/localRatings";
@@ -49,7 +49,10 @@ import { bootstrapArenaPairing } from "./lib/arenaPairing";
 const app = express();
 
 // Trust proxy for rate limiting behind reverse proxies (Cloudflare, Heroku, etc.)
-app.set("trust proxy", 1);
+// Only trust proxy in production to avoid "Invalid IP address" errors in local dev
+if (process.env.NODE_ENV === "production") {
+  app.set("trust proxy", 1);
+}
 
 // Configure Helmet for secure headers and strict Content Security Policy
 app.use(
@@ -85,6 +88,11 @@ const limiter = rateLimit({
   standardHeaders: "draft-7",
   legacyHeaders: false,
   message: { message: "Too many requests from this IP, please try again after 15 minutes." },
+  // Use the library's IPv6-safe key generator with a fallback for local dev
+  keyGenerator: (req) => {
+    const ip = req.ip ?? req.socket?.remoteAddress ?? "127.0.0.1";
+    return ipKeyGenerator(ip);
+  },
 });
 app.use("/api", limiter);
 

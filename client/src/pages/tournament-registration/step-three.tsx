@@ -45,6 +45,7 @@ export interface StepThreeProps {
   canAcceptOnlinePayment: boolean;
   tournamentId: number;
   retryPaymentIntent: () => void;
+  saveRegistrationBeforePayment?: () => Promise<boolean>;
 }
 
 export interface StepThreeContentProps extends StepThreeProps {
@@ -89,6 +90,7 @@ function StepThreeContent({
   onRemoveDraft,
   stripe,
   elements,
+  saveRegistrationBeforePayment,
 }: StepThreeContentProps) {
   const form = useFormContext<RegistrationFormValues>();
   const { toast } = useToast();
@@ -193,6 +195,16 @@ function StepThreeContent({
           variant: "destructive",
         });
         return false;
+      }
+
+      if (saveRegistrationBeforePayment) {
+        DEBUG_LOG("Stripe elements validated. Writing registration draft to database before payment confirmation...");
+        const saveSuccess = await saveRegistrationBeforePayment();
+        if (!saveSuccess) {
+          DEBUG_LOG("Failed to write registration draft to database. Aborting payment confirmation.");
+          return false;
+        }
+        DEBUG_LOG("Registration written successfully! Proceeding to Stripe confirmPayment...");
       }
 
       const trimmedName = `${firstName ?? ""} ${lastName ?? ""}`.trim() || undefined;

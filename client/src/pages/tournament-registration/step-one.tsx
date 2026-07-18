@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useFormContext } from "react-hook-form";
-import { Search, Loader2 } from "lucide-react";
+import { Search, Loader2, RefreshCw, AlertCircle } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 import type { Player } from "@shared/schema";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -20,6 +21,113 @@ import {
   getFieldConfig,
 } from "./helpers";
 import type { parseTournamentConfig, EntryFeeRule } from "@/lib/tournament-config";
+
+function UscfRatingField({ disabled }: { disabled?: boolean }) {
+  const form = useFormContext<RegistrationFormValues>();
+  const { toast } = useToast();
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  const uscfId = form.watch("uscfId");
+  const ratingProvider = form.watch("ratingProvider");
+
+  const handleSyncRating = async () => {
+    if (!uscfId || !/^\d{7,8}$/.test(uscfId.trim())) {
+      toast({
+        title: "Invalid USCF ID",
+        description: "Please enter a valid 7 or 8-digit USCF ID to sync ratings.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsSyncing(true);
+    try {
+      const response = await fetch(`/api/ratings/uscf/${uscfId.trim()}/latest`);
+      if (!response.ok) {
+        throw new Error(await response.text() || "Failed to fetch live USCF rating");
+      }
+      const data = await response.json();
+      
+      if (data.ratingRegular !== null) {
+        form.setValue("uscfRating", String(data.ratingRegular), { shouldDirty: true, shouldValidate: true });
+        form.setValue("uscfRatingRaw", `${data.ratingRegular}/${data.expiry}`, { shouldDirty: true });
+      } else {
+        form.setValue("uscfRating", "", { shouldDirty: true });
+        form.setValue("uscfRatingRaw", "Unrated", { shouldDirty: true });
+      }
+
+      if (data.expiry) {
+        form.setValue("customAnswers.uscfExpiration", data.expiry, { shouldDirty: true, shouldValidate: true });
+      }
+
+      if (data.state) {
+        const currentState = form.getValues("state");
+        if (!currentState) {
+          form.setValue("state", data.state, { shouldDirty: true, shouldValidate: true });
+        }
+      }
+
+      toast({
+        title: "Rating Synced",
+        description: `Successfully synced live rating for ${data.name}.`
+      });
+    } catch (err: any) {
+      console.error("Live USCF sync failed:", err);
+      toast({
+        title: "Sync Failed",
+        description: err.message || "Failed to pull live USCF rating. Please input it manually.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const showSyncButton = ratingProvider === "uscf" && uscfId && /^\d{7,8}$/.test(uscfId.trim());
+
+  return (
+    <div className="group space-y-2">
+      <div className="flex items-center justify-between">
+        <Label className="text-sm font-medium text-slate-700 transition-colors group-focus-within:text-blue-700">
+          USCF rating
+        </Label>
+        {showSyncButton && (
+          <button
+            type="button"
+            onClick={handleSyncRating}
+            disabled={isSyncing}
+            className="flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:text-blue-800 disabled:text-slate-400 cursor-pointer transition"
+          >
+            {isSyncing ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <RefreshCw className="h-3 w-3" />
+            )}
+            Refresh Live
+          </button>
+        )}
+      </div>
+      <div className="relative flex items-center">
+        <Input
+          {...form.register("uscfRating")}
+          placeholder="e.g. 1850"
+          type="text"
+          disabled={disabled || isSyncing}
+          className={cn(
+            "w-full transition focus-visible:border-blue-500 focus-visible:ring-blue-500",
+            form.formState.errors.uscfRating && "border-red-500 focus-visible:border-red-500 focus-visible:ring-red-500"
+          )}
+        />
+      </div>
+      {form.formState.errors.uscfRating && (
+        <p className="flex items-center gap-1 text-xs font-medium text-red-500 animate-in fade-in-50 slide-in-from-top-1 duration-150">
+          <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+          {form.formState.errors.uscfRating.message}
+        </p>
+      )}
+    </div>
+  );
+}
 
 export default function StepOne({
   config,
@@ -439,11 +547,11 @@ export default function StepOne({
             {config?.details.primaryRatingSystem === "fide" ? (
               <>
                 <Field label="FIDE rating (Primary)" name="fideRating" disabled={Boolean(config?.registers?.strictAutofillOnly)} />
-                <Field label="USCF rating" name="uscfRating" disabled={Boolean(config?.registers?.strictAutofillOnly)} />
+                <UscfRatingField disabled={Boolean(config?.registers?.strictAutofillOnly)} />
               </>
             ) : (
               <>
-                <Field label="USCF rating" name="uscfRating" disabled={Boolean(config?.registers?.strictAutofillOnly)} />
+                <UscfRatingField disabled={Boolean(config?.registers?.strictAutofillOnly)} />
                 <Field label="FIDE rating" name="fideRating" disabled={Boolean(config?.registers?.strictAutofillOnly)} />
               </>
             )}

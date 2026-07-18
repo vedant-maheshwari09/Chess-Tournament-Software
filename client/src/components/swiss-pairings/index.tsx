@@ -1386,10 +1386,10 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
     if (alignRight) {
       return (
         <div className="flex items-center justify-end gap-1.5 text-sm">
-          <span className="text-[11px] text-slate-405 dark:text-slate-500 font-mono">
+          <span className="text-sm text-slate-500 dark:text-slate-400 font-normal font-mono">
             ({rating})
           </span>
-          <span className="text-xs text-indigo-650 dark:text-indigo-400 font-semibold font-mono">
+          <span className="text-sm text-indigo-600 dark:text-indigo-400 font-semibold font-mono">
             [{pointsStr}]
           </span>
           <span className="text-slate-800 dark:text-slate-100 font-semibold truncate max-w-[200px]" title={nameStr}>
@@ -1403,10 +1403,10 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
           <span className="text-slate-800 dark:text-slate-100 font-semibold truncate max-w-[200px]" title={nameStr}>
             {nameStr}
           </span>
-          <span className="text-xs text-indigo-655 dark:text-indigo-400 font-semibold font-mono">
+          <span className="text-sm text-indigo-600 dark:text-indigo-400 font-semibold font-mono">
             [{pointsStr}]
           </span>
-          <span className="text-[11px] text-slate-405 dark:text-slate-500 font-mono">
+          <span className="text-sm text-slate-500 dark:text-slate-400 font-normal font-mono">
             ({rating})
           </span>
         </div>
@@ -2133,7 +2133,7 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                                         title={(!isEditMode && isOwner) ? "Click to select for swap" : ""}
                                       >
                                         <span className="font-bold text-sm text-slate-800 dark:text-slate-200">
-                                          {whiteName} <span className="font-sans text-sm text-slate-500 dark:text-slate-400 font-normal">({whiteRating} {whitePointsStr})</span>
+                                          {whiteName} <span className="text-sm text-slate-500 dark:text-slate-400 font-normal">({whiteRating} {whitePointsStr})</span>
                                         </span>
                                       </td>
                                       <td
@@ -2164,7 +2164,7 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                                         title={(!isEditMode && isOwner) ? "Click to select for swap" : ""}
                                       >
                                         <span className="font-bold text-sm text-slate-800 dark:text-slate-200">
-                                          {blackName} <span className="font-sans text-sm text-slate-500 dark:text-slate-400 font-normal">({blackRating} {blackPointsStr})</span>
+                                          {blackName} <span className="text-sm text-slate-500 dark:text-slate-400 font-normal">({blackRating} {blackPointsStr})</span>
                                         </span>
                                       </td>
                                       {isOwner && (
@@ -2547,7 +2547,7 @@ const SwissPairings = forwardRef<any, TournamentPairingsProps>(
                                   </td>
                                   <td style={{ border: '1px solid black', padding: '6px 8px', color: '#000', textAlign: 'left', fontWeight: 'bold', fontSize: '14px' }}>
                                     <span>
-                                      {playerName} <span style={{ fontSize: '12px', color: '#555', fontWeight: 'normal' }}>({playerRating} {playerPointsStr})</span>
+                                      {playerName} <span style={{ fontSize: '14px', color: '#555', fontWeight: 'normal' }}>({playerRating} {playerPointsStr})</span>
                                     </span>
                                   </td>
                                   <td style={{ border: '1px solid black', padding: '6px 8px', color: '#000', textAlign: 'center', fontSize: '14px', width: '64px' }}>

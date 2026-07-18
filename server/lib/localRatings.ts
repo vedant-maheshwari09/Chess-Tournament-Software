@@ -43,13 +43,10 @@ function resolveDataPath(relativePath: string, envKey?: string) {
   return path.resolve(fallbackRoot, relativePath);
 }
 
-const USCF_BLITZ_FILE = "GDB2510T.TXT";
-const USCF_QUICK_FILE = "GDQ2510T.TXT";
-const FIDE_FILE = "players_list-fide-oct-2025.txt";
+const USCF_ALL_RATINGS_FILE = resolveDataPath("Uscf-2026-08-AllRatings.tsv", "USCF_ALL_RATINGS_FILE");
+const FIDE_FILE = resolveDataPath("players_list-fide-oct-2025.txt", "FIDE_PLAYER_LIST_FILE");
 const DB_PATH = resolveDataPath("ratings_cache.sqlite", "RATINGS_CACHE_DB_FILE");
 
-const FALLBACK_BLITZ_URL = "https://www.dropbox.com/scl/fo/xn3nhh02v84s59kyu8vrc/AAebWUc3XHc2rthvEpf_mxk/GDB2510T.TXT?rlkey=n759qued6usclg7qqrm16163c&dl=1";
-const FALLBACK_QUICK_URL = "https://www.dropbox.com/scl/fo/xn3nhh02v84s59kyu8vrc/AOdXoydHK6BEyoY4PxZME_E/GDQ2510T.TXT?rlkey=n759qued6usclg7qqrm16163c&dl=1";
 const FALLBACK_FIDE_URL = "https://www.dropbox.com/scl/fo/xn3nhh02v84s59kyu8vrc/APaSiTcLdUmspGzGQMZuFMU/players_list-fide-oct-2025.txt?rlkey=n759qued6usclg7qqrm16163c&dl=1";
 
 let db: Database.Database | null = null;
@@ -143,28 +140,25 @@ async function downloadFile(url: string, dest: string, redirects = 5): Promise<v
 }
 
 export async function ensureDataFiles(): Promise<void> {
-  const filesToVerify = [
-    { name: USCF_BLITZ_FILE, envUrl: "USCF_BLITZ_URL", fallback: FALLBACK_BLITZ_URL },
-    { name: USCF_QUICK_FILE, envUrl: "USCF_QUICK_URL", fallback: FALLBACK_QUICK_URL },
-    { name: FIDE_FILE, envUrl: "FIDE_PLAYER_LIST_URL", fallback: FALLBACK_FIDE_URL },
-  ];
-
-  for (const item of filesToVerify) {
-    const filePath = path.resolve(process.cwd(), item.name);
-    if (!existsSync(filePath)) {
-      const url = process.env[item.envUrl] || item.fallback;
-      if (url) {
-        try {
-          await downloadFile(url, filePath);
-        } catch (error) {
-          log(`Error downloading ${item.name}: ${error instanceof Error ? error.message : String(error)}`);
-          throw error; // Rethrow to stop initialization
-        }
-      } else {
-        log(`Warning: ${item.name} is missing and ${item.envUrl} is not set.`);
-        throw new Error(`Missing required rating file: ${item.name}`);
+  // 1. Verify FIDE file (download if missing)
+  if (!existsSync(FIDE_FILE)) {
+    const url = process.env.FIDE_PLAYER_LIST_URL || FALLBACK_FIDE_URL;
+    if (url) {
+      try {
+        await downloadFile(url, FIDE_FILE);
+      } catch (error) {
+        log(`Error downloading FIDE file: ${error instanceof Error ? error.message : String(error)}`);
+        throw error;
       }
+    } else {
+      throw new Error(`Missing required FIDE file: ${FIDE_FILE}`);
     }
+  }
+
+  // 2. Verify USCF TSV file (user provides locally or via env path)
+  if (!existsSync(USCF_ALL_RATINGS_FILE)) {
+    log(`Warning: USCF ratings TSV file is missing at: ${USCF_ALL_RATINGS_FILE}`);
+    throw new Error(`Missing required USCF ratings file: ${USCF_ALL_RATINGS_FILE}`);
   }
 }
 
@@ -278,8 +272,7 @@ async function initializeDb() {
     );
   `);
 
-  const uscfBlitzMtime = getMtime(USCF_BLITZ_FILE);
-  const uscfQuickMtime = getMtime(USCF_QUICK_FILE);
+  const uscfMtime = getMtime(USCF_ALL_RATINGS_FILE);
   const fideMtime = getMtime(FIDE_FILE);
 
   const getMeta = db.prepare(`SELECT value FROM meta WHERE key = ?`);
@@ -288,12 +281,12 @@ async function initializeDb() {
   const currentUscfMeta = getMeta.get('uscf_mtime') as {value: string} | undefined;
   const currentFideMeta = getMeta.get('fide_mtime') as {value: string} | undefined;
 
-  const expectedUscfMeta = `${uscfBlitzMtime}_${uscfQuickMtime}`;
+  const expectedUscfMeta = `${uscfMtime}`;
   const expectedFideMeta = `${fideMtime}`;
 
   if (currentUscfMeta?.value !== expectedUscfMeta) {
-    if (uscfBlitzMtime && uscfQuickMtime) {
-      log("Rebuilding USCF database index...", "ratings");
+    if (uscfMtime) {
+      log("Rebuilding USCF database index from TSV...", "ratings");
       try {
         await buildUscfIndex();
         setMeta.run('uscf_mtime', expectedUscfMeta);
@@ -321,19 +314,14 @@ async function initializeDb() {
 }
 
 async function buildUscfIndex() {
-  const blitzPath = path.resolve(process.cwd(), USCF_BLITZ_FILE);
-  const quickPath = path.resolve(process.cwd(), USCF_QUICK_FILE);
-  
-  assertFileExists(blitzPath, "USCF blitz ratings file not found");
-  assertFileExists(quickPath, "USCF quick ratings file not found");
+  assertFileExists(USCF_ALL_RATINGS_FILE, "USCF ratings TSV file not found");
 
   db!.exec('BEGIN TRANSACTION');
   db!.exec('DELETE FROM uscf');
   db!.exec('DELETE FROM uscf_idx');
   db!.exec('COMMIT');
 
-  await streamUSCFFileIntoDb(blitzPath, "blitz");
-  await streamUSCFFileIntoDb(quickPath, "quick");
+  await streamUSCFTSVIntoDb(USCF_ALL_RATINGS_FILE);
 
   log("Building USCF FTS index in bulk...", "ratings");
   db!.exec('BEGIN TRANSACTION');
@@ -342,7 +330,7 @@ async function buildUscfIndex() {
   log("USCF FTS index build complete.", "ratings");
 }
 
-async function streamUSCFFileIntoDb(filePath: string, type: "blitz" | "quick") {
+async function streamUSCFTSVIntoDb(filePath: string) {
   const reader = readline.createInterface({
     input: createReadStream(filePath),
     crlfDelay: Infinity,
@@ -357,15 +345,15 @@ async function streamUSCFFileIntoDb(filePath: string, type: "blitz" | "quick") {
       search_vector, normalized_full_name, normalized_last_first
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
-      name = COALESCE(excluded.name, uscf.name),
-      state = COALESCE(excluded.state, uscf.state),
-      expiration = COALESCE(excluded.expiration, uscf.expiration),
-      rating_value = CASE WHEN ? = 'blitz' THEN excluded.rating_value ELSE uscf.rating_value END,
-      rating_raw = CASE WHEN ? = 'blitz' THEN excluded.rating_raw ELSE uscf.rating_raw END,
-      blitz_rating_value = CASE WHEN ? = 'blitz' THEN excluded.blitz_rating_value ELSE uscf.blitz_rating_value END,
-      blitz_rating_raw = CASE WHEN ? = 'blitz' THEN excluded.blitz_rating_raw ELSE uscf.blitz_rating_raw END,
-      quick_rating_value = CASE WHEN ? = 'quick' THEN excluded.quick_rating_value ELSE uscf.quick_rating_value END,
-      quick_rating_raw = CASE WHEN ? = 'quick' THEN excluded.quick_rating_raw ELSE uscf.quick_rating_raw END,
+      name = excluded.name,
+      state = excluded.state,
+      expiration = excluded.expiration,
+      rating_value = excluded.rating_value,
+      rating_raw = excluded.rating_raw,
+      quick_rating_value = excluded.quick_rating_value,
+      quick_rating_raw = excluded.quick_rating_raw,
+      blitz_rating_value = excluded.blitz_rating_value,
+      blitz_rating_raw = excluded.blitz_rating_raw,
       search_vector = excluded.search_vector,
       normalized_full_name = excluded.normalized_full_name,
       normalized_last_first = excluded.normalized_last_first
@@ -373,51 +361,75 @@ async function streamUSCFFileIntoDb(filePath: string, type: "blitz" | "quick") {
 
   db!.exec('BEGIN TRANSACTION');
   let count = 0;
+  let isFirstLine = true;
+
   for await (const rawLine of reader) {
     const line = rawLine.replace(/\r/g, "");
     if (!line.trim()) continue;
-    const record = parseUSCFLine(line);
-    if (!record) continue;
 
-    const normalizedFullName = normalizeForSearch(toFirstLast(record.name));
-    const normalizedLastFirst = normalizeForSearch(record.name.replace(",", " "));
+    if (isFirstLine) {
+      isFirstLine = false;
+      if (line.startsWith("#id") || line.startsWith("id")) {
+        continue;
+      }
+    }
+
+    const parts = line.split("\t");
+    if (parts.length < 10) continue;
+
+    const id = parts[0].trim();
+    const name = parts[1]?.trim() || "";
+    const state = parts[2]?.trim() || null;
+    const expiration = parts[4]?.trim() || null;
+
+    const ratingValRaw = parts[9]?.trim() || null;
+    const gamesReg = parts[10]?.trim() || "";
+    const ratingVal = ratingValRaw ? (ratingValRaw.match(/\d+/) ? ratingValRaw.match(/\d+/)?.[0] : null) : null;
+    const ratingRaw = ratingValRaw ? (gamesReg ? `${ratingValRaw}/${gamesReg}` : ratingValRaw) : null;
+
+    const quickValRaw = parts[11]?.trim() || null;
+    const gamesQuick = parts[12]?.trim() || "";
+    const quickVal = quickValRaw ? (quickValRaw.match(/\d+/) ? quickValRaw.match(/\d+/)?.[0] : null) : null;
+    const quickRaw = quickValRaw ? (gamesQuick ? `${quickValRaw}/${gamesQuick}` : quickValRaw) : null;
+
+    const blitzValRaw = parts[13]?.trim() || null;
+    const gamesBlitz = parts[14]?.trim() || "";
+    const blitzVal = blitzValRaw ? (blitzValRaw.match(/\d+/) ? blitzValRaw.match(/\d+/)?.[0] : null) : null;
+    const blitzRaw = blitzValRaw ? (gamesBlitz ? `${blitzValRaw}/${gamesBlitz}` : blitzValRaw) : null;
+
+    if (!id || !name) continue;
+
+    const normalizedFullName = normalizeForSearch(toFirstLast(name));
+    const normalizedLastFirst = normalizeForSearch(name.replace(",", " "));
     const tokenSet = new Set<string>();
     addTokens(tokenSet, normalizedFullName);
     addTokens(tokenSet, normalizedLastFirst);
-    addTokens(tokenSet, record.id);
-    if (record.state) addTokens(tokenSet, record.state);
+    addTokens(tokenSet, id);
+    if (state) addTokens(tokenSet, state);
 
     const searchVector = Array.from(tokenSet).join(" ");
-    
-    const ratingValue = record.rating?.value || null;
-    const ratingRaw = record.rating?.raw || null;
-    const blitzValue = type === "blitz" ? (record.extraRating?.value || ratingValue) : null;
-    const blitzRaw = type === "blitz" ? (record.extraRating?.raw || ratingRaw) : null;
-    const quickValue = type === "quick" ? (record.extraRating?.value || ratingValue) : null;
-    const quickRaw = type === "quick" ? (record.extraRating?.raw || ratingRaw) : null;
 
     upsert.run(
-      record.id, record.name, record.state || null, record.expiration || null,
-      ratingValue, ratingRaw,
-      quickValue, quickRaw,
-      blitzValue, blitzRaw,
-      searchVector, normalizedFullName, normalizedLastFirst,
-      type, type, type, type, type, type
+      id, name, state, expiration,
+      ratingVal, ratingRaw,
+      quickVal, quickRaw,
+      blitzVal, blitzRaw,
+      searchVector, normalizedFullName, normalizedLastFirst
     );
 
     count++;
     if (count % 5000 === 0) {
       db!.exec('COMMIT');
-      log(`Processed ${count} USCF ${type} records...`, "ratings");
-      await yieldLoop(); // Yield to process other requests
+      log(`Processed ${count} USCF records...`, "ratings");
+      await yieldLoop();
       db!.exec('BEGIN TRANSACTION');
     }
   }
   db!.exec('COMMIT');
   if (count === 0) {
-    throw new Error(`No records processed for USCF ${type} file: ${filePath}`);
+    throw new Error(`No records processed for USCF TSV file: ${filePath}`);
   }
-  log(`Finished USCF ${type} indexing. ${count} records processed.`, "ratings");
+  log(`Finished USCF indexing. ${count} records processed.`, "ratings");
 }
 
 
@@ -494,35 +506,6 @@ async function buildFideIndex() {
 }
 
 
-function parseUSCFLine(line: string) {
-  const parts = line.split("\t").map((part) => part.trim());
-  while (parts.length && parts[parts.length - 1] === "") {
-    parts.pop();
-  }
-  if (parts.length < 4) return null;
-
-  let extraRatingRaw: string | undefined;
-  if (parts.length > 5) {
-    extraRatingRaw = parts.pop();
-  }
-  const ratingRaw = parts.pop();
-  const state = parts.pop();
-  const expiration = parts.pop();
-  const id = parts.pop();
-  const name = parts.join(" ").replace(/\s+/g, " ").trim();
-
-  if (!id || !name) return null;
-
-  return {
-    id,
-    name,
-    state: state || undefined,
-    expiration: expiration || undefined,
-    rating: parseUSCFRating(ratingRaw),
-    extraRating: parseUSCFRating(extraRatingRaw),
-  };
-}
-
 function parseFideLine(line: string) {
   const id = line.slice(0, 12).trim();
   if (!id) return null;
@@ -548,15 +531,6 @@ function parseFideLine(line: string) {
     blitzRating,
     birthYear,
   };
-}
-
-function parseUSCFRating(raw?: string): RatingField | undefined {
-  if (!raw) return undefined;
-  const trimmed = raw.trim();
-  if (!trimmed) return undefined;
-  const valueMatch = trimmed.match(/\d{1,4}/);
-  const value = valueMatch?.[0];
-  return value ? { value, raw: trimmed } : { raw: trimmed };
 }
 
 function parseFideRating(segment: string): RatingField | undefined {

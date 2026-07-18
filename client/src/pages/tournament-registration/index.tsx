@@ -29,7 +29,7 @@ import {
 import { zodResolver } from "@hookform/resolvers/zod";
 import { loadStripe } from "@stripe/stripe-js";
 import type { Stripe } from "@stripe/stripe-js";
-import { Elements } from "@stripe/react-stripe-js";
+import { Elements, useStripe, useElements, PaymentElement } from "@stripe/react-stripe-js";
 
 import { cn, slugify } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -85,6 +85,121 @@ import StepOne from "./step-one";
 import StepTwo from "./step-two";
 import StepThree from "./step-three";
 import { Field } from "./components";
+
+
+interface ResumeCheckoutInnerProps {
+  tournamentName: string;
+}
+
+function ResumeCheckoutInner({ tournamentName }: ResumeCheckoutInnerProps) {
+  const stripe = useStripe();
+  const elements = useElements();
+  const { toast } = useToast();
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!stripe || !elements) return;
+
+    setIsProcessing(true);
+    try {
+      const { error } = await stripe.confirmPayment({
+        elements,
+        confirmParams: {
+          return_url: `${window.location.origin}/tournaments/${slugify(tournamentName)}/register?payment=complete`,
+        },
+      });
+
+      if (error) {
+        toast({
+          title: "Payment Failed",
+          description: error.message ?? "Something went wrong while confirming your payment.",
+          variant: "destructive",
+        });
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="mt-4 space-y-4 rounded-xl border border-slate-200 bg-slate-50/50 p-4 shadow-inner">
+      <h3 className="text-sm font-semibold text-slate-800 flex items-center gap-1.5">
+        <CreditCard className="h-4 w-4 text-slate-500" />
+        Complete Payment to Secure Entry
+      </h3>
+      <p className="text-xs text-slate-500">
+        You registered but have an outstanding payment. Enter your card details below to complete registration.
+      </p>
+      
+      <PaymentElement />
+
+      <Button type="submit" className="w-full mt-4" disabled={isProcessing || !stripe || !elements}>
+        {isProcessing ? (
+          <>
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            Processing...
+          </>
+        ) : (
+          "Complete Payment & Submit"
+        )}
+      </Button>
+    </form>
+  );
+}
+
+interface ResumeCheckoutProps {
+  paymentIntentId: string;
+  tournamentName: string;
+}
+
+function ResumeCheckout({ paymentIntentId, tournamentName }: ResumeCheckoutProps) {
+  const [stripePromise, setStripePromise] = useState<Promise<Stripe | null> | null>(null);
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchSecret() {
+      try {
+        const res = await fetch(`/api/payments/intent/${paymentIntentId}`);
+        if (!res.ok) throw new Error("Failed to fetch payment details");
+        const data = await res.json();
+        setClientSecret(data.clientSecret);
+        if (data.publishableKey) {
+          setStripePromise(loadStripe(data.publishableKey));
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    if (paymentIntentId) {
+      fetchSecret();
+    }
+  }, [paymentIntentId]);
+
+  if (loading) {
+    return (
+      <div className="mt-6 flex items-center justify-center p-6 border border-slate-100 rounded-xl bg-slate-50/30">
+        <Loader2 className="h-5 w-5 animate-spin text-slate-400 mr-2" />
+        <span className="text-xs text-slate-500">Loading payment form...</span>
+      </div>
+    );
+  }
+
+  if (!stripePromise || !clientSecret) {
+    return null;
+  }
+
+  return (
+    <Elements stripe={stripePromise} options={{ clientSecret }}>
+      <ResumeCheckoutInner tournamentName={tournamentName} />
+    </Elements>
+  );
+}
 
 
 export default function TournamentRegistrationFormPage({ tournamentId }: TournamentRegistrationFormProps) {
@@ -673,7 +788,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
         entryFeeId: values.entryFeeId,
         processingContribution: parseContribution(values.processingContribution),
         byePreference: values.byePreference,
-        byeRounds: values.byeRounds,
+        byeRounds: values.byePreference === "yes" ? values.byeRounds : [],
         arrivalTime: values.arrivalTime,
         notes: values.notes,
         paymentIntentId: values.paymentIntentId,
@@ -882,7 +997,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
         entryFeeId: values.entryFeeId,
         processingContribution: parseContribution(values.processingContribution),
         byePreference: values.byePreference,
-        byeRounds: values.byeRounds,
+        byeRounds: values.byePreference === "yes" ? values.byeRounds : [],
         arrivalTime: values.arrivalTime,
         notes: values.notes,
         paymentIntentId: values.paymentIntentId,
@@ -941,6 +1056,53 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
     },
   });
 
+  const saveRegistrationBeforePayment = useCallback(async () => {
+    try {
+      const values = form.getValues();
+      // Ensure the paymentStatus is set to unpaid initially
+      form.setValue("paymentStatus", "unpaid", { shouldDirty: false });
+
+      if (multiPlayerAllowed && (playerDrafts.length > 0 || editingDraftId)) {
+        DEBUG_LOG("Preparing batch list for pre-payment draft write");
+        const paymentOverride = {
+          paymentIntentId: values.paymentIntentId,
+          paymentStatus: "unpaid" as const,
+          paymentReceiptUrl: values.paymentReceiptUrl,
+          paymentMethod: values.paymentMethod,
+          currency: values.currency,
+          amountDue: values.amountDue,
+          amountPaid: values.amountPaid,
+        };
+
+        let list: RegistrationFormValues[] = [];
+        if (editingDraftId) {
+          list = playerDrafts.map((entry) =>
+            entry.id === editingDraftId
+              ? { ...values, ...paymentOverride }
+              : { ...entry.values, ...paymentOverride }
+          );
+        } else {
+          const rosterValues = playerDrafts.map(e => e.values);
+          list = [...rosterValues, values].map(v => ({ ...v, ...paymentOverride }));
+        }
+
+        await groupRegisterMutation.mutateAsync(list);
+      } else {
+        DEBUG_LOG("Preparing single registration for pre-payment draft write", values);
+        await registerMutation.mutateAsync(values);
+      }
+      return true;
+    } catch (error) {
+      console.error("Failed to save registration before payment", error);
+      toast({
+        title: "Registration failed",
+        description: error instanceof Error ? error.message : "Unable to save registration details. Please try again.",
+        variant: "destructive",
+      });
+      return false;
+    }
+  }, [editingDraftId, form, groupRegisterMutation, multiPlayerAllowed, playerDrafts, registerMutation, toast]);
+
   const handleFinalSubmit = useCallback(async () => {
     DEBUG_LOG("Final submit triggered", {
       currentStep,
@@ -966,6 +1128,20 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
     }
 
     const values = form.getValues();
+
+    // Check if we already registered during the online payment confirmation phase.
+    const isOnlinePayment = requiresPayment && canProcessOnline && form.getValues("paymentMethod") !== "offline";
+    if (isOnlinePayment) {
+      DEBUG_LOG("Online registration already saved and processed. Advancing to Success.");
+      clearDraft(tournamentId, user?.id);
+      queryClient.invalidateQueries({ queryKey: ["/api/my-registrations"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/players`] });
+      setCurrentStep(totalSteps);
+      paymentSubmitRef.current = null;
+      setClientSecret(null);
+      paymentIntentRequestKeyRef.current = null;
+      return;
+    }
 
     // In multi-player mode, if there's a roster, we MUST include the current form's values (if filled)
     // as the final entry in the batch, unless it's already in the roster (editing case).
@@ -1006,7 +1182,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
 
     DEBUG_LOG("Processing single-player registration submission", values);
     registerMutation.mutate(values);
-  }, [editingDraftId, form, groupRegisterMutation, multiPlayerAllowed, playerDrafts, registerMutation, currentStep]);
+  }, [editingDraftId, form, groupRegisterMutation, multiPlayerAllowed, playerDrafts, registerMutation, currentStep, requiresPayment, canProcessOnline, tournamentId, user?.id, queryClient, totalSteps]);
 
   const paymentIntentErrorMessage = createPaymentIntent.error
     ? createPaymentIntent.error instanceof Error
@@ -1112,13 +1288,29 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
                 </div>
               </div>
             ) : (
-              <div className="flex items-center gap-3 border-b border-gray-100 bg-blue-50 px-6 py-4">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100">
-                  <Clock className="h-4 w-4 text-blue-600" />
+              <div className={cn(
+                "flex items-center gap-3 border-b border-gray-100 px-6 py-4",
+                existingRegistration.paymentStatus === 'unpaid' && config?.payments?.onlineEnabled ? "bg-red-50" : "bg-blue-50"
+              )}>
+                <div className={cn(
+                  "flex h-8 w-8 items-center justify-center rounded-full",
+                  existingRegistration.paymentStatus === 'unpaid' && config?.payments?.onlineEnabled ? "bg-red-100" : "bg-blue-100"
+                )}>
+                  {existingRegistration.paymentStatus === 'unpaid' && config?.payments?.onlineEnabled ? (
+                    <AlertCircle className="h-4 w-4 text-red-600" />
+                  ) : (
+                    <Clock className="h-4 w-4 text-blue-600" />
+                  )}
                 </div>
                 <div>
-                  <h2 className="text-sm font-semibold text-gray-900">Registration Pending</h2>
-                  <p className="text-xs text-gray-500">Your entry is being reviewed by the tournament director.</p>
+                  <h2 className="text-sm font-semibold text-gray-900">
+                    {existingRegistration.paymentStatus === 'unpaid' && config?.payments?.onlineEnabled ? "Payment Required" : "Registration Pending"}
+                  </h2>
+                  <p className="text-xs text-gray-500">
+                    {existingRegistration.paymentStatus === 'unpaid' && config?.payments?.onlineEnabled 
+                      ? "Complete your payment below to secure your entry." 
+                      : "Your entry is being reviewed by the tournament director."}
+                  </p>
                 </div>
               </div>
             )}
@@ -1143,9 +1335,13 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
                   </div>
                 )}
               </div>
-              <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                We&apos;ll notify you once the tournament director processes your registration.
-              </div>
+              {existingRegistration.paymentStatus === 'unpaid' && existingRegistration.paymentIntentId && config?.payments?.onlineEnabled ? (
+                <ResumeCheckout paymentIntentId={existingRegistration.paymentIntentId} tournamentName={tournament.name} />
+              ) : (
+                <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                  We&apos;ll notify you once the tournament director processes your registration.
+                </div>
+              )}
               <Button className="mt-6 w-full" onClick={() => setLocation(`/tournaments/${slugify(tournament.name)}`)}>Return to tournament page</Button>
             </div>
           </div>
@@ -1438,22 +1634,28 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
   const handleRemoveDraft = async (draftId: string) => {
     DEBUG_LOG(`Checking if draft ${draftId} needs permanent deletion from database`);
 
-    // Check if this is a real database registration (numeric ID)
-    const numericId = parseInt(draftId, 10);
-    const isRealRegistration = !isNaN(numericId);
+    // Check if this is a real database registration (purely numeric ID)
+    const isRealRegistration = /^\d+$/.test(draftId);
+    const numericId = isRealRegistration ? parseInt(draftId, 10) : NaN;
 
     if (isRealRegistration) {
       DEBUG_LOG(`Initiating backend deletion for registration ID: ${numericId}`);
       try {
         const response = await apiRequest(`/api/registrations/${numericId}`, { method: "DELETE" });
         if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.error || "Failed to remove registration");
+          if (response.status === 404) {
+            // Treat as success locally if it doesn't exist on the server
+            DEBUG_LOG(`Registration ${numericId} already removed or not found on server (404). Proceeding with local cleanup.`);
+          } else {
+            const error = await response.json();
+            throw new Error(error.error || "Failed to remove registration");
+          }
+        } else {
+          toast({
+            title: "Registration removed",
+            description: "The player has been permanently removed from the tournament.",
+          });
         }
-        toast({
-          title: "Registration removed",
-          description: "The player has been permanently removed from the tournament.",
-        });
 
         // Refresh the registrations query so existingRegistrations list remains accurate
         queryClient.invalidateQueries({ queryKey: ["/api/my-registrations"] });
@@ -1880,6 +2082,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
                               canAcceptOnlinePayment={true}
                               tournamentId={tournamentId}
                               retryPaymentIntent={forceRetryPaymentIntent}
+                              saveRegistrationBeforePayment={saveRegistrationBeforePayment}
                             />
                           </Elements>
                         ) : (
@@ -1903,6 +2106,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
                             canAcceptOnlinePayment={false}
                             tournamentId={tournamentId}
                             retryPaymentIntent={forceRetryPaymentIntent}
+                            saveRegistrationBeforePayment={saveRegistrationBeforePayment}
                           />
                         )}
                       </>

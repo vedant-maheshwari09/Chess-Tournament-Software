@@ -101,7 +101,15 @@ export function applyRegistrationsRoutes(app: Express) {
       let paidAt: Date | null = null;
       let notes = sampleItem.paymentNotes ?? null;
 
-      if (payments.onlineEnabled && sampleItem.paymentIntentId) {
+      const isFree = amountDue <= 0;
+      const actualMustCompletePayment = mustCompletePayment && !isFree;
+
+      if (isFree) {
+        paymentStatus = "paid";
+        paymentMethod = "none";
+      }
+
+      if (payments.onlineEnabled && sampleItem.paymentIntentId && !isFree) {
         if (!stripe) {
           return res.status(503).json({ error: "Online payments are not available" });
         }
@@ -143,13 +151,16 @@ export function applyRegistrationsRoutes(app: Express) {
             paymentStatus = "processing";
             break;
           case "requires_payment_method":
+          case "requires_confirmation":
+          case "requires_action":
             paymentStatus = "unpaid";
             break;
           default:
             paymentStatus = paymentStatus ?? "unpaid";
         }
 
-        if (mustCompletePayment && paymentIntent.status !== "succeeded") {
+        const validStatuses = ["succeeded", "processing", "requires_payment_method", "requires_confirmation", "requires_action", "requires_capture"];
+        if (actualMustCompletePayment && !validStatuses.includes(paymentIntent.status)) {
           console.warn(`[BATCH_REG] Payment verification failed: Required but status is ${paymentIntent.status}`);
           return res.status(400).json({ error: "Payment must be completed before submitting registration" });
         }
@@ -221,7 +232,7 @@ export function applyRegistrationsRoutes(app: Express) {
           entryFeeId: payload.entryFeeId,
           processingContribution: payload.processingContribution?.toString() || "0",
           byePreference: payload.byePreference,
-          byeRounds: payload.byeRounds,
+          byeRounds: payload.byePreference === "yes" ? (payload.byeRounds ?? []) : [],
           arrivalTime: payload.arrivalTime,
           notes: payload.notes,
           paymentIntentId: sampleItem.paymentIntentId ?? null,
@@ -376,7 +387,15 @@ export function applyRegistrationsRoutes(app: Express) {
       let paidAt: Date | null = null;
       let notes = payload.paymentNotes ?? null;
 
-      if (payments.onlineEnabled && payload.paymentIntentId) {
+      const isFree = amountDue <= 0;
+      const actualMustCompletePayment = mustCompletePayment && !isFree;
+
+      if (isFree) {
+        paymentStatus = "paid";
+        paymentMethod = "none";
+      }
+
+      if (payments.onlineEnabled && payload.paymentIntentId && !isFree) {
         if (!stripe) {
           return res.status(503).json({ error: "Online payments are not available" });
         }
@@ -417,16 +436,19 @@ export function applyRegistrationsRoutes(app: Express) {
             paymentStatus = "processing";
             break;
           case "requires_payment_method":
+          case "requires_confirmation":
+          case "requires_action":
             paymentStatus = "unpaid";
             break;
           default:
             paymentStatus = paymentStatus ?? "unpaid";
         }
 
-        if (mustCompletePayment && paymentIntent.status !== "succeeded") {
+        const validStatuses = ["succeeded", "processing", "requires_payment_method", "requires_confirmation", "requires_action", "requires_capture"];
+        if (actualMustCompletePayment && !validStatuses.includes(paymentIntent.status)) {
           return res.status(400).json({ error: "Payment must be completed before submitting registration" });
         }
-      } else if (mustCompletePayment) {
+      } else if (actualMustCompletePayment) {
         return res.status(400).json({ error: "Online payment is required for this tournament" });
       }
 
@@ -463,7 +485,7 @@ export function applyRegistrationsRoutes(app: Express) {
         entryFeeId: payload.entryFeeId ?? null,
         processingContribution: payload.processingContribution?.toString() || "0",
         byePreference: payload.byePreference ?? null,
-        byeRounds: payload.byeRounds ?? [],
+        byeRounds: payload.byePreference === "yes" ? (payload.byeRounds ?? []) : [],
         arrivalTime: payload.arrivalTime ?? "",
         notes: payload.notes ?? null,
         paymentStatus,
@@ -592,6 +614,11 @@ export function applyRegistrationsRoutes(app: Express) {
         if ((payload as any)[field] !== undefined) {
           updateData[field] = (payload as any)[field];
         }
+      }
+
+      const finalByePref = updateData.byePreference !== undefined ? updateData.byePreference : registration.byePreference;
+      if (finalByePref !== "yes") {
+        updateData.byeRounds = [];
       }
 
       const updated = await storage.updatePlayerRegistration(registration.id, updateData);
@@ -812,7 +839,7 @@ export function applyRegistrationsRoutes(app: Express) {
         }
 
         const byeRounds = updatedRegistration.byeRounds;
-        if (Array.isArray(byeRounds)) {
+        if (updatedRegistration.byePreference === "yes" && Array.isArray(byeRounds)) {
           for (const roundStr of byeRounds) {
             if (typeof roundStr === 'string' || typeof roundStr === 'number') {
               const matchResult = String(roundStr).match(/\d+/);

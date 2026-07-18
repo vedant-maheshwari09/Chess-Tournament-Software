@@ -56,6 +56,7 @@ import {
   Search,
   Eye,
   Filter,
+  RefreshCw,
 } from "lucide-react";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -107,6 +108,69 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
   const [filterRatingType, setFilterRatingType] = useState("all");
   const [filterVerification, setFilterVerification] = useState("all");
   const [showFilterPanel, setShowFilterPanel] = useState(false);
+
+  const [syncDialogOpen, setSyncDialogOpen] = useState(false);
+  const [syncProgress, setSyncProgress] = useState(0);
+  const [syncTotal, setSyncTotal] = useState(0);
+  const [syncCurrentName, setSyncCurrentName] = useState("");
+  const [isSyncingRatings, setIsSyncingRatings] = useState(false);
+
+  const handleSyncAllRatings = async () => {
+    const uscfPlayers = players.filter(p => {
+      const isUscf = p.federation === "USCF" || p.federation === "United States" || p.federation === "US Chess" || !p.federation;
+      const uscfId = p.localId;
+      return isUscf && uscfId && /^\d{7,8}$/.test(uscfId.trim());
+    });
+
+    if (uscfPlayers.length === 0) {
+      toast({
+        title: "No Eligible Players",
+        description: "There are no players in this tournament with valid 7 or 8-digit USCF IDs configured.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setSyncTotal(uscfPlayers.length);
+    setSyncProgress(0);
+    setSyncCurrentName("");
+    setSyncDialogOpen(true);
+    setIsSyncingRatings(true);
+
+    try {
+      for (let i = 0; i < uscfPlayers.length; i++) {
+        const player = uscfPlayers[i];
+        setSyncCurrentName(`${player.firstName} ${player.lastName}`);
+        
+        await new Promise(resolve => setTimeout(resolve, 1500));
+
+        try {
+          await apiRequest(`/api/tournaments/${tournamentId}/players/${player.id}/sync-rating`, {
+            method: "POST"
+          });
+        } catch (err) {
+          console.error(`Failed to sync player ${player.id}:`, err);
+        }
+
+        setSyncProgress(prev => prev + 1);
+      }
+
+      toast({
+        title: "Ratings Sync Complete",
+        description: `Successfully finished checking live ratings for all ${uscfPlayers.length} USCF players.`
+      });
+      queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}/players`] });
+    } catch (err) {
+      console.error("Bulk sync ratings failed:", err);
+      toast({
+        title: "Sync Error",
+        description: "An unexpected error occurred during ratings sync.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSyncingRatings(false);
+    }
+  };
 
   const [visibleColumns, setVisibleColumns] = useState<string[]>(() => {
     if (typeof window !== "undefined") {
@@ -677,10 +741,16 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
               <Badge variant="secondary" className="rounded-lg px-2.5 py-1">Total: {players.length}</Badge>
               {isTD && <Badge variant={hasSelection ? "default" : "outline"} className="rounded-lg px-2.5 py-1">{selectionSummary}</Badge>}
               {isTD && (
-                <Button size="sm" className="h-9 rounded-lg ml-2 font-medium" onClick={() => setLocation(`/tournaments/${tournamentId}/players/new`)}>
-                  <Plus className="mr-1.5 h-4 w-4" />
-                  Add Player
-                </Button>
+                <>
+                  <Button variant="outline" size="sm" className="h-9 rounded-lg ml-2 font-medium" onClick={handleSyncAllRatings} disabled={isSyncingRatings}>
+                    <RefreshCw className={cn("mr-1.5 h-4 w-4", isSyncingRatings && "animate-spin")} />
+                    Sync Ratings
+                  </Button>
+                  <Button size="sm" className="h-9 rounded-lg font-medium" onClick={() => setLocation(`/tournaments/${tournamentId}/players/new`)}>
+                    <Plus className="mr-1.5 h-4 w-4" />
+                    Add Player
+                  </Button>
+                </>
               )}
             </div>
           </CardHeader>
@@ -1655,6 +1725,46 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
             </div>
           </DialogFooter>
         </DialogContent>
+        </Dialog>
+
+        {/* Bulk USCF Sync Progress Dialog */}
+        <Dialog open={syncDialogOpen} onOpenChange={(open) => { if (!isSyncingRatings) setSyncDialogOpen(open); }}>
+          <DialogContent className="sm:max-w-[425px] bg-white">
+            <DialogHeader>
+              <DialogTitle>Syncing USCF Ratings</DialogTitle>
+              <DialogDescription>
+                Checking US Chess database for live rating updates. This is done sequentially to prevent server blocks.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="flex justify-between text-sm font-medium">
+                <span className="text-slate-600">Progress</span>
+                <span className="text-blue-600 font-bold">{syncProgress} / {syncTotal}</span>
+              </div>
+              <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
+                <div 
+                  className="bg-blue-600 h-full rounded-full transition-all duration-300"
+                  style={{ width: `${(syncProgress / (syncTotal || 1)) * 100}%` }}
+                />
+              </div>
+              {isSyncingRatings ? (
+                <div className="flex items-center gap-2 text-sm text-slate-500 bg-slate-50 border border-slate-100 rounded-md p-3">
+                  <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+                  <span>Checking <span className="font-semibold text-slate-700">{syncCurrentName}</span>...</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 text-sm text-green-600 bg-green-50 border border-green-100 rounded-md p-3">
+                  <CheckCircle2 className="h-4 w-4 text-green-500" />
+                  <span>Syncing completed successfully!</span>
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button type="button" disabled={isSyncingRatings} onClick={() => setSyncDialogOpen(false)}>
+                Close
+              </Button>
+            </DialogFooter>
+          </DialogContent>
         </Dialog>
                       </>
                     )}

@@ -279,6 +279,24 @@ app.post("/api/tournaments/:id/payments/intent", requireAuth, async (req, res) =
   });
 
 
+app.get("/api/payments/intent/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      if (!stripe) {
+        return res.status(503).json({ message: "Online payments are not configured" });
+      }
+      const intentId = req.params.id;
+      const intent = await stripe.paymentIntents.retrieve(intentId);
+      res.json({
+        clientSecret: intent.client_secret,
+        publishableKey: STRIPE_PUBLISHABLE_KEY,
+      });
+    } catch (error) {
+      console.error("Retrieve payment intent error:", error);
+      res.status(500).json({ message: "Failed to retrieve payment intent" });
+    }
+  });
+
+
 app.post("/api/payments/stripe-webhook", async (req: Request, res: Response) => {
     if (!stripe || !STRIPE_WEBHOOK_SECRET) {
       return res.status(503).send("Stripe webhook not configured");

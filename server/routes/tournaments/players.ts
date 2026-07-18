@@ -3,6 +3,7 @@ import { storage } from '../../storage';
 import { requireAuth, requireRole, requireTournamentAccess } from '../../auth';
 import { Player, insertPlayerSchema } from '@shared/schema';
 import { getLocalUSCFPlayerById } from "../../lib/localRatings";
+import { fetchLiveUscfRating } from "../../lib/uscf-live";
 
 export function applyPlayersRoutes(app: Express) {
   // Player routes
@@ -503,6 +504,62 @@ export function applyPlayersRoutes(app: Express) {
       } catch (error) {
         console.error("Bulk create players error:", error);
         res.status(500).json({ message: "Failed to bulk-create players from template" });
+      }
+    }
+  );
+
+  app.post(
+    "/api/tournaments/:tournamentId/players/:playerId/sync-rating",
+    requireAuth,
+    requireRole('tournament_director'),
+    requireTournamentAccess,
+    async (req, res) => {
+      try {
+        const tournamentId = parseInt(req.params.tournamentId, 10);
+        const playerId = parseInt(req.params.playerId, 10);
+
+        const player = await storage.getPlayer(playerId);
+        if (!player) {
+          return res.status(404).json({ message: "Player not found" });
+        }
+
+        if (player.tournamentId !== tournamentId) {
+          return res.status(400).json({ message: "Player does not belong to this tournament" });
+        }
+
+        const isUscf = player.federation === "USCF" || player.federation === "United States" || player.federation === "US Chess" || !player.federation;
+        const uscfId = player.localId;
+        if (!isUscf || !uscfId || !/^\d{7,8}$/.test(uscfId.trim())) {
+          return res.status(400).json({
+            message: "Player does not have a valid 7 or 8-digit USCF ID configured."
+          });
+        }
+
+        console.log(`[USCF Rating Sync] Fetching live USCF rating for Player ${player.firstName} ${player.lastName} (ID: ${uscfId.trim()})`);
+        const latest = await fetchLiveUscfRating(uscfId.trim());
+
+        const updatedFields: Partial<typeof player> = {
+          uscfRating: latest.ratingRegular,
+          uscfRatingRaw: latest.ratingRegular ? `${latest.ratingRegular}/${latest.expiry}` : player.uscfRatingRaw,
+          uscfMemberExpiry: latest.expiry || player.uscfMemberExpiry,
+          ratingLocal: latest.ratingRegular,
+          ratingRapid: latest.ratingQuick,
+          ratingBlitz: latest.ratingBlitz,
+        };
+
+        if (latest.ratingRegular !== null) {
+          updatedFields.rating = latest.ratingRegular;
+        }
+
+        const updatedPlayer = await storage.updatePlayer(playerId, updatedFields);
+        res.json({
+          message: `Successfully synced rating for ${player.firstName} ${player.lastName}.`,
+          player: updatedPlayer
+        });
+      } catch (error) {
+        console.error("[USCF Rating Sync Endpoint] Error:", error);
+        const msg = error instanceof Error ? error.message : "Failed to sync player rating";
+        res.status(500).json({ message: msg });
       }
     }
   );

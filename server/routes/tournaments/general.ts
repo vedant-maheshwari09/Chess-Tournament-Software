@@ -16,6 +16,7 @@ import {
 } from "../common";
 import { searchFideDirectory } from '../../lib/fideDirectory';
 import { db } from '../../db';
+import { fetchLiveUscfRating } from '../../lib/uscf-live';
 
 export function applyGeneralRoutes(app: Express) {
   // Database connection test endpoint (for debugging)
@@ -166,6 +167,22 @@ export function applyGeneralRoutes(app: Express) {
     } catch (error) {
       console.error("Rating lookup error:", error);
       res.status(500).json({ message: "Failed to retrieve rating data" });
+    }
+  });
+
+  app.get("/api/ratings/uscf/:id/latest", async (req, res) => {
+    try {
+      const { id } = req.params;
+      if (!id || !/^\d{7,8}$/.test(id.trim())) {
+        return res.status(400).json({ message: "Invalid USCF ID. Must be a 7 or 8-digit number." });
+      }
+
+      const ratingData = await fetchLiveUscfRating(id.trim());
+      res.json(ratingData);
+    } catch (error) {
+      console.error("[Live USCF Lookup Route] Failed to fetch live rating:", error);
+      const msg = error instanceof Error ? error.message : "Failed to fetch live USCF rating";
+      res.status(500).json({ message: msg });
     }
   });
 

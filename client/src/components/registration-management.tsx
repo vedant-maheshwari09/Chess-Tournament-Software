@@ -23,6 +23,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { 
   UserCheck, 
   UserX, 
@@ -56,6 +58,25 @@ export default function RegistrationManagement({ tournamentId, tournament }: Reg
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "approved" | "declined">("all");
   const [selectedReg, setSelectedReg] = useState<PlayerRegistration | null>(null);
+
+  const [visibleColumns, setVisibleColumns] = useState<string[]>(() => {
+    try {
+      const stored = window.localStorage.getItem(`tournament-${tournamentId}-visible-registration-columns`);
+      if (stored) return JSON.parse(stored);
+    } catch (e) {
+      console.error(e);
+    }
+    // Default columns
+    return ["index", "name", "section", "rating", "payment", "createdAt", "status", "actions"];
+  });
+
+  React.useEffect(() => {
+    try {
+      window.localStorage.setItem(`tournament-${tournamentId}-visible-registration-columns`, JSON.stringify(visibleColumns));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [visibleColumns, tournamentId]);
 
   const { data: registrations = [], isLoading } = useQuery<PlayerRegistration[]>({
     queryKey: [`/api/tournaments/${tournamentId}/registrations`],
@@ -200,29 +221,78 @@ export default function RegistrationManagement({ tournamentId, tournament }: Reg
       {/* Roster / Registration Table Toolbar */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+          <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
           <Input 
             placeholder="Search by name or email..." 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-9 bg-white border-slate-200"
+            className="pl-9 h-10 bg-white border-slate-200"
           />
         </div>
-        <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200 w-full md:w-auto">
-          {(["all", "pending", "approved", "declined"] as const).map((status) => (
-            <button
-              key={status}
-              onClick={() => setStatusFilter(status)}
-              className={cn(
-                "flex-1 md:flex-none px-4 py-1.5 rounded-md text-xs font-semibold transition-all whitespace-nowrap capitalize",
-                statusFilter === status 
-                  ? "bg-white text-slate-900 shadow-sm"
-                  : "text-slate-500 hover:text-slate-800"
-              )}
-            >
-              {status}
-            </button>
-          ))}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full md:w-auto">
+          <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200 w-full sm:w-auto">
+            {(["all", "pending", "approved", "declined"] as const).map((status) => (
+              <button
+                key={status}
+                onClick={() => setStatusFilter(status)}
+                className={cn(
+                  "flex-1 sm:flex-none px-4 py-1.5 rounded-md text-xs font-semibold transition-all whitespace-nowrap capitalize",
+                  statusFilter === status 
+                    ? "bg-white text-slate-900 shadow-sm"
+                    : "text-slate-500 hover:text-slate-800"
+                )}
+              >
+                {status}
+              </button>
+            ))}
+          </div>
+
+          {/* Column Selection Popover */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className="h-10 border-slate-200 hover:bg-slate-50">
+                <Eye className="mr-2 h-4 w-4 text-slate-500" />
+                Columns
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-56 p-3 space-y-2.5 bg-white shadow-lg border border-slate-200 rounded-lg" align="end">
+              <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 px-1">Visible Columns</div>
+              <div className="space-y-2 max-h-[300px] overflow-y-auto no-scrollbar">
+                {[
+                  { id: "index", label: "# Number" },
+                  { id: "name", label: "Player Details" },
+                  { id: "section", label: "Section Choice" },
+                  { id: "rating", label: "Unified Rating" },
+                  { id: "uscfRating", label: "USCF Rating" },
+                  { id: "fideRating", label: "FIDE Rating" },
+                  { id: "uscfId", label: "USCF ID" },
+                  { id: "fideId", label: "FIDE ID" },
+                  { id: "uscfStatus", label: "USCF Membership" },
+                  { id: "email", label: "Email Address" },
+                  { id: "byes", label: "Byes List" },
+                  { id: "payment", label: "Payment Status" },
+                  { id: "createdAt", label: "Date Submitted" },
+                  { id: "status", label: "Approval Status" },
+                  { id: "actions", label: "Actions" },
+                ].map((col) => (
+                  <label key={col.id} className="flex items-center gap-2 px-1 text-sm text-slate-700 cursor-pointer hover:bg-slate-50 rounded py-0.5 select-none">
+                    <Checkbox
+                      id={`col-${col.id}`}
+                      checked={visibleColumns.includes(col.id)}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          setVisibleColumns([...visibleColumns, col.id]);
+                        } else {
+                          setVisibleColumns(visibleColumns.filter((id) => id !== col.id));
+                        }
+                      }}
+                    />
+                    <span>{col.label}</span>
+                  </label>
+                ))}
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
       </div>
 
@@ -231,20 +301,27 @@ export default function RegistrationManagement({ tournamentId, tournament }: Reg
         <Table>
           <TableHeader className="bg-slate-50/80">
             <TableRow>
-              <TableHead className="w-12">#</TableHead>
-              <TableHead>Player</TableHead>
-              <TableHead>Section Choice</TableHead>
-              <TableHead>Rating</TableHead>
-              <TableHead>Payment</TableHead>
-              <TableHead>Submitted</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
+              {visibleColumns.includes("index") && <TableHead className="w-12 text-sm font-semibold">#</TableHead>}
+              {visibleColumns.includes("name") && <TableHead className="text-sm font-semibold">Player</TableHead>}
+              {visibleColumns.includes("section") && <TableHead className="text-sm font-semibold">Section Choice</TableHead>}
+              {visibleColumns.includes("rating") && <TableHead className="text-sm font-semibold">Unified Rating</TableHead>}
+              {visibleColumns.includes("uscfRating") && <TableHead className="text-sm font-semibold">USCF Rating</TableHead>}
+              {visibleColumns.includes("fideRating") && <TableHead className="text-sm font-semibold">FIDE Rating</TableHead>}
+              {visibleColumns.includes("uscfId") && <TableHead className="text-sm font-semibold">USCF ID</TableHead>}
+              {visibleColumns.includes("fideId") && <TableHead className="text-sm font-semibold">FIDE ID</TableHead>}
+              {visibleColumns.includes("uscfStatus") && <TableHead className="text-sm font-semibold">USCF Membership</TableHead>}
+              {visibleColumns.includes("email") && <TableHead className="text-sm font-semibold">Email</TableHead>}
+              {visibleColumns.includes("byes") && <TableHead className="text-sm font-semibold">Byes</TableHead>}
+              {visibleColumns.includes("payment") && <TableHead className="text-sm font-semibold">Payment</TableHead>}
+              {visibleColumns.includes("createdAt") && <TableHead className="text-sm font-semibold">Submitted</TableHead>}
+              {visibleColumns.includes("status") && <TableHead className="text-sm font-semibold">Status</TableHead>}
+              {visibleColumns.includes("actions") && <TableHead className="text-right text-sm font-semibold">Actions</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredRegs.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="py-12 text-center text-slate-400">
+                <TableCell colSpan={visibleColumns.length} className="py-12 text-center text-slate-400">
                   No registrations found matching the criteria.
                 </TableCell>
               </TableRow>
@@ -260,168 +337,253 @@ export default function RegistrationManagement({ tournamentId, tournament }: Reg
 
                 return (
                   <TableRow key={reg.id} className="hover:bg-slate-50/50 transition">
-                    <TableCell className="font-medium text-slate-500">{index + 1}</TableCell>
-                    <TableCell>
-                      <div className="flex flex-col gap-1">
-                        <div className="flex items-center gap-2">
-                          {reg.uscfId || reg.fideId ? (
-                            <a
-                              href={
-                                reg.ratingProvider === "fide" && reg.fideId
-                                  ? `https://ratings.fide.com/profile/${reg.fideId}`
-                                  : reg.ratingProvider === "uscf" && reg.uscfId
-                                  ? `https://ratings.uschess.org/player/${reg.uscfId}`
-                                  : reg.uscfId
-                                  ? `https://ratings.uschess.org/player/${reg.uscfId}`
-                                  : reg.fideId
-                                  ? `https://ratings.fide.com/profile/${reg.fideId}`
-                                  : undefined
-                              }
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="font-semibold text-blue-600 hover:underline cursor-pointer"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              {reg.playerName}
-                            </a>
-                          ) : (
-                            <span className="font-semibold text-slate-950">{reg.playerName}</span>
-                          )}
-                          {(reg as any).uscfId && (
-                            <span className="text-[10px] text-slate-400 font-mono">({(reg as any).uscfId})</span>
+                    {visibleColumns.includes("index") && (
+                      <TableCell className="font-medium text-slate-500 text-sm">{index + 1}</TableCell>
+                    )}
+                    {visibleColumns.includes("name") && (
+                      <TableCell>
+                        <div className="flex flex-col gap-1 py-0.5">
+                          <div className="flex items-center gap-2">
+                            {reg.uscfId || reg.fideId ? (
+                              <a
+                                href={
+                                  reg.ratingProvider === "fide" && reg.fideId
+                                    ? `https://ratings.fide.com/profile/${reg.fideId}`
+                                    : reg.ratingProvider === "uscf" && reg.uscfId
+                                    ? `https://ratings.uschess.org/player/${reg.uscfId}`
+                                    : reg.uscfId
+                                    ? `https://ratings.uschess.org/player/${reg.uscfId}`
+                                    : reg.fideId
+                                    ? `https://ratings.fide.com/profile/${reg.fideId}`
+                                    : undefined
+                                }
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="font-semibold text-sm text-blue-600 hover:underline cursor-pointer"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {reg.playerName}
+                              </a>
+                            ) : (
+                              <span className="font-semibold text-sm text-slate-950">{reg.playerName}</span>
+                            )}
+                            {reg.uscfId && !visibleColumns.includes("uscfId") && (
+                              <span className="text-xs text-slate-400 font-mono">({reg.uscfId})</span>
+                            )}
+                          </div>
+                          {!visibleColumns.includes("email") && reg.email && (
+                            <span className="text-xs text-slate-400 font-medium">{reg.email}</span>
                           )}
                         </div>
-                        <span className="text-[11px] text-slate-400 font-medium">{reg.email || "No email"}</span>
-                        {((reg as any).uscfId || (reg as any).isProvisional) && (
-                          <div className="flex items-center gap-1.5 mt-0.5">
-                            {(reg as any).uscfId && (
-                              <Badge 
-                                variant="outline" 
-                                className={cn(
-                                  "text-[9px] font-bold px-1.5 py-0.5",
-                                  getUscfActiveStatus(reg) 
-                                    ? "bg-emerald-50 text-emerald-700 border-emerald-200" 
-                                    : "bg-rose-50 text-rose-700 border-rose-200"
-                                )}
-                              >
-                                {getUscfActiveStatus(reg) ? "USCF Active" : "USCF Expired"}
-                              </Badge>
-                            )}
+                      </TableCell>
+                    )}
+                    {visibleColumns.includes("section") && (
+                      <TableCell>
+                        <Badge variant="secondary" className="bg-slate-100 hover:bg-slate-100 text-slate-700 text-xs px-2 py-0.5 capitalize shadow-none">
+                          {reg.sectionChoice || "Default"}
+                        </Badge>
+                      </TableCell>
+                    )}
+                    {visibleColumns.includes("rating") && (
+                      <TableCell className="font-mono text-sm">{rating}</TableCell>
+                    )}
+                    {visibleColumns.includes("uscfRating") && (
+                      <TableCell className="font-mono text-sm">
+                        {reg.uscfId ? (
+                          resolveDisplayRating((reg as any).uscfRatingRaw, reg.uscfRating, threshold, false)
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
+                      </TableCell>
+                    )}
+                    {visibleColumns.includes("fideRating") && (
+                      <TableCell className="font-mono text-sm">
+                        {reg.fideId ? (
+                          resolveDisplayRating((reg as any).fideRatingRaw, reg.fideRating, 0, true)
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
+                      </TableCell>
+                    )}
+                    {visibleColumns.includes("uscfId") && (
+                      <TableCell className="font-mono text-sm">
+                        {reg.uscfId ? (
+                          <span className="font-bold text-slate-700">{reg.uscfId}</span>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
+                      </TableCell>
+                    )}
+                    {visibleColumns.includes("fideId") && (
+                      <TableCell className="font-mono text-sm">
+                        {reg.fideId ? (
+                          <span className="font-bold text-slate-700">{reg.fideId}</span>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
+                      </TableCell>
+                    )}
+                    {visibleColumns.includes("uscfStatus") && (
+                      <TableCell>
+                        {reg.uscfId ? (
+                          <div className="flex flex-col gap-1 items-start">
+                            <Badge 
+                              variant="outline" 
+                              className={cn(
+                                "text-xs font-bold px-2 py-0.5 shadow-none",
+                                getUscfActiveStatus(reg) 
+                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200" 
+                                  : "bg-rose-50 text-rose-700 border-rose-200"
+                              )}
+                            >
+                              {getUscfActiveStatus(reg) ? "Active" : "Expired"}
+                            </Badge>
                             {(reg as any).isProvisional && (
                               <Badge 
                                 variant="outline" 
-                                className="text-[9px] font-bold px-1.5 py-0.5 bg-amber-50 text-amber-700 border-amber-200"
+                                className="text-[10px] font-medium px-1.5 py-0.5 bg-amber-50 text-amber-700 border-amber-200 shadow-none mt-0.5 whitespace-nowrap"
                               >
-                                Provisional ({(reg as any).gamesCount ?? 0} games)
+                                Provisional ({(reg as any).gamesCount ?? 0}g)
                               </Badge>
                             )}
                           </div>
+                        ) : (
+                          <span className="text-slate-400 text-sm">—</span>
                         )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="secondary" className="bg-slate-100 hover:bg-slate-100 text-slate-700 text-[10px] capitalize">
-                        {reg.sectionChoice || "Default"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="font-mono text-xs">{rating}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1.5">
+                      </TableCell>
+                    )}
+                    {visibleColumns.includes("email") && (
+                      <TableCell className="text-sm text-slate-600">
+                        {reg.email || <span className="text-slate-400">—</span>}
+                      </TableCell>
+                    )}
+                    {visibleColumns.includes("byes") && (
+                      <TableCell className="text-sm text-slate-600 max-w-[150px] truncate">
+                        {reg.byePreference === "yes" && reg.byeRounds && (reg.byeRounds as string[]).length > 0 ? (
+                          <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200 text-xs px-2 py-0.5">
+                            Byes: {(reg.byeRounds as string[]).map(r => r.replace("Round ", "")).join(", ")}
+                          </Badge>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
+                      </TableCell>
+                    )}
+                    {visibleColumns.includes("payment") && (
+                      <TableCell>
+                        <div className="flex flex-col gap-1 items-start">
+                          <div className="flex items-center gap-1.5">
+                            <Badge 
+                              variant="outline" 
+                              className={cn(
+                                "text-xs font-semibold px-2 py-0.5 shadow-none",
+                                reg.paymentStatus === "paid" 
+                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200/50" 
+                                  : reg.paymentStatus === "processing" 
+                                  ? "bg-amber-50 text-amber-700 border-amber-200/50 animate-pulse"
+                                  : "bg-slate-50 text-slate-500 border-slate-200"
+                              )}
+                            >
+                              {reg.paymentStatus || "Unpaid"}
+                            </Badge>
+                            {reg.paymentMethod && (
+                              <span className="text-xs text-slate-400 font-mono capitalize">({reg.paymentMethod})</span>
+                            )}
+                          </div>
+                          <span className="text-xs font-mono text-slate-500 mt-0.5">
+                            ${Number(reg.amountDue || 0).toFixed(2)} due
+                          </span>
+                        </div>
+                      </TableCell>
+                    )}
+                    {visibleColumns.includes("createdAt") && (
+                      <TableCell className="text-sm text-slate-500 font-medium">
+                        {reg.updatedAt ? new Date(reg.updatedAt).toLocaleDateString() : "—"}
+                      </TableCell>
+                    )}
+                    {visibleColumns.includes("status") && (
+                      <TableCell>
                         <Badge 
-                          variant="outline" 
                           className={cn(
-                            "text-[10px] font-semibold tracking-wide",
-                            reg.paymentStatus === "paid" 
-                              ? "bg-emerald-50 text-emerald-700 border-emerald-200/50" 
-                              : reg.paymentStatus === "processing" 
-                              ? "bg-amber-50 text-amber-700 border-amber-200/50 animate-pulse"
-                              : "bg-slate-50 text-slate-500 border-slate-200"
+                            "text-xs font-semibold px-2 py-0.5 shadow-none tracking-wide capitalize",
+                            reg.status === "approved" 
+                              ? "bg-emerald-600 hover:bg-emerald-600" 
+                              : reg.status === "declined" 
+                              ? "bg-red-500 hover:bg-red-500" 
+                              : "bg-amber-500 hover:bg-amber-500"
                           )}
                         >
-                          {reg.paymentStatus || "Unpaid"}
+                          {reg.status}
                         </Badge>
-                        {reg.paymentMethod && (
-                          <span className="text-[10px] text-slate-400 font-mono capitalize">({reg.paymentMethod})</span>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-xs text-slate-500">
-                      {reg.updatedAt ? new Date(reg.updatedAt).toLocaleDateString() : "—"}
-                    </TableCell>
-                    <TableCell>
-                      <Badge 
-                        className={cn(
-                          "text-[10px] font-bold tracking-wider uppercase",
-                          reg.status === "approved" 
-                            ? "bg-emerald-600 hover:bg-emerald-600" 
-                            : reg.status === "declined" 
-                            ? "bg-red-500 hover:bg-red-500" 
-                            : "bg-amber-500 hover:bg-amber-500"
-                        )}
-                      >
-                        {reg.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <Button 
-                          size="sm" 
-                          variant="ghost" 
-                          className="h-8 w-8 p-0 text-slate-500 hover:text-slate-900" 
-                          onClick={() => setSelectedReg(reg)}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        
-                        {reg.status === "pending" && (
-                          <>
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50">
-                                  <UserCheck className="h-4 w-4" />
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Approve {reg.playerName}?</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    This will add {reg.playerName} as an active player in the tournament roster.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction onClick={() => updateRegistrationMutation.mutate({ registrationId: reg.id, status: "approved" })}>
-                                    Approve
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
+                      </TableCell>
+                    )}
+                    {visibleColumns.includes("actions") && (
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <Button 
+                            size="sm" 
+                            variant="ghost" 
+                            className="h-8 w-8 p-0 text-slate-500 hover:text-slate-900" 
+                            onClick={() => setSelectedReg(reg)}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          
+                          {reg.status === "pending" && (
+                            <>
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50">
+                                    <UserCheck className="h-4 w-4" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent className="bg-white border-slate-100">
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Approve Player Registration?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      This will approve the registration for {reg.playerName}. If they are not already in the tournament roster, they will be added automatically.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction 
+                                      className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                                      onClick={() => updateRegistrationMutation.mutate({ registrationId: reg.id, status: "approved" })}
+                                    >
+                                      Approve
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
 
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50">
-                                  <UserX className="h-4 w-4" />
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Decline {reg.playerName}?</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    Are you sure you want to decline this registration? The player will not be rostered.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction onClick={() => updateRegistrationMutation.mutate({ registrationId: reg.id, status: "declined" })} className="bg-red-600">
-                                    Decline
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          </>
-                        )}
-                      </div>
-                    </TableCell>
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50">
+                                    <UserX className="h-4 w-4" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent className="bg-white border-slate-100">
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Decline Player Registration?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      This will decline the registration for {reg.playerName}. They will not be added to the tournament roster.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction 
+                                      className="bg-red-650 hover:bg-red-700 text-white"
+                                      onClick={() => updateRegistrationMutation.mutate({ registrationId: reg.id, status: "declined" })}
+                                    >
+                                      Decline
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </>
+                          )}
+                        </div>
+                      </TableCell>
+                    )}
                   </TableRow>
                 );
               })

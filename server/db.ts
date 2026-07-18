@@ -94,4 +94,10 @@ if (connectionString.includes(".supabase.co") && !connectionString.includes(".po
 }
 
 export const pool = new Pool({ connectionString, ssl });
+
+// Prevent process crash on idle client connection errors (e.g. ECONNRESET from pooler)
+pool.on("error", (err) => {
+  console.error("⚠️ Unexpected error on idle client:", err.message || err);
+});
+
 export const db = drizzle(pool, { schema });
