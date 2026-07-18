@@ -82,9 +82,10 @@ app.use(
 );
 
 // Apply rate limiting to all /api routes
+const isProd = process.env.NODE_ENV === "production" || app.get("env") === "production";
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  limit: 200, // Limit each IP to 200 requests per 15 minutes
+  limit: isProd ? 200 : 10000, // Limit each IP to 10000 in dev or 200 in prod
   standardHeaders: "draft-7",
   legacyHeaders: false,
   message: { message: "Too many requests from this IP, please try again after 15 minutes." },

@@ -756,9 +756,6 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
             {visibleColumns.includes("index") && (
               <TableHead className="w-10 px-2 py-2 text-center text-sm font-semibold text-slate-500 bg-slate-50/80 sticky left-0 z-20 font-sans">#</TableHead>
             )}
-            {visibleColumns.includes("uscfId") && (
-              <TableHead className="w-28 px-2 py-2 text-sm font-semibold text-slate-500 bg-slate-50/80 font-sans">USCF ID</TableHead>
-            )}
             {visibleColumns.includes("name") && (
               <TableHead className={cn(
                 "w-44 px-2 py-2 text-sm font-semibold text-slate-500 bg-slate-50/80 sticky z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] font-sans",
@@ -769,6 +766,9 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
                   {sortKey === 'name' && <ArrowUpDown className="h-3 w-3 inline text-slate-500" />}
                 </button>
               </TableHead>
+            )}
+            {visibleColumns.includes("uscfId") && (
+              <TableHead className="w-28 px-2 py-2 text-sm font-semibold text-slate-500 bg-slate-50/80 font-sans">USCF ID</TableHead>
             )}
             {visibleColumns.includes("rating") && (
               <TableHead className="w-28 px-2 py-2 text-sm font-semibold text-slate-500 bg-slate-50/80 font-sans">
@@ -882,17 +882,6 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
                     <div className="font-sans">{index + 1}</div>
                   </TableCell>
                 )}
-                {visibleColumns.includes("uscfId") && (
-                  <TableCell className="px-2 py-2 overflow-hidden font-sans text-sm">
-                    {(player as any).userUscfId || player.localId ? (
-                      <span className="font-sans text-sm font-semibold text-slate-800 bg-slate-50 px-2 py-0.5 rounded border border-slate-200/60 shadow-sm whitespace-nowrap">
-                        {(player as any).userUscfId || player.localId}
-                      </span>
-                    ) : (
-                      <span className="text-sm text-slate-400 font-sans">—</span>
-                    )}
-                  </TableCell>
-                )}
                 {visibleColumns.includes("name") && (
                   <TableCell className={cn(
                     "sticky transition-colors z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] px-2 py-2 overflow-hidden truncate font-sans text-sm",
@@ -953,6 +942,17 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
                         </div>
                       )}
                     </div>
+                  </TableCell>
+                )}
+                {visibleColumns.includes("uscfId") && (
+                  <TableCell className="px-2 py-2 overflow-hidden font-sans text-sm">
+                    {(player as any).userUscfId || player.localId ? (
+                      <span className="font-sans text-sm font-semibold text-slate-800 bg-slate-50 px-2 py-0.5 rounded border border-slate-200/60 shadow-sm whitespace-nowrap">
+                        {(player as any).userUscfId || player.localId}
+                      </span>
+                    ) : (
+                      <span className="text-sm text-slate-400 font-sans">—</span>
+                    )}
                   </TableCell>
                 )}
                 {visibleColumns.includes("rating") && (
