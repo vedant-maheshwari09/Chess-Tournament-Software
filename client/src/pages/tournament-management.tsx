@@ -574,10 +574,10 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
           <TabsContent value="registrations" className="mt-6 space-y-6 animate-in fade-in duration-300">
             <Tabs value={registrationsSubTab} onValueChange={handleRegistrationsSubTabChange} className="w-full">
               <TabsList className="flex bg-slate-100 p-1 rounded-lg border border-slate-200 w-fit mb-4">
-                <TabsTrigger value="list" className="text-xs font-semibold px-4 py-1.5 rounded-md data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                <TabsTrigger value="list" className="text-sm font-semibold px-5 py-2 rounded-md data-[state=active]:bg-white data-[state=active]:shadow-sm">
                   Current Registrations
                 </TabsTrigger>
-                <TabsTrigger value="form" className="text-xs font-semibold px-4 py-1.5 rounded-md data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                <TabsTrigger value="form" className="text-sm font-semibold px-5 py-2 rounded-md data-[state=active]:bg-white data-[state=active]:shadow-sm">
                   Edit Registration Form
                 </TabsTrigger>
               </TabsList>

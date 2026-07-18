@@ -337,6 +337,11 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
     return processed;
   }, [players, activeSection, searchTerm, filterStatus, filterFederation, filterRatingType, filterVerification, sortKey, sortDirection, tournamentConfig]);
 
+  const registeredCount = useMemo(() => {
+    if (activeSection === "all") return players.length;
+    return players.filter(p => p.sectionId === activeSection || p.sectionName === activeSection).length;
+  }, [players, activeSection]);
+
   const { data: pairings = [], isLoading: pairingsLoading } = useQuery<Pairing[]>({
     queryKey: [`/api/tournaments/${tournamentId}/pairings`],
   });
@@ -1248,9 +1253,9 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
       <Tabs value={activeSection} onValueChange={setActiveSection} className="w-full">
         {sections.length > 1 && (
           <TabsList className="flex flex-nowrap overflow-x-auto no-scrollbar justify-start items-center bg-slate-100/50 p-1 mb-6 rounded-xl border border-slate-200/60 shadow-sm backdrop-blur-sm w-full sm:w-fit">
-            <TabsTrigger value="all" className="flex-none sm:flex-1 data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-black transition-all font-medium rounded-lg px-4 py-2 text-xs xl:text-sm whitespace-nowrap">All</TabsTrigger>
+            <TabsTrigger value="all" className="flex-none sm:flex-1 data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-black transition-all font-semibold rounded-lg px-4 py-2.5 text-sm whitespace-nowrap">All</TabsTrigger>
             {sections.map(section => (
-              <TabsTrigger key={section.id} value={section.id} className="flex-none sm:flex-1 data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-black transition-all font-medium rounded-lg px-4 py-2 text-xs xl:text-sm whitespace-nowrap">
+              <TabsTrigger key={section.id} value={section.id} className="flex-none sm:flex-1 data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-black transition-all font-semibold rounded-lg px-4 py-2.5 text-sm whitespace-nowrap">
                 {section.name}
               </TabsTrigger>
             ))}
@@ -1259,28 +1264,28 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
         <Card className="mt-4 border-slate-200/60 shadow-[0_8px_30px_rgba(0,0,0,0.04)] rounded-2xl overflow-hidden">
           <CardHeader className="flex flex-row items-center justify-between border-b border-slate-150 px-6 py-4 gap-4 bg-slate-50/40">
             <div className="flex items-baseline gap-2 min-w-0">
-              <CardTitle className="text-base font-bold text-slate-800 tracking-tight font-sans">Players</CardTitle>
-              <span className="text-xs text-slate-400 font-medium shrink-0 font-sans">({players.length} registered)</span>
+              <CardTitle className="text-xl font-bold text-slate-800 tracking-tight font-sans">Players</CardTitle>
+              <span className="text-sm text-slate-500 font-medium shrink-0 font-sans">({registeredCount} registered)</span>
             </div>
             <div className="flex items-center gap-2 shrink-0">
               {isTD && (
                 <>
                   <Button 
                     variant="outline" 
-                    size="sm" 
-                    className="h-8 text-xs font-semibold rounded-lg border-slate-200 hover:bg-slate-100/50 text-slate-600 shadow-sm transition-all" 
+                    size="default" 
+                    className="h-10 text-sm font-semibold rounded-lg border-slate-200 hover:bg-slate-100/50 text-slate-600 shadow-sm transition-all px-4" 
                     onClick={handleSyncAllRatings} 
                     disabled={isSyncingRatings}
                   >
-                    <RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", isSyncingRatings && "animate-spin")} />
+                    <RefreshCw className={cn("mr-2 h-4 w-4", isSyncingRatings && "animate-spin")} />
                     Sync Ratings
                   </Button>
                   <Button 
-                    size="sm" 
-                    className="h-8 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm transition-all" 
+                    size="default" 
+                    className="h-10 text-sm font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm transition-all px-4" 
                     onClick={() => setLocation(`/tournaments/${tournamentId}/players/new`)}
                   >
-                    <Plus className="mr-1.5 h-3.5 w-3.5" />
+                    <Plus className="mr-2 h-4 w-4" />
                     Add Player
                   </Button>
                 </>
@@ -1299,11 +1304,11 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
                 <p className="text-xs text-slate-400 mt-1">Start by adding players to this event.</p>
                 {isTD && (
                   <Button 
-                    size="sm" 
-                    className="h-8 mt-3 text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg"
+                    size="default" 
+                    className="h-10 mt-3 text-sm font-semibold bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg px-4"
                     onClick={() => setLocation(`/tournaments/${tournamentId}/players/new`)}
                   >
-                    <Plus className="mr-1.5 h-3.5 w-3.5" /> Add Player
+                    <Plus className="mr-2 h-4 w-4" /> Add Player
                   </Button>
                 )}
               </div>
@@ -1312,10 +1317,10 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
                 {/* Search & Filters Controls Row */}
                 <div className="flex items-center gap-2 py-1">
                   <div className="relative flex-1 max-w-md">
-                    <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                    <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
                     <Input
                       placeholder="Search by name, ID, email, or club..."
-                      className="pl-9 h-9 text-xs w-full bg-white border-slate-200 focus-visible:ring-indigo-500 focus-visible:border-indigo-500 rounded-lg shadow-sm"
+                      className="pl-10 h-10 text-sm w-full bg-white border-slate-200 focus-visible:ring-indigo-500 focus-visible:border-indigo-500 rounded-lg shadow-sm"
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                     />
@@ -1324,19 +1329,19 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
                   <div className="flex items-center gap-2 ml-auto shrink-0">
                     <Button
                       variant={showFilterPanel || filterStatus !== "all" || filterFederation !== "all" || filterRatingType !== "all" || filterVerification !== "all" ? "secondary" : "outline"}
-                      size="sm"
+                      size="default"
                       className={cn(
-                        "h-9 text-xs font-semibold rounded-lg border-slate-200 text-slate-700 shadow-sm transition-all",
+                        "h-10 text-sm font-semibold rounded-lg border-slate-200 text-slate-700 shadow-sm transition-all px-4",
                         (showFilterPanel || filterStatus !== "all" || filterFederation !== "all" || filterRatingType !== "all" || filterVerification !== "all")
                           ? "bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100"
                           : "hover:bg-slate-50"
                       )}
                       onClick={() => setShowFilterPanel(!showFilterPanel)}
                     >
-                      <SlidersHorizontal className="mr-1.5 h-3.5 w-3.5" />
+                      <SlidersHorizontal className="mr-2 h-4 w-4" />
                       Filters
                       {(filterStatus !== "all" || filterFederation !== "all" || filterRatingType !== "all" || filterVerification !== "all") && (
-                        <span className="ml-1.5 bg-indigo-600 text-white rounded-full h-4 w-4 flex items-center justify-center p-0 text-[9px] font-bold">
+                        <span className="ml-2 bg-indigo-600 text-white rounded-full h-4 w-4 flex items-center justify-center p-0 text-[9px] font-bold">
                           {[filterStatus !== "all", filterFederation !== "all", filterRatingType !== "all", filterVerification !== "all"].filter(Boolean).length}
                         </span>
                       )}
@@ -1344,8 +1349,8 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
 
                     <Popover>
                       <PopoverTrigger asChild>
-                        <Button variant="outline" size="sm" className="h-9 text-xs font-semibold rounded-lg border-slate-200 hover:bg-slate-50 text-slate-700 shadow-sm transition-all">
-                          <Eye className="mr-1.5 h-3.5 w-3.5" />
+                        <Button variant="outline" size="default" className="h-10 text-sm font-semibold rounded-lg border-slate-200 hover:bg-slate-50 text-slate-700 shadow-sm transition-all px-4">
+                          <Eye className="mr-2 h-4 w-4" />
                           Columns
                         </Button>
                       </PopoverTrigger>
