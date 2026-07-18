@@ -177,13 +177,18 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
       const stored = window.localStorage.getItem(`tournament-${tournamentId}-visible-columns`);
       if (stored) {
         try {
-          return JSON.parse(stored);
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed) && !parsed.includes("uscfMembership")) {
+            // Upgrade legacy stored layout to the new defaults
+            return ["index", "uscfId", "name", "rating", "uscfMembership", "byes", "paymentStatus", "actions"];
+          }
+          return parsed;
         } catch (e) {
           // ignore
         }
       }
     }
-    return ["index", "name", "rating", "uscfId", "paymentStatus", "byes", "actions"];
+    return ["index", "uscfId", "name", "rating", "uscfMembership", "byes", "paymentStatus", "actions"];
   });
 
   const isIndexVisible = visibleColumns.includes("index");
@@ -731,101 +736,128 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
             ))}
           </TabsList>
         )}
-        <Card className="mt-4">
-          <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 px-6 py-5">
-            <div>
-              <CardTitle className="text-lg font-bold">Players</CardTitle>
-              <p className="text-sm text-muted-foreground">Overview of everyone registered for this event.</p>
+        <Card className="mt-4 border-slate-200/60 shadow-sm rounded-xl overflow-hidden">
+          <CardHeader className="flex flex-row items-center justify-between border-b border-slate-150 px-6 py-4 gap-4 bg-slate-50/40">
+            <div className="flex items-baseline gap-2 min-w-0">
+              <CardTitle className="text-base font-bold text-slate-800 tracking-tight">Players</CardTitle>
+              <span className="text-xs text-slate-400 font-medium font-mono shrink-0">({players.length} registered)</span>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="secondary" className="rounded-lg px-2.5 py-1">Total: {players.length}</Badge>
-              {isTD && <Badge variant={hasSelection ? "default" : "outline"} className="rounded-lg px-2.5 py-1">{selectionSummary}</Badge>}
+            <div className="flex items-center gap-2 shrink-0">
               {isTD && (
                 <>
-                  <Button variant="outline" size="sm" className="h-9 rounded-lg ml-2 font-medium" onClick={handleSyncAllRatings} disabled={isSyncingRatings}>
-                    <RefreshCw className={cn("mr-1.5 h-4 w-4", isSyncingRatings && "animate-spin")} />
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="h-8 text-xs font-semibold rounded-lg border-slate-200 hover:bg-slate-100/50 text-slate-600 shadow-sm transition-all" 
+                    onClick={handleSyncAllRatings} 
+                    disabled={isSyncingRatings}
+                  >
+                    <RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", isSyncingRatings && "animate-spin")} />
                     Sync Ratings
                   </Button>
-                  <Button size="sm" className="h-9 rounded-lg font-medium" onClick={() => setLocation(`/tournaments/${tournamentId}/players/new`)}>
-                    <Plus className="mr-1.5 h-4 w-4" />
+                  <Button 
+                    size="sm" 
+                    className="h-8 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm transition-all" 
+                    onClick={() => setLocation(`/tournaments/${tournamentId}/players/new`)}
+                  >
+                    <Plus className="mr-1.5 h-3.5 w-3.5" />
                     Add Player
                   </Button>
                 </>
               )}
             </div>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="p-6 space-y-4">
             {isLoading ? (
-              <p className="text-sm text-muted-foreground">Loading players...</p>
+              <div className="py-8 flex items-center justify-center gap-2 text-sm text-slate-500 font-medium">
+                <Loader2 className="h-4 w-4 animate-spin text-indigo-650" />
+                Loading players...
+              </div>
             ) : players.length === 0 ? (
-              <div className="py-12 text-center">
-                <p className="text-sm text-muted-foreground">No players registered yet.</p>
+              <div className="py-12 text-center border border-dashed rounded-xl border-slate-200 bg-slate-50/50 flex flex-col items-center justify-center">
+                <p className="text-sm font-semibold text-slate-605">No players registered yet.</p>
+                <p className="text-xs text-slate-400 mt-1">Start by adding players to this event.</p>
+                {isTD && (
+                  <Button 
+                    size="sm" 
+                    className="h-8 mt-3 text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg"
+                    onClick={() => setLocation(`/tournaments/${tournamentId}/players/new`)}
+                  >
+                    <Plus className="mr-1.5 h-3.5 w-3.5" /> Add Player
+                  </Button>
+                )}
               </div>
             ) : (
               <TooltipProvider>
                 {/* Search & Filters Controls Row */}
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between py-2">
-                  <div className="relative flex-1">
-                    <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                <div className="flex items-center gap-2 py-1">
+                  <div className="relative flex-1 max-w-md">
+                    <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
                     <Input
                       placeholder="Search by name, ID, email, or club..."
-                      className="pl-9 h-10 w-full bg-white"
+                      className="pl-9 h-9 text-xs w-full bg-white border-slate-200 focus-visible:ring-indigo-500 focus-visible:border-indigo-500 rounded-lg shadow-sm"
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                     />
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    {/* Expandable Filter trigger */}
+                  <div className="flex items-center gap-2 ml-auto shrink-0">
                     <Button
-                      variant={showFilterPanel || filterStatus !== "all" || filterFederation !== "all" || filterRatingType !== "all" || filterVerification !== "all" ? "default" : "outline"}
-                      className="h-10"
+                      variant={showFilterPanel || filterStatus !== "all" || filterFederation !== "all" || filterRatingType !== "all" || filterVerification !== "all" ? "secondary" : "outline"}
+                      size="sm"
+                      className={cn(
+                        "h-9 text-xs font-semibold rounded-lg border-slate-200 text-slate-700 shadow-sm transition-all",
+                        (showFilterPanel || filterStatus !== "all" || filterFederation !== "all" || filterRatingType !== "all" || filterVerification !== "all")
+                          ? "bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100"
+                          : "hover:bg-slate-50"
+                      )}
                       onClick={() => setShowFilterPanel(!showFilterPanel)}
                     >
-                      <SlidersHorizontal className="mr-2 h-4 w-4" />
+                      <SlidersHorizontal className="mr-1.5 h-3.5 w-3.5" />
                       Filters
                       {(filterStatus !== "all" || filterFederation !== "all" || filterRatingType !== "all" || filterVerification !== "all") && (
-                        <Badge variant="secondary" className="ml-2 bg-slate-800 text-white rounded-full h-5 w-5 flex items-center justify-center p-0 text-[10px]">
+                        <span className="ml-1.5 bg-indigo-600 text-white rounded-full h-4 w-4 flex items-center justify-center p-0 text-[9px] font-bold">
                           {[filterStatus !== "all", filterFederation !== "all", filterRatingType !== "all", filterVerification !== "all"].filter(Boolean).length}
-                        </Badge>
+                        </span>
                       )}
                     </Button>
 
-                    {/* Column Selection Popover */}
                     <Popover>
                       <PopoverTrigger asChild>
-                        <Button variant="outline" className="h-10">
-                          <Eye className="mr-2 h-4 w-4" />
+                        <Button variant="outline" size="sm" className="h-9 text-xs font-semibold rounded-lg border-slate-200 hover:bg-slate-50 text-slate-700 shadow-sm transition-all">
+                          <Eye className="mr-1.5 h-3.5 w-3.5" />
                           Columns
                         </Button>
                       </PopoverTrigger>
-                      <PopoverContent className="w-56 p-3 space-y-2.5 bg-white shadow-lg border border-slate-200 rounded-lg" align="end">
-                        <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 px-1">Visible Columns</div>
-                        <div className="space-y-2 max-h-[300px] overflow-y-auto no-scrollbar">
+                      <PopoverContent className="w-56 p-3 space-y-2 bg-white shadow-xl border border-slate-200 rounded-xl" align="end">
+                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 px-1">Visible Columns</div>
+                        <div className="space-y-1 max-h-[300px] overflow-y-auto no-scrollbar">
                           {[
                             { id: "index", label: "# Number" },
+                            { id: "uscfId", label: "USCF ID" },
                             { id: "name", label: "Surname, Name" },
                             { id: "rating", label: "Unified Rating" },
+                            { id: "uscfMembership", label: "USCF Membership" },
+                            { id: "byes", label: "Byes List" },
+                            { id: "paymentStatus", label: "Payment Status" },
+                            { id: "actions", label: "Confirm & Select" },
                             { id: "uscfRating", label: "USCF Rating" },
                             { id: "fideRating", label: "FIDE Rating" },
-                            { id: "uscfId", label: "USCF ID" },
                             { id: "fideId", label: "FIDE ID" },
                             { id: "federation", label: "Federation" },
                             { id: "section", label: "Section Name" },
                             { id: "club", label: "Chess Club" },
                             { id: "birthdate", label: "Birthdate" },
                             { id: "createdAt", label: "Date Registered" },
-                            { id: "byes", label: "Byes List" },
                             { id: "seed", label: "Tournament Seed" },
-                            { id: "paymentStatus", label: "Payment Status" },
                             { id: "status", label: "Roster Status" },
                             { id: "email", label: "Email Address" },
-                            { id: "actions", label: "Confirm & Select" },
                           ].map((col) => (
-                            <label key={col.id} className="flex items-center gap-2 px-1 text-sm text-slate-700 cursor-pointer hover:bg-slate-50 rounded py-0.5">
+                            <label key={col.id} className="flex items-center gap-2 px-1.5 py-1 text-xs text-slate-650 font-medium cursor-pointer hover:bg-slate-50 rounded-lg transition-colors">
                               <Checkbox
                                 id={`col-${col.id}`}
                                 checked={visibleColumns.includes(col.id)}
+                                className="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                                 onCheckedChange={(checked) => {
                                   if (checked) {
                                     setVisibleColumns([...visibleColumns, col.id]);
@@ -843,16 +875,16 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
                   </div>
                 </div>
 
-                {/* Expandable Advanced Filter Panel */}
+                {/* Advanced Filter Panel */}
                 {showFilterPanel && (
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 bg-slate-50 border border-slate-200/60 p-4 rounded-xl shadow-inner mb-2">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 bg-slate-50/80 border border-slate-200/60 p-4 rounded-xl shadow-inner mb-3">
                     <div className="space-y-1.5">
-                      <Label className="text-xs font-semibold text-slate-600">Roster Status</Label>
+                      <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Roster Status</Label>
                       <Select value={filterStatus} onValueChange={setFilterStatus}>
-                        <SelectTrigger className="bg-white h-9 border-slate-200">
+                        <SelectTrigger className="bg-white h-8 text-xs border-slate-200">
                           <SelectValue placeholder="All" />
                         </SelectTrigger>
-                        <SelectContent className="bg-white shadow-lg border border-slate-200 rounded-lg">
+                        <SelectContent className="bg-white shadow-lg border border-slate-200 rounded-lg text-xs">
                           <SelectItem value="all">All Statuses</SelectItem>
                           <SelectItem value="active">Active Only</SelectItem>
                           <SelectItem value="withdrawn">Withdrawn Only</SelectItem>
@@ -861,12 +893,12 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
                     </div>
 
                     <div className="space-y-1.5">
-                      <Label className="text-xs font-semibold text-slate-600">Representing Federation</Label>
+                      <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Representing Federation</Label>
                       <Select value={filterFederation} onValueChange={setFilterFederation}>
-                        <SelectTrigger className="bg-white h-9 border-slate-200">
+                        <SelectTrigger className="bg-white h-8 text-xs border-slate-200">
                           <SelectValue placeholder="All" />
                         </SelectTrigger>
-                        <SelectContent className="bg-white shadow-lg border border-slate-200 rounded-lg">
+                        <SelectContent className="bg-white shadow-lg border border-slate-200 rounded-lg text-xs">
                           <SelectItem value="all">All Federations</SelectItem>
                           <SelectItem value="uscf">USCF Representing</SelectItem>
                           <SelectItem value="fide">FIDE Representing</SelectItem>
@@ -876,12 +908,12 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
                     </div>
 
                     <div className="space-y-1.5">
-                      <Label className="text-xs font-semibold text-slate-600">Rating Type</Label>
+                      <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Rating Type</Label>
                       <Select value={filterRatingType} onValueChange={setFilterRatingType}>
-                        <SelectTrigger className="bg-white h-9 border-slate-200">
+                        <SelectTrigger className="bg-white h-8 text-xs border-slate-200">
                           <SelectValue placeholder="All" />
                         </SelectTrigger>
-                        <SelectContent className="bg-white shadow-lg border border-slate-200 rounded-lg">
+                        <SelectContent className="bg-white shadow-lg border border-slate-200 rounded-lg text-xs">
                           <SelectItem value="all">All Rating Types</SelectItem>
                           <SelectItem value="rated">Fully Rated</SelectItem>
                           <SelectItem value="provisional">Provisional (p)</SelectItem>
@@ -891,12 +923,12 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
                     </div>
 
                     <div className="space-y-1.5">
-                      <Label className="text-xs font-semibold text-slate-600">USCF ID Verification</Label>
+                      <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">USCF ID Verification</Label>
                       <Select value={filterVerification} onValueChange={setFilterVerification}>
-                        <SelectTrigger className="bg-white h-9 border-slate-200">
+                        <SelectTrigger className="bg-white h-8 text-xs border-slate-200">
                           <SelectValue placeholder="All" />
                         </SelectTrigger>
-                        <SelectContent className="bg-white shadow-lg border border-slate-200 rounded-lg">
+                        <SelectContent className="bg-white shadow-lg border border-slate-200 rounded-lg text-xs">
                           <SelectItem value="all">All Verification</SelectItem>
                           <SelectItem value="verified">Verified Members</SelectItem>
                           <SelectItem value="pending">Pending Status</SelectItem>
@@ -907,612 +939,624 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
                   </div>
                 )}
 
-                <div className="flex flex-col gap-6 lg:flex-row">
-                  <div className="flex-1 overflow-x-auto no-scrollbar">
-                    {processedPlayers.length === 0 ? (
-                      <div className="py-16 text-center border border-dashed rounded-xl border-slate-200 bg-slate-50/50 w-full flex flex-col items-center justify-center">
-                        <p className="text-base font-semibold text-slate-600">No players match the applied filters.</p>
-                        <p className="text-xs text-slate-400 mt-1">Try resetting some filters or modifying your search query.</p>
-                        <Button
-                          variant="link"
-                          className="text-xs text-indigo-600 hover:text-indigo-850 mt-2 font-semibold"
-                          onClick={() => {
-                            setSearchTerm("");
-                            setFilterStatus("all");
-                            setFilterFederation("all");
-                            setFilterRatingType("all");
-                            setFilterVerification("all");
-                          }}
-                        >
-                          Reset Filters
-                        </Button>
-                      </div>
-                    ) : (
-                      <Table className="min-w-[800px] md:min-w-full relative border-collapse">
-                        <TableHeader>
-                          <TableRow className="hover:bg-transparent">
-                            {visibleColumns.includes("index") && (
-                              <TableHead className="w-12 sticky left-0 bg-white dark:bg-slate-900 z-20 font-semibold border-b">#</TableHead>
-                            )}
-                            {visibleColumns.includes("name") && (
-                              <TableHead className={cn(
-                                "sticky bg-white dark:bg-slate-900 z-20 font-semibold border-b shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]",
-                                isIndexVisible ? "left-12" : "left-0"
-                              )}>
-                                <Button variant="ghost" onClick={() => handleSort('name')} className="h-8 px-2 -ml-2 text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-100/50">
-                                  Surname, Name
-                                  {sortKey === 'name' && <ArrowUpDown className="ml-2 h-4 w-4 inline" />}
-                                </Button>
-                              </TableHead>
-                            )}
-                            {visibleColumns.includes("rating") && (
-                              <TableHead>
-                                <Button variant="ghost" onClick={() => handleSort('rating')}>
-                                  {tournamentConfig.details.primaryRatingSystem === 'fide' ? 'FIDE' : 'USCF'} Rating
-                                  {sortKey === 'rating' && <ArrowUpDown className="ml-2 h-4 w-4 inline" />}
-                                </Button>
-                              </TableHead>
-                            )}
-                            {visibleColumns.includes("uscfRating") && (
-                              <TableHead>
-                                <Button variant="ghost" onClick={() => handleSort('uscfRating')} className="h-8 px-2 -ml-2 text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-100/50">
-                                  USCF Rating
-                                  {sortKey === 'uscfRating' && <ArrowUpDown className="ml-2 h-4 w-4 inline" />}
-                                </Button>
-                              </TableHead>
-                            )}
-                            {visibleColumns.includes("fideRating") && (
-                              <TableHead>FIDE Rating</TableHead>
-                            )}
-                            {visibleColumns.includes("uscfId") && (
-                              <TableHead>USCF ID & Status</TableHead>
-                            )}
-                            {visibleColumns.includes("fideId") && (
-                              <TableHead>FIDE ID</TableHead>
-                            )}
-                            {visibleColumns.includes("federation") && (
-                              <TableHead>Federation</TableHead>
-                            )}
-                            {visibleColumns.includes("section") && (
-                              <TableHead>
-                                <Button variant="ghost" onClick={() => handleSort('section')} className="h-8 px-2 -ml-2 text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-100/50">
-                                  Section
-                                  {sortKey === 'section' && <ArrowUpDown className="ml-2 h-4 w-4 inline" />}
-                                </Button>
-                              </TableHead>
-                            )}
-                            {visibleColumns.includes("club") && (
-                              <TableHead>Club</TableHead>
-                            )}
-                            {visibleColumns.includes("birthdate") && (
-                              <TableHead>Birthdate</TableHead>
-                            )}
-                            {visibleColumns.includes("createdAt") && (
-                              <TableHead>
-                                <Button variant="ghost" onClick={() => handleSort('createdAt')} className="h-8 px-2 -ml-2 text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-100/50">
-                                  Registered
-                                  {sortKey === 'createdAt' && <ArrowUpDown className="ml-2 h-4 w-4 inline" />}
-                                </Button>
-                              </TableHead>
-                            )}
-                            {visibleColumns.includes("seed") && tournament.format === 'knockout' && (
-                              <TableHead className="w-20">Seed</TableHead>
-                            )}
-                            {visibleColumns.includes("paymentStatus") && (
-                              <TableHead>
-                                <Button variant="ghost" onClick={() => handleSort('paymentStatus')} className="h-8 px-2 -ml-2 text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-100/50">
-                                  Payment Status
-                                  {sortKey === 'paymentStatus' && <ArrowUpDown className="ml-2 h-4 w-4 inline" />}
-                                </Button>
-                              </TableHead>
-                            )}
-                            {visibleColumns.includes("byes") && tournament.format !== 'arena' && (
-                              <TableHead>Byes</TableHead>
-                            )}
-                            {visibleColumns.includes("email") && (
-                              <TableHead>Email</TableHead>
-                            )}
-                            {visibleColumns.includes("status") && (
-                              <TableHead>Status</TableHead>
-                            )}
-                            {visibleColumns.includes("actions") && (
-                              <TableHead className="text-right whitespace-nowrap">
-                                <div className="flex items-center justify-end gap-2">
-                                  <span>Confirm / Select</span>
-                                  {isTD && (
-                                    <Checkbox
-                                      checked={headerCheckboxValue}
-                                      onCheckedChange={(value) => toggleSelectAll(Boolean(value))}
-                                      aria-label="Select all players"
-                                      disabled={players.length === 0}
-                                      className="h-4 w-4"
-                                    />
-                                  )}
-                                </div>
-                              </TableHead>
-                            )}
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {processedPlayers.map((player, index) => {
-                            const isSelected = selectedIds.includes(player.id);
-                            const isConfirmed = Boolean(confirmedMap[player.id]);
-                            const playerByes = playerByeMap.get(player.id) ?? [];
-                            const rowClasses = isSelected
-                              ? "group border-b border-slate-200 cursor-pointer transition bg-indigo-50/40 hover:bg-indigo-100/40 dark:bg-indigo-900/20 dark:hover:bg-indigo-900/30"
-                              : "group border-b border-slate-200 cursor-pointer transition hover:bg-slate-50 dark:bg-slate-800/60 dark:hover:bg-slate-700/60";
-                            return (
-                              <TableRow
-                                key={player.id}
-                                className={rowClasses}
-                                onClick={() => setLocation(`/tournaments/${tournamentId}/players/${player.id}`)}
+                {/* Floating Contextual Action Bar when players are selected */}
+                {hasSelection && isTD && (
+                  <div className="flex items-center justify-between px-4 py-2 bg-indigo-50 border border-indigo-100 rounded-xl shadow-sm mb-3 animate-in fade-in slide-in-from-top-1 duration-150">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded-full font-mono shrink-0">
+                        {selectionCount}
+                      </span>
+                      <span className="text-xs font-semibold text-indigo-850">
+                        {selectionCount === 1 ? "player" : "players"} selected
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      <AlertDialog>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 rounded-lg text-rose-605 hover:bg-rose-100/50 hover:text-rose-700 transition-colors"
+                                disabled={isDeleting || isProcessingStatus}
+                                aria-label="Delete selected players"
                               >
-                                {visibleColumns.includes("index") && (
-                                  <TableCell className={cn(
-                                    "sticky left-0 transition-colors z-10",
-                                    isSelected
-                                      ? "bg-indigo-50/45 dark:bg-indigo-950"
-                                      : "bg-white dark:bg-slate-900 group-hover:bg-slate-50 dark:group-hover:bg-slate-800/60"
-                                  )}>
-                                    <div className="text-sm font-medium text-gray-900 dark:text-slate-100">{index + 1}</div>
-                                  </TableCell>
+                                {isDeleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                              </Button>
+                            </AlertDialogTrigger>
+                          </TooltipTrigger>
+                          <TooltipContent className="bg-slate-800 text-white text-[11px] rounded-md px-2 py-1 shadow-md border-0">Delete selected</TooltipContent>
+                        </Tooltip>
+                        <AlertDialogContent className="bg-white rounded-xl shadow-xl border border-slate-200">
+                          <AlertDialogHeader>
+                            <AlertDialogTitle className="text-base font-bold text-slate-800">Remove players from this tournament?</AlertDialogTitle>
+                            <AlertDialogDescription className="text-sm text-slate-500">
+                              This action can&apos;t be undone. The selected player(s) and any matches involving them will be deleted permanently.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel className="h-9 text-xs font-semibold rounded-lg">Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              className="h-9 text-xs font-semibold bg-rose-650 hover:bg-rose-700 text-white rounded-lg"
+                              onClick={(event) => {
+                                event.preventDefault();
+                                void handleDeleteSelected();
+                              }}
+                            >
+                              Confirm removal
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 rounded-lg text-indigo-600 hover:bg-indigo-100/50 hover:text-indigo-700 transition-colors"
+                            onClick={handleToggleConfirm}
+                            disabled={isDeleting || isProcessingStatus}
+                            aria-label={allConfirmed ? "Unconfirm selected players" : "Confirm selected players"}
+                          >
+                            {allConfirmed ? <Check className="h-3.5 w-3.5" /> : <CheckSquare className="h-3.5 w-3.5" />}
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent className="bg-slate-800 text-white text-[11px] rounded-md px-2 py-1 shadow-md border-0">{allConfirmed ? "Unconfirm" : "Confirm"}</TooltipContent>
+                      </Tooltip>
+
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 rounded-lg text-indigo-600 hover:bg-indigo-100/50 hover:text-indigo-700 transition-colors"
+                            onClick={() => setStatusDialogOpen(true)}
+                            disabled={isProcessingStatus || isDeleting}
+                            aria-label="Set byes or withdraw"
+                          >
+                            <PauseCircle className="h-3.5 w-3.5" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent className="bg-slate-800 text-white text-[11px] rounded-md px-2 py-1 shadow-md border-0">Set byes / withdraw</TooltipContent>
+                      </Tooltip>
+
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 rounded-lg text-indigo-650 hover:bg-indigo-100/50 hover:text-indigo-700 transition-colors"
+                            onClick={() => setMessageDialogOpen(true)}
+                            aria-label="Compose message"
+                          >
+                            <Mail className="h-3.5 w-3.5" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent className="bg-slate-800 text-white text-[11px] rounded-md px-2 py-1 shadow-md border-0">Message selected</TooltipContent>
+                      </Tooltip>
+
+                      <div className="h-4 w-px bg-indigo-200 mx-1 shrink-0" />
+
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-[11px] font-semibold text-slate-500 hover:bg-indigo-100/30 hover:text-indigo-700 rounded-lg px-2 shrink-0 transition-colors"
+                        onClick={() => setSelectedIds([])}
+                      >
+                        Clear
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                <div className="overflow-x-auto no-scrollbar border border-slate-200/80 rounded-xl bg-white shadow-sm">
+                  {processedPlayers.length === 0 ? (
+                    <div className="py-16 text-center bg-slate-50/30 w-full flex flex-col items-center justify-center">
+                      <p className="text-sm font-semibold text-slate-600">No players match the applied filters.</p>
+                      <p className="text-xs text-slate-400 mt-1">Try resetting some filters or modifying your search query.</p>
+                      <Button
+                        variant="link"
+                        className="text-xs text-indigo-600 hover:text-indigo-800 mt-2 font-semibold"
+                        onClick={() => {
+                          setSearchTerm("");
+                          setFilterStatus("all");
+                          setFilterFederation("all");
+                          setFilterRatingType("all");
+                          setFilterVerification("all");
+                        }}
+                      >
+                        Reset Filters
+                      </Button>
+                    </div>
+                  ) : (
+                    <Table className="min-w-[900px] md:min-w-full relative border-collapse">
+                      <TableHeader className="bg-slate-50/50 sticky top-0 z-30 shadow-[0_1px_0_0_rgba(226,232,240,0.8)]">
+                        <TableRow className="hover:bg-transparent border-b border-slate-200/80">
+                          {visibleColumns.includes("index") && (
+                            <TableHead className="w-12 text-xs font-bold text-slate-600 bg-slate-50/80 sticky left-0 z-20">#</TableHead>
+                          )}
+                          {visibleColumns.includes("uscfId") && (
+                            <TableHead className="w-28 text-xs font-bold text-slate-600 bg-slate-50/80">USCF ID</TableHead>
+                          )}
+                          {visibleColumns.includes("name") && (
+                            <TableHead className={cn(
+                              "text-xs font-bold text-slate-600 bg-slate-50/80 sticky z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]",
+                              isIndexVisible ? "left-12" : "left-0"
+                            )}>
+                              <button onClick={() => handleSort('name')} className="flex items-center gap-1 hover:text-slate-800 transition-colors uppercase tracking-wider text-[10px]">
+                                Name
+                                {sortKey === 'name' && <ArrowUpDown className="h-3 w-3 inline text-slate-500" />}
+                              </button>
+                            </TableHead>
+                          )}
+                          {visibleColumns.includes("rating") && (
+                            <TableHead className="text-xs font-bold text-slate-600 bg-slate-50/80">
+                              <button onClick={() => handleSort('rating')} className="flex items-center gap-1 hover:text-slate-800 transition-colors uppercase tracking-wider text-[10px]">
+                                {tournamentConfig.details.primaryRatingSystem === 'fide' ? 'FIDE' : 'USCF'} Rating
+                                {sortKey === 'rating' && <ArrowUpDown className="h-3 w-3 inline text-slate-500" />}
+                              </button>
+                            </TableHead>
+                          )}
+                          {visibleColumns.includes("uscfMembership") && (
+                            <TableHead className="w-36 text-xs font-bold text-slate-600 bg-slate-50/80 uppercase tracking-wider text-[10px]">USCF Membership</TableHead>
+                          )}
+                          {visibleColumns.includes("byes") && tournament.format !== 'arena' && (
+                            <TableHead className="text-xs font-bold text-slate-600 bg-slate-50/80 uppercase tracking-wider text-[10px]">Byes</TableHead>
+                          )}
+                          {visibleColumns.includes("paymentStatus") && (
+                            <TableHead className="text-xs font-bold text-slate-600 bg-slate-50/80">
+                              <button onClick={() => handleSort('paymentStatus')} className="flex items-center gap-1 hover:text-slate-800 transition-colors uppercase tracking-wider text-[10px]">
+                                Payment
+                                {sortKey === 'paymentStatus' && <ArrowUpDown className="h-3 w-3 inline text-slate-500" />}
+                              </button>
+                            </TableHead>
+                          )}
+                          {/* Optional columns */}
+                          {visibleColumns.includes("uscfRating") && (
+                            <TableHead className="text-xs font-bold text-slate-600 bg-slate-50/80">
+                              <button onClick={() => handleSort('uscfRating')} className="flex items-center gap-1 hover:text-slate-800 transition-colors uppercase tracking-wider text-[10px]">
+                                USCF Rating
+                                {sortKey === 'uscfRating' && <ArrowUpDown className="h-3 w-3 inline text-slate-500" />}
+                              </button>
+                            </TableHead>
+                          )}
+                          {visibleColumns.includes("fideRating") && (
+                            <TableHead className="text-xs font-bold text-slate-600 bg-slate-50/80 uppercase tracking-wider text-[10px]">FIDE Rating</TableHead>
+                          )}
+                          {visibleColumns.includes("fideId") && (
+                            <TableHead className="text-xs font-bold text-slate-600 bg-slate-50/80 uppercase tracking-wider text-[10px]">FIDE ID</TableHead>
+                          )}
+                          {visibleColumns.includes("federation") && (
+                            <TableHead className="text-xs font-bold text-slate-600 bg-slate-50/80 uppercase tracking-wider text-[10px]">Federation</TableHead>
+                          )}
+                          {visibleColumns.includes("section") && (
+                            <TableHead className="text-xs font-bold text-slate-600 bg-slate-50/80">
+                              <button onClick={() => handleSort('section')} className="flex items-center gap-1 hover:text-slate-800 transition-colors uppercase tracking-wider text-[10px]">
+                                Section
+                                {sortKey === 'section' && <ArrowUpDown className="h-3 w-3 inline text-slate-500" />}
+                              </button>
+                            </TableHead>
+                          )}
+                          {visibleColumns.includes("club") && (
+                            <TableHead className="text-xs font-bold text-slate-600 bg-slate-50/80 uppercase tracking-wider text-[10px]">Club</TableHead>
+                          )}
+                          {visibleColumns.includes("birthdate") && (
+                            <TableHead className="text-xs font-bold text-slate-600 bg-slate-50/80 uppercase tracking-wider text-[10px]">Birthdate</TableHead>
+                          )}
+                          {visibleColumns.includes("createdAt") && (
+                            <TableHead className="text-xs font-bold text-slate-600 bg-slate-50/80">
+                              <button onClick={() => handleSort('createdAt')} className="flex items-center gap-1 hover:text-slate-800 transition-colors uppercase tracking-wider text-[10px]">
+                                Registered
+                                {sortKey === 'createdAt' && <ArrowUpDown className="h-3 w-3 inline text-slate-500" />}
+                              </button>
+                            </TableHead>
+                          )}
+                          {visibleColumns.includes("seed") && tournament.format === 'knockout' && (
+                            <TableHead className="w-20 text-xs font-bold text-slate-600 bg-slate-50/80 uppercase tracking-wider text-[10px]">Seed</TableHead>
+                          )}
+                          {visibleColumns.includes("status") && (
+                            <TableHead className="text-xs font-bold text-slate-600 bg-slate-50/80 uppercase tracking-wider text-[10px]">Status</TableHead>
+                          )}
+                          {visibleColumns.includes("email") && (
+                            <TableHead className="text-xs font-bold text-slate-600 bg-slate-50/80 uppercase tracking-wider text-[10px]">Email</TableHead>
+                          )}
+                          {visibleColumns.includes("actions") && (
+                            <TableHead className="text-right text-xs font-bold text-slate-600 bg-slate-50/80 uppercase tracking-wider text-[10px] sticky right-0 z-20 shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.05)]">
+                              <div className="flex items-center justify-end gap-2">
+                                <span>Confirm / Select</span>
+                                {isTD && (
+                                  <Checkbox
+                                    checked={headerCheckboxValue}
+                                    onCheckedChange={(value) => toggleSelectAll(Boolean(value))}
+                                    aria-label="Select all players"
+                                    disabled={players.length === 0}
+                                    className="h-3.5 w-3.5 rounded border-slate-350 text-indigo-600 focus:ring-indigo-500"
+                                  />
                                 )}
-                                {visibleColumns.includes("name") && (
-                                  <TableCell className={cn(
-                                    "sticky transition-colors z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]",
-                                    isIndexVisible ? "left-12" : "left-0",
-                                    isSelected
-                                      ? "bg-indigo-50/45 dark:bg-indigo-950"
-                                      : "bg-white dark:bg-slate-900 group-hover:bg-slate-50 dark:group-hover:bg-slate-800/60"
-                                  )}>
-                                    <div className="flex items-center gap-2">
-                                      <div className="flex flex-col gap-1">
-                                        <span className="text-sm font-medium text-slate-900">
-                                          {player.localId || (player as any).userUscfId ? (
-                                            <a
-                                              href={
-                                                player.federation?.toLowerCase() === 'fide'
-                                                  ? `https://ratings.fide.com/profile/${player.localId}`
-                                                  : `https://ratings.uschess.org/player/${player.localId || (player as any).userUscfId}`
-                                              }
-                                              target="_blank"
-                                              rel="noopener noreferrer"
-                                              className="text-blue-600 hover:underline cursor-pointer"
-                                              onClick={(e) => e.stopPropagation()}
-                                            >
-                                              {player.lastName}, {player.firstName}
-                                            </a>
-                                          ) : (
-                                            `${player.lastName}, ${player.firstName}`
-                                          )}
+                              </div>
+                            </TableHead>
+                          )}
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {processedPlayers.map((player, index) => {
+                          const isSelected = selectedIds.includes(player.id);
+                          const isConfirmed = Boolean(confirmedMap[player.id]);
+                          const playerByes = playerByeMap.get(player.id) ?? [];
+                          const rowClasses = isSelected
+                            ? "group border-b border-slate-100 cursor-pointer transition-colors bg-indigo-50/20 hover:bg-indigo-50/40 dark:bg-indigo-900/10 dark:hover:bg-indigo-900/20 h-11"
+                            : "group border-b border-slate-100 cursor-pointer transition-colors hover:bg-slate-50/80 dark:bg-slate-800/40 dark:hover:bg-slate-700/40 h-11";
+                          return (
+                            <TableRow
+                              key={player.id}
+                              className={rowClasses}
+                              onClick={() => setLocation(`/tournaments/${tournamentId}/players/${player.id}`)}
+                            >
+                              {visibleColumns.includes("index") && (
+                                <TableCell className={cn(
+                                  "sticky left-0 transition-colors z-10 text-xs font-semibold text-slate-500",
+                                  isSelected
+                                    ? "bg-indigo-50/30"
+                                    : "bg-white group-hover:bg-slate-50/85"
+                                )}>
+                                  <div>{index + 1}</div>
+                                </TableCell>
+                              )}
+                              {visibleColumns.includes("uscfId") && (
+                                <TableCell>
+                                  {(player as any).userUscfId || player.localId ? (
+                                    <span className="font-mono text-xs font-semibold text-slate-700 bg-slate-100/80 px-1.5 py-0.5 rounded border border-slate-200/50">
+                                      {(player as any).userUscfId || player.localId}
+                                    </span>
+                                  ) : (
+                                    <span className="text-xs text-slate-400">—</span>
+                                  )}
+                                </TableCell>
+                              )}
+                              {visibleColumns.includes("name") && (
+                                <TableCell className={cn(
+                                  "sticky transition-colors z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]",
+                                  isIndexVisible ? "left-12" : "left-0",
+                                  isSelected
+                                    ? "bg-indigo-50/30"
+                                    : "bg-white group-hover:bg-slate-50/85"
+                                )}>
+                                  <div className="flex flex-col gap-0.5">
+                                    <span className="text-sm font-semibold text-slate-850">
+                                      {player.localId || (player as any).userUscfId ? (
+                                        <a
+                                          href={
+                                            player.federation?.toLowerCase() === 'fide'
+                                              ? `https://ratings.fide.com/profile/${player.localId}`
+                                              : `https://ratings.uschess.org/player/${player.localId || (player as any).userUscfId}`
+                                          }
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer"
+                                          onClick={(e) => e.stopPropagation()}
+                                        >
+                                          {player.lastName}, {player.firstName}
+                                        </a>
+                                      ) : (
+                                        `${player.lastName}, ${player.firstName}`
+                                      )}
+                                    </span>
+                                    {!tournamentConfig.registers?.verifyUscfMembership && (player as any).userUscfId && (
+                                      <div className="flex items-center gap-1.5 mt-0.5" onClick={(e) => e.stopPropagation()}>
+                                        <span className="text-[10px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.2 rounded border">
+                                          USCF: {(player as any).userUscfId}
                                         </span>
-                                        {!tournamentConfig.registers?.verifyUscfMembership && (player as any).userUscfId && (
-                                          <div className="flex items-center gap-1.5 mt-0.5" onClick={(e) => e.stopPropagation()}>
-                                            <span className="text-[11px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
-                                              USCF: {(player as any).userUscfId}
-                                            </span>
-                                            {(player as any).userUscfVerificationStatus === "verified" ? (
-                                              <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border-emerald-200/50 text-[10px] px-1.5 py-0 rounded-full font-medium">
-                                                Verified
-                                              </Badge>
-                                            ) : (player as any).userUscfVerificationStatus === "pending" ? (
-                                              <div className="flex items-center gap-1">
-                                                <Badge className="bg-amber-50 text-amber-700 hover:bg-amber-50 border-amber-200/50 text-[10px] px-1.5 py-0 rounded-full font-medium animate-pulse">
-                                                  Pending
-                                                </Badge>
-                                                {isTD && (
-                                                  <button
-                                                    onClick={() => verifyUscfMutation.mutate({ targetUserId: (player as any).userId, verified: true })}
-                                                    disabled={verifyUscfMutation.isPending}
-                                                    className="text-[10px] text-indigo-600 hover:text-indigo-800 font-bold hover:underline ml-1"
-                                                  >
-                                                    Verify
-                                                  </button>
-                                                )}
-                                              </div>
-                                            ) : (
-                                              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 rounded-full font-medium">
-                                                Unverified
-                                              </Badge>
+                                        {(player as any).userUscfVerificationStatus === "verified" ? (
+                                          <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border-emerald-200/50 text-[9px] px-1.5 py-0 rounded-full font-bold shadow-none">
+                                            Verified
+                                          </Badge>
+                                        ) : (player as any).userUscfVerificationStatus === "pending" ? (
+                                          <div className="flex items-center gap-1">
+                                            <Badge className="bg-amber-50 text-amber-700 hover:bg-amber-50 border-amber-200/50 text-[9px] px-1.5 py-0 rounded-full font-bold animate-pulse shadow-none">
+                                              Pending
+                                            </Badge>
+                                            {isTD && (
+                                              <button
+                                                onClick={() => verifyUscfMutation.mutate({ targetUserId: (player as any).userId, verified: true })}
+                                                disabled={verifyUscfMutation.isPending}
+                                                className="text-[9px] text-indigo-650 hover:text-indigo-800 font-bold hover:underline ml-1"
+                                              >
+                                                Verify
+                                              </button>
                                             )}
                                           </div>
+                                        ) : (
+                                          <Badge variant="secondary" className="text-[9px] px-1.5 py-0 rounded-full font-bold shadow-none bg-slate-100 text-slate-500">
+                                            Unverified
+                                          </Badge>
                                         )}
                                       </div>
+                                    )}
+                                  </div>
+                                </TableCell>
+                              )}
+                              {visibleColumns.includes("rating") && (
+                                <TableCell className="text-xs font-semibold text-slate-700">
+                                  {(() => {
+                                    const threshold = tournamentConfig?.registers?.uscfMinGamesThreshold ?? 4;
+                                    const uscfDisp = resolveDisplayRating((player as any).uscfRatingRaw, player.uscfRating, threshold, false);
+                                    const fideDisp = resolveDisplayRating((player as any).fideRatingRaw, player.fideRating, 0, true);
+                                    const display = tournamentConfig.details.primaryRatingSystem === 'fide'
+                                      ? (fideDisp !== "Unrated" ? fideDisp : uscfDisp)
+                                      : (uscfDisp !== "Unrated" ? uscfDisp : fideDisp);
+                                    return display === "Unrated" ? "-" : display;
+                                  })()}
+                                </TableCell>
+                              )}
+                              {visibleColumns.includes("uscfMembership") && (
+                                <TableCell onClick={(e) => e.stopPropagation()}>
+                                  {(() => {
+                                    const rawExpiry = player.uscfMemberExpiry || (player as any).userUscfMemberExpiry;
+                                    if (!rawExpiry) {
+                                      return (
+                                        <Badge className="bg-slate-50 text-slate-400 hover:bg-slate-50 border-slate-200/80 text-[10px] px-1.5 py-0.5 rounded-full font-semibold shadow-none">
+                                          No Expiry Info
+                                        </Badge>
+                                      );
+                                    }
+                                    try {
+                                      const expiryDate = new Date(rawExpiry);
+                                      if (isNaN(expiryDate.getTime())) {
+                                        return (
+                                          <Badge className="bg-slate-50 text-slate-400 hover:bg-slate-50 border-slate-200/80 text-[10px] px-1.5 py-0.5 rounded-full font-semibold shadow-none">
+                                            No Expiry Info
+                                          </Badge>
+                                        );
+                                      }
+                                      const now = new Date();
+                                      now.setHours(0, 0, 0, 0);
+                                      expiryDate.setHours(0, 0, 0, 0);
+                                      const formatted = `${expiryDate.getMonth() + 1}/${expiryDate.getDate()}/${expiryDate.getFullYear()}`;
+                                      if (expiryDate >= now) {
+                                        return (
+                                          <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border-emerald-200/40 text-[10px] px-2 py-0.5 rounded-full font-bold shadow-none">
+                                            Active (Exp: {formatted})
+                                          </Badge>
+                                        );
+                                      } else {
+                                        return (
+                                          <Badge className="bg-rose-50 text-rose-700 hover:bg-rose-50 border-rose-200/40 text-[10px] px-2 py-0.5 rounded-full font-bold shadow-none">
+                                            Expired (Exp: {formatted})
+                                          </Badge>
+                                        );
+                                      }
+                                    } catch (e) {
+                                      return (
+                                        <Badge className="bg-slate-50 text-slate-400 hover:bg-slate-50 border-slate-200/80 text-[10px] px-1.5 py-0.5 rounded-full font-semibold shadow-none">
+                                          No Expiry Info
+                                        </Badge>
+                                      );
+                                    }
+                                  })()}
+                                </TableCell>
+                              )}
+                              {visibleColumns.includes("byes") && tournament.format !== 'arena' && (
+                                <TableCell>
+                                  {pairingsLoading ? (
+                                    <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+                                  ) : playerByes.length > 0 ? (
+                                    <div className="flex flex-wrap gap-1.5 max-w-[220px]">
+                                      {playerByes.map((bye) => {
+                                        const isRequested = Boolean(bye.isRequested);
+                                        const isRemoving = removingByeIds.includes(bye.id);
+                                        const byeLabel = bye.byeType === "half_point"
+                                          ? "½"
+                                          : bye.byeType === "full_point"
+                                          ? "1"
+                                          : bye.byeType === "zero_point"
+                                          ? "0"
+                                          : bye.points === 1
+                                          ? "½"
+                                          : bye.points === 2
+                                          ? "1"
+                                          : "0";
+                                        const toneClass = isRequested
+                                          ? "border-emerald-205 bg-emerald-55/70 text-emerald-700 hover:bg-emerald-100/50"
+                                          : "border-slate-200 bg-slate-105 text-slate-600";
+                                        return (
+                                          <div
+                                            key={bye.id}
+                                            className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors ${toneClass}`}
+                                            title={isRequested ? "Manual bye" : "System-assigned"}
+                                          >
+                                            <span>Rd {bye.round}</span>
+                                            <span aria-hidden="true" className="opacity-50">·</span>
+                                            <span>{byeLabel} pt</span>
+                                            {isRequested && isTD ? (
+                                              <button
+                                                type="button"
+                                                onClick={(event) => {
+                                                  event.stopPropagation();
+                                                  handleRemoveBye(bye.id);
+                                                }}
+                                                className="ml-1 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full text-emerald-750 transition hover:bg-emerald-100 hover:text-emerald-900"
+                                                disabled={isRemoving}
+                                                aria-label={`Remove bye in round ${bye.round}`}
+                                              >
+                                                {isRemoving ? (
+                                                  <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                                                ) : (
+                                                  <X className="h-2.5 w-2.5" />
+                                                )}
+                                              </button>
+                                            ) : null}
+                                          </div>
+                                        );
+                                      })}
                                     </div>
-                                  </TableCell>
-                                )}
-                                {visibleColumns.includes("rating") && (
-                                  <TableCell>
-                                    {(() => {
-                                      const threshold = tournamentConfig?.registers?.uscfMinGamesThreshold ?? 4;
-                                      const uscfDisp = resolveDisplayRating((player as any).uscfRatingRaw, player.uscfRating, threshold, false);
-                                      const fideDisp = resolveDisplayRating((player as any).fideRatingRaw, player.fideRating, 0, true);
-                                      const display = tournamentConfig.details.primaryRatingSystem === 'fide'
-                                        ? (fideDisp !== "Unrated" ? fideDisp : uscfDisp)
-                                        : (uscfDisp !== "Unrated" ? uscfDisp : fideDisp);
-                                      return display === "Unrated" ? "-" : display;
-                                    })()}
-                                  </TableCell>
-                                )}
-                                {visibleColumns.includes("uscfRating") && (
-                                  <TableCell>
-                                    {player.uscfRating ? `${player.uscfRating}${player.uscfRatingRaw?.toLowerCase().includes('p') ? 'p' : ''}` : "Unrated"}
-                                  </TableCell>
-                                )}
-                                {visibleColumns.includes("fideRating") && (
-                                  <TableCell>
-                                    {player.fideRating || "Unrated"}
-                                  </TableCell>
-                                )}
-                                {visibleColumns.includes("uscfId") && (
-                                  <TableCell onClick={(e) => e.stopPropagation()}>
-                                    {(player as any).userUscfId || player.localId ? (
-                                      <div className="flex flex-col gap-1 items-start">
-                                        <span className="font-mono text-xs text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded border font-bold">
-                                          {(player as any).userUscfId || player.localId}
-                                        </span>
-                                        {(() => {
-                                          const rawExpiry = player.uscfMemberExpiry || (player as any).userUscfMemberExpiry;
-                                          if (!rawExpiry) {
-                                            return (
-                                              <Badge className="bg-slate-50 text-slate-500 hover:bg-slate-50 border-slate-200 text-[10px] px-1.5 py-0.5 rounded-full font-medium shadow-none">
-                                                No Expiry Info
-                                              </Badge>
-                                            );
-                                          }
-                                          try {
-                                            const expiryDate = new Date(rawExpiry);
-                                            if (isNaN(expiryDate.getTime())) {
-                                              return (
-                                                <Badge className="bg-slate-50 text-slate-500 hover:bg-slate-50 border-slate-200 text-[10px] px-1.5 py-0.5 rounded-full font-medium shadow-none">
-                                                  No Expiry Info
-                                                </Badge>
-                                              );
-                                            }
-                                            const now = new Date();
-                                            now.setHours(0, 0, 0, 0);
-                                            expiryDate.setHours(0, 0, 0, 0);
-                                            const formatted = `${expiryDate.getMonth() + 1}/${expiryDate.getDate()}/${expiryDate.getFullYear()}`;
-                                            if (expiryDate >= now) {
-                                              return (
-                                                <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border-emerald-200/50 text-[10px] px-1.5 py-0.5 rounded-full font-semibold shadow-none">
-                                                  Active (Exp: {formatted})
-                                                </Badge>
-                                              );
-                                            } else {
-                                              return (
-                                                <Badge className="bg-rose-50 text-rose-700 hover:bg-rose-50 border-rose-200/50 text-[10px] px-1.5 py-0.5 rounded-full font-semibold shadow-none">
-                                                  Expired (Exp: {formatted})
-                                                </Badge>
-                                              );
-                                            }
-                                          } catch (e) {
-                                            return (
-                                              <Badge className="bg-slate-50 text-slate-500 hover:bg-slate-50 border-slate-200 text-[10px] px-1.5 py-0.5 rounded-full font-medium shadow-none">
-                                                No Expiry Info
-                                              </Badge>
-                                            );
-                                          }
-                                        })()}
-                                      </div>
-                                    ) : (
-                                      <span className="text-xs text-slate-400">Not Provided</span>
-                                    )}
-                                  </TableCell>
-                                )}
-                                {visibleColumns.includes("fideId") && (
-                                  <TableCell>
-                                    {player.localId && player.federation?.toLowerCase() === 'fide' ? (
-                                      <span className="font-mono text-xs font-bold bg-slate-100 px-1.5 py-0.5 rounded border">{player.localId}</span>
-                                    ) : (
-                                      <span className="text-xs text-slate-400">—</span>
-                                    )}
-                                  </TableCell>
-                                )}
-                                {visibleColumns.includes("federation") && (
-                                  <TableCell>
-                                    <Badge variant="outline" className="text-[10px] uppercase font-bold">{player.federation || "USCF"}</Badge>
-                                  </TableCell>
-                                )}
-                                {visibleColumns.includes("section") && (
-                                  <TableCell>
-                                    <span className="text-xs font-semibold text-slate-700">{player.sectionName || "Default"}</span>
-                                  </TableCell>
-                                )}
-                                {visibleColumns.includes("club") && (
-                                  <TableCell>
-                                    <span className="text-xs text-slate-700">{player.club || "—"}</span>
-                                  </TableCell>
-                                )}
-                                {visibleColumns.includes("birthdate") && (
-                                  <TableCell>
-                                    <span className="text-xs text-slate-700">{player.birthdate || "—"}</span>
-                                  </TableCell>
-                                )}
-                                {visibleColumns.includes("createdAt") && (
-                                  <TableCell>
-                                    <span className="text-xs text-slate-700">{new Date(player.createdAt).toLocaleDateString()}</span>
-                                  </TableCell>
-                                )}
-                                {visibleColumns.includes("seed") && tournament.format === 'knockout' && (
-                                  <TableCell>
-                                    {isTD && editingSeedId === player.id ? (
-                                      <Input
-                                        type="number"
-                                        className="h-8 w-16"
-                                        value={seedValue}
-                                        onChange={(e) => setSeedValue(e.target.value)}
-                                        onBlur={() => handleUpdateSeed(player.id, seedValue)}
-                                        onKeyDown={(e) => {
-                                          if (e.key === 'Enter') handleUpdateSeed(player.id, seedValue);
-                                          if (e.key === 'Escape') setEditingSeedId(null);
-                                        }}
-                                        onClick={(e) => e.stopPropagation()}
-                                        autoFocus
-                                      />
-                                    ) : (
-                                      <div 
-                                        className={cn(
-                                          "p-1 rounded min-w-[2rem] text-center",
-                                          isTD && "cursor-pointer hover:bg-slate-100"
-                                        )}
-                                        onClick={(e) => {
-                                          if (!isTD) return;
-                                          e.stopPropagation();
-                                          setEditingSeedId(player.id);
-                                          setSeedValue(player.seed?.toString() || "");
-                                        }}
-                                      >
-                                        {player.seed ?? "-"}
-                                      </div>
-                                    )}
-                                  </TableCell>
-                                )}
-                                 {visibleColumns.includes("paymentStatus") && (
-                                   <TableCell onClick={(e) => e.stopPropagation()}>
-                                     {isTD ? (
-                                       <Select
-                                         value={player.paymentStatus || "N/A"}
-                                         onValueChange={(newVal) => {
-                                           updatePlayerPaymentStatusMutation.mutate({
-                                             playerId: player.id,
-                                             paymentStatus: newVal,
-                                           });
-                                         }}
-                                       >
-                                         <SelectTrigger className="h-8 w-[110px] text-xs font-semibold bg-white border-slate-200">
-                                           <SelectValue />
-                                         </SelectTrigger>
-                                         <SelectContent className="bg-white shadow-lg border border-slate-200">
-                                           <SelectItem value="N/A">N/A</SelectItem>
-                                           <SelectItem value="paid">Paid</SelectItem>
-                                           <SelectItem value="unpaid">Unpaid</SelectItem>
-                                           <SelectItem value="processing">Processing</SelectItem>
-                                           <SelectItem value="refunded">Refunded</SelectItem>
-                                           <SelectItem value="failed">Failed</SelectItem>
-                                         </SelectContent>
-                                       </Select>
-                                     ) : (
-                                       (() => {
-                                         const status = player.paymentStatus || "N/A";
-                                         let badgeColor = "bg-slate-50 text-slate-500 border-slate-200";
-                                         if (status === "paid") {
-                                           badgeColor = "bg-emerald-50 text-emerald-700 border-emerald-200/50";
-                                         } else if (status === "unpaid" || status === "failed") {
-                                           badgeColor = "bg-rose-50 text-rose-700 border-rose-200/50";
-                                         } else if (status === "processing") {
-                                           badgeColor = "bg-amber-50 text-amber-700 border-amber-200/50";
-                                         } else if (status === "refunded") {
-                                           badgeColor = "bg-indigo-50 text-indigo-750 border-indigo-200/50";
-                                         }
-                                         return (
-                                           <Badge className={`${badgeColor} border text-[10px] px-2 py-0.5 rounded-full font-bold shadow-none uppercase`}>
-                                             {status}
-                                           </Badge>
-                                         );
-                                       })()
-                                     )}
-                                   </TableCell>
-                                 )}
-                                {visibleColumns.includes("byes") && tournament.format !== 'arena' && (
-                                  <TableCell>
-                                    {pairingsLoading ? (
-                                      <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
-                                    ) : playerByes.length > 0 ? (
-                                      <div className="flex flex-wrap gap-2">
-                                        {playerByes.map((bye) => {
-                                          const isRequested = Boolean(bye.isRequested);
-                                          const isRemoving = removingByeIds.includes(bye.id);
-                                          const byeLabel = bye.byeType === "half_point"
-                                            ? "½"
-                                            : bye.byeType === "full_point"
-                                            ? "1"
-                                            : bye.byeType === "zero_point"
-                                            ? "0"
-                                            : bye.points === 1
-                                            ? "½"
-                                            : bye.points === 2
-                                            ? "1"
-                                            : "0";
-                                          const toneClass = isRequested
-                                            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                                            : "border-slate-200 bg-slate-100 text-slate-600";
-                                          return (
-                                            <div
-                                              key={bye.id}
-                                              className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs font-medium ${toneClass}`}
-                                              title={isRequested ? "Manual bye" : "System-assigned"}
-                                            >
-                                              <span>{bye.round}</span>
-                                              <span aria-hidden="true">·</span>
-                                              <span>{byeLabel}</span>
-                                              {isRequested && isTD ? (
-                                                <button
-                                                  type="button"
-                                                  onClick={(event) => {
-                                                    event.stopPropagation();
-                                                    handleRemoveBye(bye.id);
-                                                  }}
-                                                  className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full text-emerald-700 transition hover:bg-emerald-100 hover:text-emerald-900"
-                                                  disabled={isRemoving}
-                                                  aria-label={`Remove bye in round ${bye.round}`}
-                                                >
-                                                  {isRemoving ? (
-                                                    <Loader2 className="h-3 w-3 animate-spin" />
-                                                  ) : (
-                                                    <X className="h-3 w-3" />
-                                                  )}
-                                                </button>
-                                              ) : null}
-                                            </div>
-                                          );
-                                        })}
-                                      </div>
-                                    ) : (
-                                      <span className="text-xs text-muted-foreground">—</span>
-                                    )}
-                                  </TableCell>
-                                )}
-                                {visibleColumns.includes("email") && (
-                                  <TableCell>
-                                    <span className="text-xs text-slate-700 font-mono">{player.email || "—"}</span>
-                                  </TableCell>
-                                )}
-                                {visibleColumns.includes("status") && (
-                                  <TableCell>
-                                    <Badge variant={(player.status || 'active') === 'active' ? 'default' : 'secondary'} className="text-[10px] capitalize">
-                                      {player.status || 'active'}
-                                    </Badge>
-                                  </TableCell>
-                                )}
-                                {visibleColumns.includes("actions") && (
-                                  <TableCell className="text-right">
-                                    <div className="flex items-center justify-end gap-2">
-                                      {isConfirmed ? (
-                                        <CheckCircle2 className="h-4 w-4 text-emerald-500" aria-label="Confirmed" />
-                                      ) : null}
-                                      {isTD && (
-                                        <Checkbox
-                                          checked={isSelected}
-                                          onCheckedChange={(value) => toggleSelectPlayer(player.id, Boolean(value))}
-                                          onClick={(event) => event.stopPropagation()}
-                                          aria-label={`Select ${player.lastName}, ${player.firstName}`}
-                                          disabled={isDeleting || isProcessingStatus}
-                                        />
+                                  ) : (
+                                    <span className="text-xs text-muted-foreground">—</span>
+                                  )}
+                                </TableCell>
+                              )}
+                              {visibleColumns.includes("paymentStatus") && (
+                                <TableCell onClick={(e) => e.stopPropagation()}>
+                                  {isTD ? (
+                                    <Select
+                                      value={player.paymentStatus || "N/A"}
+                                      onValueChange={(newVal) => {
+                                        updatePlayerPaymentStatusMutation.mutate({
+                                          playerId: player.id,
+                                          paymentStatus: newVal,
+                                        });
+                                      }}
+                                    >
+                                      <SelectTrigger className="h-7 w-[100px] text-xs font-semibold bg-white border-slate-200 focus:ring-1 focus:ring-indigo-500 rounded-md">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent className="bg-white shadow-lg border border-slate-200">
+                                        <SelectItem value="N/A">N/A</SelectItem>
+                                        <SelectItem value="paid">Paid</SelectItem>
+                                        <SelectItem value="unpaid">Unpaid</SelectItem>
+                                        <SelectItem value="processing">Processing</SelectItem>
+                                        <SelectItem value="refunded">Refunded</SelectItem>
+                                        <SelectItem value="failed">Failed</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  ) : (
+                                    (() => {
+                                      const status = player.paymentStatus || "N/A";
+                                      let badgeColor = "bg-slate-50 text-slate-500 border-slate-200";
+                                      if (status === "paid") {
+                                        badgeColor = "bg-emerald-50 text-emerald-700 border-emerald-200/50";
+                                      } else if (status === "unpaid" || status === "failed") {
+                                        badgeColor = "bg-rose-50 text-rose-700 border-rose-200/50";
+                                      } else if (status === "processing") {
+                                        badgeColor = "bg-amber-50 text-amber-700 border-amber-200/50";
+                                      } else if (status === "refunded") {
+                                        badgeColor = "bg-indigo-50 text-indigo-700 border-indigo-200/50";
+                                      }
+                                      return (
+                                        <Badge className={`${badgeColor} border text-[9px] px-2 py-0.5 rounded-full font-bold shadow-none uppercase tracking-wider`}>
+                                          {status}
+                                        </Badge>
+                                      );
+                                    })()
+                                  )}
+                                </TableCell>
+                              )}
+                              {visibleColumns.includes("uscfRating") && (
+                                <TableCell className="text-xs font-semibold text-slate-700">
+                                  {player.uscfRating ? `${player.uscfRating}${player.uscfRatingRaw?.toLowerCase().includes('p') ? 'p' : ''}` : "Unrated"}
+                                </TableCell>
+                              )}
+                              {visibleColumns.includes("fideRating") && (
+                                <TableCell className="text-xs font-semibold text-slate-700">
+                                  {player.fideRating || "Unrated"}
+                                </TableCell>
+                              )}
+                              {visibleColumns.includes("fideId") && (
+                                <TableCell>
+                                  {player.localId && player.federation?.toLowerCase() === 'fide' ? (
+                                    <span className="font-mono text-xs font-semibold bg-slate-100/80 px-1.5 py-0.5 rounded border border-slate-200/50">{player.localId}</span>
+                                  ) : (
+                                    <span className="text-xs text-slate-400">—</span>
+                                  )}
+                                </TableCell>
+                              )}
+                              {visibleColumns.includes("federation") && (
+                                <TableCell>
+                                  <Badge variant="outline" className="text-[9px] uppercase font-bold text-slate-500 border-slate-200 bg-slate-50/20">{player.federation || "USCF"}</Badge>
+                                </TableCell>
+                              )}
+                              {visibleColumns.includes("section") && (
+                                <TableCell className="text-xs font-medium text-slate-700">
+                                  {player.sectionName || "Default"}
+                                </TableCell>
+                              )}
+                              {visibleColumns.includes("club") && (
+                                <TableCell className="text-xs text-slate-600 max-w-[150px] truncate">
+                                  {player.club || "—"}
+                                </TableCell>
+                              )}
+                              {visibleColumns.includes("birthdate") && (
+                                <TableCell className="text-xs text-slate-600 font-mono">
+                                  {player.birthdate || "—"}
+                                </TableCell>
+                              )}
+                              {visibleColumns.includes("createdAt") && (
+                                <TableCell className="text-xs text-slate-600">
+                                  {new Date(player.createdAt).toLocaleDateString()}
+                                </TableCell>
+                              )}
+                              {visibleColumns.includes("seed") && tournament.format === 'knockout' && (
+                                <TableCell>
+                                  {isTD && editingSeedId === player.id ? (
+                                    <Input
+                                      type="number"
+                                      className="h-7 w-16 text-xs font-semibold"
+                                      value={seedValue}
+                                      onChange={(e) => setSeedValue(e.target.value)}
+                                      onBlur={() => handleUpdateSeed(player.id, seedValue)}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') handleUpdateSeed(player.id, seedValue);
+                                        if (e.key === 'Escape') setEditingSeedId(null);
+                                      }}
+                                      onClick={(e) => e.stopPropagation()}
+                                      autoFocus
+                                    />
+                                  ) : (
+                                    <div 
+                                      className={cn(
+                                        "p-1 rounded text-xs font-semibold text-slate-700 min-w-[2rem] text-center transition-colors",
+                                        isTD && "cursor-pointer hover:bg-slate-100"
                                       )}
+                                      onClick={(e) => {
+                                        if (!isTD) return;
+                                        e.stopPropagation();
+                                        setEditingSeedId(player.id);
+                                        setSeedValue(player.seed?.toString() || "");
+                                      }}
+                                    >
+                                      {player.seed ?? "-"}
                                     </div>
-                                  </TableCell>
-                                )}
-                              </TableRow>
-                            );
-                          })}
-                        </TableBody>
-                      </Table>
-                    )}
-                  </div>
-
-                    {isTD && (
-                      <div className="mt-4 lg:mt-0 flex flex-col gap-2 lg:sticky lg:top-4 h-fit">
-                        <div className="flex flex-wrap lg:flex-col items-center justify-end lg:justify-center gap-2 bg-slate-50/50 p-4 rounded-xl border border-slate-100 shadow-sm">
-                          <AlertDialog>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <AlertDialogTrigger asChild>
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="icon"
-                                    className="h-10 w-10 rounded-lg bg-white border-slate-200 text-destructive hover:bg-destructive/5 hover:text-destructive transition-all"
-                                    disabled={!hasSelection || isDeleting || isProcessingStatus}
-                                    aria-label="Delete selected players"
-                                  >
-                                    {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                                  </Button>
-                                </AlertDialogTrigger>
-                              </TooltipTrigger>
-                              <TooltipContent>Delete selected</TooltipContent>
-                            </Tooltip>
-                            {/* ... Rest of the dialog content ... */}
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Remove players from this tournament?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  This action can&apos;t be undone. The selected player(s) and any matches involving them will be deleted permanently.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction
-                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                  onClick={(event) => {
-                                    event.preventDefault();
-                                    void handleDeleteSelected();
-                                  }}
-                                >
-                                  Confirm removal
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="icon"
-                                className="h-10 w-10 rounded-lg bg-white border-slate-200 text-slate-600 hover:bg-slate-50 transition-all"
-                                onClick={handleToggleConfirm}
-                                disabled={!hasSelection || isDeleting || isProcessingStatus}
-                                aria-label={allConfirmed ? "Unconfirm selected players" : "Confirm selected players"}
-                              >
-                                {allConfirmed ? <Check className="h-4 w-4" /> : <CheckSquare className="h-4 w-4" />}
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>{allConfirmed ? "Unconfirm" : "Confirm"}</TooltipContent>
-                          </Tooltip>
-
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="icon"
-                                className="h-10 w-10 rounded-lg bg-white border-slate-200 text-slate-600 hover:bg-slate-50 transition-all"
-                                onClick={() => setStatusDialogOpen(true)}
-                                disabled={!hasSelection || isProcessingStatus || isDeleting}
-                                aria-label="Set byes or withdraw"
-                              >
-                                <PauseCircle className="h-4 w-4" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Set byes / withdraw</TooltipContent>
-                          </Tooltip>
-
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="icon"
-                                className="h-10 w-10 rounded-lg bg-white border-slate-200 text-slate-600 hover:bg-slate-50 transition-all"
-                                onClick={() => setMessageDialogOpen(true)}
-                                disabled={!hasSelection}
-                                aria-label="Compose message"
-                              >
-                                <Mail className="h-4 w-4" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Message selected</TooltipContent>
-                          </Tooltip>
-                        </div>
-                      </div>
-                    )}
-
-                    {isTD && (
-                      <>
-                  <Dialog
-                    open={isStatusDialogOpen}
+                                  )}
+                                </TableCell>
+                              )}
+                              {visibleColumns.includes("status") && (
+                                <TableCell>
+                                  <Badge variant={(player.status || 'active') === 'active' ? 'default' : 'secondary'} className="text-[10px] font-bold uppercase tracking-wider shadow-none">
+                                    {player.status || 'active'}
+                                  </Badge>
+                                </TableCell>
+                              )}
+                              {visibleColumns.includes("email") && (
+                                <TableCell className="text-xs text-slate-600 font-mono">
+                                  {player.email || "—"}
+                                </TableCell>
+                              )}
+                              {visibleColumns.includes("actions") && (
+                                <TableCell className={cn(
+                                  "text-right sticky right-0 z-10 transition-colors shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.05)]",
+                                  isSelected
+                                    ? "bg-indigo-50/30"
+                                    : "bg-white group-hover:bg-slate-50/85"
+                                )}>
+                                  <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+                                    {isConfirmed ? (
+                                      <CheckCircle2 className="h-4 w-4 text-emerald-500" aria-label="Confirmed" />
+                                    ) : null}
+                                    {isTD && (
+                                      <Checkbox
+                                        checked={isSelected}
+                                        onCheckedChange={(value) => toggleSelectPlayer(player.id, Boolean(value))}
+                                        aria-label={`Select ${player.lastName}, ${player.firstName}`}
+                                        disabled={isDeleting || isProcessingStatus}
+                                        className="h-3.5 w-3.5 rounded border-slate-350 text-indigo-650 focus:ring-indigo-500"
+                                      />
                     onOpenChange={(open) => {
                       setStatusDialogOpen(open);
                       if (!open) {
