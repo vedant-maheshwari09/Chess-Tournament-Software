@@ -486,13 +486,29 @@ export function applyPairingsRoutes(app: Express) {
           return acc;
         }, {} as Record<string, Player[]>);
 
+        // Order section keys based on configured sections order
+        const config = parseTournamentConfig(tournament);
+        const configuredSections = config.sections ?? [];
+        const actualSectionKeys = Object.keys(playersBySection);
+        const orderedSectionKeys: string[] = [];
+        for (const section of configuredSections) {
+          if (actualSectionKeys.includes(section.id)) {
+            orderedSectionKeys.push(section.id);
+          }
+        }
+        for (const key of actualSectionKeys) {
+          if (!orderedSectionKeys.includes(key)) {
+            orderedSectionKeys.push(key);
+          }
+        }
+
         const combinedResults = {
           pairings: [] as Pairing[],
           matches: [] as Match[],
           message: "",
         };
 
-        for (const sectionKey in playersBySection) {
+        for (const sectionKey of orderedSectionKeys) {
           const sectionPlayers = playersBySection[sectionKey];
           if (sectionPlayers.length < 2) continue;
 
@@ -683,6 +699,22 @@ export function applyPairingsRoutes(app: Express) {
         return acc;
       }, {} as Record<string, any[]>);
 
+      // Order section keys based on configured sections order
+      const tournamentConfig = parseTournamentConfig(tournament);
+      const configuredSections = tournamentConfig.sections ?? [];
+      const actualSectionKeys = Object.keys(playersBySection);
+      const orderedSectionKeys: string[] = [];
+      for (const section of configuredSections) {
+        if (actualSectionKeys.includes(section.id)) {
+          orderedSectionKeys.push(section.id);
+        }
+      }
+      for (const key of actualSectionKeys) {
+        if (!orderedSectionKeys.includes(key)) {
+          orderedSectionKeys.push(key);
+        }
+      }
+
       const matchesBySection = filteredMatches.filter((m: any) => !m.isExtraGame).reduce((acc: any, match: any) => {
         const player = playerMap.get(match.whitePlayerId!) ?? playerMap.get(match.blackPlayerId!);
         if (player) {
@@ -710,7 +742,7 @@ export function applyPairingsRoutes(app: Express) {
       };
 
       let totalMatches = 0;
-      for (const sectionKey in playersBySection) {
+      for (const sectionKey of orderedSectionKeys) {
         const sectionPlayers = playersBySection[sectionKey];
         const sectionPairings = pairingsBySection[sectionKey] || [];
         const isWithdrawn = (playerId: number) => sectionPairings.some((p: any) => p.playerId === playerId && p.isBye && p.byeType === 'zero_point' && p.round < currentRound);
@@ -725,7 +757,7 @@ export function applyPairingsRoutes(app: Express) {
       const allBoardNumbers = generateBoardNumberSequence(tournament.boardNumberingSettings as BoardNumberingSettings, totalMatches);
       let boardNumberOffset = 0;
 
-      for (const sectionKey in playersBySection) {
+      for (const sectionKey of orderedSectionKeys) {
         const sectionPlayers = playersBySection[sectionKey];
         if (sectionPlayers.length < 1) continue;
 

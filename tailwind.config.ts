@@ -11,7 +11,7 @@ export default {
         sm: "calc(var(--radius) - 4px)",
       },
       fontFamily: {
-        sans: ["Plus Jakarta Sans", "sans-serif"],
+        sans: ["Inter", "sans-serif"],
       },
       colors: {
         background: "var(--background)",
