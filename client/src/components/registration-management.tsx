@@ -126,6 +126,10 @@ export default function RegistrationManagement({ tournamentId, tournament }: Reg
   }, [tournament]);
 
   const getUscfActiveStatus = (reg: any) => {
+    const isForeign = reg.federation && !["USCF", "USA", "United States", "US Chess"].includes(reg.federation);
+    if (reg.ratingProvider === 'fide' || reg.fideId || isForeign) {
+      return true;
+    }
     const uscfExpiration = reg.customAnswers?.uscfExpiration;
     if (!uscfExpiration) {
       return reg.uscfActive === true || reg.uscfActive === "true" || reg.uscfActive === 1;

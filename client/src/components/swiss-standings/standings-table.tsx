@@ -2,6 +2,7 @@ import React from "react";
 import { Table } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import type { SwissPlayerStanding, PlayerRoundResult } from "./types";
+import { resolveDisplayRating } from "@shared/tournament-config";
 
 interface StandingsTableProps {
   standings: SwissPlayerStanding[];
@@ -60,7 +61,12 @@ export function StandingsTable({
         </thead>
         <tbody>
           {standings.map((standing) => {
-            const playerRating = (isFide ? ((standing.player as any).fideRatingRaw || standing.player.fideRating || standing.player.rating) : ((standing.player as any).uscfRatingRaw || standing.player.uscfRating || standing.player.rating)) || 'Unrated';
+            const threshold = tournamentConfig?.registers?.uscfMinGamesThreshold ?? 4;
+            const uscfDisp = resolveDisplayRating((standing.player as any).uscfRatingRaw, standing.player.uscfRating, threshold, false);
+            const fideDisp = resolveDisplayRating((standing.player as any).fideRatingRaw, standing.player.fideRating, 0, true);
+            const playerRating = isFide
+              ? (fideDisp !== "Unrated" ? fideDisp : uscfDisp)
+              : (uscfDisp !== "Unrated" ? uscfDisp : fideDisp);
             const lastName = standing.player.lastName || '';
             const firstName = standing.player.firstName || '';
             const nameStr = lastName && firstName ? lastName + ", " + firstName : (firstName + " " + lastName).trim();

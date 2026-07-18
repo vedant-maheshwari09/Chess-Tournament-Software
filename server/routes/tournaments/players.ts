@@ -2,7 +2,7 @@ import type { Express, Request, Response } from "express";
 import { storage } from '../../storage';
 import { requireAuth, requireRole, requireTournamentAccess } from '../../auth';
 import { Player, insertPlayerSchema } from '@shared/schema';
-import { getLocalUSCFPlayerById } from "../../lib/localRatings";
+import { getLocalUSCFPlayerById, getLocalFidePlayerById } from "../../lib/localRatings";
 import { fetchLiveUscfRating } from "../../lib/uscf-live";
 
 export function applyPlayersRoutes(app: Express) {
@@ -538,6 +538,21 @@ export function applyPlayersRoutes(app: Express) {
         console.log(`[USCF Rating Sync] Fetching live USCF rating for Player ${player.firstName} ${player.lastName} (ID: ${uscfId.trim()})`);
         const latest = await fetchLiveUscfRating(uscfId.trim());
 
+        let parsedFederation = player.federation;
+        let parsedFideId = null;
+        if (latest.fideId) {
+          const parts = latest.fideId.trim().split(/\s+/);
+          if (parts.length > 0) {
+            parsedFideId = parts[0];
+            const lastPart = parts[parts.length - 1];
+            if (lastPart && /^[A-Z]{3}$/.test(lastPart)) {
+              if (lastPart !== "USA") {
+                parsedFederation = lastPart;
+              }
+            }
+          }
+        }
+
         const updatedFields: Partial<typeof player> = {
           uscfRating: latest.ratingRegular,
           uscfRatingRaw: latest.ratingRegular ? `${latest.ratingRegular}/${latest.expiry}` : player.uscfRatingRaw,
@@ -547,7 +562,24 @@ export function applyPlayersRoutes(app: Express) {
           ratingBlitz: latest.ratingBlitz,
         };
 
-        if (latest.ratingRegular !== null) {
+        if (parsedFederation && parsedFederation !== player.federation) {
+          updatedFields.federation = parsedFederation;
+        }
+
+        if (parsedFideId) {
+          const fidePlayer = await getLocalFidePlayerById(parsedFideId);
+          if (fidePlayer) {
+            if (fidePlayer.rating?.value) {
+              updatedFields.fideRating = parseInt(fidePlayer.rating.value, 10) || null;
+              updatedFields.fideRatingRaw = fidePlayer.rating.raw || null;
+              if (parsedFederation !== "USCF" && parsedFederation !== "United States" && parsedFederation !== "USA") {
+                updatedFields.rating = parseInt(fidePlayer.rating.value, 10) || updatedFields.rating;
+              }
+            }
+          }
+        }
+
+        if (latest.ratingRegular !== null && (!updatedFields.rating || parsedFederation === "USCF" || parsedFederation === "United States" || parsedFederation === "USA")) {
           updatedFields.rating = latest.ratingRegular;
         }
 
