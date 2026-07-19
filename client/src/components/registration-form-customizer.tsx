@@ -1,13 +1,15 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 import { 
   Settings,
   CheckSquare,
-  ListPlus
+  ListPlus,
+  ExternalLink
 } from "lucide-react";
 import { 
   DEFAULT_REGISTRATION_FIELDS, 
@@ -24,6 +26,8 @@ interface RegistrationFormCustomizerProps {
   actions?: React.ReactNode;
   tournamentSlug?: string;
   saveSuccessCount?: number;
+  /** Unique channel key (e.g. tournament ID) used to broadcast live config to the preview tab */
+  previewChannelId?: string | number;
 }
 
 interface FieldGroup {
@@ -120,7 +124,47 @@ const FIELD_GROUPS: FieldGroup[] = [
   }
 ];
 
-export function RegistrationFormCustomizer({ config, onConfigChange, actions }: RegistrationFormCustomizerProps) {
+export function RegistrationFormCustomizer({ config, onConfigChange, actions, tournamentSlug, previewChannelId }: RegistrationFormCustomizerProps) {
+  const previewWindowRef = useRef<Window | null>(null);
+  const broadcastRef = useRef<BroadcastChannel | null>(null);
+
+  // Open / maintain a BroadcastChannel for the lifetime of this component
+  useEffect(() => {
+    if (!previewChannelId) return;
+    const ch = new BroadcastChannel(`reg-form-preview-${previewChannelId}`);
+    broadcastRef.current = ch;
+    return () => {
+      ch.close();
+      broadcastRef.current = null;
+    };
+  }, [previewChannelId]);
+
+  // Broadcast every config change to the live preview tab
+  useEffect(() => {
+    if (!broadcastRef.current) return;
+    broadcastRef.current.postMessage({ type: "CONFIG_UPDATE", config });
+  }, [config]);
+
+  const handleLivePreview = () => {
+    const url = tournamentSlug
+      ? `/tournaments/${tournamentSlug}/register?preview=1`
+      : null;
+    if (!url) return;
+
+    // If the preview window is already open, just focus it; otherwise open a new one
+    if (previewWindowRef.current && !previewWindowRef.current.closed) {
+      previewWindowRef.current.focus();
+    } else {
+      previewWindowRef.current = window.open(url, `reg-preview-${previewChannelId}`);
+    }
+
+    // Broadcast the current config immediately so the newly-opened tab gets it
+    setTimeout(() => {
+      if (broadcastRef.current) {
+        broadcastRef.current.postMessage({ type: "CONFIG_UPDATE", config });
+      }
+    }, 800);
+  };
   // Parse or default the registration form configuration with migration for legacy system fields
   const formConfig = useMemo((): RegistrationFormConfig & { migratedToSystemFields?: boolean } => {
     const saved = config.registrationFormConfig;
@@ -259,6 +303,18 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions }: 
             Edit player registration forms and verification policies.
           </p>
         </div>
+        {tournamentSlug && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleLivePreview}
+            className="flex items-center gap-2 border-indigo-200 text-indigo-700 hover:bg-indigo-50 hover:border-indigo-300 font-semibold text-xs h-9 px-4 rounded-xl shadow-sm transition-all"
+          >
+            <ExternalLink className="h-3.5 w-3.5" />
+            Live Preview
+          </Button>
+        )}
       </div>
 
       <div className="space-y-6 pb-24">

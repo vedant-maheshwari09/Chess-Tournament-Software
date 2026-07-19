@@ -216,8 +216,27 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
 
   const queryParams = useMemo(() => new URLSearchParams(searchString), [searchString]);
   const isPreviewMode = useMemo(() => {
-    return queryParams.get("preview") === "true" || user?.role === "tournament_director";
+    return queryParams.get("preview") === "true" || queryParams.get("preview") === "1" || user?.role === "tournament_director";
   }, [queryParams, user]);
+
+  const [liveConfigOverride, setLiveConfigOverride] = useState<any>(null);
+
+  useEffect(() => {
+    if (!isPreviewMode || !tournamentId) return;
+    const channel = new BroadcastChannel(`reg-form-preview-${tournamentId}`);
+    
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === "CONFIG_UPDATE") {
+        setLiveConfigOverride(event.data.config);
+      }
+    };
+    
+    channel.addEventListener("message", handleMessage);
+    return () => {
+      channel.removeEventListener("message", handleMessage);
+      channel.close();
+    };
+  }, [isPreviewMode, tournamentId]);
 
   const { data: tournament, isLoading } = useQuery<Tournament>({
     queryKey: [`/api/tournaments/${tournamentId}`],
@@ -237,10 +256,10 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
     enabled: Boolean(tournament),
   });
 
-  const config = useMemo(
-    () => (tournament ? parseTournamentConfig(tournament) : null),
-    [tournament],
-  );
+  const config = useMemo(() => {
+    if (liveConfigOverride) return liveConfigOverride;
+    return tournament ? parseTournamentConfig(tournament) : null;
+  }, [tournament, liveConfigOverride]);
 
   const hasLookupStep = config?.registers?.entryRequirementType !== "casual";
 
@@ -1775,7 +1794,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
                   <div>
                     <h3 className="text-sm font-semibold text-amber-800">Live Form Preview (Testing Mode)</h3>
                     <p className="mt-1 text-xs leading-relaxed text-amber-750/90 font-medium">
-                      You are previewing this form as a Tournament Director. Draft autosaving is suspended, and any test inputs you enter will not affect actual registrations or drafts.
+                      You are previewing this form in real-time. Any changes made in the Edit Registration Form customizer will apply instantly here. Draft autosaving is suspended, and test inputs will not affect actual tournament registrations.
                     </p>
                   </div>
                 </div>

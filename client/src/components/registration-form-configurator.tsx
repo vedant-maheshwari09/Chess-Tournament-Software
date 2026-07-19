@@ -83,6 +83,7 @@ export default function RegistrationFormConfigurator({ tournamentId, tournament 
         onConfigChange={setLocalConfig}
         tournamentSlug={slugify(tournament.name)}
         saveSuccessCount={saveSuccessCount}
+        previewChannelId={tournamentId}
         actions={
           <Button 
             onClick={handleSave} 
