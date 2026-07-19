@@ -516,13 +516,28 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
   const offlineMethodsConfigured = paymentSettings?.acceptedOfflineMethods ?? [];
   const offlineAllowed = offlineMethodsConfigured.length > 0;
 
-  const [watchEntryFeeId, watchContribution, watchFirstName, watchLastName, watchEmail, watchCustomAnswers] = form.watch([
+  const [
+    watchEntryFeeId,
+    watchContribution,
+    watchFirstName,
+    watchLastName,
+    watchEmail,
+    watchCustomAnswers,
+    watchSectionChoice,
+    watchRatingProvider,
+    watchUscfRating,
+    watchFideRating,
+  ] = form.watch([
     "entryFeeId",
     "processingContribution",
     "firstName",
     "lastName",
     "email",
     "customAnswers",
+    "sectionChoice",
+    "ratingProvider",
+    "uscfRating",
+    "fideRating",
   ]);
 
   const selectedEntryFeeId = (watchEntryFeeId as string) ?? "";
@@ -532,8 +547,31 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
   );
   const processingContributionValue = useMemo(() => parseContribution(watchContribution), [watchContribution]);
   const paymentTotals = useMemo(
-    () => computePaymentTotals(selectedEntryFee, processingContributionValue, paymentSettings, watchCustomAnswers),
-    [selectedEntryFee, processingContributionValue, paymentSettings, watchCustomAnswers],
+    () => computePaymentTotals(
+      selectedEntryFee,
+      processingContributionValue,
+      paymentSettings,
+      watchCustomAnswers,
+      config?.registrationFormConfig?.fields,
+      sections,
+      watchSectionChoice,
+      watchRatingProvider,
+      watchUscfRating,
+      watchFideRating,
+      config?.details.primaryRatingSystem
+    ),
+    [
+      selectedEntryFee,
+      processingContributionValue,
+      paymentSettings,
+      watchCustomAnswers,
+      config,
+      sections,
+      watchSectionChoice,
+      watchRatingProvider,
+      watchUscfRating,
+      watchFideRating
+    ],
   );
 
   const groupPaymentTotals = useMemo(() => {
@@ -545,7 +583,19 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
       const values = entry.values;
       const entryFee = entryFees.find(f => f.id === values.entryFeeId) ?? null;
       const contribution = parseContribution(values.processingContribution);
-      const totals = computePaymentTotals(entryFee, contribution, paymentSettings, values.customAnswers);
+      const totals = computePaymentTotals(
+        entryFee,
+        contribution,
+        paymentSettings,
+        values.customAnswers,
+        config?.registrationFormConfig?.fields,
+        sections,
+        values.sectionChoice,
+        values.ratingProvider,
+        values.uscfRating,
+        values.fideRating,
+        config?.details.primaryRatingSystem
+      );
 
       return {
         subtotal: acc.subtotal + totals.subtotal,
@@ -559,7 +609,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
       total: 0,
       currency: paymentTotals.currency
     });
-  }, [playerDrafts, entryFees, paymentSettings, paymentTotals, multiPlayerAllowed]);
+  }, [playerDrafts, entryFees, paymentSettings, paymentTotals, multiPlayerAllowed, config, sections]);
 
   const requiresPayment = Boolean(
     canProcessOnline &&
@@ -1373,10 +1423,10 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
   const validateStepFields = async (step: typeof steps[number]): Promise<boolean> => {
     let isValid = true;
     const values = form.getValues();
+    const fields = config?.registrationFormConfig?.fields || DEFAULT_REGISTRATION_FIELDS;
 
     if (step.type === "lookup") {
       const lookupFields: (keyof RegistrationFormValues)[] = [];
-      const fields = config?.registrationFormConfig?.fields || DEFAULT_REGISTRATION_FIELDS;
       
       const firstNameConfig = fields.find(f => f.id === "firstName");
       if (firstNameConfig?.visible) lookupFields.push("firstName");
@@ -1397,6 +1447,24 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
         lookupFields.push("uscfId");
       }
 
+      // Add extra fields passed to StepOne (extra fields under step.fields)
+      const hardcodedIds = [
+        "firstName", "lastName", "uscfId", "fideId", "uscfRating", "fideRating", 
+        "city", "state", "email", "ratingProvider", "playerSearch", "lookupSection",
+        "playerIdentityHeading", "contactInfoHeading"
+      ];
+      const activeFields = step.section ? [step.section, ...step.fields] : step.fields;
+      const extraFields = activeFields.filter(f => f && !hardcodedIds.includes(f.id));
+
+      for (const field of extraFields) {
+        if (field.type === "section") continue;
+        if (field.isCustom) {
+          lookupFields.push(`customAnswers.${field.id}` as any);
+        } else {
+          lookupFields.push(field.id as any);
+        }
+      }
+
       if (lookupFields.length > 0) {
         isValid = await form.trigger(lookupFields, { shouldFocus: true });
       }
@@ -1411,6 +1479,112 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
           isValid = false;
         }
       }
+
+      // --- CHESS-SPECIFIC ADDITIONAL VALIDATIONS FOR LOOKUP STEP ---
+      const hasEmailInExtra = extraFields.some(f => f.id === "email");
+      const emailConfigInExtra = extraFields.find(f => f.id === "email") || fields.find(f => f.id === "email");
+      const doubleCheck = emailConfigInExtra?.settings?.doubleEntryCheck === true;
+      if (doubleCheck && (hasEmailInExtra || fields.find(f => f.id === "email")?.visible)) {
+        if (values.customAnswers?.confirmEmail !== values.email) {
+          form.setError("customAnswers.confirmEmail" as any, {
+            type: "manual",
+            message: "Email addresses do not match"
+          });
+          isValid = false;
+        } else {
+          form.clearErrors("customAnswers.confirmEmail" as any);
+        }
+      }
+
+      const allGrades = [
+        "Pre-Kindergarten", "Kindergarten", "1st Grade", "2nd Grade", 
+        "3rd Grade", "4th Grade", "5th Grade", "6th Grade", 
+        "7th Grade", "8th Grade", "9th Grade", "10th Grade", 
+        "11th Grade", "12th Grade"
+      ];
+
+      const scholasticGradeField = extraFields.find(f => f.id === "scholasticGrade") || fields.find(f => f.id === "scholasticGrade");
+      if (scholasticGradeField && scholasticGradeField.visible) {
+        const gradeVal = values.customAnswers?.scholasticGrade;
+        if (gradeVal) {
+          const gradeMin = typeof scholasticGradeField.settings?.gradeMin === "number" ? scholasticGradeField.settings.gradeMin : 0;
+          const gradeMax = typeof scholasticGradeField.settings?.gradeMax === "number" ? scholasticGradeField.settings.gradeMax : 13;
+          const idx = allGrades.indexOf(gradeVal);
+          if (idx < gradeMin || idx > gradeMax) {
+            form.setError("customAnswers.scholasticGrade" as any, {
+              type: "manual",
+              message: `Please select a grade level between ${allGrades[gradeMin]} and ${allGrades[gradeMax]}`
+            });
+            isValid = false;
+          } else {
+            form.clearErrors("customAnswers.scholasticGrade" as any);
+          }
+        }
+      }
+
+      const birthdateField = extraFields.find(f => f.id === "birthdate") || fields.find(f => f.id === "birthdate");
+      if (birthdateField && birthdateField.visible) {
+        const birthdateVal = values.customAnswers?.birthdate || (values as any).birthdate;
+        if (birthdateVal) {
+          const dob = new Date(birthdateVal);
+          const referenceDateStr = birthdateField.settings?.ageCutoffReference || config.basic.startDate || new Date().toISOString();
+          const refDate = new Date(referenceDateStr);
+          
+          let age = refDate.getFullYear() - dob.getFullYear();
+          const m = refDate.getMonth() - dob.getMonth();
+          if (m < 0 || (m === 0 && refDate.getDate() < dob.getDate())) {
+            age--;
+          }
+
+          const ageMin = typeof birthdateField.settings?.ageMin === "number" ? birthdateField.settings.ageMin : null;
+          const ageMax = typeof birthdateField.settings?.ageMax === "number" ? birthdateField.settings.ageMax : null;
+
+          if (ageMin !== null && age < ageMin) {
+            form.setError("customAnswers.birthdate" as any, {
+              type: "manual",
+              message: `Participant age (${age}) is below the minimum age of ${ageMin} required for this tournament.`
+            });
+            isValid = false;
+          } else if (ageMax !== null && age > ageMax) {
+            form.setError("customAnswers.birthdate" as any, {
+              type: "manual",
+              message: `Participant age (${age}) exceeds the maximum age of ${ageMax} allowed for this tournament.`
+            });
+            isValid = false;
+          } else {
+            form.clearErrors("customAnswers.birthdate" as any);
+          }
+        }
+      }
+
+      const sectionField = extraFields.find(f => f.id === "sectionChoice") || fields.find(f => f.id === "sectionChoice");
+      if (sectionField) {
+        const allowPlayingUp = sectionField.settings?.allowPlayingUp !== false && config.registers?.allowPlayingUp !== false;
+        if (!allowPlayingUp) {
+          const rating = derivePlayerRating(
+            values.ratingProvider,
+            values.uscfRating,
+            values.fideRating,
+            config?.details.primaryRatingSystem
+          );
+          if (rating !== null) {
+            const selectedSection = sections.find(s => s.id === values.sectionChoice || s.name === values.sectionChoice);
+            if (selectedSection) {
+              const ratingMin = selectedSection.ratingMin;
+              if (ratingMin !== null && rating < ratingMin) {
+                form.setError("sectionChoice", {
+                  type: "manual",
+                  message: `Your rating (${rating}) is below the minimum rating of ${ratingMin} required for the ${selectedSection.name} section.`
+                });
+                isValid = false;
+              } else {
+                form.clearErrors("sectionChoice");
+              }
+            }
+          }
+        }
+      }
+
       return isValid;
     }
 
@@ -1462,6 +1636,112 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
           }
         }
       }
+
+      // --- CHESS-SPECIFIC ADDITIONAL VALIDATIONS FOR DETAILS STEP ---
+      const hasEmailInDetails = step.fields.some(f => f.id === "email");
+      const emailConfigInDetails = step.fields.find(f => f.id === "email") || fields.find(f => f.id === "email");
+      const doubleCheck = emailConfigInDetails?.settings?.doubleEntryCheck === true;
+      if (doubleCheck && (hasEmailInDetails || fields.find(f => f.id === "email")?.visible)) {
+        if (values.customAnswers?.confirmEmail !== values.email) {
+          form.setError("customAnswers.confirmEmail" as any, {
+            type: "manual",
+            message: "Email addresses do not match"
+          });
+          isValid = false;
+        } else {
+          form.clearErrors("customAnswers.confirmEmail" as any);
+        }
+      }
+
+      const allGrades = [
+        "Pre-Kindergarten", "Kindergarten", "1st Grade", "2nd Grade", 
+        "3rd Grade", "4th Grade", "5th Grade", "6th Grade", 
+        "7th Grade", "8th Grade", "9th Grade", "10th Grade", 
+        "11th Grade", "12th Grade"
+      ];
+
+      const scholasticGradeField = step.fields.find(f => f.id === "scholasticGrade") || fields.find(f => f.id === "scholasticGrade");
+      if (scholasticGradeField && scholasticGradeField.visible) {
+        const gradeVal = values.customAnswers?.scholasticGrade;
+        if (gradeVal) {
+          const gradeMin = typeof scholasticGradeField.settings?.gradeMin === "number" ? scholasticGradeField.settings.gradeMin : 0;
+          const gradeMax = typeof scholasticGradeField.settings?.gradeMax === "number" ? scholasticGradeField.settings.gradeMax : 13;
+          const idx = allGrades.indexOf(gradeVal);
+          if (idx < gradeMin || idx > gradeMax) {
+            form.setError("customAnswers.scholasticGrade" as any, {
+              type: "manual",
+              message: `Please select a grade level between ${allGrades[gradeMin]} and ${allGrades[gradeMax]}`
+            });
+            isValid = false;
+          } else {
+            form.clearErrors("customAnswers.scholasticGrade" as any);
+          }
+        }
+      }
+
+      const birthdateField = step.fields.find(f => f.id === "birthdate") || fields.find(f => f.id === "birthdate");
+      if (birthdateField && birthdateField.visible) {
+        const birthdateVal = values.customAnswers?.birthdate || (values as any).birthdate;
+        if (birthdateVal) {
+          const dob = new Date(birthdateVal);
+          const referenceDateStr = birthdateField.settings?.ageCutoffReference || config.basic.startDate || new Date().toISOString();
+          const refDate = new Date(referenceDateStr);
+          
+          let age = refDate.getFullYear() - dob.getFullYear();
+          const m = refDate.getMonth() - dob.getMonth();
+          if (m < 0 || (m === 0 && refDate.getDate() < dob.getDate())) {
+            age--;
+          }
+
+          const ageMin = typeof birthdateField.settings?.ageMin === "number" ? birthdateField.settings.ageMin : null;
+          const ageMax = typeof birthdateField.settings?.ageMax === "number" ? birthdateField.settings.ageMax : null;
+
+          if (ageMin !== null && age < ageMin) {
+            form.setError("customAnswers.birthdate" as any, {
+              type: "manual",
+              message: `Participant age (${age}) is below the minimum age of ${ageMin} required for this tournament.`
+            });
+            isValid = false;
+          } else if (ageMax !== null && age > ageMax) {
+            form.setError("customAnswers.birthdate" as any, {
+              type: "manual",
+              message: `Participant age (${age}) exceeds the maximum age of ${ageMax} allowed for this tournament.`
+            });
+            isValid = false;
+          } else {
+            form.clearErrors("customAnswers.birthdate" as any);
+          }
+        }
+      }
+
+      const sectionField = step.fields.find(f => f.id === "sectionChoice") || fields.find(f => f.id === "sectionChoice");
+      if (sectionField) {
+        const allowPlayingUp = sectionField.settings?.allowPlayingUp !== false && config.registers?.allowPlayingUp !== false;
+        if (!allowPlayingUp) {
+          const rating = derivePlayerRating(
+            values.ratingProvider,
+            values.uscfRating,
+            values.fideRating,
+            config?.details.primaryRatingSystem
+          );
+          if (rating !== null) {
+            const selectedSection = sections.find(s => s.id === values.sectionChoice || s.name === values.sectionChoice);
+            if (selectedSection) {
+              const ratingMin = selectedSection.ratingMin;
+              if (ratingMin !== null && rating < ratingMin) {
+                form.setError("sectionChoice", {
+                  type: "manual",
+                  message: `Your rating (${rating}) is below the minimum rating of ${ratingMin} required for the ${selectedSection.name} section.`
+                });
+                isValid = false;
+              } else {
+                form.clearErrors("sectionChoice");
+              }
+            }
+          }
+        }
+      }
+
       return isValid;
     }
 
@@ -1924,7 +2204,15 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
                     if (!step) return null;
 
                     if (step.type === "lookup") {
-                      return <StepOne config={config} players={players} sections={sections} entryFees={entryFees} />;
+                      return (
+                        <StepOne
+                          config={config}
+                          players={players}
+                          sections={sections}
+                          entryFees={entryFees}
+                          activeFields={step.section ? [step.section, ...step.fields] : step.fields}
+                        />
+                      );
                     }
 
                     if (step.type === "details") {

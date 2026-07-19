@@ -1,4 +1,4 @@
-import React, { useMemo, useEffect, useRef } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -9,7 +9,12 @@ import {
   Settings,
   CheckSquare,
   ListPlus,
-  ExternalLink
+  ExternalLink,
+  ChevronDown,
+  ChevronUp,
+  Plus,
+  Trash2,
+  Sliders
 } from "lucide-react";
 import { 
   DEFAULT_REGISTRATION_FIELDS, 
@@ -77,16 +82,52 @@ const FIELD_GROUPS: FieldGroup[] = [
     fieldIds: ["fideId"]
   },
   {
+    id: "fideTitle",
+    label: "FIDE Title",
+    description: "Your official FIDE title (if applicable). Allows fee waiving.",
+    fieldIds: ["fideTitle"]
+  },
+  {
+    id: "membershipProof",
+    label: "Membership Card Copy",
+    description: "Upload USCF/FIDE membership proof if verification fails.",
+    fieldIds: ["membershipProof"]
+  },
+  {
     id: "club",
     label: "Chess Club",
     description: "Local chess club, school, or team federation.",
     fieldIds: ["club"]
   },
   {
+    id: "teamCaptain",
+    label: "Team Captain / Coach",
+    description: "Name of school coach or team captain.",
+    fieldIds: ["teamCaptain"]
+  },
+  {
+    id: "boardNumber",
+    label: "Board Number Assignment",
+    description: "Board assignment for team-match events (1-4).",
+    fieldIds: ["boardNumber"]
+  },
+  {
     id: "birthdate",
     label: "Birthdate",
     description: "Date of birth (required for age-restricted sections).",
     fieldIds: ["birthdate"]
+  },
+  {
+    id: "scholasticGrade",
+    label: "Scholastic Grade Level",
+    description: "Grade level of student (Pre-K to 12th).",
+    fieldIds: ["scholasticGrade"]
+  },
+  {
+    id: "schoolName",
+    label: "School Name",
+    description: "School of representation (for team standings).",
+    fieldIds: ["schoolName"]
   },
   {
     id: "sex",
@@ -111,6 +152,12 @@ const FIELD_GROUPS: FieldGroup[] = [
     label: "Email Address",
     description: "Email for notifications and check-in confirmation.",
     fieldIds: ["email"]
+  },
+  {
+    id: "parentContact",
+    label: "Parent/Guardian Contact Details",
+    description: "Emergency name and contact phone for juniors.",
+    fieldIds: ["parentContact"]
   },
   {
     id: "phone",
@@ -202,6 +249,7 @@ const FIELD_GROUPS: FieldGroup[] = [
 export function RegistrationFormCustomizer({ config, onConfigChange, actions, tournamentSlug, previewChannelId }: RegistrationFormCustomizerProps) {
   const previewWindowRef = useRef<Window | null>(null);
   const broadcastRef = useRef<BroadcastChannel | null>(null);
+  const [expandedGroupId, setExpandedGroupId] = useState<string | null>(null);
 
   // Open / maintain a BroadcastChannel for the lifetime of this component
   useEffect(() => {
@@ -354,6 +402,26 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
     updateFormConfig({ ...formConfig, fields: nextFields });
   };
 
+  const getGroupSettings = (group: FieldGroup): any => {
+    const firstField = formConfig.fields.find(f => group.fieldIds.includes(f.id));
+    return firstField?.settings ?? {};
+  };
+
+  const handleGroupSettingsChange = (group: FieldGroup, update: Partial<FieldSubSettings> | ((prev: FieldSubSettings) => FieldSubSettings)) => {
+    const nextFields = formConfig.fields.map((f) => {
+      if (group.fieldIds.includes(f.id)) {
+        const currentSettings = f.settings ?? {};
+        const nextSettings = typeof update === "function" ? update(currentSettings) : { ...currentSettings, ...update };
+        return {
+          ...f,
+          settings: nextSettings,
+        };
+      }
+      return f;
+    });
+    updateFormConfig({ ...formConfig, fields: nextFields });
+  };
+
   return (
     <div className="w-full space-y-6 max-w-4xl mx-auto font-sans relative">
       <div className="flex flex-wrap items-center justify-between gap-4 pb-2 border-b">
@@ -404,32 +472,414 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
                 const visible = isGroupVisible(group);
                 const required = isGroupRequired(group);
                 const canBeRequired = canGroupBeRequired(group);
+                const isExpanded = expandedGroupId === group.id;
+                const gSettings = getGroupSettings(group);
                 
                 return (
-                  <div key={group.id} className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-slate-50/40 transition-colors">
-                    <div className="col-span-6 sm:col-span-8 space-y-0.5">
-                      <Label className="text-sm font-bold text-slate-800">{group.label}</Label>
-                      <p className="text-xs text-slate-500 leading-normal font-medium">{group.description}</p>
-                    </div>
-                    
-                    <div className="col-span-3 sm:col-span-2 flex justify-center">
-                      <Switch
-                        checked={visible}
-                        onCheckedChange={(val) => handleGroupVisibilityChange(group, val)}
-                      />
-                    </div>
-                    
-                    <div className="col-span-3 sm:col-span-2 flex justify-center">
-                      {canBeRequired ? (
+                  <div key={group.id} className="border-b border-slate-100 last:border-b-0">
+                    <div className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-slate-50/40 transition-colors">
+                      <div className="col-span-6 sm:col-span-8 flex items-start gap-2.5">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setExpandedGroupId(isExpanded ? null : group.id)}
+                          className="h-7 w-7 mt-0.5 rounded-md hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+                        >
+                          {isExpanded ? (
+                            <ChevronUp className="h-4 w-4" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4" />
+                          )}
+                        </Button>
+                        <div className="space-y-0.5 cursor-pointer flex-1" onClick={() => setExpandedGroupId(isExpanded ? null : group.id)}>
+                          <div className="flex items-center gap-1.5">
+                            <Label className="text-sm font-bold text-slate-800 cursor-pointer">{group.label}</Label>
+                            {Object.keys(gSettings).length > 0 && (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-600">
+                                Configured
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-slate-500 leading-normal font-medium">{group.description}</p>
+                        </div>
+                      </div>
+                      
+                      <div className="col-span-3 sm:col-span-2 flex justify-center">
                         <Switch
-                          checked={required}
-                          disabled={!visible}
-                          onCheckedChange={(val) => handleGroupRequiredChange(group, val)}
+                          checked={visible}
+                          onCheckedChange={(val) => handleGroupVisibilityChange(group, val)}
                         />
-                      ) : (
-                        <span className="text-slate-300 text-xs font-semibold select-none">–</span>
-                      )}
+                      </div>
+                      
+                      <div className="col-span-3 sm:col-span-2 flex justify-center">
+                        {canBeRequired ? (
+                          <Switch
+                            checked={required}
+                            disabled={!visible}
+                            onCheckedChange={(val) => handleGroupRequiredChange(group, val)}
+                          />
+                        ) : (
+                          <span className="text-slate-300 text-xs font-semibold select-none">–</span>
+                        )}
+                      </div>
                     </div>
+
+                    {/* Expandable Drawer with nested sub-settings */}
+                    {isExpanded && (
+                      <div className="bg-slate-50/70 border-t border-slate-100 px-14 py-4 space-y-4 text-xs">
+                        <h4 className="text-[10px] font-bold text-slate-500 flex items-center gap-1.5 uppercase tracking-wider mb-2">
+                          <Sliders className="h-3 w-3 text-indigo-500" />
+                          Advanced Chess Sub-Settings
+                        </h4>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {/* 1. Player Profile Lookup / Search Input */}
+                          {(group.id === "lookupSection" || group.id === "playerSearch") && (
+                            <>
+                              <div className="space-y-1.5">
+                                <Label className="text-xs font-bold text-slate-700">Database Verification Source</Label>
+                                <Select
+                                  value={gSettings.validationType || "none"}
+                                  onValueChange={(val) => handleGroupSettingsChange(group, { validationType: val as any })}
+                                >
+                                  <SelectTrigger className="h-8 text-xs rounded-lg border-slate-200">
+                                    <SelectValue placeholder="Select verification policy" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="none">No Database Verification</SelectItem>
+                                    <SelectItem value="strict_active">USCF/FIDE Online Verified</SelectItem>
+                                    <SelectItem value="min_games">Require Active & Established Rating</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="space-y-1.5">
+                                <Label className="text-xs font-bold text-slate-700">Auto-Fill Local Roster Cache</Label>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <Switch
+                                    checked={Boolean(gSettings.registrySpellingEnforcer)}
+                                    onCheckedChange={(val) => handleGroupSettingsChange(group, { registrySpellingEnforcer: val })}
+                                  />
+                                  <span className="text-xs font-semibold text-slate-500">Auto-complete spelling matching registry</span>
+                                </div>
+                              </div>
+                            </>
+                          )}
+
+                          {/* 2. Name field styling / validations */}
+                          {group.id === "name" && (
+                            <>
+                              <div className="space-y-1.5">
+                                <Label className="text-xs font-bold text-slate-700">First/Last Name Formatting</Label>
+                                <Select
+                                  value={gSettings.caseFormatting || "none"}
+                                  onValueChange={(val) => handleGroupSettingsChange(group, { caseFormatting: val as any })}
+                                >
+                                  <SelectTrigger className="h-8 text-xs rounded-lg border-slate-200">
+                                    <SelectValue placeholder="Select casing formatting" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="none">As Entered by Player</SelectItem>
+                                    <SelectItem value="title">Title Case (e.g. John Doe)</SelectItem>
+                                    <SelectItem value="upper">UPPERCASE (e.g. JOHN DOE)</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="space-y-1.5">
+                                <Label className="text-xs font-bold text-slate-700">Block Name Spelling Mismatches</Label>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <Switch
+                                    checked={Boolean(gSettings.registrySpellingEnforcer)}
+                                    onCheckedChange={(val) => handleGroupSettingsChange(group, { registrySpellingEnforcer: val })}
+                                  />
+                                  <span className="text-xs font-semibold text-slate-500">Must exactly match registry spelling</span>
+                                </div>
+                              </div>
+                            </>
+                          )}
+
+                          {/* 3. USCF ID / FIDE ID fields */}
+                          {(group.id === "uscfId" || group.id === "fideId") && (
+                            <>
+                              <div className="space-y-1.5">
+                                <Label className="text-xs font-bold text-slate-700">Expired Membership Policy</Label>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <Switch
+                                    checked={Boolean(gSettings.rejectExpiredMembership)}
+                                    onCheckedChange={(val) => handleGroupSettingsChange(group, { rejectExpiredMembership: val })}
+                                  />
+                                  <span className="text-xs font-semibold text-slate-500">Reject Expired Membership</span>
+                                </div>
+                              </div>
+                              <div className="space-y-1.5">
+                                <Label className="text-xs font-bold text-slate-700">Federation Renewal Redirection</Label>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <Switch
+                                    checked={Boolean(gSettings.provideRenewalLink)}
+                                    onCheckedChange={(val) => handleGroupSettingsChange(group, { provideRenewalLink: val })}
+                                  />
+                                  <span className="text-xs font-semibold text-slate-500">Display external renewal URL</span>
+                                </div>
+                              </div>
+                              <div className="space-y-1.5 col-span-1 md:col-span-2">
+                                <Label className="text-xs font-bold text-slate-700">Minimum Section Rating Floor Requirement</Label>
+                                <Input
+                                  type="number"
+                                  placeholder="e.g. 2000"
+                                  className="h-8 text-xs rounded-lg border-slate-200 mt-1"
+                                  value={gSettings.ratingFloorConstraint || ""}
+                                  onChange={(e) => handleGroupSettingsChange(group, { ratingFloorConstraint: e.target.value ? parseInt(e.target.value) : undefined })}
+                                />
+                              </div>
+                            </>
+                          )}
+
+                          {/* 4. Chess Club settings */}
+                          {group.id === "club" && (
+                            <>
+                              <div className="space-y-1.5">
+                                <Label className="text-xs font-bold text-slate-700">Input Mode Selection</Label>
+                                <Select
+                                  value={gSettings.inputStyle || "text"}
+                                  onValueChange={(val) => handleGroupSettingsChange(group, { inputStyle: val as any })}
+                                >
+                                  <SelectTrigger className="h-8 text-xs rounded-lg border-slate-200">
+                                    <SelectValue placeholder="Select style" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="text">Free Form Text Input</SelectItem>
+                                    <SelectItem value="select">Pre-Approved Dropdown Selection</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              {gSettings.inputStyle === "select" && (
+                                <div className="space-y-1.5 col-span-1 md:col-span-2">
+                                  <Label className="text-xs font-bold text-slate-700">Pre-Approved Chess Clubs (one per line)</Label>
+                                  <textarea
+                                    className="w-full text-xs font-medium p-2 border border-slate-200 rounded-lg min-h-[80px] focus:outline-indigo-500 bg-white"
+                                    placeholder="Marshall Chess Club&#10;St. Louis Chess Club&#10;Charlotte Chess Center"
+                                    value={gSettings.clubPreApprovedList?.join("\n") || ""}
+                                    onChange={(e) => handleGroupSettingsChange(group, { clubPreApprovedList: e.target.value.split("\n").filter(Boolean) })}
+                                  />
+                                </div>
+                              )}
+                            </>
+                          )}
+
+                          {/* 5. Birthdate / scholasticGrade / schoolName settings */}
+                          {(group.id === "birthdate" || group.id === "scholasticGrade" || group.id === "schoolName") && (
+                            <>
+                              <div className="space-y-1.5">
+                                <Label className="text-xs font-bold text-slate-700">Minimum Allowed Age/Grade Level</Label>
+                                <Input
+                                  type="number"
+                                  placeholder="e.g. 5"
+                                  className="h-8 text-xs rounded-lg border-slate-200"
+                                  value={gSettings.ageMin || gSettings.gradeMin || ""}
+                                  onChange={(e) => {
+                                    const val = e.target.value ? parseInt(e.target.value) : undefined;
+                                    if (group.id === "scholasticGrade") {
+                                      handleGroupSettingsChange(group, { gradeMin: val });
+                                    } else {
+                                      handleGroupSettingsChange(group, { ageMin: val });
+                                    }
+                                  }}
+                                />
+                              </div>
+                              <div className="space-y-1.5">
+                                <Label className="text-xs font-bold text-slate-700">Maximum Allowed Age/Grade Level</Label>
+                                <Input
+                                  type="number"
+                                  placeholder="e.g. 18"
+                                  className="h-8 text-xs rounded-lg border-slate-200"
+                                  value={gSettings.ageMax || gSettings.gradeMax || ""}
+                                  onChange={(e) => {
+                                    const val = e.target.value ? parseInt(e.target.value) : undefined;
+                                    if (group.id === "scholasticGrade") {
+                                      handleGroupSettingsChange(group, { gradeMax: val });
+                                    } else {
+                                      handleGroupSettingsChange(group, { ageMax: val });
+                                    }
+                                  }}
+                                />
+                              </div>
+                              {group.id === "birthdate" && (
+                                <div className="space-y-1.5 col-span-1 md:col-span-2">
+                                  <Label className="text-xs font-bold text-slate-700">Tournament Age Cutoff Reference Date</Label>
+                                  <Input
+                                    type="date"
+                                    className="h-8 text-xs rounded-lg border-slate-200"
+                                    value={gSettings.ageCutoffReference || ""}
+                                    onChange={(e) => handleGroupSettingsChange(group, { ageCutoffReference: e.target.value })}
+                                  />
+                                </div>
+                              )}
+                            </>
+                          )}
+
+                          {/* 6. Gender / Sex settings */}
+                          {group.id === "sex" && (
+                            <div className="space-y-1.5 col-span-1 md:col-span-2">
+                              <Label className="text-xs font-bold text-slate-700">Gender Restriction Filter</Label>
+                              <Select
+                                value={gSettings.validationType || "none"}
+                                onValueChange={(val) => handleGroupSettingsChange(group, { validationType: val as any })}
+                              >
+                                <SelectTrigger className="h-8 text-xs rounded-lg border-slate-200">
+                                  <SelectValue placeholder="Select restriction" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="none">Open Event (All Genders Eligible)</SelectItem>
+                                  <SelectItem value="strict_active">Women/Girls Championship (Only Females Eligible)</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          )}
+
+                          {/* 7. Email and Phone confirmation/updates */}
+                          {(group.id === "email" || group.id === "parentContact") && (
+                            <>
+                              <div className="space-y-1.5">
+                                <Label className="text-xs font-bold text-slate-700">Double-Entry Verification Email Check</Label>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <Switch
+                                    checked={Boolean(gSettings.doubleEntryCheck)}
+                                    onCheckedChange={(val) => handleGroupSettingsChange(group, { doubleEntryCheck: val })}
+                                  />
+                                  <span className="text-xs font-semibold text-slate-500">Require email confirmation field</span>
+                                </div>
+                              </div>
+                              <div className="space-y-1.5">
+                                <Label className="text-xs font-bold text-slate-700">Parent/Guardian Secondary CC Delivery</Label>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <Switch
+                                    checked={Boolean(gSettings.parentCopyNotifications)}
+                                    onCheckedChange={(val) => handleGroupSettingsChange(group, { parentCopyNotifications: val })}
+                                  />
+                                  <span className="text-xs font-semibold text-slate-500">CC email pairing/results reports to parent</span>
+                                </div>
+                              </div>
+                            </>
+                          )}
+
+                          {/* 8. Phone SMS notifications */}
+                          {group.id === "phone" && (
+                            <div className="space-y-1.5 col-span-1 md:col-span-2">
+                              <Label className="text-xs font-bold text-slate-700">SMS Pairing Notification Subscription Checkbox</Label>
+                              <div className="flex items-center gap-2 mt-1">
+                                <Switch
+                                  checked={Boolean(gSettings.smsNotificationsEnabled)}
+                                  onCheckedChange={(val) => handleGroupSettingsChange(group, { smsNotificationsEnabled: val })}
+                                />
+                                <span className="text-xs font-semibold text-slate-500">Enable automated pairings & stand-to-play text alerts</span>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* 9. Section playing up rules */}
+                          {group.id === "sectionChoice" && (
+                            <>
+                              <div className="space-y-1.5">
+                                <Label className="text-xs font-bold text-slate-700">Allow Playing Up in Higher Rating Section</Label>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <Switch
+                                    checked={Boolean(gSettings.allowPlayingUp)}
+                                    onCheckedChange={(val) => handleGroupSettingsChange(group, { allowPlayingUp: val })}
+                                  />
+                                  <span className="text-xs font-semibold text-slate-500">Permit playing in higher rated sections</span>
+                                </div>
+                              </div>
+                              {gSettings.allowPlayingUp && (
+                                <div className="space-y-1.5">
+                                  <Label className="text-xs font-bold text-slate-700">Play-Up Surcharge Fee ($)</Label>
+                                  <Input
+                                    type="number"
+                                    placeholder="e.g. 25"
+                                    className="h-8 text-xs rounded-lg border-slate-200"
+                                    value={gSettings.playUpFeeAmount || ""}
+                                    onChange={(e) => handleGroupSettingsChange(group, { playUpFeeAmount: e.target.value ? parseFloat(e.target.value) : undefined })}
+                                  />
+                                </div>
+                              )}
+                            </>
+                          )}
+
+                          {/* 10. Bye preference policies */}
+                          {group.id === "byes" && (
+                            <>
+                              <div className="space-y-1.5">
+                                <Label className="text-xs font-bold text-slate-700">Maximum Allowed Requested Byes</Label>
+                                <Select
+                                  value={gSettings.maxByesAllowed?.toString() || "2"}
+                                  onValueChange={(val) => handleGroupSettingsChange(group, { maxByesAllowed: parseInt(val) })}
+                                >
+                                  <SelectTrigger className="h-8 text-xs rounded-lg border-slate-200">
+                                    <SelectValue placeholder="Max byes" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="1">1 Half-Point Bye Max</SelectItem>
+                                    <SelectItem value="2">2 Half-Point Byes Max</SelectItem>
+                                    <SelectItem value="3">3 Half-Point Byes Max</SelectItem>
+                                    <SelectItem value="4">4 Half-Point Byes Max</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="space-y-1.5">
+                                <Label className="text-xs font-bold text-slate-700">Zero-Point Final Round Bye Rule</Label>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <Switch
+                                    checked={Boolean(gSettings.lastRoundZeroPointBye)}
+                                    onCheckedChange={(val) => handleGroupSettingsChange(group, { lastRoundZeroPointBye: val })}
+                                  />
+                                  <span className="text-xs font-semibold text-slate-500">Final round bye gives 0 points (anti-collusion)</span>
+                                </div>
+                              </div>
+                            </>
+                          )}
+
+                          {/* 11. Entry Fee Pricing Policy */}
+                          {group.id === "entryFee" && (
+                            <>
+                              <div className="space-y-1.5 col-span-1 md:col-span-2">
+                                <Label className="text-xs font-bold text-slate-700">Titled Chess Player Entry Fee Waiver</Label>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <Switch
+                                    checked={Boolean(gSettings.waiveTitledFee)}
+                                    onCheckedChange={(val) => handleGroupSettingsChange(group, { waiveTitledFee: val })}
+                                  />
+                                  <span className="text-xs font-semibold text-slate-500">GM / IM / WGM / WIM register with $0 waived entry fee</span>
+                                </div>
+                              </div>
+                              <div className="space-y-1.5">
+                                <Label className="text-xs font-bold text-slate-700">Early-Bird Rate Price Deadline</Label>
+                                <Input
+                                  type="date"
+                                  className="h-8 text-xs rounded-lg border-slate-200 mt-1"
+                                  value={gSettings.earlyBirdDeadline || ""}
+                                  onChange={(e) => handleGroupSettingsChange(group, { earlyBirdDeadline: e.target.value })}
+                                />
+                              </div>
+                              <div className="space-y-1.5">
+                                <Label className="text-xs font-bold text-slate-700">Late-Fee Surcharge Sched Penalty Deadline</Label>
+                                <Input
+                                  type="date"
+                                  className="h-8 text-xs rounded-lg border-slate-200 mt-1"
+                                  value={gSettings.lateFeeDeadline || ""}
+                                  onChange={(e) => handleGroupSettingsChange(group, { lateFeeDeadline: e.target.value })}
+                                />
+                              </div>
+                            </>
+                          )}
+
+                          {/* Default fallback info */}
+                          {!["lookupSection", "playerSearch", "name", "uscfId", "fideId", "club", "birthdate", "scholasticGrade", "schoolName", "sex", "email", "parentContact", "phone", "sectionChoice", "byes", "entryFee"].includes(group.id) && (
+                            <div className="col-span-1 md:col-span-2 text-slate-400 font-semibold italic text-center py-2">
+                              No advanced chess settings needed for this structural block.
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}

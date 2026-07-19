@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useFormContext } from "react-hook-form";
-import { Search, Loader2, RefreshCw, AlertCircle } from "lucide-react";
+import { Search, Loader2, RefreshCw, AlertCircle, Check, Info } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { Player } from "@shared/schema";
 import { Card, CardContent } from "@/components/ui/card";
@@ -134,13 +134,24 @@ export default function StepOne({
   players,
   sections,
   entryFees,
+  activeFields = [],
 }: {
   config: ReturnType<typeof parseTournamentConfig> | null;
   players: Player[];
   sections: SectionOption[];
   entryFees: EntryFeeRule[];
+  activeFields?: any[];
 }) {
   const form = useFormContext<RegistrationFormValues>();
+  
+  const extraFields = useMemo(() => {
+    const hardcodedIds = [
+      "firstName", "lastName", "uscfId", "fideId", "uscfRating", "fideRating", 
+      "city", "state", "email", "ratingProvider", "playerSearch", "lookupSection",
+      "playerIdentityHeading", "contactInfoHeading"
+    ];
+    return activeFields.filter(f => f && !hardcodedIds.includes(f.id));
+  }, [activeFields]);
   const lookupMode = form.watch("lookupMode");
   const ratingProvider = form.watch("ratingProvider");
   const uscfRatingValue = form.watch("uscfRating");
@@ -618,6 +629,382 @@ export default function StepOne({
                   </Select>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {extraFields.length > 0 && (
+          <div className="space-y-4 border-t border-slate-100 pt-6">
+            <h3 className="text-base font-bold text-slate-900 tracking-tight">Additional Information</h3>
+            <div className="grid gap-5 sm:grid-cols-2">
+              {extraFields.map((field) => {
+                const isCustom = field.isCustom;
+                const path = isCustom ? `customAnswers.${field.id}` : field.id;
+
+                // --- SPECIAL FIELD: FIDE TITLE SELECT DROPDOWN ---
+                if (field.id === "fideTitle") {
+                  const error = isCustom 
+                    ? form.formState.errors.customAnswers?.[field.id] 
+                    : form.formState.errors[field.id as keyof RegistrationFormValues];
+                  const val = form.watch(path as any) ?? "";
+                  const titleOptions = ["None", "GM", "IM", "FM", "CM", "WGM", "WIM", "WFM", "WCM"];
+                  
+                  return (
+                    <div key={field.id} className="group space-y-2 col-span-1">
+                      <Label className="text-sm font-semibold text-slate-700 transition-colors group-focus-within:text-blue-700">
+                        {field.label}
+                        {field.required && <span className="ml-1 text-red-500">*</span>}
+                      </Label>
+                      <Select
+                        value={val || "None"}
+                        onValueChange={(value) => form.setValue(path as any, value === "None" ? "" : value, { shouldDirty: true, shouldValidate: true })}
+                      >
+                        <SelectTrigger className="bg-white border-slate-200 focus:ring-blue-200 focus:border-blue-400">
+                          <SelectValue placeholder={field.placeholder || "Select FIDE Title"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {titleOptions.map((title) => (
+                            <SelectItem key={title} value={title}>
+                              {title}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {field.description && (
+                        <p className="text-[11px] text-slate-400 leading-normal mt-0.5">{field.description}</p>
+                      )}
+                      {error && (
+                        <p className="text-xs text-red-500">{error.message as string}</p>
+                      )}
+                    </div>
+                  );
+                }
+
+                // --- SPECIAL FIELD: SCHOLASTIC GRADE DROPDOWN ---
+                if (field.id === "scholasticGrade") {
+                  const error = isCustom 
+                    ? form.formState.errors.customAnswers?.[field.id] 
+                    : form.formState.errors[field.id as keyof RegistrationFormValues];
+                  const val = form.watch(path as any) ?? "";
+
+                  const allGrades = [
+                    "Pre-Kindergarten", "Kindergarten", "1st Grade", "2nd Grade", 
+                    "3rd Grade", "4th Grade", "5th Grade", "6th Grade", 
+                    "7th Grade", "8th Grade", "9th Grade", "10th Grade", 
+                    "11th Grade", "12th Grade"
+                  ];
+                  
+                  const gradeMin = typeof field.settings?.gradeMin === "number" ? field.settings.gradeMin : 0;
+                  const gradeMax = typeof field.settings?.gradeMax === "number" ? field.settings.gradeMax : 13;
+                  const filteredGrades = allGrades.slice(gradeMin, gradeMax + 1);
+
+                  return (
+                    <div key={field.id} className="group space-y-2 col-span-1">
+                      <Label className="text-sm font-semibold text-slate-700 transition-colors group-focus-within:text-blue-700">
+                        {field.label}
+                        {field.required && <span className="ml-1 text-red-500">*</span>}
+                      </Label>
+                      <Select
+                        value={val}
+                        onValueChange={(value) => form.setValue(path as any, value, { shouldDirty: true, shouldValidate: true })}
+                      >
+                        <SelectTrigger className="bg-white border-slate-200 focus:ring-blue-200 focus:border-blue-400">
+                          <SelectValue placeholder={field.placeholder || "Select grade level"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {filteredGrades.map((grade) => (
+                            <SelectItem key={grade} value={grade}>
+                              {grade}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {field.description && (
+                        <p className="text-[11px] text-slate-400 leading-normal mt-0.5">{field.description}</p>
+                      )}
+                      {error && (
+                        <p className="text-xs text-red-500">{error.message as string}</p>
+                      )}
+                    </div>
+                  );
+                }
+
+                // --- SPECIAL FIELD: MEMBERSHIP PROOF UPLOAD ---
+                if (field.id === "membershipProof") {
+                  const error = isCustom 
+                    ? form.formState.errors.customAnswers?.[field.id] 
+                    : form.formState.errors[field.id as keyof RegistrationFormValues];
+                  const uploadedFile = form.watch(path as any);
+                  
+                  return (
+                    <div key={field.id} className="col-span-2 space-y-2">
+                      <Label className="text-sm font-semibold text-slate-700">
+                        {field.label}
+                        {field.required && <span className="ml-1 text-red-500">*</span>}
+                      </Label>
+                      <div 
+                        className={cn(
+                          "flex flex-col items-center justify-center rounded-xl border-2 border-dashed p-6 text-center transition-all",
+                          uploadedFile 
+                            ? "border-emerald-300 bg-emerald-50/20" 
+                            : "border-slate-200 bg-slate-50/30 hover:bg-slate-50 hover:border-blue-300"
+                        )}
+                      >
+                        {uploadedFile ? (
+                          <div className="space-y-2">
+                            <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+                              <Check className="h-5 w-5" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-semibold text-slate-900">Proof uploaded successfully</p>
+                              <p className="text-xs text-slate-500">{uploadedFile}</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => form.setValue(path as any, "", { shouldDirty: true, shouldValidate: true })}
+                              className="text-xs font-bold text-red-500 hover:text-red-700"
+                            >
+                              Remove file
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+                              <Info className="h-5 w-5" />
+                            </div>
+                            <div>
+                              <p className="text-sm text-slate-700">
+                                Drag and drop your file here, or{" "}
+                                <button
+                                  type="button"
+                                  onClick={() => form.setValue(path as any, "simulated_membership_card.pdf", { shouldDirty: true, shouldValidate: true })}
+                                  className="font-bold text-blue-600 hover:text-blue-800"
+                                >
+                                  browse files
+                                </button>
+                              </p>
+                              <p className="text-xs text-slate-500 mt-1">PDF, JPG, or PNG (Max 5MB)</p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      {field.description && (
+                        <p className="text-[11px] text-slate-400 leading-normal mt-1">{field.description}</p>
+                      )}
+                      {error && (
+                        <p className="mt-1 text-xs text-red-500">{error.message as string}</p>
+                      )}
+                    </div>
+                  );
+                }
+
+                // --- SPECIAL FIELD: CLUB SELECT DROP DOWN ---
+                if (field.id === "club") {
+                  const error = isCustom 
+                    ? form.formState.errors.customAnswers?.[field.id] 
+                    : form.formState.errors[field.id as keyof RegistrationFormValues];
+                  const val = form.watch(path as any) ?? "";
+                  
+                  const isSelectStyle = field.settings?.inputStyle === "select";
+                  const preApprovedClubs = field.settings?.clubPreApprovedList ?? [];
+
+                  if (isSelectStyle && preApprovedClubs.length > 0) {
+                    return (
+                      <div key={field.id} className="group space-y-2 col-span-1">
+                        <Label className="text-sm font-semibold text-slate-700 transition-colors group-focus-within:text-blue-700">
+                          {field.label}
+                          {field.required && <span className="ml-1 text-red-500">*</span>}
+                        </Label>
+                        <Select
+                          value={val}
+                          onValueChange={(value) => form.setValue(path as any, value, { shouldDirty: true, shouldValidate: true })}
+                        >
+                          <SelectTrigger className="bg-white border-slate-200 focus:ring-blue-200 focus:border-blue-400">
+                            <SelectValue placeholder={field.placeholder || "Select your club"} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {preApprovedClubs.map((clubName: string) => (
+                              <SelectItem key={clubName} value={clubName}>
+                                {clubName}
+                              </SelectItem>
+                            ))}
+                            <SelectItem value="Other / None">Other / None</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        {field.description && (
+                          <p className="text-[11px] text-slate-400 leading-normal mt-0.5">{field.description}</p>
+                        )}
+                        {error && (
+                          <p className="text-xs text-red-500">{error.message as string}</p>
+                        )}
+                      </div>
+                    );
+                  }
+                }
+
+                // --- SPECIAL FIELD: PARENT CONTACT CARD ---
+                if (field.id === "parentContact") {
+                  const parentName = form.watch("customAnswers.parentContactName") ?? "";
+                  const parentPhone = form.watch("customAnswers.parentContactPhone") ?? "";
+                  const parentRelationship = form.watch("customAnswers.parentContactRelationship") ?? "";
+                  
+                  return (
+                    <div key={field.id} className="col-span-2 rounded-xl border border-slate-200 bg-slate-50/50 p-5 space-y-4">
+                      <div>
+                        <Label className="text-sm font-bold text-slate-950">
+                          {field.label}
+                          {field.required && <span className="ml-1 text-red-500">*</span>}
+                        </Label>
+                        {field.description && (
+                          <p className="text-xs text-slate-500 mt-1">{field.description}</p>
+                        )}
+                      </div>
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="space-y-1.5">
+                          <Label className="text-xs font-semibold text-slate-700">Contact Name</Label>
+                          <Input
+                            placeholder="First and Last Name"
+                            className="bg-white border-slate-200 focus:border-blue-450"
+                            value={parentName}
+                            onChange={(e) => {
+                              form.setValue("customAnswers.parentContactName", e.target.value, { shouldDirty: true });
+                              form.setValue("customAnswers.parentContact", `${e.target.value} (${parentRelationship}) - ${parentPhone}`.trim(), { shouldDirty: true, shouldValidate: true });
+                            }}
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs font-semibold text-slate-700">Relationship</Label>
+                          <Input
+                            placeholder="e.g. Mother, Father, Guardian"
+                            className="bg-white border-slate-200 focus:border-blue-450"
+                            value={parentRelationship}
+                            onChange={(e) => {
+                              form.setValue("customAnswers.parentContactRelationship", e.target.value, { shouldDirty: true });
+                              form.setValue("customAnswers.parentContact", `${parentName} (${e.target.value}) - ${parentPhone}`.trim(), { shouldDirty: true, shouldValidate: true });
+                            }}
+                          />
+                        </div>
+                        <div className="col-span-2 space-y-1.5">
+                          <Label className="text-xs font-semibold text-slate-700">Contact Phone / Email</Label>
+                          <Input
+                            placeholder="(555) 000-0000 or email@example.com"
+                            className="bg-white border-slate-200 focus:border-blue-450"
+                            value={parentPhone}
+                            onChange={(e) => {
+                              form.setValue("customAnswers.parentContactPhone", e.target.value, { shouldDirty: true });
+                              form.setValue("customAnswers.parentContact", `${parentName} (${parentRelationship}) - ${e.target.value}`.trim(), { shouldDirty: true, shouldValidate: true });
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+
+                // --- HEADING / TEXT BLOCK ---
+                if (field.type === "heading") {
+                  return (
+                    <div key={field.id} className="col-span-2 space-y-1 pt-4">
+                      <h3 className="text-base font-bold text-slate-900 tracking-tight">{field.label}</h3>
+                      {field.description && (
+                        <p className="text-xs text-slate-500 leading-normal">{field.description}</p>
+                      )}
+                    </div>
+                  );
+                }
+
+                // --- SELECT ---
+                if (field.type === "select") {
+                  const val = form.watch(path as any) ?? "";
+                  const selectOptions = field.options ?? [];
+                  const error = isCustom 
+                    ? form.formState.errors.customAnswers?.[field.id] 
+                    : form.formState.errors[field.id as keyof RegistrationFormValues];
+
+                  return (
+                    <div key={field.id} className="group space-y-2 col-span-1">
+                      <Label className="text-sm font-medium text-slate-700 transition-colors group-focus-within:text-blue-700">
+                        {field.label}
+                        {field.required && <span className="ml-1 text-red-500">*</span>}
+                      </Label>
+                      <Select
+                        value={val}
+                        onValueChange={(value) => form.setValue(path as any, value, { shouldDirty: true, shouldValidate: true })}
+                      >
+                        <SelectTrigger className="bg-white border-slate-200 focus:ring-blue-200 focus:border-blue-400">
+                          <SelectValue placeholder={field.placeholder || `Select ${field.label}`} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {selectOptions.map((opt: any) => (
+                            <SelectItem key={opt} value={opt}>
+                              {opt}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {field.description && (
+                        <p className="text-[11px] text-slate-400 leading-normal mt-0.5">{field.description}</p>
+                      )}
+                      {error && (
+                        <p className="text-xs text-red-500">{error.message as string}</p>
+                      )}
+                    </div>
+                  );
+                }
+
+                // --- CHECKBOX ---
+                if (field.type === "boolean") {
+                  const checked = form.watch(path as any) ?? false;
+                  return (
+                    <div 
+                      key={field.id} 
+                      className={cn(
+                        "flex items-start gap-4 rounded-xl border p-5 transition-all group col-span-2 shadow-sm cursor-pointer",
+                        checked
+                          ? "border-blue-300 bg-blue-50/40 hover:bg-blue-50/60"
+                          : "border-slate-200 bg-slate-50/50 hover:bg-white hover:shadow-md hover:border-blue-200"
+                      )}
+                      onClick={() => form.setValue(path as any, !checked, { shouldDirty: true, shouldValidate: true })}
+                    >
+                      <input
+                        id={field.id}
+                        type="checkbox"
+                        className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                        checked={checked}
+                        onChange={(event) => {
+                          event.stopPropagation();
+                          form.setValue(path as any, event.target.checked, { shouldDirty: true, shouldValidate: true });
+                        }}
+                      />
+                      <div className="space-y-1">
+                        <Label htmlFor={field.id} className="text-sm font-bold text-slate-900 cursor-pointer select-none">
+                          {field.label}
+                          {field.required && <span className="ml-1 text-red-500">*</span>}
+                        </Label>
+                        {field.description && (
+                          <p className="text-xs leading-relaxed text-slate-500 select-none">
+                            {field.description}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                }
+
+                // --- TEXT / NUMBER FALLBACK ---
+                return (
+                  <div key={field.id} className="col-span-1">
+                    <Field
+                      label={field.label}
+                      name={path}
+                      required={field.required}
+                      placeholder={field.placeholder || `Enter ${field.label}...`}
+                      type={field.type === "number" ? "number" : "text"}
+                      description={isCustom ? field.description : undefined}
+                    />
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}

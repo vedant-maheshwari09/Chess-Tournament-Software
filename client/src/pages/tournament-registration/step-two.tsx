@@ -170,6 +170,318 @@ export default function StepTwo({
               const isCustom = field.isCustom;
               const path = isCustom ? `customAnswers.${field.id}` : field.id;
 
+              // --- SPECIAL FIELD: EMAIL WITH DOUBLE CONFIRMATION ENTRY ---
+              if (field.id === "email") {
+                const isDoubleEmail = field.settings?.doubleEntryCheck === true;
+                const val = form.watch("email") ?? "";
+                const confirmVal = form.watch("customAnswers.confirmEmail") ?? "";
+                const emailError = form.formState.errors.email;
+                const confirmError = form.formState.errors.customAnswers?.confirmEmail;
+
+                return (
+                  <div key={field.id} className={cn("grid gap-5 col-span-2", isDoubleEmail ? "sm:grid-cols-2" : "grid-cols-1")}>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold text-slate-700">
+                        {field.label}
+                        {field.required && <span className="ml-1 text-red-500">*</span>}
+                      </Label>
+                      <Input
+                        type="email"
+                        placeholder={field.placeholder || "email@example.com"}
+                        className="bg-white border-slate-200 focus:ring-blue-200 focus:border-blue-400"
+                        value={val}
+                        onChange={(e) => form.setValue("email", e.target.value, { shouldDirty: true, shouldValidate: true })}
+                      />
+                      {field.description && (
+                        <p className="text-[11px] text-slate-400 leading-normal mt-0.5">{field.description}</p>
+                      )}
+                      {emailError && (
+                        <p className="text-xs text-red-500">{emailError.message as string}</p>
+                      )}
+                    </div>
+                    {isDoubleEmail && (
+                      <div className="space-y-2">
+                        <Label className="text-sm font-semibold text-slate-700">
+                          Confirm Email Address
+                          <span className="ml-1 text-red-500">*</span>
+                        </Label>
+                        <Input
+                          type="email"
+                          placeholder="Retype email address"
+                          className="bg-white border-slate-200 focus:ring-blue-200 focus:border-blue-400"
+                          value={confirmVal}
+                          onChange={(e) => form.setValue("customAnswers.confirmEmail", e.target.value, { shouldDirty: true, shouldValidate: true })}
+                        />
+                        <p className="text-[11px] text-slate-400 leading-normal mt-0.5">Please re-enter your email to verify it matches.</p>
+                        {confirmError && (
+                          <p className="text-xs text-red-500">{confirmError.message as string}</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
+              // --- SPECIAL FIELD: FIDE TITLE SELECT DROPDOWN ---
+              if (field.id === "fideTitle") {
+                const error = isCustom 
+                  ? form.formState.errors.customAnswers?.[field.id] 
+                  : form.formState.errors[field.id as keyof RegistrationFormValues];
+                const val = form.watch(path as any) ?? "";
+                const titleOptions = ["None", "GM", "IM", "FM", "CM", "WGM", "WIM", "WFM", "WCM"];
+                
+                return (
+                  <div key={field.id} className="group space-y-2 col-span-1">
+                    <Label className="text-sm font-semibold text-slate-700 transition-colors group-focus-within:text-blue-700">
+                      {field.label}
+                      {field.required && <span className="ml-1 text-red-500">*</span>}
+                    </Label>
+                    <Select
+                      value={val || "None"}
+                      onValueChange={(value) => form.setValue(path as any, value === "None" ? "" : value, { shouldDirty: true, shouldValidate: true })}
+                    >
+                      <SelectTrigger className="bg-white border-slate-200 focus:ring-blue-200 focus:border-blue-400">
+                        <SelectValue placeholder={field.placeholder || "Select FIDE Title"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {titleOptions.map((title) => (
+                          <SelectItem key={title} value={title}>
+                            {title}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {field.description && (
+                      <p className="text-[11px] text-slate-400 leading-normal mt-0.5">{field.description}</p>
+                    )}
+                    {error && (
+                      <p className="text-xs text-red-500">{error.message as string}</p>
+                    )}
+                  </div>
+                );
+              }
+
+              // --- SPECIAL FIELD: SCHOLASTIC GRADE DROPDOWN ---
+              if (field.id === "scholasticGrade") {
+                const error = isCustom 
+                  ? form.formState.errors.customAnswers?.[field.id] 
+                  : form.formState.errors[field.id as keyof RegistrationFormValues];
+                const val = form.watch(path as any) ?? "";
+
+                const allGrades = [
+                  "Pre-Kindergarten", "Kindergarten", "1st Grade", "2nd Grade", 
+                  "3rd Grade", "4th Grade", "5th Grade", "6th Grade", 
+                  "7th Grade", "8th Grade", "9th Grade", "10th Grade", 
+                  "11th Grade", "12th Grade"
+                ];
+                
+                const gradeMin = typeof field.settings?.gradeMin === "number" ? field.settings.gradeMin : 0;
+                const gradeMax = typeof field.settings?.gradeMax === "number" ? field.settings.gradeMax : 13;
+                const filteredGrades = allGrades.slice(gradeMin, gradeMax + 1);
+
+                return (
+                  <div key={field.id} className="group space-y-2 col-span-1">
+                    <Label className="text-sm font-semibold text-slate-700 transition-colors group-focus-within:text-blue-700">
+                      {field.label}
+                      {field.required && <span className="ml-1 text-red-500">*</span>}
+                    </Label>
+                    <Select
+                      value={val}
+                      onValueChange={(value) => form.setValue(path as any, value, { shouldDirty: true, shouldValidate: true })}
+                    >
+                      <SelectTrigger className="bg-white border-slate-200 focus:ring-blue-200 focus:border-blue-400">
+                        <SelectValue placeholder={field.placeholder || "Select grade level"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {filteredGrades.map((grade) => (
+                          <SelectItem key={grade} value={grade}>
+                            {grade}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {field.description && (
+                      <p className="text-[11px] text-slate-400 leading-normal mt-0.5">{field.description}</p>
+                    )}
+                    {error && (
+                      <p className="text-xs text-red-500">{error.message as string}</p>
+                    )}
+                  </div>
+                );
+              }
+
+              // --- SPECIAL FIELD: MEMBERSHIP PROOF UPLOAD ---
+              if (field.id === "membershipProof") {
+                const error = isCustom 
+                  ? form.formState.errors.customAnswers?.[field.id] 
+                  : form.formState.errors[field.id as keyof RegistrationFormValues];
+                const uploadedFile = form.watch(path as any);
+                
+                return (
+                  <div key={field.id} className="col-span-2 space-y-2">
+                    <Label className="text-sm font-semibold text-slate-700">
+                      {field.label}
+                      {field.required && <span className="ml-1 text-red-500">*</span>}
+                    </Label>
+                    <div 
+                      className={cn(
+                        "flex flex-col items-center justify-center rounded-xl border-2 border-dashed p-6 text-center transition-all",
+                        uploadedFile 
+                          ? "border-emerald-300 bg-emerald-50/20" 
+                          : "border-slate-200 bg-slate-50/30 hover:bg-slate-50 hover:border-blue-300"
+                      )}
+                    >
+                      {uploadedFile ? (
+                        <div className="space-y-2">
+                          <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+                            <Check className="h-5 w-5" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-slate-900">Proof uploaded successfully</p>
+                            <p className="text-xs text-slate-500">{uploadedFile}</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => form.setValue(path as any, "", { shouldDirty: true, shouldValidate: true })}
+                            className="text-xs font-bold text-red-500 hover:text-red-700"
+                          >
+                            Remove file
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+                            <Info className="h-5 w-5" />
+                          </div>
+                          <div>
+                            <p className="text-sm text-slate-700">
+                              Drag and drop your file here, or{" "}
+                              <button
+                                type="button"
+                                onClick={() => form.setValue(path as any, "simulated_membership_card.pdf", { shouldDirty: true, shouldValidate: true })}
+                                className="font-bold text-blue-600 hover:text-blue-800"
+                              >
+                                browse files
+                              </button>
+                            </p>
+                            <p className="text-xs text-slate-500 mt-1">PDF, JPG, or PNG (Max 5MB)</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    {field.description && (
+                      <p className="text-[11px] text-slate-400 leading-normal mt-1">{field.description}</p>
+                    )}
+                    {error && (
+                      <p className="mt-1 text-xs text-red-500">{error.message as string}</p>
+                    )}
+                  </div>
+                );
+              }
+
+              // --- SPECIAL FIELD: CLUB SELECT DROP DOWN ---
+              if (field.id === "club") {
+                const error = isCustom 
+                  ? form.formState.errors.customAnswers?.[field.id] 
+                  : form.formState.errors[field.id as keyof RegistrationFormValues];
+                const val = form.watch(path as any) ?? "";
+                
+                const isSelectStyle = field.settings?.inputStyle === "select";
+                const preApprovedClubs = field.settings?.clubPreApprovedList ?? [];
+
+                if (isSelectStyle && preApprovedClubs.length > 0) {
+                  return (
+                    <div key={field.id} className="group space-y-2 col-span-1">
+                      <Label className="text-sm font-semibold text-slate-700 transition-colors group-focus-within:text-blue-700">
+                        {field.label}
+                        {field.required && <span className="ml-1 text-red-500">*</span>}
+                      </Label>
+                      <Select
+                        value={val}
+                        onValueChange={(value) => form.setValue(path as any, value, { shouldDirty: true, shouldValidate: true })}
+                      >
+                        <SelectTrigger className="bg-white border-slate-200 focus:ring-blue-200 focus:border-blue-400">
+                          <SelectValue placeholder={field.placeholder || "Select your club"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {preApprovedClubs.map((clubName: string) => (
+                            <SelectItem key={clubName} value={clubName}>
+                              {clubName}
+                            </SelectItem>
+                          ))}
+                          <SelectItem value="Other / None">Other / None</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {field.description && (
+                        <p className="text-[11px] text-slate-400 leading-normal mt-0.5">{field.description}</p>
+                      )}
+                      {error && (
+                        <p className="text-xs text-red-500">{error.message as string}</p>
+                      )}
+                    </div>
+                  );
+                }
+              }
+
+              // --- SPECIAL FIELD: PARENT CONTACT CARD ---
+              if (field.id === "parentContact") {
+                const parentName = form.watch("customAnswers.parentContactName") ?? "";
+                const parentPhone = form.watch("customAnswers.parentContactPhone") ?? "";
+                const parentRelationship = form.watch("customAnswers.parentContactRelationship") ?? "";
+                
+                return (
+                  <div key={field.id} className="col-span-2 rounded-xl border border-slate-200 bg-slate-50/50 p-5 space-y-4">
+                    <div>
+                      <Label className="text-sm font-bold text-slate-950">
+                        {field.label}
+                        {field.required && <span className="ml-1 text-red-500">*</span>}
+                      </Label>
+                      {field.description && (
+                        <p className="text-xs text-slate-500 mt-1">{field.description}</p>
+                      )}
+                    </div>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-semibold text-slate-700">Contact Name</Label>
+                        <Input
+                          placeholder="First and Last Name"
+                          className="bg-white border-slate-200 focus:border-blue-450"
+                          value={parentName}
+                          onChange={(e) => {
+                            form.setValue("customAnswers.parentContactName", e.target.value, { shouldDirty: true });
+                            form.setValue("customAnswers.parentContact", `${e.target.value} (${parentRelationship}) - ${parentPhone}`.trim(), { shouldDirty: true, shouldValidate: true });
+                          }}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-semibold text-slate-700">Relationship</Label>
+                        <Input
+                          placeholder="e.g. Mother, Father, Guardian"
+                          className="bg-white border-slate-200 focus:border-blue-450"
+                          value={parentRelationship}
+                          onChange={(e) => {
+                            form.setValue("customAnswers.parentContactRelationship", e.target.value, { shouldDirty: true });
+                            form.setValue("customAnswers.parentContact", `${parentName} (${e.target.value}) - ${parentPhone}`.trim(), { shouldDirty: true, shouldValidate: true });
+                          }}
+                        />
+                      </div>
+                      <div className="col-span-2 space-y-1.5">
+                        <Label className="text-xs font-semibold text-slate-700">Contact Phone / Email</Label>
+                        <Input
+                          placeholder="(555) 000-0000 or email@example.com"
+                          className="bg-white border-slate-200 focus:border-blue-450"
+                          value={parentPhone}
+                          onChange={(e) => {
+                            form.setValue("customAnswers.parentContactPhone", e.target.value, { shouldDirty: true });
+                            form.setValue("customAnswers.parentContact", `${parentName} (${parentRelationship}) - ${e.target.value}`.trim(), { shouldDirty: true, shouldValidate: true });
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+
               // --- HEADING / TEXT BLOCK ---
               if (field.type === "heading") {
                 return (
@@ -396,7 +708,8 @@ export default function StepTwo({
                           <div className="flex items-center justify-between">
                             <Label className="text-sm font-semibold text-slate-700">Select eligible rounds</Label>
                             {(() => {
-                              const limit = config?.registers?.byeLimit;
+                              const byeField = config?.registrationFormConfig?.fields.find((f: any) => f.id === "byePreference");
+                              const limit = byeField?.settings?.maxByesAllowed ?? config?.registers?.byeLimit;
                               const selected = form.watch("byeRounds") ?? [];
                               if (limit != null && selected.length >= limit) {
                                 return (
@@ -414,9 +727,13 @@ export default function StepTwo({
                               const totalRounds = config?.details.rounds ?? 0;
                               const isLastRound = roundIdx === totalRounds - 1;
                               const lastRoundBlocked = isLastRound && config?.registers?.allowLastRoundBye === false;
-                              const byeLimit = config?.registers?.byeLimit;
+                              
+                              const byeField = config?.registrationFormConfig?.fields.find((f: any) => f.id === "byePreference");
+                              const lastRoundZeroPointBye = byeField?.settings?.lastRoundZeroPointBye === true;
+                              const maxByesAllowed = byeField?.settings?.maxByesAllowed ?? config?.registers?.byeLimit;
+                              
                               const selectedCount = (form.watch("byeRounds") ?? []).length;
-                              const limitReached = byeLimit != null && selectedCount >= byeLimit && !checked;
+                              const limitReached = maxByesAllowed != null && selectedCount >= maxByesAllowed && !checked;
                               const isDisabled = lastRoundBlocked || limitReached;
                               return (
                                 <button
@@ -425,7 +742,7 @@ export default function StepTwo({
                                   disabled={isDisabled}
                                   onClick={() => !isDisabled && toggleArrayValue(form, "byeRounds", label)}
                                   className={cn(
-                                    "flex items-center justify-between rounded-xl border px-4 py-3.5 text-sm font-medium transition-all shadow-sm active:scale-[0.98]",
+                                    "flex flex-col items-start gap-1 justify-center rounded-xl border px-4 py-3 text-left text-sm font-medium transition-all shadow-sm active:scale-[0.98] min-h-[56px]",
                                     checked
                                       ? "border-blue-500 bg-blue-600 text-white shadow-md shadow-blue-100/50"
                                       : isDisabled
@@ -433,8 +750,15 @@ export default function StepTwo({
                                       : "border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:bg-blue-50/50",
                                   )}
                                 >
-                                  <span>{label}</span>
-                                  {checked && <Check className="h-4 w-4" />}
+                                  <div className="flex w-full items-center justify-between gap-1">
+                                    <span className="font-semibold">{label}</span>
+                                    {checked && <Check className="h-4 w-4 shrink-0" />}
+                                  </div>
+                                  {isLastRound && lastRoundZeroPointBye && (
+                                    <span className={cn("text-[9px] font-bold mt-0.5", checked ? "text-blue-100" : "text-amber-600")}>
+                                      0-point bye
+                                    </span>
+                                  )}
                                   {lastRoundBlocked && !checked && (
                                     <span className="text-[10px] font-bold text-slate-400">Not allowed</span>
                                   )}

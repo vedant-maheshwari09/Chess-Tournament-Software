@@ -214,10 +214,50 @@ export interface PaymentSettings {
   offlineInstructions: string;
 }
 
+export interface FieldSubSettings {
+  // Common Validations
+  validationType?: "none" | "strict_active" | "min_games" | "custom_regex";
+  minGamesThreshold?: number; // E.g., provisional ratings threshold
+  rejectExpiredMembership?: boolean; // For USCF/FIDE membership checks
+  provideRenewalLink?: boolean; // Provide direct renewal link on verification page
+  ratingFloorConstraint?: number; // Minimum rating to register
+  caseFormatting?: "upper" | "title" | "none";
+  registrySpellingEnforcer?: boolean; // Enforce official spelling
+  
+  // Scholastic / Junior Constraints
+  gradeMin?: number; // Pre-K is 0, K is 1, 12th is 13
+  gradeMax?: number;
+  ageMin?: number;
+  ageMax?: number;
+  ageCutoffReference?: string; // Calculate age as of specific date
+  schoolDropdownSource?: "uscf_affiliates" | "custom_list";
+  
+  // Bye Policies
+  maxByesAllowed?: number;
+  lastRoundZeroPointBye?: boolean; // Prevents final round prize collusion
+  roundsEligibleByes?: number[]; // E.g., [1, 2, 3, 4]
+  
+  // Custom Field Enhancements
+  inputStyle?: "text" | "select";
+  clubPreApprovedList?: string[]; // Dropdown list of clubs if select
+  parentCopyNotifications?: boolean; // Sends copies of emails to parents
+  doubleEntryCheck?: boolean; // E.g., email confirmation
+  smsNotificationsEnabled?: boolean; // SMS notifications opt-in
+  permittedRatingSystems?: ("uscf" | "fide" | "local" | "online")[];
+  defaultFallbackSystem?: "uscf" | "fide" | "local" | "online";
+  
+  // Section / Pricing
+  allowPlayingUp?: boolean;
+  playUpFeeAmount?: number;
+  waiveTitledFee?: boolean; // Waiver for GM/IM/WGM/WIM
+  earlyBirdDeadline?: string;
+  lateFeeDeadline?: string;
+}
+
 export interface RegistrationFormField {
   id: string;
   label: string;
-  type: "text" | "number" | "boolean" | "select" | "paragraph" | "radio" | "checkbox" | "date" | "time" | "section" | "heading";
+  type: "text" | "number" | "boolean" | "select" | "paragraph" | "radio" | "checkbox" | "date" | "time" | "section" | "heading" | "file";
   options?: string[];
   required: boolean;
   visible: boolean;
@@ -225,6 +265,7 @@ export interface RegistrationFormField {
   placeholder?: string;
   description?: string;
   prebuiltType?: string;
+  settings?: FieldSubSettings;
 }
 
 export interface RegistrationFormConfig {
@@ -295,6 +336,25 @@ export const DEFAULT_REGISTRATION_FIELDS: RegistrationFormField[] = [
     description: "Your official World Chess Federation ID (if applicable)."
   },
   {
+    id: "fideTitle",
+    label: "FIDE Title",
+    type: "select",
+    required: false,
+    visible: false,
+    options: ["None", "GM", "IM", "FM", "CM", "WGM", "WIM", "WFM", "WCM"],
+    description: "Your official FIDE title (if applicable). Allows fee waiving.",
+    isCustom: true
+  },
+  {
+    id: "membershipProof",
+    label: "Membership Card Copy",
+    type: "file",
+    required: false,
+    visible: false,
+    description: "Upload a photo of your USCF/FIDE membership card if expired/not found in lookup.",
+    isCustom: true
+  },
+  {
     id: "club",
     label: "Chess Club",
     type: "text",
@@ -305,12 +365,52 @@ export const DEFAULT_REGISTRATION_FIELDS: RegistrationFormField[] = [
     isCustom: true
   },
   {
+    id: "teamCaptain",
+    label: "Team Captain / Coach",
+    type: "text",
+    required: false,
+    visible: false,
+    placeholder: "e.g. Coach Smith or Captain Rogers",
+    description: "The name of your team captain or school coach.",
+    isCustom: true
+  },
+  {
+    id: "boardNumber",
+    label: "Board Number Assignment",
+    type: "number",
+    required: false,
+    visible: false,
+    placeholder: "e.g. Board 1",
+    description: "Your assigned board number for team matches (1-4).",
+    isCustom: true
+  },
+  {
     id: "birthdate",
     label: "Birthdate",
     type: "date",
     required: false,
     visible: false,
     description: "Your date of birth (required for age-restricted sections).",
+    isCustom: true
+  },
+  {
+    id: "scholasticGrade",
+    label: "Scholastic Grade Level",
+    type: "select",
+    required: false,
+    visible: false,
+    options: ["Kindergarten", "1st Grade", "2nd Grade", "3rd Grade", "4th Grade", "5th Grade", "6th Grade", "7th Grade", "8th Grade", "9th Grade", "10th Grade", "11th Grade", "12th Grade"],
+    description: "Your current school grade (required for scholastic tournaments).",
+    isCustom: true
+  },
+  {
+    id: "schoolName",
+    label: "School Name",
+    type: "text",
+    required: false,
+    visible: false,
+    placeholder: "e.g. Oak Middle School",
+    description: "The school you represent (for school team standings).",
     isCustom: true
   },
   {
@@ -356,6 +456,16 @@ export const DEFAULT_REGISTRATION_FIELDS: RegistrationFormField[] = [
     visible: true,
     placeholder: "e.g. john.doe@example.com",
     description: "We will send pairing notifications and receipts here."
+  },
+  {
+    id: "parentContact",
+    label: "Parent/Guardian Contact Details",
+    type: "text",
+    required: false,
+    visible: false,
+    placeholder: "e.g. Jane Doe (555-0101)",
+    description: "Parent or emergency contact name and phone number.",
+    isCustom: true
   },
   {
     id: "phone",

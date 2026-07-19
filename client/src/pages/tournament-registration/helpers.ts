@@ -344,9 +344,49 @@ export function computePaymentTotals(
   contribution: number,
   paymentSettings: PaymentSettings | null,
   customAnswers?: Record<string, any>,
+  fields?: any[],
+  sections?: any[],
+  sectionChoice?: string,
+  ratingProvider?: string,
+  uscfRating?: string,
+  fideRating?: string,
+  primaryRatingSystem?: "uscf" | "fide"
 ): PaymentTotals {
   const allowContribution = paymentSettings?.allowProcessingContribution !== false;
   const baseContribution = allowContribution ? contribution : 0;
+
+  // Calculate GM/IM/WGM/WIM Title Fee Waiver
+  const entryFeeField = fields?.find((f: any) => f.id === "entryFee");
+  const waiveTitledFee = entryFeeField?.settings?.waiveTitledFee === true;
+  const fideTitle = customAnswers?.fideTitle;
+  const isTitledPlayer = fideTitle && ["GM", "IM", "WGM", "WIM"].includes(fideTitle.toUpperCase());
+  
+  let entryFeeAmount = entryFee?.amount ?? 0;
+  if (waiveTitledFee && isTitledPlayer) {
+    entryFeeAmount = 0;
+  }
+
+  // Calculate Custom Surcharge Fee for Playing Up
+  let playUpSurcharge = 0;
+  if (sections && sectionChoice) {
+    const selectedSection = sections.find((s: any) => s.name.trim().toLowerCase() === sectionChoice.trim().toLowerCase());
+    if (selectedSection && selectedSection.ratingMin !== null) {
+      const numericRating = derivePlayerRating(
+        ratingProvider as any,
+        uscfRating,
+        fideRating,
+        primaryRatingSystem
+      );
+      if (numericRating !== null && numericRating < selectedSection.ratingMin) {
+        // Player is playing up!
+        const sectionChoiceField = fields?.find((f: any) => f.id === "sectionChoice");
+        const playUpFeeAmount = sectionChoiceField?.settings?.playUpFeeAmount ?? entryFeeField?.settings?.playUpFeeAmount;
+        if (typeof playUpFeeAmount === "number" && playUpFeeAmount > 0) {
+          playUpSurcharge = playUpFeeAmount;
+        }
+      }
+    }
+  }
 
   // Calculate custom payment addons
   let addonTotal = 0;
@@ -372,7 +412,7 @@ export function computePaymentTotals(
     addonTotal = (hasUscf ? 45 : 0) + (hasTshirt ? 20 : 0) + donationAmount - discountAmount;
   }
 
-  const baseAmount = Math.max(0, (entryFee?.amount ?? 0) + addonTotal);
+  const baseAmount = Math.max(0, entryFeeAmount + playUpSurcharge + addonTotal);
   const currency = (entryFee?.currency ?? paymentSettings?.defaultCurrency ?? "USD").toUpperCase();
   const subtotal = Number((baseAmount + baseContribution).toFixed(2));
   const percent = typeof paymentSettings?.processingFeePercent === "number" ? paymentSettings.processingFeePercent : 0;
