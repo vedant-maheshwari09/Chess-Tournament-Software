@@ -275,13 +275,11 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
 
     for (const field of visibleFields) {
       if (field.type === "section") {
-        if (currentPageSection) {
-          if (currentPageFields.length > 0 || currentPageSection.id === "checkoutSection") {
-            pages.push({
-              section: currentPageSection,
-              fields: currentPageFields,
-            });
-          }
+        if (currentPageSection || currentPageFields.length > 0) {
+          pages.push({
+            section: currentPageSection,
+            fields: currentPageFields,
+          });
         }
         currentPageSection = field;
         currentPageFields = [];
@@ -289,13 +287,11 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
         currentPageFields.push(field);
       }
     }
-    if (currentPageSection) {
-      if (currentPageFields.length > 0 || currentPageSection.id === "checkoutSection") {
-        pages.push({
-          section: currentPageSection,
-          fields: currentPageFields,
-        });
-      }
+    if (currentPageSection || currentPageFields.length > 0) {
+      pages.push({
+        section: currentPageSection,
+        fields: currentPageFields,
+      });
     }
 
     // Map pages to step definitions
@@ -1815,6 +1811,20 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
               </div>
             </div>
 
+            {totalSteps === 0 ? (
+              <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm p-8 text-center space-y-4 animate-in fade-in duration-300">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-50 border border-slate-200 mx-auto shadow-sm text-slate-400">
+                  <AlertCircle className="h-6 w-6" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-sm font-semibold text-slate-900">Registration Form is Empty</h3>
+                  <p className="text-xs text-slate-500 max-w-sm mx-auto leading-normal">
+                    This registration form does not have any enabled fields. If you are the tournament director, please enable some fields in the Edit Registration Form settings to display them here.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <>
                 {/* ===== Multi-player roster panel (Hidden in checkout step to avoid double summary) ===== */}
                 {multiPlayerAllowed && currentStep < totalSteps && (playerDrafts.length > 0 || editingDraftId) && (
                   <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
@@ -2197,6 +2207,8 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
                 <div className="mt-8 text-center text-xs text-slate-400">
                   Registration powered by ChessSoftware · Confirmation sent after director review
                 </div>
+              </>
+            )}
           </form>
         </FormProvider>
       </div>

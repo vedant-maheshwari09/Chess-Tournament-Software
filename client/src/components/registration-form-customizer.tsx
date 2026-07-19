@@ -41,26 +41,40 @@ interface FieldGroup {
 
 const FIELD_GROUPS: FieldGroup[] = [
   {
+    id: "lookupSection",
+    label: "Player Profile Lookup Section Header",
+    description: "Show/hide the container section for Player Profile Lookup.",
+    fieldIds: ["lookupSection"]
+  },
+  {
+    id: "playerSearch",
+    label: "Player Registry Search Input",
+    description: "Allow players to search the USCF/FIDE database.",
+    fieldIds: ["playerSearch"]
+  },
+  {
+    id: "playerIdentityHeading",
+    label: "Player Identity Section Header",
+    description: "Show/hide the 'Player Identity' section heading.",
+    fieldIds: ["playerIdentityHeading"]
+  },
+  {
     id: "name",
-    label: "Name",
+    label: "First & Last Name",
     description: "First and last name of the participant.",
-    fieldIds: ["firstName", "lastName"],
-    alwaysVisible: true,
-    alwaysRequired: true
+    fieldIds: ["firstName", "lastName"]
   },
   {
-    id: "email",
-    label: "Email Address",
-    description: "Email for notifications and check-in confirmation.",
-    fieldIds: ["email"],
-    alwaysVisible: true,
-    alwaysRequired: true
+    id: "uscfId",
+    label: "USCF ID",
+    description: "United States Chess Federation ID field.",
+    fieldIds: ["uscfId"]
   },
   {
-    id: "phone",
-    label: "Phone Number",
-    description: "Contact number for text alerts or urgent updates.",
-    fieldIds: ["phone"]
+    id: "fideId",
+    label: "FIDE ID",
+    description: "World Chess Federation ID field.",
+    fieldIds: ["fideId"]
   },
   {
     id: "club",
@@ -87,10 +101,52 @@ const FIELD_GROUPS: FieldGroup[] = [
     fieldIds: ["city", "state"]
   },
   {
+    id: "contactInfoHeading",
+    label: "Contact Info Section Header",
+    description: "Show/hide the 'Contact Information' section heading.",
+    fieldIds: ["contactInfoHeading"]
+  },
+  {
+    id: "email",
+    label: "Email Address",
+    description: "Email for notifications and check-in confirmation.",
+    fieldIds: ["email"]
+  },
+  {
+    id: "phone",
+    label: "Phone Number",
+    description: "Contact number for text alerts or urgent updates.",
+    fieldIds: ["phone"]
+  },
+  {
+    id: "ratingProvider",
+    label: "Rating Provider Selection",
+    description: "Allows players to choose which federation rating to use.",
+    fieldIds: ["ratingProvider"]
+  },
+  {
+    id: "detailsSection",
+    label: "Mailing Address Section Header",
+    description: "Show/hide the mailing address section container.",
+    fieldIds: ["detailsSection"]
+  },
+  {
     id: "address",
-    label: "Mailing Address",
+    label: "Mailing Address Fields",
     description: "Full address fields including country and zip.",
-    fieldIds: ["address1", "address2", "postalCode", "country", "detailsSection"]
+    fieldIds: ["address1", "address2", "postalCode", "country"]
+  },
+  {
+    id: "preferencesSection",
+    label: "Preferences Section Header",
+    description: "Show/hide the 'Preferences & Options' section container.",
+    fieldIds: ["preferencesSection"]
+  },
+  {
+    id: "sectionChoice",
+    label: "Preferred Section Selection",
+    description: "Choose the section you want to play in.",
+    fieldIds: ["sectionChoice"]
   },
   {
     id: "byes",
@@ -99,16 +155,16 @@ const FIELD_GROUPS: FieldGroup[] = [
     fieldIds: ["byePreference"]
   },
   {
-    id: "notes",
-    label: "Special Notes / Requests",
-    description: "Additional requests, e.g., wheelchair accessibility.",
-    fieldIds: ["notes"]
-  },
-  {
     id: "arrival",
     label: "Expected Arrival Time",
     description: "Helpful for check-in organization.",
     fieldIds: ["arrivalTime"]
+  },
+  {
+    id: "notes",
+    label: "Special Notes / Requests",
+    description: "Additional requests, e.g., wheelchair accessibility.",
+    fieldIds: ["notes"]
   },
   {
     id: "newsletter",
@@ -121,8 +177,27 @@ const FIELD_GROUPS: FieldGroup[] = [
     label: "Notification Preference",
     description: "Allows players to choose channel for pairing notifications.",
     fieldIds: ["pairingNotifications"]
+  },
+  {
+    id: "checkoutSection",
+    label: "Review & Submit Section Header",
+    description: "Show/hide the 'Review & Submit' section container.",
+    fieldIds: ["checkoutSection"]
+  },
+  {
+    id: "paymentFlow",
+    label: "Credit Card Payment Option",
+    description: "Stripe payment element integration.",
+    fieldIds: ["paymentFlow"]
+  },
+  {
+    id: "entryFee",
+    label: "Entry Fee Selection Tier",
+    description: "Choose your entry fee tier.",
+    fieldIds: ["entryFee"]
   }
 ];
+
 
 export function RegistrationFormCustomizer({ config, onConfigChange, actions, tournamentSlug, previewChannelId }: RegistrationFormCustomizerProps) {
   const previewWindowRef = useRef<Window | null>(null);
@@ -229,23 +304,24 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
 
   // Switch helpers for field groups
   const isGroupVisible = (group: FieldGroup) => {
-    if (group.alwaysVisible) return true;
-    return group.fieldIds
-      .filter((id) => id !== "detailsSection")
-      .some((id) => {
-        const field = formConfig.fields.find((f) => f.id === id);
-        return field?.visible ?? false;
-      });
+    return group.fieldIds.some((id) => {
+      const field = formConfig.fields.find((f) => f.id === id);
+      return field?.visible ?? false;
+    });
   };
 
   const isGroupRequired = (group: FieldGroup) => {
-    if (group.alwaysRequired) return true;
-    return group.fieldIds
-      .filter((id) => id !== "detailsSection")
-      .some((id) => {
-        const field = formConfig.fields.find((f) => f.id === id);
-        return field?.required ?? false;
-      });
+    return group.fieldIds.some((id) => {
+      const field = formConfig.fields.find((f) => f.id === id);
+      return field?.required ?? false;
+    });
+  };
+
+  const canGroupBeRequired = (group: FieldGroup) => {
+    return group.fieldIds.some((id) => {
+      const field = formConfig.fields.find((f) => f.id === id);
+      return field && field.type !== "section" && field.type !== "heading";
+    });
   };
 
   const handleGroupVisibilityChange = (group: FieldGroup, checked: boolean) => {
@@ -259,13 +335,6 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
       }
       return f;
     });
-
-    if (group.id === "address") {
-      const detailsSectionField = nextFields.find((f) => f.id === "detailsSection");
-      if (detailsSectionField) {
-        detailsSectionField.visible = checked;
-      }
-    }
 
     updateFormConfig({ ...formConfig, fields: nextFields });
   };
@@ -281,13 +350,6 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
       }
       return f;
     });
-
-    if (group.id === "address" && checked) {
-      const detailsSectionField = nextFields.find((f) => f.id === "detailsSection");
-      if (detailsSectionField) {
-        detailsSectionField.visible = true;
-      }
-    }
 
     updateFormConfig({ ...formConfig, fields: nextFields });
   };
@@ -341,6 +403,7 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
               {FIELD_GROUPS.map((group) => {
                 const visible = isGroupVisible(group);
                 const required = isGroupRequired(group);
+                const canBeRequired = canGroupBeRequired(group);
                 
                 return (
                   <div key={group.id} className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-slate-50/40 transition-colors">
@@ -352,17 +415,20 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
                     <div className="col-span-3 sm:col-span-2 flex justify-center">
                       <Switch
                         checked={visible}
-                        disabled={group.alwaysVisible}
                         onCheckedChange={(val) => handleGroupVisibilityChange(group, val)}
                       />
                     </div>
                     
                     <div className="col-span-3 sm:col-span-2 flex justify-center">
-                      <Switch
-                        checked={required}
-                        disabled={group.alwaysRequired || !visible}
-                        onCheckedChange={(val) => handleGroupRequiredChange(group, val)}
-                      />
+                      {canBeRequired ? (
+                        <Switch
+                          checked={required}
+                          disabled={!visible}
+                          onCheckedChange={(val) => handleGroupRequiredChange(group, val)}
+                        />
+                      ) : (
+                        <span className="text-slate-300 text-xs font-semibold select-none">–</span>
+                      )}
                     </div>
                   </div>
                 );
