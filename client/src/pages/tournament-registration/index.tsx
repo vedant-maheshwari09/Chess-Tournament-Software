@@ -266,7 +266,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
   const steps = useMemo(() => {
     if (!config) return [];
     const fields = config.registrationFormConfig?.fields || DEFAULT_REGISTRATION_FIELDS;
-    const visibleFields = fields.filter(f => f.visible);
+    const visibleFields = fields.filter((f: any) => f.visible);
 
     // Group fields into pages based on type === "section"
     const pages: any[] = [];
@@ -542,7 +542,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
 
   const selectedEntryFeeId = (watchEntryFeeId as string) ?? "";
   const selectedEntryFee = useMemo(
-    () => entryFees.find((fee) => fee.id === selectedEntryFeeId) ?? null,
+    () => entryFees.find((fee: any) => fee.id === selectedEntryFeeId) ?? null,
     [entryFees, selectedEntryFeeId],
   );
   const processingContributionValue = useMemo(() => parseContribution(watchContribution), [watchContribution]);
@@ -581,7 +581,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
 
     return playerDrafts.reduce((acc, entry) => {
       const values = entry.values;
-      const entryFee = entryFees.find(f => f.id === values.entryFeeId) ?? null;
+      const entryFee = entryFees.find((f: any) => f.id === values.entryFeeId) ?? null;
       const contribution = parseContribution(values.processingContribution);
       const totals = computePaymentTotals(
         entryFee,
@@ -1420,10 +1420,10 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
   const playerCount = players.length;
   const playerLimit = config.registers?.playerLimit ?? null;
 
-  const validateStepFields = async (step: typeof steps[number]): Promise<boolean> => {
+  const validateStepFields = async (step: any): Promise<boolean> => {
     let isValid = true;
     const values = form.getValues();
-    const fields = config?.registrationFormConfig?.fields || DEFAULT_REGISTRATION_FIELDS;
+    const fields = (config?.registrationFormConfig?.fields || DEFAULT_REGISTRATION_FIELDS) as any[];
 
     if (step.type === "lookup") {
       const lookupFields: (keyof RegistrationFormValues)[] = [];
@@ -1454,7 +1454,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
         "playerIdentityHeading", "contactInfoHeading"
       ];
       const activeFields = step.section ? [step.section, ...step.fields] : step.fields;
-      const extraFields = activeFields.filter(f => f && !hardcodedIds.includes(f.id));
+      const extraFields = activeFields.filter((f: any) => f && !hardcodedIds.includes(f.id));
 
       for (const field of extraFields) {
         if (field.type === "section") continue;
@@ -1469,20 +1469,94 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
         isValid = await form.trigger(lookupFields, { shouldFocus: true });
       }
 
-      if (isValid && config?.registers?.verifyUscfMembership) {
+      // 1. Case Formatting & Spelling Enforcer
+      const nameConfig = fields.find(f => f.id === "name") || fields.find(f => f.id === "firstName");
+      if (nameConfig) {
+        const caseFormatting = nameConfig.settings?.caseFormatting || "none";
+        if (caseFormatting === "upper") {
+          if (values.firstName) form.setValue("firstName", values.firstName.toUpperCase());
+          if (values.lastName) form.setValue("lastName", values.lastName.toUpperCase());
+        } else if (caseFormatting === "title") {
+          const toTitleCase = (str: string) => str.replace(/\w\S*/g, (txt) => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase());
+          if (values.firstName) form.setValue("firstName", toTitleCase(values.firstName));
+          if (values.lastName) form.setValue("lastName", toTitleCase(values.lastName));
+        }
+
+        const registrySpellingEnforcer = nameConfig.settings?.registrySpellingEnforcer === true;
+        if (registrySpellingEnforcer) {
+          const regFirst = values.customAnswers?.registryFirstName;
+          const regLast = values.customAnswers?.registryLastName;
+          if (regFirst || regLast) {
+            if (
+              (regFirst && values.firstName?.trim().toLowerCase() !== regFirst.trim().toLowerCase()) ||
+              (regLast && values.lastName?.trim().toLowerCase() !== regLast.trim().toLowerCase())
+            ) {
+              form.setError("firstName", {
+                type: "manual",
+                message: "Strict Autofill active: First name must match official registry spelling."
+              });
+              form.setError("lastName", {
+                type: "manual",
+                message: "Strict Autofill active: Last name must match official registry spelling."
+              });
+              isValid = false;
+            } else {
+              form.clearErrors("firstName");
+              form.clearErrors("lastName");
+            }
+          }
+        }
+      }
+
+      // 2. USCF ID & Expiration Date validation
+      if (isValid && (config?.registers?.verifyUscfMembership || fields.find(f => f.id === "uscfId")?.visible)) {
         const uscfId = values.uscfId;
-        if (!uscfId || !/^\d{8}$/.test(uscfId.trim())) {
+        const uscfIdField = fields.find(f => f.id === "uscfId");
+        
+        if (uscfIdField?.required && (!uscfId || !/^\d{8}$/.test(uscfId.trim()))) {
           form.setError("uscfId", {
             type: "manual",
             message: "Please enter a valid 8-digit USCF ID"
           });
           isValid = false;
         }
+
+        const uscfExpiration = values.customAnswers?.uscfExpiration;
+        const rejectExpiredMembership = uscfIdField?.settings?.rejectExpiredMembership !== false; // default true
+        
+        if (uscfExpiration && /^\d{4}-\d{2}-\d{2}$/.test(uscfExpiration) && rejectExpiredMembership) {
+          const expDate = new Date(uscfExpiration);
+          const tourneyStart = config.basic.startDate ? new Date(config.basic.startDate) : new Date();
+          if (expDate < tourneyStart) {
+            form.setError("uscfId", {
+              type: "manual",
+              message: `Your USCF Membership has expired (Expires: ${uscfExpiration}). It must be active through the tournament.`
+            });
+            isValid = false;
+          }
+        }
+      }
+
+      // 3. Rating Floor constraint validation
+      if (isValid) {
+        const uscfIdField = fields.find(f => f.id === "uscfId");
+        const ratingFloor = uscfIdField?.settings?.ratingFloorConstraint;
+        if (typeof ratingFloor === "number") {
+          const ratingVal = values.uscfRatingRaw || values.uscfRating;
+          const ratingNum = ratingVal ? parseInt(String(ratingVal).replace(/[^\d]/g, "")) : null;
+          if (ratingNum !== null && ratingNum < ratingFloor) {
+            form.setError("uscfId", {
+              type: "manual",
+              message: `Your USCF rating (${ratingNum}) is below the required tournament minimum of ${ratingFloor}.`
+            });
+            isValid = false;
+          }
+        }
       }
 
       // --- CHESS-SPECIFIC ADDITIONAL VALIDATIONS FOR LOOKUP STEP ---
-      const hasEmailInExtra = extraFields.some(f => f.id === "email");
-      const emailConfigInExtra = extraFields.find(f => f.id === "email") || fields.find(f => f.id === "email");
+      const hasEmailInExtra = extraFields.some((f: any) => f.id === "email");
+      const emailConfigInExtra = extraFields.find((f: any) => f.id === "email") || fields.find((f: any) => f.id === "email");
       const doubleCheck = emailConfigInExtra?.settings?.doubleEntryCheck === true;
       if (doubleCheck && (hasEmailInExtra || fields.find(f => f.id === "email")?.visible)) {
         if (values.customAnswers?.confirmEmail !== values.email) {
@@ -1503,7 +1577,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
         "11th Grade", "12th Grade"
       ];
 
-      const scholasticGradeField = extraFields.find(f => f.id === "scholasticGrade") || fields.find(f => f.id === "scholasticGrade");
+      const scholasticGradeField = extraFields.find((f: any) => f.id === "scholasticGrade") || fields.find((f: any) => f.id === "scholasticGrade");
       if (scholasticGradeField && scholasticGradeField.visible) {
         const gradeVal = values.customAnswers?.scholasticGrade;
         if (gradeVal) {
@@ -1522,7 +1596,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
         }
       }
 
-      const birthdateField = extraFields.find(f => f.id === "birthdate") || fields.find(f => f.id === "birthdate");
+      const birthdateField = extraFields.find((f: any) => f.id === "birthdate") || fields.find((f: any) => f.id === "birthdate");
       if (birthdateField && birthdateField.visible) {
         const birthdateVal = values.customAnswers?.birthdate || (values as any).birthdate;
         if (birthdateVal) {
@@ -1557,7 +1631,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
         }
       }
 
-      const sectionField = extraFields.find(f => f.id === "sectionChoice") || fields.find(f => f.id === "sectionChoice");
+      const sectionField = extraFields.find((f: any) => f.id === "sectionChoice") || fields.find((f: any) => f.id === "sectionChoice");
       if (sectionField) {
         const allowPlayingUp = sectionField.settings?.allowPlayingUp !== false && config.registers?.allowPlayingUp !== false;
         if (!allowPlayingUp) {
@@ -1638,8 +1712,8 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
       }
 
       // --- CHESS-SPECIFIC ADDITIONAL VALIDATIONS FOR DETAILS STEP ---
-      const hasEmailInDetails = step.fields.some(f => f.id === "email");
-      const emailConfigInDetails = step.fields.find(f => f.id === "email") || fields.find(f => f.id === "email");
+      const hasEmailInDetails = step.fields.some((f: any) => f.id === "email");
+      const emailConfigInDetails = step.fields.find((f: any) => f.id === "email") || fields.find((f: any) => f.id === "email");
       const doubleCheck = emailConfigInDetails?.settings?.doubleEntryCheck === true;
       if (doubleCheck && (hasEmailInDetails || fields.find(f => f.id === "email")?.visible)) {
         if (values.customAnswers?.confirmEmail !== values.email) {
@@ -1660,7 +1734,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
         "11th Grade", "12th Grade"
       ];
 
-      const scholasticGradeField = step.fields.find(f => f.id === "scholasticGrade") || fields.find(f => f.id === "scholasticGrade");
+      const scholasticGradeField = step.fields.find((f: any) => f.id === "scholasticGrade") || fields.find((f: any) => f.id === "scholasticGrade");
       if (scholasticGradeField && scholasticGradeField.visible) {
         const gradeVal = values.customAnswers?.scholasticGrade;
         if (gradeVal) {
@@ -1679,7 +1753,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
         }
       }
 
-      const birthdateField = step.fields.find(f => f.id === "birthdate") || fields.find(f => f.id === "birthdate");
+      const birthdateField = step.fields.find((f: any) => f.id === "birthdate") || fields.find((f: any) => f.id === "birthdate");
       if (birthdateField && birthdateField.visible) {
         const birthdateVal = values.customAnswers?.birthdate || (values as any).birthdate;
         if (birthdateVal) {
@@ -1714,7 +1788,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
         }
       }
 
-      const sectionField = step.fields.find(f => f.id === "sectionChoice") || fields.find(f => f.id === "sectionChoice");
+      const sectionField = step.fields.find((f: any) => f.id === "sectionChoice") || fields.find((f: any) => f.id === "sectionChoice");
       if (sectionField) {
         const allowPlayingUp = sectionField.settings?.allowPlayingUp !== false && config.registers?.allowPlayingUp !== false;
         if (!allowPlayingUp) {
@@ -2288,7 +2362,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
                               {displayDrafts.map((entry, index) => {
                                 const values = entry.values;
                                 const name = `${values.firstName} ${values.lastName}`.trim() || `Player ${index + 1}`;
-                                const entryFee = entryFees.find((fee) => fee.id === values.entryFeeId) ?? null;
+                                const entryFee = entryFees.find((fee: any) => fee.id === values.entryFeeId) ?? null;
                                 const contribution = parseContribution(values.processingContribution);
                                 const totals = computePaymentTotals(entryFee, contribution, paymentSettings, values.customAnswers);
                                 const isDraft = entry.id !== 'single' && entry.id !== 'current-form' && entry.id !== 'placeholder' && entry.id !== 'edit-draft';
@@ -2364,7 +2438,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
                               <span className="text-lg font-bold text-blue-700">
                                 {formatCurrency(
                                   displayDrafts.reduce((sum, entry) => {
-                                    const fee = entryFees.find((f) => f.id === entry.values.entryFeeId) ?? null;
+                                    const fee = entryFees.find((f: any) => f.id === entry.values.entryFeeId) ?? null;
                                     const contribution = parseContribution(entry.values.processingContribution);
                                     const totals = computePaymentTotals(fee, contribution, paymentSettings, entry.values.customAnswers);
                                     return sum + totals.total;

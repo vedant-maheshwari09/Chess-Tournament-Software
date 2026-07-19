@@ -24,15 +24,95 @@ export function normalizeCurrency(input: unknown, fallback: string): string {
 export function computePaymentTotals(
   entryFee: EntryFeeRule | null,
   contribution: number,
-  paymentConfig: PaymentSettings,
+  paymentConfig: PaymentSettings | null,
+  customAnswers?: Record<string, any>,
+  fields?: any[],
+  sections?: any[],
+  sectionChoice?: string,
+  ratingProvider?: string,
+  uscfRating?: string,
+  fideRating?: string,
+  primaryRatingSystem?: "uscf" | "fide"
 ) {
-  const currency = normalizeCurrency(entryFee?.currency, paymentConfig.defaultCurrency ?? "USD");
-  const baseAmount = (entryFee?.amount ?? 0) + contribution;
-  const percent = Number(paymentConfig.processingFeePercent ?? 0);
-  const feeAmount = percent > 0 ? Number((baseAmount * (percent / 100)).toFixed(2)) : 0;
-  const total = Number((baseAmount + feeAmount).toFixed(2));
+  const allowContribution = paymentConfig?.allowProcessingContribution !== false;
+  const baseContribution = allowContribution ? contribution : 0;
+
+  // Calculate GM/IM/WGM/WIM Title Fee Waiver
+  const entryFeeField = fields?.find((f: any) => f.id === "entryFee");
+  const waiveTitledFee = entryFeeField?.settings?.waiveTitledFee === true;
+  const fideTitle = customAnswers?.fideTitle;
+  const isTitledPlayer = fideTitle && ["GM", "IM", "WGM", "WIM"].includes(String(fideTitle).toUpperCase());
+  
+  let entryFeeAmount = entryFee?.amount ?? 0;
+  if (waiveTitledFee && isTitledPlayer) {
+    entryFeeAmount = 0;
+  }
+
+  // Calculate Custom Surcharge Fee for Playing Up
+  let playUpSurcharge = 0;
+  if (sections && sectionChoice) {
+    const selectedSection = sections.find((s: any) => s.name.trim().toLowerCase() === sectionChoice.trim().toLowerCase());
+    if (selectedSection && selectedSection.ratingMin !== null) {
+      // Inline derivePlayerRating logic
+      const parsedUscf = uscfRating ? parseInt(String(uscfRating).replace(/[^\d]/g, ""), 10) : NaN;
+      const parsedFide = fideRating ? parseInt(String(fideRating).replace(/[^\d]/g, ""), 10) : NaN;
+      let numericRating: number | null = null;
+      if (ratingProvider === "uscf" || ratingProvider === "manual") {
+        numericRating = Number.isFinite(parsedUscf) ? parsedUscf : null;
+      } else if (ratingProvider === "fide") {
+        numericRating = Number.isFinite(parsedFide) ? parsedFide : null;
+      } else {
+        if (primaryRatingSystem === "fide") {
+          numericRating = Number.isFinite(parsedFide) ? parsedFide : Number.isFinite(parsedUscf) ? parsedUscf : null;
+        } else {
+          numericRating = Number.isFinite(parsedUscf) ? parsedUscf : Number.isFinite(parsedFide) ? parsedFide : null;
+        }
+      }
+
+      if (numericRating !== null && numericRating < selectedSection.ratingMin) {
+        const sectionChoiceField = fields?.find((f: any) => f.id === "sectionChoice");
+        const playUpFeeAmount = sectionChoiceField?.settings?.playUpFeeAmount ?? entryFeeField?.settings?.playUpFeeAmount;
+        if (typeof playUpFeeAmount === "number" && playUpFeeAmount > 0) {
+          playUpSurcharge = playUpFeeAmount;
+        }
+      }
+    }
+  }
+
+  // Calculate custom payment addons
+  let addonTotal = 0;
+  if (customAnswers) {
+    const hasUscf = customAnswers.uscfMembershipRenewalFee === true || customAnswers.uscfMembershipRenewalFee === "true";
+    const hasTshirt = customAnswers.tshirtPreorderFee === true || customAnswers.tshirtPreorderFee === "true";
+    const donationValue = customAnswers.donationPrizeFund;
+    let donationAmount = 0;
+    if (typeof donationValue === "string") {
+      if (donationValue.includes("$10")) donationAmount = 10;
+      else if (donationValue.includes("$25")) donationAmount = 25;
+      else if (donationValue.includes("$50")) donationAmount = 50;
+      else if (donationValue.includes("$100")) donationAmount = 100;
+    }
+    const discountCode = customAnswers.earlyBirdDiscountCode || customAnswers.voucherCode;
+    let discountAmount = 0;
+    if (typeof discountCode === "string") {
+      const code = discountCode.trim().toUpperCase();
+      if (code === "EARLYBIRD10" || code === "CHESSCLUB") {
+        discountAmount = 10;
+      }
+    }
+    addonTotal = (hasUscf ? 45 : 0) + (hasTshirt ? 20 : 0) + donationAmount - discountAmount;
+  }
+
+  const baseAmount = Math.max(0, entryFeeAmount + playUpSurcharge + addonTotal);
+  const currency = normalizeCurrency(entryFee?.currency, paymentConfig?.defaultCurrency ?? "USD");
+  const subtotal = Number((baseAmount + baseContribution).toFixed(2));
+  const percent = typeof paymentConfig?.processingFeePercent === "number" ? paymentConfig.processingFeePercent : 0;
+  const feeRate = Math.max(0, Math.min(10, percent));
+  const feeAmount = Number(((subtotal * feeRate) / 100).toFixed(2));
+  const total = Number((subtotal + feeAmount).toFixed(2));
+
   return {
-    subtotal: Number(baseAmount.toFixed(2)),
+    subtotal,
     feeAmount,
     total,
     currency,

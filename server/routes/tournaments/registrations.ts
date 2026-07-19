@@ -366,7 +366,19 @@ export function applyRegistrationsRoutes(app: Express) {
         ? config.entryFees.find((fee) => fee.id === payload.entryFeeId) ?? null
         : null;
       const contribution = Number.isFinite(payload.processingContribution) ? Number(payload.processingContribution) : 0;
-      const totals = computePaymentTotals(entryFee, contribution, payments);
+      const totals = computePaymentTotals(
+        entryFee,
+        contribution,
+        payments,
+        payload.customAnswers || {},
+        config.registrationFormConfig?.fields || [],
+        config.sections || [],
+        payload.sectionChoice || undefined,
+        payload.ratingProvider || undefined,
+        payload.uscfId ? (payload.uscfRatingRaw || String(payload.uscfRating) || undefined) as string | undefined : undefined,
+        payload.fideId ? (payload.fideRatingRaw || String(payload.fideRating) || undefined) as string | undefined : undefined,
+        config.details.primaryRatingSystem as any
+      );
 
       let amountDue = Number.isFinite(payload.amountDue) ? Number(payload.amountDue) : totals.total;
       if (!Number.isFinite(amountDue)) {

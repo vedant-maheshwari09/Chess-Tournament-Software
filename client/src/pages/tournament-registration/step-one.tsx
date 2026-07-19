@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useFormContext } from "react-hook-form";
-import { Search, Loader2, RefreshCw, AlertCircle, Check, Info } from "lucide-react";
+import { Search, Loader2, RefreshCw, AlertCircle, Check, Info, AlertTriangle, ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { Player } from "@shared/schema";
 import { Card, CardContent } from "@/components/ui/card";
@@ -156,6 +156,16 @@ export default function StepOne({
   const ratingProvider = form.watch("ratingProvider");
   const uscfRatingValue = form.watch("uscfRating");
   const fideRatingValue = form.watch("fideRating");
+  const uscfExpiration = form.watch("customAnswers.uscfExpiration");
+
+  const isExpired = useMemo(() => {
+    if (!uscfExpiration || !/^\d{4}-\d{2}-\d{2}$/.test(uscfExpiration)) return false;
+    const expDate = new Date(uscfExpiration);
+    const startDateStr = config?.basic.startDate || new Date().toISOString();
+    const tourneyStart = new Date(startDateStr);
+    return expDate < tourneyStart;
+  }, [uscfExpiration, config]);
+
   const [searchTerm, setSearchTerm] = useState("");
   const [remoteResults, setRemoteResults] = useState<RatingLookupResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -289,6 +299,8 @@ export default function StepOne({
     form.setValue("profileSelected", true, { shouldDirty: true });
     form.setValue("firstName", player.firstName, { shouldDirty: true, shouldValidate: true });
     form.setValue("lastName", player.lastName, { shouldDirty: true, shouldValidate: true });
+    form.setValue("customAnswers.registryFirstName", player.firstName, { shouldDirty: true });
+    form.setValue("customAnswers.registryLastName", player.lastName, { shouldDirty: true });
     if (player.rating) {
       const primarySystem = config?.details.primaryRatingSystem || "uscf";
       if (primarySystem === "fide") {
@@ -308,6 +320,8 @@ export default function StepOne({
     form.setValue("profileSelected", true, { shouldDirty: true });
     form.setValue("firstName", firstName, { shouldDirty: true, shouldValidate: true });
     form.setValue("lastName", lastName, { shouldDirty: true, shouldValidate: true });
+    form.setValue("customAnswers.registryFirstName", firstName, { shouldDirty: true });
+    form.setValue("customAnswers.registryLastName", lastName, { shouldDirty: true });
     if (result.source === "uscf") {
       form.setValue("ratingProvider", "uscf", { shouldDirty: true });
       form.setValue("uscfId", result.id, { shouldDirty: true });
@@ -536,14 +550,39 @@ export default function StepOne({
               />
             )}
             {getFieldConfig(config, "uscfId").visible && (
-              <Field 
-                label={getFieldConfig(config, "uscfId").label} 
-                name="uscfId" 
-                required={getFieldConfig(config, "uscfId").required} 
-                placeholder={getFieldConfig(config, "uscfId").placeholder}
-                description={getFieldConfig(config, "uscfId").description}
-                disabled={Boolean(config?.registers?.strictAutofillOnly)}
-              />
+              <div className="space-y-3">
+                <Field 
+                  label={getFieldConfig(config, "uscfId").label} 
+                  name="uscfId" 
+                  required={getFieldConfig(config, "uscfId").required} 
+                  placeholder={getFieldConfig(config, "uscfId").placeholder}
+                  description={getFieldConfig(config, "uscfId").description}
+                  disabled={Boolean(config?.registers?.strictAutofillOnly)}
+                />
+                {isExpired && getFieldConfig(config, "uscfId").settings?.provideRenewalLink !== false && (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-4 text-xs text-amber-800 space-y-2 shadow-sm animate-in fade-in slide-in-from-top-1 duration-200">
+                    <div className="flex items-start gap-2.5 font-sans">
+                      <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                      <div className="space-y-1">
+                        <p className="font-bold">USCF Membership Expired / Expiring</p>
+                        <p className="text-amber-700 font-medium">
+                          Your USCF membership expires on <strong className="text-amber-900">{uscfExpiration}</strong>, which is before the tournament start date.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="pl-6.5">
+                      <a
+                        href="https://new.uschess.org/join-us-or-renew"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 font-bold text-amber-950 hover:text-amber-900 underline underline-offset-2 hover:no-underline transition-all"
+                      >
+                        Renew Membership on US Chess <ExternalLink className="h-3 w-3" />
+                      </a>
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
             {getFieldConfig(config, "fideId").visible && (
               <Field 
@@ -557,13 +596,29 @@ export default function StepOne({
             )}
             {config?.details.primaryRatingSystem === "fide" ? (
               <>
-                <Field label="FIDE rating (Primary)" name="fideRating" disabled={Boolean(config?.registers?.strictAutofillOnly)} />
-                <UscfRatingField disabled={Boolean(config?.registers?.strictAutofillOnly)} />
+                {getFieldConfig(config, "fideRating").visible && (
+                  <Field
+                    label={getFieldConfig(config, "fideRating").label || "FIDE rating (Primary)"}
+                    name="fideRating"
+                    disabled={Boolean(config?.registers?.strictAutofillOnly)}
+                  />
+                )}
+                {getFieldConfig(config, "uscfRating").visible && (
+                  <UscfRatingField disabled={Boolean(config?.registers?.strictAutofillOnly)} />
+                )}
               </>
             ) : (
               <>
-                <UscfRatingField disabled={Boolean(config?.registers?.strictAutofillOnly)} />
-                <Field label="FIDE rating" name="fideRating" disabled={Boolean(config?.registers?.strictAutofillOnly)} />
+                {getFieldConfig(config, "uscfRating").visible && (
+                  <UscfRatingField disabled={Boolean(config?.registers?.strictAutofillOnly)} />
+                )}
+                {getFieldConfig(config, "fideRating").visible && (
+                  <Field
+                    label={getFieldConfig(config, "fideRating").label || "FIDE rating"}
+                    name="fideRating"
+                    disabled={Boolean(config?.registers?.strictAutofillOnly)}
+                  />
+                )}
               </>
             )}
             {getFieldConfig(config, "city").visible && (

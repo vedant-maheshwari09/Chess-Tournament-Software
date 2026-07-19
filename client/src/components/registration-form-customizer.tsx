@@ -320,6 +320,13 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
     });
   };
 
+  const handleFormHeaderChange = (key: "formTitle" | "formDescription", value: string) => {
+    updateFormConfig({
+      ...formConfig,
+      [key]: value
+    });
+  };
+
   const handleRegistersChange = (key: keyof RegistersConfig, value: any) => {
     const extra = key === "allowSignup" ? { allowPlayerToJoin: value } : {};
     onConfigChange({
@@ -407,7 +414,7 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
     return firstField?.settings ?? {};
   };
 
-  const handleGroupSettingsChange = (group: FieldGroup, update: Partial<FieldSubSettings> | ((prev: FieldSubSettings) => FieldSubSettings)) => {
+  const handleGroupSettingsChange = (group: FieldGroup, update: Partial<any> | ((prev: any) => any)) => {
     const nextFields = formConfig.fields.map((f) => {
       if (group.fieldIds.includes(f.id)) {
         const currentSettings = f.settings ?? {};
@@ -460,6 +467,34 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
             </CardDescription>
           </CardHeader>
           <CardContent className="p-0">
+            {/* Custom Form Header & Subtitle */}
+            <div className="p-5 bg-slate-50/25 border-b border-slate-100 space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-slate-700">Form Custom Title</Label>
+                  <Input
+                    type="text"
+                    placeholder="e.g. American Open Registration Form"
+                    value={formConfig.formTitle || ""}
+                    onChange={(e) => handleFormHeaderChange("formTitle", e.target.value)}
+                    className="bg-white border-slate-200 focus:ring-blue-200 text-xs font-medium h-9 rounded-xl"
+                  />
+                  <p className="text-[10px] text-slate-400 font-semibold">Custom header title displayed under the live registration wizard.</p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-slate-700">Form Custom Subtitle / Description</Label>
+                  <Input
+                    type="text"
+                    placeholder="e.g. Nov 26-29, 2026 · Los Angeles · 6 rounds"
+                    value={formConfig.formDescription || ""}
+                    onChange={(e) => handleFormHeaderChange("formDescription", e.target.value)}
+                    className="bg-white border-slate-200 focus:ring-blue-200 text-xs font-medium h-9 rounded-xl"
+                  />
+                  <p className="text-[10px] text-slate-400 font-semibold">Custom subtitle text displayed below the title header.</p>
+                </div>
+              </div>
+            </div>
+
             <div className="divide-y divide-slate-100">
               {/* Table header */}
               <div className="grid grid-cols-12 gap-4 px-6 py-3 bg-slate-50 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
