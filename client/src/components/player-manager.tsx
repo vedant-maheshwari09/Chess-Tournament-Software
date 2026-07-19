@@ -983,15 +983,6 @@ export default function PlayerManager({ tournament, tournamentId, isTD = true }:
                 {visibleColumns.includes("uscfMembership") && (
                   <TableCell className="px-2 py-2 whitespace-nowrap overflow-hidden font-sans text-sm" onClick={(e) => e.stopPropagation()}>
                     {(() => {
-                      const isForeign = player.federation && !["USCF", "USA", "United States", "US Chess"].includes(player.federation);
-                      const isFidePlayer = player.federation?.toLowerCase() === 'fide' || Boolean(player.fideRating);
-                      if (isForeign || isFidePlayer) {
-                        return (
-                          <Badge className="whitespace-nowrap bg-sky-50 text-sky-700 hover:bg-sky-50 border border-sky-250/30 text-sm px-2 py-0.5 rounded-full font-medium shadow-none font-sans">
-                            Exempt (FIDE)
-                          </Badge>
-                        );
-                      }
                       const rawExpiry = player.uscfMemberExpiry || (player as any).userUscfMemberExpiry;
                       if (!rawExpiry) {
                         return (

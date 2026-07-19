@@ -443,7 +443,7 @@ export default function TournamentRegistrationFormPage({ tournamentId }: Tournam
     }
 
     // USCF Membership validation if verifyUscfMembership is enabled
-    if (config?.registers?.verifyUscfMembership && values.ratingProvider !== 'fide') {
+    if (config?.registers?.verifyUscfMembership) {
       const uscfId = values.uscfId;
       const uscfRating = values.uscfRating;
       const uscfExpiration = values.customAnswers?.uscfExpiration;

@@ -24,6 +24,7 @@ export default function RegistrationFormConfigurator({ tournamentId, tournament 
 
   // Local state for the tournament config
   const [localConfig, setLocalConfig] = useState<TournamentConfig | null>(null);
+  const [saveSuccessCount, setSaveSuccessCount] = useState(0);
 
   useEffect(() => {
     if (tournamentConfig) {
@@ -44,6 +45,7 @@ export default function RegistrationFormConfigurator({ tournamentId, tournament 
         description: "Successfully updated registration form fields.",
       });
       queryClient.invalidateQueries({ queryKey: [`/api/tournaments/${tournamentId}`] });
+      setSaveSuccessCount(prev => prev + 1);
     },
     onError: (err: any) => {
       toast({
@@ -80,6 +82,7 @@ export default function RegistrationFormConfigurator({ tournamentId, tournament 
         config={localConfig}
         onConfigChange={setLocalConfig}
         tournamentSlug={slugify(tournament.name)}
+        saveSuccessCount={saveSuccessCount}
         actions={
           <Button 
             onClick={handleSave} 

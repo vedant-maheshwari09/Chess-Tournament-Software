@@ -294,6 +294,35 @@ export const DEFAULT_REGISTRATION_FIELDS: RegistrationFormField[] = [
     placeholder: "e.g. 1500021",
     description: "Your official World Chess Federation ID (if applicable)."
   },
+  {
+    id: "club",
+    label: "Chess Club",
+    type: "text",
+    required: false,
+    visible: false,
+    placeholder: "e.g. Marshall Chess Club",
+    description: "Enter your local chess club (if applicable).",
+    isCustom: true
+  },
+  {
+    id: "birthdate",
+    label: "Birthdate",
+    type: "date",
+    required: false,
+    visible: false,
+    description: "Your date of birth (required for age-restricted sections).",
+    isCustom: true
+  },
+  {
+    id: "sex",
+    label: "Gender / Sex",
+    type: "select",
+    required: false,
+    visible: false,
+    options: ["Male", "Female", "Other", "Prefer not to say"],
+    description: "Required for gender-restricted sections.",
+    isCustom: true
+  },
   { 
     id: "city", 
     label: "City", 
@@ -327,6 +356,16 @@ export const DEFAULT_REGISTRATION_FIELDS: RegistrationFormField[] = [
     visible: true,
     placeholder: "e.g. john.doe@example.com",
     description: "We will send pairing notifications and receipts here."
+  },
+  {
+    id: "phone",
+    label: "Phone Number",
+    type: "text",
+    required: false,
+    visible: false,
+    placeholder: "e.g. 555-0199",
+    description: "Your primary phone number for urgent updates.",
+    isCustom: true
   },
   {
     id: "ratingProvider",
@@ -822,10 +861,14 @@ export function normalizeRegistrationFields(fields: RegistrationFormField[]): Re
   pushSystemField("lastName");
   pushSystemField("uscfId");
   pushSystemField("fideId");
+  pushSystemField("club");
+  pushSystemField("birthdate");
+  pushSystemField("sex");
   pushSystemField("city");
   pushSystemField("state");
   pushSystemField("contactInfoHeading");
   pushSystemField("email");
+  pushSystemField("phone");
   pushSystemField("ratingProvider");
 
   // 2. Details section header

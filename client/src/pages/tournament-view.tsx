@@ -10,7 +10,7 @@ import SwissStandings from "@/components/swiss-standings";
 import SwissPairings from "@/components/swiss-pairings";
 import RoundRobinCrosstable from "@/components/round-robin-crosstable";
 import PairingPredictor from "@/components/pairing-predictor";
-import TournamentByes from "@/components/tournament-byes";
+import TournamentEntries from "@/components/tournament-entries";
 import {
   createDefaultConfig,
   parseTournamentConfig,
@@ -29,13 +29,13 @@ import { ArenaLobby, ArenaActiveMatches, ArenaStandings, ArenaTimer } from "@/co
 import PlayerManager from "@/components/player-manager";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
-type TabKey = "pairings" | "standings" | "byes" | "predictor" | "info" | "lobby" | "players" | "bracket";
+type TabKey = "pairings" | "standings" | "entries" | "predictor" | "info" | "lobby" | "players" | "bracket";
 
 const TAB_LABELS: Record<TabKey, string> = {
   lobby: "Arena",
   pairings: "Pairings",
   standings: "Standings",
-  byes: "Byes",
+  entries: "Entries",
   predictor: "Pairing Predictor",
   info: "Information",
   players: "Players",
@@ -141,14 +141,14 @@ export default function TournamentView({ tournamentId }: TournamentViewProps) {
     } else if (tournament?.format === "swiss") {
       const tabs: TabKey[] = ["standings", "pairings"];
       if (showPredictor) tabs.push("predictor");
-      tabs.push("byes", "info");
+      tabs.push("entries", "info");
       return tabs;
     } else if (tournament?.format === "arena") {
       return ["players", "lobby", "standings", "info"];
     } else if (tournament?.format === "roundrobin") {
-      return ["standings", "pairings", "byes", "info"];
+      return ["standings", "pairings", "entries", "info"];
     }
-    return ["standings", "pairings", "byes", "info"];
+    return ["standings", "pairings", "entries", "info"];
   }, [tournament?.format, showPredictor]);
 
   const activeTab = availableTabs.includes(tabParam) ? tabParam : availableTabs[0];
@@ -467,8 +467,8 @@ export default function TournamentView({ tournamentId }: TournamentViewProps) {
             </Card>
           </TabsContent>
 
-          <TabsContent value="byes" className="mt-8">
-            <TournamentByes tournamentId={tournamentId} />
+          <TabsContent value="entries" className="mt-8">
+            <TournamentEntries tournamentId={tournamentId} players={allPlayers} />
           </TabsContent>
 
           {showPredictor && (
