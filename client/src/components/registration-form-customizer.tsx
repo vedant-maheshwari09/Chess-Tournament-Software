@@ -536,34 +536,178 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           {/* 1. Player Profile Lookup / Search Input */}
                           {(group.id === "lookupSection" || group.id === "playerSearch") && (
-                            <>
-                              <div className="space-y-1.5">
-                                <Label className="text-xs font-bold text-slate-700">Database Verification Source</Label>
-                                <Select
-                                  value={gSettings.validationType || "none"}
-                                  onValueChange={(val) => handleGroupSettingsChange(group, { validationType: val as any })}
-                                >
-                                  <SelectTrigger className="h-8 text-xs rounded-lg border-slate-200">
-                                    <SelectValue placeholder="Select verification policy" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="none">No Database Verification</SelectItem>
-                                    <SelectItem value="strict_active">USCF/FIDE Online Verified</SelectItem>
-                                    <SelectItem value="min_games">Require Active & Established Rating</SelectItem>
-                                  </SelectContent>
-                                </Select>
+                            <div className="col-span-1 md:col-span-2 space-y-4">
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-1.5">
+                                  <Label className="text-xs font-bold text-slate-700">Tournament Entry Type</Label>
+                                  <Select
+                                    value={config.registers?.entryRequirementType || "rated"}
+                                    onValueChange={(val: "casual" | "rated") => {
+                                      if (val === "casual") {
+                                        onConfigChange({
+                                          ...config,
+                                          registers: {
+                                            ...config.registers,
+                                            entryRequirementType: "casual",
+                                            verifyUscfMembership: false,
+                                            uscfRated: false,
+                                            fideRated: false,
+                                            ratedSystem: undefined,
+                                            strictAutofillOnly: false,
+                                          }
+                                        });
+                                      } else {
+                                        onConfigChange({
+                                          ...config,
+                                          registers: {
+                                            ...config.registers,
+                                            entryRequirementType: "rated",
+                                            verifyUscfMembership: true,
+                                            uscfRated: true,
+                                            ratedSystem: "uscf",
+                                            strictAutofillOnly: false,
+                                          }
+                                        });
+                                      }
+                                    }}
+                                  >
+                                    <SelectTrigger className="h-8 text-xs rounded-lg border-slate-200">
+                                      <SelectValue placeholder="Choose entry type" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="casual">Casual / Unrated (No Verification)</SelectItem>
+                                      <SelectItem value="rated">Official Rated (Requires Federation ID)</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                  <p className="text-[10px] text-slate-400 font-semibold leading-normal">
+                                    {config.registers?.entryRequirementType === "casual"
+                                      ? "This tournament is casual. Name and contact info are required; USCF/FIDE lookup steps will be hidden."
+                                      : "Rated tournament. Validates active memberships and fetches ratings automatically."}
+                                  </p>
+                                </div>
+
+                                <div className="space-y-1.5">
+                                  <Label className="text-xs font-bold text-slate-700">Database Verification Source</Label>
+                                  <Select
+                                    value={gSettings.validationType || "none"}
+                                    onValueChange={(val) => handleGroupSettingsChange(group, { validationType: val as any })}
+                                  >
+                                    <SelectTrigger className="h-8 text-xs rounded-lg border-slate-200">
+                                      <SelectValue placeholder="Select verification policy" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="none">No Database Verification</SelectItem>
+                                      <SelectItem value="strict_active">USCF/FIDE Online Verified</SelectItem>
+                                      <SelectItem value="min_games">Require Active & Established Rating</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
                               </div>
-                              <div className="space-y-1.5">
-                                <Label className="text-xs font-bold text-slate-700">Auto-Fill Local Roster Cache</Label>
-                                <div className="flex items-center gap-2 mt-1">
+
+                              {config.registers?.entryRequirementType !== "casual" && (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-slate-100 animate-in slide-in-from-top-1 duration-150">
+                                  <div className="space-y-1.5">
+                                    <Label className="text-xs font-bold text-slate-700">Required Federation System</Label>
+                                    <Select
+                                      value={config.registers?.ratedSystem || "uscf"}
+                                      onValueChange={(val: "uscf" | "fide" | "both" | "either") => {
+                                        onConfigChange({
+                                          ...config,
+                                          registers: {
+                                            ...config.registers,
+                                            ratedSystem: val,
+                                            uscfRated: val === "uscf" || val === "both" || val === "either",
+                                            fideRated: val === "fide" || val === "both" || val === "either",
+                                          }
+                                        });
+                                      }}
+                                    >
+                                      <SelectTrigger className="h-8 text-xs rounded-lg border-slate-200">
+                                        <SelectValue placeholder="Choose rating system" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="uscf">USCF Only</SelectItem>
+                                        <SelectItem value="fide">FIDE Only</SelectItem>
+                                        <SelectItem value="both">Both USCF & FIDE Required</SelectItem>
+                                        <SelectItem value="either">Either USCF or FIDE Required</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+
+                                  <div className="space-y-1.5">
+                                    <Label className="text-xs font-bold text-slate-700">Registration Verification Mode</Label>
+                                    <Select
+                                      value={config.registers?.strictAutofillOnly ? "strict" : "flexible"}
+                                      onValueChange={(val: "strict" | "flexible") => {
+                                        handleRegistersChange("strictAutofillOnly", val === "strict");
+                                      }}
+                                    >
+                                      <SelectTrigger className="h-8 text-xs rounded-lg border-slate-200">
+                                        <SelectValue placeholder="Select registration mode" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="flexible">Flexible (Registry Lookup + Manual Input Override)</SelectItem>
+                                        <SelectItem value="strict">Strict Autofill (Registry Lookup Only - No Manual Edits)</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                    <p className="text-[10px] text-slate-400 font-semibold leading-normal">
+                                      {config.registers?.strictAutofillOnly
+                                        ? "Players must search the registry and select a valid profile. Typing names or IDs manually is disabled."
+                                        : "Players can lookup their profiles, but are allowed to type their ID/rating manually if search fails."}
+                                    </p>
+                                  </div>
+
+                                  <div className="flex items-center justify-between col-span-1 md:col-span-2 pt-2 border-t border-slate-100">
+                                    <div className="space-y-0.5">
+                                      <Label className="text-xs font-bold text-slate-700">Auto-Verify Membership Status</Label>
+                                      <p className="text-[10px] text-slate-500 font-medium">Force lookups against active chess registries during registration.</p>
+                                    </div>
+                                    <Switch
+                                      checked={Boolean(config.registers?.verifyUscfMembership)}
+                                      onCheckedChange={(checked) => handleRegistersChange("verifyUscfMembership", checked)}
+                                    />
+                                  </div>
+
+                                  <div className="space-y-1.5 col-span-1 md:col-span-2">
+                                    <Label className="text-xs font-bold text-slate-700">Provisional Rating Games Threshold</Label>
+                                    <div className="flex items-center gap-4">
+                                      <Input
+                                        type="number"
+                                        value={config.registers?.uscfMinGamesThreshold ?? 4}
+                                        onChange={(e) => handleRegistersChange("uscfMinGamesThreshold", parseInt(e.target.value, 10) || 4)}
+                                        className="w-32 h-8 text-xs border-slate-200 rounded-lg"
+                                        min={0}
+                                      />
+                                      <span className="text-[10px] text-slate-500 font-medium">Number of played games below which a rating is considered provisional (e.g. less than 4 games).</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-slate-100">
+                                <div className="flex items-center justify-between col-span-1 md:col-span-2">
+                                  <div className="space-y-0.5">
+                                    <Label className="text-xs font-bold text-slate-700">Auto-Accept Registrations</Label>
+                                    <p className="text-[10px] text-slate-500 font-medium">Automatically approve submitted registrations and add players directly to the roster.</p>
+                                  </div>
+                                  <Switch
+                                    checked={Boolean(config.registers?.autoAcceptRegistrations)}
+                                    onCheckedChange={(checked) => handleRegistersChange("autoAcceptRegistrations", checked)}
+                                  />
+                                </div>
+
+                                <div className="flex items-center justify-between col-span-1 md:col-span-2 pt-2">
+                                  <div className="space-y-0.5">
+                                    <Label className="text-xs font-bold text-slate-700">Auto-Fill Local Roster Cache</Label>
+                                    <p className="text-[10px] text-slate-500 font-medium">Auto-completes from previously registered player records on the same server.</p>
+                                  </div>
                                   <Switch
                                     checked={Boolean(gSettings.registrySpellingEnforcer)}
                                     onCheckedChange={(val) => handleGroupSettingsChange(group, { registrySpellingEnforcer: val })}
                                   />
-                                  <span className="text-xs font-semibold text-slate-500">Auto-complete spelling matching registry</span>
                                 </div>
                               </div>
-                            </>
+                            </div>
                           )}
 
                           {/* 2. Name field styling / validations */}
@@ -887,328 +1031,185 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
           </CardContent>
         </Card>
 
-        {/* General Settings */}
+        {/* General Form Policies */}
         <Card className="rounded-2xl border bg-white shadow-sm overflow-hidden">
           <CardHeader className="bg-slate-50/50 p-5 border-b">
             <CardTitle className="text-base font-extrabold text-slate-900 flex items-center gap-2">
               <Settings className="h-4.5 w-4.5 text-slate-500" />
               General Form Policies
             </CardTitle>
-            <CardDescription className="text-xs font-semibold text-slate-500">Configure global registration policies.</CardDescription>
+            <CardDescription className="text-xs font-semibold text-slate-500">Configure global registration policies, capacity limits, and payments.</CardDescription>
           </CardHeader>
-          <CardContent className="p-5 space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label className="text-sm font-bold text-slate-800">Enable Multi-Player Registration</Label>
-                <p className="text-xs text-slate-500 leading-normal font-semibold">Allow a player to register multiple participants in a single session (shopping cart mode).</p>
-              </div>
-              <Switch
-                checked={Boolean(config.registers?.allowMultiPlayerSignup)}
-                onCheckedChange={(checked) => handleRegistersChange("allowMultiPlayerSignup", checked)}
-              />
-            </div>
-
-            <div className="flex items-center justify-between border-t pt-4">
-              <div className="space-y-0.5">
-                <Label className="text-sm font-bold text-slate-800">Allow Registration Edits</Label>
-                <p className="text-xs text-slate-500 leading-normal font-semibold">Allow players to modify their sections or request byes after registering.</p>
-              </div>
-              <Switch
-                checked={Boolean(config.registers?.allowEditRegistration)}
-                onCheckedChange={(checked) => handleRegistersChange("allowEditRegistration", checked)}
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Constraints */}
-        <Card className="rounded-2xl border bg-white shadow-sm overflow-hidden">
-          <CardHeader className="bg-slate-50/50 p-5 border-b">
-            <CardTitle className="text-base font-extrabold text-slate-900 flex items-center gap-2">
-              <Settings className="h-4.5 w-4.5 text-slate-500" />
-              Constraints
-            </CardTitle>
-            <CardDescription className="text-xs font-semibold text-slate-500">Configure participant capacity limits and registration deadlines.</CardDescription>
-          </CardHeader>
-          <CardContent className="p-5 space-y-4">
-            <div className="space-y-2">
-              <Label className="text-sm font-bold text-slate-800 block">Participant Capacity</Label>
-              <p className="text-xs text-slate-500 leading-normal font-semibold mb-2">Limit the number of registered players. Leave blank or 0 for no limit.</p>
-              <Input
-                type="number"
-                placeholder="No limit"
-                value={config.registers?.playerLimit || ""}
-                onChange={(e) => handleRegistersChange("playerLimit", parseInt(e.target.value, 10) || null)}
-                className="w-32 h-10 text-xs border-slate-200 rounded-xl"
-                min={0}
-              />
-            </div>
-
-            <div className="space-y-2 border-t pt-4">
-              <Label className="text-sm font-bold text-slate-800 block">Registration Deadline</Label>
-              <p className="text-xs text-slate-500 leading-normal font-semibold mb-2">Players will not be able to register online after this date and time.</p>
-              <div className="flex gap-4">
-                <div className="flex-1">
-                  <Input
-                    type="date"
-                    value={config.registers?.registrationDeadlineDate || ""}
-                    onChange={(e) => handleRegistersChange("registrationDeadlineDate", e.target.value || null)}
-                    className="h-10 text-xs border-slate-200 rounded-xl"
+          <CardContent className="p-5 space-y-6">
+            {/* Subsection 1: Registration Workflow */}
+            <div className="space-y-4">
+              <h4 className="text-xs font-extrabold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                <Sliders className="h-3 w-3 text-indigo-500" />
+                Registration & Edit Workflow
+              </h4>
+              
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label className="text-sm font-bold text-slate-800">Enable Multi-Player Registration</Label>
+                    <p className="text-xs text-slate-500 leading-normal font-semibold">Allow a player to register multiple participants in a single session (shopping cart mode).</p>
+                  </div>
+                  <Switch
+                    checked={Boolean(config.registers?.allowMultiPlayerSignup)}
+                    onCheckedChange={(checked) => handleRegistersChange("allowMultiPlayerSignup", checked)}
                   />
-                </div>
-                <div className="flex-1">
-                  <Input
-                    type="time"
-                    value={config.registers?.registrationDeadlineTime || ""}
-                    onChange={(e) => handleRegistersChange("registrationDeadlineTime", e.target.value || null)}
-                    className="h-10 text-xs border-slate-200 rounded-xl"
-                  />
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Tournament Entry & Rating Requirements */}
-        <Card className="rounded-2xl border bg-white shadow-sm overflow-hidden">
-          <CardHeader className="bg-slate-50/50 p-5 border-b">
-            <CardTitle className="text-base font-extrabold text-slate-900 flex items-center gap-2">
-              <CheckSquare className="h-4.5 w-4.5 text-slate-500" />
-              Tournament Entry & Rating Requirements
-            </CardTitle>
-            <CardDescription className="text-xs font-semibold text-slate-500 font-sans">Configure tournament rating validation and federation verification policies.</CardDescription>
-          </CardHeader>
-          <CardContent className="p-5 space-y-5">
-            <div className="space-y-1.5">
-              <Label className="text-sm font-bold text-slate-800">Tournament Entry Type</Label>
-              <Select
-                value={config.registers?.entryRequirementType || "rated"}
-                onValueChange={(val: "casual" | "rated") => {
-                  if (val === "casual") {
-                    onConfigChange({
-                      ...config,
-                      registers: {
-                        ...config.registers,
-                        entryRequirementType: "casual",
-                        verifyUscfMembership: false,
-                        uscfRated: false,
-                        fideRated: false,
-                        ratedSystem: undefined,
-                        strictAutofillOnly: false,
-                      }
-                    });
-                  } else {
-                    onConfigChange({
-                      ...config,
-                      registers: {
-                        ...config.registers,
-                        entryRequirementType: "rated",
-                        verifyUscfMembership: true,
-                        uscfRated: true,
-                        ratedSystem: "uscf",
-                        strictAutofillOnly: false,
-                      }
-                    });
-                  }
-                }}
-              >
-                <SelectTrigger className="h-10 text-xs border-slate-200 bg-white rounded-xl">
-                  <SelectValue placeholder="Choose entry type" />
-                </SelectTrigger>
-                <SelectContent className="rounded-xl">
-                  <SelectItem value="casual">Casual / Unrated (No Verification)</SelectItem>
-                  <SelectItem value="rated">Official Rated (Requires Federation ID)</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-slate-400 font-medium leading-relaxed">
-                {config.registers?.entryRequirementType === "casual"
-                  ? "This tournament is casual. Name and contact info are required; USCF/FIDE lookup steps will be hidden."
-                  : "Rated tournament. Validates active memberships and fetches ratings automatically."}
-              </p>
-            </div>
-
-            {config.registers?.entryRequirementType !== "casual" && (
-              <div className="space-y-4 border-t pt-4 animate-in slide-in-from-top-2 duration-200">
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-slate-650">Required Federation System</Label>
-                  <Select
-                    value={config.registers?.ratedSystem || "uscf"}
-                    onValueChange={(val: "uscf" | "fide" | "both" | "either") => {
-                      onConfigChange({
-                        ...config,
-                        registers: {
-                          ...config.registers,
-                          ratedSystem: val,
-                          uscfRated: val === "uscf" || val === "both" || val === "either",
-                          fideRated: val === "fide" || val === "both" || val === "either",
-                        }
-                      });
-                    }}
-                  >
-                    <SelectTrigger className="h-10 text-xs border-slate-200 bg-white rounded-xl">
-                      <SelectValue placeholder="Choose rating system" />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-xl">
-                      <SelectItem value="uscf">USCF Only</SelectItem>
-                      <SelectItem value="fide">FIDE Only</SelectItem>
-                      <SelectItem value="both">Both USCF & FIDE Required</SelectItem>
-                      <SelectItem value="either">Either USCF or FIDE Required</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-slate-650">Registration Verification Mode</Label>
-                  <Select
-                    value={config.registers?.strictAutofillOnly ? "strict" : "flexible"}
-                    onValueChange={(val: "strict" | "flexible") => {
-                      handleRegistersChange("strictAutofillOnly", val === "strict");
-                    }}
-                  >
-                    <SelectTrigger className="h-10 text-xs border-slate-200 bg-white rounded-xl">
-                      <SelectValue placeholder="Select registration mode" />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-xl">
-                      <SelectItem value="flexible">Flexible (Registry Lookup + Manual Input Override)</SelectItem>
-                      <SelectItem value="strict">Strict Autofill (Registry Lookup Only - No Manual Edits)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <p className="text-[10px] text-slate-400 leading-normal">
-                    {config.registers?.strictAutofillOnly
-                      ? "Players must search the registry and select a valid profile. Typing names or IDs manually is disabled."
-                      : "Players can lookup their profiles, but are allowed to type their ID/rating manually if search fails."}
-                  </p>
                 </div>
 
                 <div className="flex items-center justify-between border-t pt-4">
                   <div className="space-y-0.5">
-                    <Label className="text-sm font-bold text-slate-800">Auto-Verify Membership Status</Label>
-                    <p className="text-xs text-slate-500 leading-normal font-semibold">Force lookups against active chess registries during registration.</p>
+                    <Label className="text-sm font-bold text-slate-800">Allow Registration Edits</Label>
+                    <p className="text-xs text-slate-500 leading-normal font-semibold">Allow players to modify their sections or request byes after registering.</p>
                   </div>
                   <Switch
-                    checked={Boolean(config.registers?.verifyUscfMembership)}
-                    onCheckedChange={(checked) => handleRegistersChange("verifyUscfMembership", checked)}
+                    checked={Boolean(config.registers?.allowEditRegistration)}
+                    onCheckedChange={(checked) => handleRegistersChange("allowEditRegistration", checked)}
                   />
                 </div>
 
-                <div className="space-y-2 border-t pt-4">
-                  <Label className="text-sm font-bold text-slate-800 block">Provisional Rating Games Threshold</Label>
-                  <p className="text-xs text-slate-500 leading-normal font-semibold mb-2">Number of played games below which a rating is considered provisional (e.g. less than 4 games).</p>
+                <div className="flex items-center justify-between border-t pt-4">
+                  <div className="space-y-0.5">
+                    <Label className="text-sm font-bold text-slate-800">Collect Zelle Payout Details</Label>
+                    <p className="text-xs text-slate-500 leading-normal font-semibold">Ask players for their Zelle email and phone number during registration to facilitate direct payouts.</p>
+                  </div>
+                  <Switch
+                    checked={config.registers?.collectPrizePayoutDetails !== false}
+                    onCheckedChange={(checked) => handleRegistersChange("collectPrizePayoutDetails", checked)}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Subsection 2: Capacity & Deadlines */}
+            <div className="border-t pt-6 space-y-4">
+              <h4 className="text-xs font-extrabold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                <CheckSquare className="h-3 w-3 text-indigo-500" />
+                Capacity & Deadline Constraints
+              </h4>
+
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label className="text-sm font-bold text-slate-800 block">Participant Capacity</Label>
+                  <p className="text-xs text-slate-500 leading-normal font-semibold mb-2">Limit the number of registered players. Leave blank or 0 for no limit.</p>
                   <Input
                     type="number"
-                    value={config.registers?.uscfMinGamesThreshold ?? 4}
-                    onChange={(e) => handleRegistersChange("uscfMinGamesThreshold", parseInt(e.target.value, 10) || 4)}
+                    placeholder="No limit"
+                    value={config.registers?.playerLimit || ""}
+                    onChange={(e) => handleRegistersChange("playerLimit", parseInt(e.target.value, 10) || null)}
                     className="w-32 h-10 text-xs border-slate-200 rounded-xl"
                     min={0}
                   />
                 </div>
-              </div>
-            )}
 
-            <div className="flex items-center justify-between border-t pt-4">
-              <div className="space-y-0.5">
-                <Label className="text-sm font-bold text-slate-800">Auto-Accept Registrations</Label>
-                <p className="text-xs text-slate-500 leading-normal font-semibold">Automatically approve submitted registrations and add players directly to the roster.</p>
-              </div>
-              <Switch
-                checked={Boolean(config.registers?.autoAcceptRegistrations)}
-                onCheckedChange={(checked) => handleRegistersChange("autoAcceptRegistrations", checked)}
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Payments Config */}
-        <Card className="rounded-2xl border bg-white shadow-sm overflow-hidden">
-          <CardHeader className="bg-slate-50/50 p-5 border-b">
-            <CardTitle className="text-base font-extrabold text-slate-900 flex items-center gap-2">
-              <Settings className="h-4.5 w-4.5 text-slate-500" />
-              Payments & Collection Policies
-            </CardTitle>
-            <CardDescription className="text-xs font-semibold text-slate-500 font-sans">Collect entry fees online or handle cash on-site.</CardDescription>
-          </CardHeader>
-          <CardContent className="p-5 space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label className="text-sm font-bold text-slate-800">Collect Entry Fees</Label>
-                <p className="text-xs text-slate-500 leading-normal font-semibold">Require players to pay entry fees to confirm registration.</p>
-              </div>
-              <Switch
-                checked={Boolean(config.payments?.onlineEnabled)}
-                onCheckedChange={(checked) => handlePaymentsChange("onlineEnabled", checked)}
-              />
-            </div>
-
-            {config.payments?.onlineEnabled && (
-              <div className="space-y-4 border-t pt-4 animate-in slide-in-from-top-2 duration-200">
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-slate-650">Online Payment Provider</Label>
-                  <Select
-                    value={config.payments?.provider || "stripe"}
-                    onValueChange={(val) => handlePaymentsChange("provider", val)}
-                  >
-                    <SelectTrigger className="h-10 text-xs border-slate-200 bg-white rounded-xl">
-                      <SelectValue placeholder="Select provider" />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-xl">
-                      <SelectItem value="stripe">Stripe Connect (Recommended)</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <div className="space-y-2 border-t pt-4">
+                  <Label className="text-sm font-bold text-slate-800 block">Registration Deadline</Label>
+                  <p className="text-xs text-slate-500 leading-normal font-semibold mb-2">Players will not be able to register online after this date and time.</p>
+                  <div className="flex gap-4">
+                    <div className="flex-1">
+                      <Input
+                        type="date"
+                        value={config.registers?.registrationDeadlineDate || ""}
+                        onChange={(e) => handleRegistersChange("registrationDeadlineDate", e.target.value || null)}
+                        className="h-10 text-xs border-slate-200 rounded-xl"
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <Input
+                        type="time"
+                        value={config.registers?.registrationDeadlineTime || ""}
+                        onChange={(e) => handleRegistersChange("registrationDeadlineTime", e.target.value || null)}
+                        className="h-10 text-xs border-slate-200 rounded-xl"
+                      />
+                    </div>
+                  </div>
                 </div>
+              </div>
+            </div>
 
-                <div className="flex items-center justify-between border-t pt-4">
+            {/* Subsection 3: Payments & Collection Policies */}
+            <div className="border-t pt-6 space-y-4">
+              <h4 className="text-xs font-extrabold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                <Settings className="h-3 w-3 text-indigo-500" />
+                Payments & Entry Fee Collection
+              </h4>
+
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
-                    <Label className="text-sm font-bold text-slate-800">Require Upfront Checkout Payment</Label>
-                    <p className="text-xs text-slate-500 leading-normal font-semibold">Require successful credit/debit card checkout before creating roster entries.</p>
+                    <Label className="text-sm font-bold text-slate-800">Collect Entry Fees</Label>
+                    <p className="text-xs text-slate-500 leading-normal font-semibold">Require players to pay entry fees to confirm registration.</p>
                   </div>
                   <Switch
-                    checked={Boolean(config.payments?.requirePaymentOnRegistration)}
-                    onCheckedChange={(checked) => handlePaymentsChange("requirePaymentOnRegistration", checked)}
+                    checked={Boolean(config.payments?.onlineEnabled)}
+                    onCheckedChange={(checked) => handlePaymentsChange("onlineEnabled", checked)}
                   />
                 </div>
 
-                <div className="space-y-2.5 border-t pt-4">
-                  <Label className="text-xs font-bold text-slate-650 block">Accepted Offline Payment Methods</Label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {["cash", "check", "venmo", "zelle", "paypal", "other"].map((m) => {
-                      const active = (config.payments?.acceptedOfflineMethods || []).includes(m as any);
-                      return (
-                        <label key={m} className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer select-none">
-                          <input
-                            type="checkbox"
-                            checked={active}
-                            onChange={() => toggleOfflineMethod(m)}
-                            className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-4.5 w-4.5"
-                          />
-                          <span className="capitalize">{m}</span>
-                        </label>
-                      );
-                    })}
+                {config.payments?.onlineEnabled && (
+                  <div className="space-y-4 border-t pt-4 animate-in slide-in-from-top-2 duration-200">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-bold text-slate-650">Online Payment Provider</Label>
+                      <Select
+                        value={config.payments?.provider || "stripe"}
+                        onValueChange={(val) => handlePaymentsChange("provider", val)}
+                      >
+                        <SelectTrigger className="h-10 text-xs border-slate-200 bg-white rounded-xl">
+                          <SelectValue placeholder="Select provider" />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-xl">
+                          <SelectItem value="stripe">Stripe Connect (Recommended)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="flex items-center justify-between border-t pt-4">
+                      <div className="space-y-0.5">
+                        <Label className="text-sm font-bold text-slate-800">Require Upfront Checkout Payment</Label>
+                        <p className="text-xs text-slate-500 leading-normal font-semibold">Require successful credit/debit card checkout before creating roster entries.</p>
+                      </div>
+                      <Switch
+                        checked={Boolean(config.payments?.requirePaymentOnRegistration)}
+                        onCheckedChange={(checked) => handlePaymentsChange("requirePaymentOnRegistration", checked)}
+                      />
+                    </div>
+
+                    <div className="space-y-2.5 border-t pt-4">
+                      <Label className="text-xs font-bold text-slate-650 block">Accepted Offline Payment Methods</Label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {["cash", "check", "venmo", "zelle", "paypal", "other"].map((m) => {
+                          const active = (config.payments?.acceptedOfflineMethods || []).includes(m as any);
+                          return (
+                            <label key={m} className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer select-none">
+                              <input
+                                type="checkbox"
+                                checked={active}
+                                onChange={() => toggleOfflineMethod(m)}
+                                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-4.5 w-4.5"
+                              />
+                              <span className="capitalize">{m}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5 border-t pt-4">
+                      <Label className="text-xs font-bold text-slate-650">Offline Payment Instructions</Label>
+                      <textarea
+                        value={config.payments?.offlineInstructions || ""}
+                        onChange={(e) => handlePaymentsChange("offlineInstructions", e.target.value)}
+                        rows={2}
+                        placeholder="e.g. Bring cash/check to the registration desk at 9:30 AM before Round 1 starts."
+                        className="w-full text-xs border rounded-xl p-2.5 bg-white border-slate-200 focus:outline-none focus:border-indigo-500 font-semibold"
+                      />
+                    </div>
                   </div>
-                </div>
-
-                <div className="space-y-1.5 border-t pt-4">
-                  <Label className="text-xs font-bold text-slate-650">Offline Payment Instructions</Label>
-                  <textarea
-                    value={config.payments?.offlineInstructions || ""}
-                    onChange={(e) => handlePaymentsChange("offlineInstructions", e.target.value)}
-                    rows={2}
-                    placeholder="e.g. Bring cash/check to the registration desk at 9:30 AM before Round 1 starts."
-                    className="w-full text-xs border rounded-xl p-2.5 bg-white border-slate-200 focus:outline-none focus:border-indigo-500 font-semibold"
-                  />
-                </div>
+                )}
               </div>
-            )}
-
-            <div className="flex items-center justify-between border-t pt-4">
-              <div className="space-y-0.5">
-                <Label className="text-sm font-bold text-slate-800">Collect Zelle Payout Details</Label>
-                <p className="text-xs text-slate-500 leading-normal font-semibold">Ask players for their Zelle email and phone number during registration to facilitate direct payouts.</p>
-              </div>
-              <Switch
-                checked={config.registers?.collectPrizePayoutDetails !== false}
-                onCheckedChange={(checked) => handleRegistersChange("collectPrizePayoutDetails", checked)}
-              />
             </div>
           </CardContent>
         </Card>
