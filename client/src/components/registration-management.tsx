@@ -126,7 +126,7 @@ export default function RegistrationManagement({ tournamentId, tournament }: Reg
   }, [tournament]);
 
   const getUscfActiveStatus = (reg: any) => {
-    const uscfExpiration = reg.customAnswers?.uscfExpiration;
+    const uscfExpiration = reg.userUscfMemberExpiry || reg.customAnswers?.uscfExpiration;
     if (!uscfExpiration) {
       return reg.uscfActive === true || reg.uscfActive === "true" || reg.uscfActive === 1;
     }
@@ -140,6 +140,16 @@ export default function RegistrationManagement({ tournamentId, tournament }: Reg
     } catch {
       return reg.uscfActive === true || reg.uscfActive === "true" || reg.uscfActive === 1;
     }
+  };
+
+  const formatPlayerNameSameWay = (nameStr: string) => {
+    if (!nameStr) return "";
+    if (nameStr.includes(",")) return nameStr;
+    const parts = nameStr.trim().split(/\s+/);
+    if (parts.length <= 1) return nameStr;
+    const last = parts[parts.length - 1];
+    const first = parts.slice(0, parts.length - 1).join(" ");
+    return `${last}, ${first}`;
   };
 
   // Filter registrations
@@ -308,7 +318,7 @@ export default function RegistrationManagement({ tournamentId, tournament }: Reg
                   "sticky z-20 text-sm font-semibold text-slate-500 bg-slate-50/80 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] font-sans px-2 py-2",
                   visibleColumns.includes("index") ? "left-10" : "left-0"
                 )}>
-                  Player
+                  Name
                 </TableHead>
               )}
               {visibleColumns.includes("section") && <TableHead className="text-sm font-semibold text-slate-500 bg-slate-50/80 font-sans px-2 py-2">Section Choice</TableHead>}
@@ -388,10 +398,10 @@ export default function RegistrationManagement({ tournamentId, tournament }: Reg
                                 className="text-indigo-600 hover:text-indigo-850 hover:underline cursor-pointer font-sans"
                                 onClick={(e) => e.stopPropagation()}
                               >
-                                {reg.playerName}
+                                {formatPlayerNameSameWay(reg.playerName || "")}
                               </a>
                             ) : (
-                              reg.playerName
+                              formatPlayerNameSameWay(reg.playerName || "")
                             )}
                           </span>
                           {!visibleColumns.includes("email") && reg.email && (
@@ -402,9 +412,7 @@ export default function RegistrationManagement({ tournamentId, tournament }: Reg
                     )}
                     {visibleColumns.includes("section") && (
                       <TableCell className="px-2 py-2 text-sm font-medium text-slate-705 font-sans">
-                        <Badge variant="secondary" className="bg-slate-100 hover:bg-slate-100 text-slate-700 text-xs px-2 py-0.5 capitalize shadow-none">
-                          {reg.sectionChoice || "Default"}
-                        </Badge>
+                        {reg.sectionChoice || "Default"}
                       </TableCell>
                     )}
                     {visibleColumns.includes("rating") && (
@@ -412,14 +420,14 @@ export default function RegistrationManagement({ tournamentId, tournament }: Reg
                         {rating === "Unrated" ? (
                           <span className="text-sm text-slate-400 font-sans">—</span>
                         ) : (
-                          <span className="font-sans text-sm font-semibold text-slate-800 bg-slate-50 px-2 py-0.5 rounded border border-slate-200/60 shadow-sm whitespace-nowrap font-mono">{rating}</span>
+                          <span className="font-sans text-sm font-semibold text-slate-800 bg-slate-50 px-2 py-0.5 rounded border border-slate-200/60 shadow-sm whitespace-nowrap">{rating}</span>
                         )}
                       </TableCell>
                     )}
                     {visibleColumns.includes("uscfRating") && (
                       <TableCell className="px-2 py-2 text-sm font-medium text-slate-850 overflow-hidden font-sans">
                         {reg.uscfId ? (
-                          <span className="font-sans text-sm font-semibold text-slate-800 bg-slate-50 px-2 py-0.5 rounded border border-slate-200/60 shadow-sm whitespace-nowrap font-mono">
+                          <span className="font-sans text-sm font-semibold text-slate-800 bg-slate-50 px-2 py-0.5 rounded border border-slate-200/60 shadow-sm whitespace-nowrap">
                             {resolveDisplayRating((reg as any).uscfRatingRaw, reg.uscfRating, threshold, false)}
                           </span>
                         ) : (
@@ -430,7 +438,7 @@ export default function RegistrationManagement({ tournamentId, tournament }: Reg
                     {visibleColumns.includes("fideRating") && (
                       <TableCell className="px-2 py-2 text-sm font-medium text-slate-850 overflow-hidden font-sans">
                         {reg.fideId ? (
-                          <span className="font-sans text-sm font-semibold text-slate-800 bg-slate-50 px-2 py-0.5 rounded border border-slate-200/60 shadow-sm whitespace-nowrap font-mono">
+                          <span className="font-sans text-sm font-semibold text-slate-800 bg-slate-50 px-2 py-0.5 rounded border border-slate-200/60 shadow-sm whitespace-nowrap">
                             {resolveDisplayRating((reg as any).fideRatingRaw, reg.fideRating, 0, true)}
                           </span>
                         ) : (
@@ -457,45 +465,76 @@ export default function RegistrationManagement({ tournamentId, tournament }: Reg
                       </TableCell>
                     )}
                     {visibleColumns.includes("uscfStatus") && (
-                      <TableCell className="px-2 py-2 whitespace-nowrap overflow-hidden font-sans text-sm">
-                        {reg.uscfId ? (
-                          <div className="flex flex-col gap-1 items-start">
-                            <Badge 
-                              variant="outline" 
-                              className={cn(
-                                "text-xs font-bold px-2 py-0.5 shadow-none",
-                                getUscfActiveStatus(reg) 
-                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200" 
-                                  : "bg-rose-50 text-rose-700 border-rose-200"
-                              )}
-                            >
-                              {getUscfActiveStatus(reg) ? "Active" : "Expired"}
-                            </Badge>
-                            {(reg as any).isProvisional && (
-                              <Badge 
-                                variant="outline" 
-                                className="text-[10px] font-medium px-1.5 py-0.5 bg-amber-50 text-amber-700 border-amber-200 shadow-none mt-0.5 whitespace-nowrap"
-                              >
-                                Provisional ({(reg as any).gamesCount ?? 0}g)
+                      <TableCell className="px-2 py-2 whitespace-nowrap overflow-hidden font-sans text-sm" onClick={(e) => e.stopPropagation()}>
+                        {(() => {
+                          const rawExpiry = (reg as any).userUscfMemberExpiry || reg.customAnswers?.uscfExpiration;
+                          if (!rawExpiry) {
+                            return (
+                              <Badge className="whitespace-nowrap bg-slate-50 text-slate-400 hover:bg-slate-50 border border-slate-200/80 text-xs px-1.5 py-0.5 rounded-full font-semibold shadow-none font-sans">
+                                No Expiry Info
                               </Badge>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-slate-400 text-sm font-sans">—</span>
-                        )}
+                            );
+                          }
+                          try {
+                            const expiryDate = new Date(rawExpiry);
+                            if (isNaN(expiryDate.getTime())) {
+                              return (
+                                <Badge className="whitespace-nowrap bg-slate-50 text-slate-400 hover:bg-slate-50 border border-slate-200/80 text-xs px-1.5 py-0.5 rounded-full font-semibold shadow-none font-sans">
+                                  No Expiry Info
+                                </Badge>
+                              );
+                            }
+                            const now = new Date();
+                            now.setHours(0, 0, 0, 0);
+                            expiryDate.setHours(0, 0, 0, 0);
+                            const formatted = `${expiryDate.getMonth() + 1}/${expiryDate.getDate()}/${expiryDate.getFullYear()}`;
+                            if (expiryDate >= now) {
+                              return (
+                                <Badge className="whitespace-nowrap bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border border-emerald-250/30 text-xs px-2 py-0.5 rounded-full font-medium shadow-none font-sans">
+                                  Active (Exp: {formatted})
+                                </Badge>
+                              );
+                            } else {
+                              return (
+                                <Badge className="whitespace-nowrap bg-rose-50 text-rose-700 hover:bg-rose-50 border border-rose-250/30 text-xs px-2 py-0.5 rounded-full font-medium shadow-none font-sans">
+                                  Expired (Exp: {formatted})
+                                </Badge>
+                              );
+                            }
+                          } catch (e) {
+                            return (
+                              <Badge className="whitespace-nowrap bg-slate-50 text-slate-400 hover:bg-slate-50 border border-slate-200/80 text-xs px-1.5 py-0.5 rounded-full font-semibold shadow-none font-sans">
+                                No Expiry Info
+                              </Badge>
+                            );
+                          }
+                        })()}
                       </TableCell>
                     )}
                     {visibleColumns.includes("email") && (
-                      <TableCell className="px-2 py-2 text-sm font-normal truncate font-sans">
-                        {reg.email || <span className="text-slate-400 font-sans">—</span>}
+                      <TableCell className="px-2 py-2 text-sm text-slate-600 font-sans truncate max-w-[150px]">
+                        {reg.email || "—"}
                       </TableCell>
                     )}
                     {visibleColumns.includes("byes") && (
                       <TableCell className="px-2 py-2 font-sans text-sm">
                         {reg.byePreference === "yes" && reg.byeRounds && (reg.byeRounds as string[]).length > 0 ? (
-                          <Badge variant="outline" className="bg-slate-50 text-slate-650 border-slate-200 text-xs px-2 py-0.5 font-sans">
-                            Byes: {(reg.byeRounds as string[]).map(r => r.replace("Round ", "")).join(", ")}
-                          </Badge>
+                          <div className="flex flex-wrap gap-1.5 font-sans">
+                            {(reg.byeRounds as string[]).map((roundStr, idx) => {
+                              const matchResult = String(roundStr).match(/\d+/);
+                              const roundNum = matchResult ? matchResult[0] : roundStr;
+                              return (
+                                <div
+                                  key={idx}
+                                  className="inline-flex items-center gap-1 rounded-md border border-orange-200 bg-orange-50 text-orange-850 hover:bg-orange-100/50 px-2 py-0.5 text-xs font-medium transition-colors whitespace-nowrap shadow-none font-sans"
+                                >
+                                  <span className="font-sans">Rd {roundNum}</span>
+                                  <span aria-hidden="true" className="opacity-40 font-sans">·</span>
+                                  <span className="font-sans">½ pt</span>
+                                </div>
+                              );
+                            })}
+                          </div>
                         ) : (
                           <span className="text-slate-400 font-sans">—</span>
                         )}
@@ -506,25 +545,26 @@ export default function RegistrationManagement({ tournamentId, tournament }: Reg
                         <div className="flex flex-col gap-1 items-start">
                           <div className="flex items-center gap-1.5">
                             <Badge 
-                              variant="outline" 
                               className={cn(
-                                "text-xs font-semibold px-2 py-0.5 shadow-none",
+                                "text-xs px-2.5 py-0.5 rounded-full font-medium shadow-none font-sans whitespace-nowrap border",
                                 reg.paymentStatus === "paid" 
                                   ? "bg-emerald-50 text-emerald-700 border-emerald-200/50" 
                                   : reg.paymentStatus === "processing" 
                                   ? "bg-amber-50 text-amber-700 border-amber-200/50 animate-pulse"
-                                  : "bg-slate-50 text-slate-500 border-slate-200"
+                                  : "bg-rose-50 text-rose-700 border-rose-200/50"
                               )}
                             >
-                              {reg.paymentStatus || "Unpaid"}
+                              {reg.paymentStatus === "paid" ? "Paid" : reg.paymentStatus === "processing" ? "Processing" : "Unpaid"}
                             </Badge>
                             {reg.paymentMethod && (
-                              <span className="text-xs text-slate-400 font-mono capitalize">({reg.paymentMethod})</span>
+                              <span className="text-[10px] text-slate-400 font-mono capitalize">({reg.paymentMethod})</span>
                             )}
                           </div>
-                          <span className="text-xs font-mono text-slate-500 mt-0.5">
-                            ${Number(reg.amountDue || 0).toFixed(2)} due
-                          </span>
+                          {reg.amountDue && Number(reg.amountDue) > 0 && (
+                            <span className="text-[10px] text-slate-500 font-medium font-sans">
+                              ${Number(reg.amountDue).toFixed(2)} due
+                            </span>
+                          )}
                         </div>
                       </TableCell>
                     )}

@@ -711,7 +711,16 @@ export function applyRegistrationsRoutes(app: Express) {
     try {
       const tournamentId = parseInt(req.params.id);
       const registrations = await storage.getPlayerRegistrationsByTournament(tournamentId);
-      res.json(registrations);
+      const enriched = await Promise.all(registrations.map(async (reg) => {
+        const user = await storage.getUserById(reg.userId);
+        return {
+          ...reg,
+          userUscfId: user?.uscfId || null,
+          userUscfVerificationStatus: user?.uscfVerificationStatus || "unverified",
+          userUscfMemberExpiry: user?.uscfMemberExpiry || null,
+        };
+      }));
+      res.json(enriched);
     } catch (error) {
       console.error("Error fetching player registrations:", error);
       res.status(500).json({ error: "Failed to fetch player registrations" });
