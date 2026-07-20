@@ -722,17 +722,6 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-slate-100">
                                 <div className="flex items-center justify-between col-span-1 md:col-span-2">
                                   <div className="space-y-0.5">
-                                    <Label className="text-xs font-bold text-slate-700">Auto-Accept Registrations</Label>
-                                    <p className="text-[10px] text-slate-500 font-medium">Automatically approve submitted registrations and add players directly to the roster.</p>
-                                  </div>
-                                  <Switch
-                                    checked={Boolean(config.registers?.autoAcceptRegistrations)}
-                                    onCheckedChange={(checked) => handleRegistersChange("autoAcceptRegistrations", checked)}
-                                  />
-                                </div>
-
-                                <div className="flex items-center justify-between col-span-1 md:col-span-2 pt-2">
-                                  <div className="space-y-0.5">
                                     <Label className="text-xs font-bold text-slate-700">Auto-Fill Local Roster Cache</Label>
                                     <p className="text-[10px] text-slate-500 font-medium">Auto-completes from previously registered player records on the same server.</p>
                                   </div>
@@ -1103,6 +1092,17 @@ export function RegistrationFormCustomizer({ config, onConfigChange, actions, to
                   <Switch
                     checked={Boolean(config.registers?.allowEditRegistration)}
                     onCheckedChange={(checked) => handleRegistersChange("allowEditRegistration", checked)}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between border-t pt-4">
+                  <div className="space-y-0.5">
+                    <Label className="text-sm font-bold text-slate-800">Auto-Accept Registrations</Label>
+                    <p className="text-xs text-slate-500 leading-normal font-semibold">Automatically approve submitted registrations and add players directly to the roster.</p>
+                  </div>
+                  <Switch
+                    checked={Boolean(config.registers?.autoAcceptRegistrations)}
+                    onCheckedChange={(checked) => handleRegistersChange("autoAcceptRegistrations", checked)}
                   />
                 </div>
 
