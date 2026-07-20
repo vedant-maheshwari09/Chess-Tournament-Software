@@ -10,6 +10,7 @@ const DEFAULT_ROOT_CANDIDATES = Array.from(
   new Set(
     [
       process.env.RATINGS_DATA_ROOT?.trim() ?? undefined,
+      path.join(process.env.USERPROFILE || "C:\\Users\\howdy", "Downloads"),
       process.cwd(),
       path.resolve(process.cwd(), "dist"),
       path.resolve(process.cwd(), ".."),
@@ -182,6 +183,13 @@ function isDbValid(): boolean {
       checkDb.close();
       return false;
     }
+
+    const uscfMtime = getMtime(USCF_ALL_RATINGS_FILE);
+    const fideMtime = getMtime(FIDE_FILE);
+    if (metaUscf.value !== `${uscfMtime}` || metaFide.value !== `${fideMtime}`) {
+      checkDb.close();
+      return false;
+    }
     
     // Check if there are actually records in the tables
     const uscfCount = checkDb.prepare("SELECT count(*) as count FROM uscf").get() as { count: number };
@@ -219,8 +227,7 @@ export async function preloadRatingData() {
   return initPromise;
 }
 
-function getMtime(fileName: string) {
-  const filePath = path.resolve(process.cwd(), fileName);
+function getMtime(filePath: string) {
   if (!existsSync(filePath)) return null;
   return statSync(filePath).mtimeMs;
 }
