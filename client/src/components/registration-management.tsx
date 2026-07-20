@@ -295,30 +295,42 @@ export default function RegistrationManagement({ tournamentId, tournament }: Reg
           </Popover>
         </div>
       </div>
-
       {/* Main Table */}
-      <Card className="border-slate-200/60 shadow-sm overflow-hidden">
+      <Card className="border-slate-200/60 shadow-[0_8px_30px_rgba(0,0,0,0.04)] rounded-2xl overflow-hidden">
         <Table>
           <TableHeader className="bg-slate-50/80">
-            <TableRow>
-              {visibleColumns.includes("index") && <TableHead className="w-12 text-sm font-semibold">#</TableHead>}
-              {visibleColumns.includes("name") && <TableHead className="text-sm font-semibold">Player</TableHead>}
-              {visibleColumns.includes("section") && <TableHead className="text-sm font-semibold">Section Choice</TableHead>}
-              {visibleColumns.includes("rating") && <TableHead className="text-sm font-semibold">Unified Rating</TableHead>}
-              {visibleColumns.includes("uscfRating") && <TableHead className="text-sm font-semibold">USCF Rating</TableHead>}
-              {visibleColumns.includes("fideRating") && <TableHead className="text-sm font-semibold">FIDE Rating</TableHead>}
-              {visibleColumns.includes("uscfId") && <TableHead className="text-sm font-semibold">USCF ID</TableHead>}
-              {visibleColumns.includes("fideId") && <TableHead className="text-sm font-semibold">FIDE ID</TableHead>}
-              {visibleColumns.includes("uscfStatus") && <TableHead className="text-sm font-semibold">USCF Membership</TableHead>}
-              {visibleColumns.includes("email") && <TableHead className="text-sm font-semibold">Email</TableHead>}
-              {visibleColumns.includes("byes") && <TableHead className="text-sm font-semibold">Byes</TableHead>}
-              {visibleColumns.includes("payment") && <TableHead className="text-sm font-semibold">Payment</TableHead>}
-              {visibleColumns.includes("createdAt") && <TableHead className="text-sm font-semibold">Submitted</TableHead>}
-              {visibleColumns.includes("status") && <TableHead className="text-sm font-semibold">Status</TableHead>}
-              {visibleColumns.includes("actions") && <TableHead className="text-right text-sm font-semibold">Actions</TableHead>}
+            <TableRow className="border-b border-slate-200/80 hover:bg-transparent">
+              {visibleColumns.includes("index") && (
+                <TableHead className="w-10 sticky left-0 z-20 text-center text-sm font-semibold text-slate-500 bg-slate-50/80 font-sans">#</TableHead>
+              )}
+              {visibleColumns.includes("name") && (
+                <TableHead className={cn(
+                  "sticky z-20 text-sm font-semibold text-slate-500 bg-slate-50/80 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] font-sans px-2 py-2",
+                  visibleColumns.includes("index") ? "left-10" : "left-0"
+                )}>
+                  Player
+                </TableHead>
+              )}
+              {visibleColumns.includes("section") && <TableHead className="text-sm font-semibold text-slate-500 bg-slate-50/80 font-sans px-2 py-2">Section Choice</TableHead>}
+              {visibleColumns.includes("rating") && <TableHead className="text-sm font-semibold text-slate-500 bg-slate-50/80 font-sans px-2 py-2">Unified Rating</TableHead>}
+              {visibleColumns.includes("uscfRating") && <TableHead className="text-sm font-semibold text-slate-500 bg-slate-50/80 font-sans px-2 py-2">USCF Rating</TableHead>}
+              {visibleColumns.includes("fideRating") && <TableHead className="text-sm font-semibold text-slate-500 bg-slate-50/80 font-sans px-2 py-2">FIDE Rating</TableHead>}
+              {visibleColumns.includes("uscfId") && <TableHead className="text-sm font-semibold text-slate-500 bg-slate-50/80 font-sans px-2 py-2">USCF ID</TableHead>}
+              {visibleColumns.includes("fideId") && <TableHead className="text-sm font-semibold text-slate-500 bg-slate-50/80 font-sans px-2 py-2">FIDE ID</TableHead>}
+              {visibleColumns.includes("uscfStatus") && <TableHead className="text-sm font-semibold text-slate-500 bg-slate-50/80 font-sans px-2 py-2">USCF Membership</TableHead>}
+              {visibleColumns.includes("email") && <TableHead className="text-sm font-semibold text-slate-500 bg-slate-50/80 font-sans px-2 py-2">Email</TableHead>}
+              {visibleColumns.includes("byes") && <TableHead className="text-sm font-semibold text-slate-500 bg-slate-50/80 font-sans px-2 py-2">Byes</TableHead>}
+              {visibleColumns.includes("payment") && <TableHead className="text-sm font-semibold text-slate-500 bg-slate-50/80 font-sans px-2 py-2">Payment</TableHead>}
+              {visibleColumns.includes("createdAt") && <TableHead className="text-sm font-semibold text-slate-500 bg-slate-50/80 font-sans px-2 py-2">Submitted</TableHead>}
+              {visibleColumns.includes("status") && <TableHead className="text-sm font-semibold text-slate-500 bg-slate-50/80 font-sans px-2 py-2">Status</TableHead>}
+              {visibleColumns.includes("actions") && (
+                <TableHead className="w-32 pl-2 pr-2 py-2 text-right text-sm font-semibold text-slate-500 bg-slate-50/80 sticky right-0 z-20 shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.05)] font-sans">
+                  Actions
+                </TableHead>
+              )}
             </TableRow>
           </TableHeader>
-          <TableBody>
+          <TableBody className="font-sans text-sm">
             {filteredRegs.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={visibleColumns.length} className="py-12 text-center text-slate-400">
@@ -334,16 +346,30 @@ export default function RegistrationManagement({ tournamentId, tournament }: Reg
                 const rating = primarySystem === "fide"
                   ? (fideDisp !== "Unrated" ? fideDisp : uscfDisp)
                   : (uscfDisp !== "Unrated" ? uscfDisp : fideDisp);
+                const isIndexVisible = visibleColumns.includes("index");
 
                 return (
-                  <TableRow key={reg.id} className="hover:bg-slate-50/50 transition">
+                  <TableRow 
+                    key={reg.id} 
+                    className="group border-b border-slate-100 cursor-pointer transition-colors hover:bg-slate-50/80 dark:bg-slate-800/40 dark:hover:bg-slate-700/40 h-11 font-sans text-sm"
+                    onClick={() => setSelectedReg(reg)}
+                  >
                     {visibleColumns.includes("index") && (
-                      <TableCell className="font-medium text-slate-500 text-sm">{index + 1}</TableCell>
+                      <TableCell className={cn(
+                        "sticky left-0 transition-colors z-10 text-sm font-semibold text-slate-500 text-center px-2 py-2 font-sans",
+                        "bg-white group-hover:bg-slate-50/85"
+                      )}>
+                        <div className="font-sans">{index + 1}</div>
+                      </TableCell>
                     )}
                     {visibleColumns.includes("name") && (
-                      <TableCell>
-                        <div className="flex flex-col gap-1 py-0.5">
-                          <div className="flex items-center gap-2">
+                      <TableCell className={cn(
+                        "sticky transition-colors z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] px-2 py-2 overflow-hidden truncate font-sans text-sm",
+                        isIndexVisible ? "left-10" : "left-0",
+                        "bg-white group-hover:bg-slate-50/85"
+                      )}>
+                        <div className="flex flex-col gap-0.5 font-sans text-sm">
+                          <span className="text-sm font-semibold text-slate-850 hover:text-indigo-650 transition-colors truncate font-sans">
                             {reg.uscfId || reg.fideId ? (
                               <a
                                 href={
@@ -359,18 +385,15 @@ export default function RegistrationManagement({ tournamentId, tournament }: Reg
                                 }
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="font-semibold text-sm text-blue-600 hover:underline cursor-pointer"
+                                className="text-indigo-600 hover:text-indigo-850 hover:underline cursor-pointer font-sans"
                                 onClick={(e) => e.stopPropagation()}
                               >
                                 {reg.playerName}
                               </a>
                             ) : (
-                              <span className="font-semibold text-sm text-slate-950">{reg.playerName}</span>
+                              reg.playerName
                             )}
-                            {reg.uscfId && !visibleColumns.includes("uscfId") && (
-                              <span className="text-xs text-slate-400 font-mono">({reg.uscfId})</span>
-                            )}
-                          </div>
+                          </span>
                           {!visibleColumns.includes("email") && reg.email && (
                             <span className="text-xs text-slate-400 font-medium">{reg.email}</span>
                           )}
@@ -378,53 +401,63 @@ export default function RegistrationManagement({ tournamentId, tournament }: Reg
                       </TableCell>
                     )}
                     {visibleColumns.includes("section") && (
-                      <TableCell>
+                      <TableCell className="px-2 py-2 text-sm font-medium text-slate-705 font-sans">
                         <Badge variant="secondary" className="bg-slate-100 hover:bg-slate-100 text-slate-700 text-xs px-2 py-0.5 capitalize shadow-none">
                           {reg.sectionChoice || "Default"}
                         </Badge>
                       </TableCell>
                     )}
                     {visibleColumns.includes("rating") && (
-                      <TableCell className="font-mono text-sm">{rating}</TableCell>
+                      <TableCell className="px-2 py-2 text-sm font-medium text-slate-850 overflow-hidden font-sans">
+                        {rating === "Unrated" ? (
+                          <span className="text-sm text-slate-400 font-sans">—</span>
+                        ) : (
+                          <span className="font-sans text-sm font-semibold text-slate-800 bg-slate-50 px-2 py-0.5 rounded border border-slate-200/60 shadow-sm whitespace-nowrap font-mono">{rating}</span>
+                        )}
+                      </TableCell>
                     )}
                     {visibleColumns.includes("uscfRating") && (
-                      <TableCell className="font-mono text-sm">
+                      <TableCell className="px-2 py-2 text-sm font-medium text-slate-850 overflow-hidden font-sans">
                         {reg.uscfId ? (
-                          resolveDisplayRating((reg as any).uscfRatingRaw, reg.uscfRating, threshold, false)
+                          <span className="font-sans text-sm font-semibold text-slate-800 bg-slate-50 px-2 py-0.5 rounded border border-slate-200/60 shadow-sm whitespace-nowrap font-mono">
+                            {resolveDisplayRating((reg as any).uscfRatingRaw, reg.uscfRating, threshold, false)}
+                          </span>
                         ) : (
-                          <span className="text-slate-400">—</span>
+                          <span className="text-slate-400 font-sans">—</span>
                         )}
                       </TableCell>
                     )}
                     {visibleColumns.includes("fideRating") && (
-                      <TableCell className="font-mono text-sm">
+                      <TableCell className="px-2 py-2 text-sm font-medium text-slate-850 overflow-hidden font-sans">
                         {reg.fideId ? (
-                          resolveDisplayRating((reg as any).fideRatingRaw, reg.fideRating, 0, true)
+                          <span className="font-sans text-sm font-semibold text-slate-800 bg-slate-50 px-2 py-0.5 rounded border border-slate-200/60 shadow-sm whitespace-nowrap font-mono">
+                            {resolveDisplayRating((reg as any).fideRatingRaw, reg.fideRating, 0, true)}
+                          </span>
                         ) : (
-                          <span className="text-slate-400">—</span>
+                          <span className="text-slate-400 font-sans">—</span>
                         )}
                       </TableCell>
                     )}
                     {visibleColumns.includes("uscfId") && (
-                      <TableCell className="font-mono text-sm">
+                      <TableCell className="px-2 py-2 overflow-hidden font-sans text-sm">
                         {reg.uscfId ? (
-                          <span className="font-bold text-slate-700">{reg.uscfId}</span>
+                          <span className="font-sans text-sm font-semibold text-slate-800 bg-slate-50 px-2 py-0.5 rounded border border-slate-200/60 shadow-sm whitespace-nowrap">{reg.uscfId}</span>
                         ) : (
-                          <span className="text-slate-400">—</span>
+                          <span className="text-slate-400 font-sans">—</span>
                         )}
                       </TableCell>
                     )}
                     {visibleColumns.includes("fideId") && (
-                      <TableCell className="font-mono text-sm">
+                      <TableCell className="px-2 py-2 overflow-hidden font-sans text-sm">
                         {reg.fideId ? (
-                          <span className="font-bold text-slate-700">{reg.fideId}</span>
+                          <span className="font-sans text-sm font-semibold text-slate-800 bg-slate-50 px-2 py-0.5 rounded border border-slate-200/60 shadow-sm whitespace-nowrap">{reg.fideId}</span>
                         ) : (
-                          <span className="text-slate-400">—</span>
+                          <span className="text-slate-400 font-sans">—</span>
                         )}
                       </TableCell>
                     )}
                     {visibleColumns.includes("uscfStatus") && (
-                      <TableCell>
+                      <TableCell className="px-2 py-2 whitespace-nowrap overflow-hidden font-sans text-sm">
                         {reg.uscfId ? (
                           <div className="flex flex-col gap-1 items-start">
                             <Badge 
@@ -448,28 +481,28 @@ export default function RegistrationManagement({ tournamentId, tournament }: Reg
                             )}
                           </div>
                         ) : (
-                          <span className="text-slate-400 text-sm">—</span>
+                          <span className="text-slate-400 text-sm font-sans">—</span>
                         )}
                       </TableCell>
                     )}
                     {visibleColumns.includes("email") && (
-                      <TableCell className="text-sm text-slate-600">
-                        {reg.email || <span className="text-slate-400">—</span>}
+                      <TableCell className="px-2 py-2 text-sm font-normal truncate font-sans">
+                        {reg.email || <span className="text-slate-400 font-sans">—</span>}
                       </TableCell>
                     )}
                     {visibleColumns.includes("byes") && (
-                      <TableCell className="text-sm text-slate-600 max-w-[150px] truncate">
+                      <TableCell className="px-2 py-2 font-sans text-sm">
                         {reg.byePreference === "yes" && reg.byeRounds && (reg.byeRounds as string[]).length > 0 ? (
-                          <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200 text-xs px-2 py-0.5">
+                          <Badge variant="outline" className="bg-slate-50 text-slate-650 border-slate-200 text-xs px-2 py-0.5 font-sans">
                             Byes: {(reg.byeRounds as string[]).map(r => r.replace("Round ", "")).join(", ")}
                           </Badge>
                         ) : (
-                          <span className="text-slate-400">—</span>
+                          <span className="text-slate-400 font-sans">—</span>
                         )}
                       </TableCell>
                     )}
                     {visibleColumns.includes("payment") && (
-                      <TableCell>
+                      <TableCell className="px-2 py-2 overflow-hidden font-sans text-sm">
                         <div className="flex flex-col gap-1 items-start">
                           <div className="flex items-center gap-1.5">
                             <Badge 
@@ -496,12 +529,12 @@ export default function RegistrationManagement({ tournamentId, tournament }: Reg
                       </TableCell>
                     )}
                     {visibleColumns.includes("createdAt") && (
-                      <TableCell className="text-sm text-slate-500 font-medium">
+                      <TableCell className="px-2 py-2 text-sm text-slate-600 font-sans">
                         {reg.updatedAt ? new Date(reg.updatedAt).toLocaleDateString() : "—"}
                       </TableCell>
                     )}
                     {visibleColumns.includes("status") && (
-                      <TableCell>
+                      <TableCell className="px-2 py-2 font-sans text-sm">
                         <Badge 
                           className={cn(
                             "text-xs font-semibold px-2 py-0.5 shadow-none tracking-wide capitalize",
@@ -517,13 +550,19 @@ export default function RegistrationManagement({ tournamentId, tournament }: Reg
                       </TableCell>
                     )}
                     {visibleColumns.includes("actions") && (
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1.5">
+                      <TableCell className={cn(
+                        "text-right sticky right-0 z-10 transition-colors shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.05)] pl-2 pr-2 py-2 w-32 font-sans text-sm",
+                        "bg-white group-hover:bg-slate-50/85"
+                      )}>
+                        <div className="flex items-center justify-end gap-1.5 font-sans text-sm pr-6" onClick={(e) => e.stopPropagation()}>
                           <Button 
                             size="sm" 
                             variant="ghost" 
-                            className="h-8 w-8 p-0 text-slate-500 hover:text-slate-900" 
-                            onClick={() => setSelectedReg(reg)}
+                            className="h-8 w-8 p-0 text-slate-500 hover:text-slate-900 rounded-lg" 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedReg(reg);
+                            }}
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
@@ -531,12 +570,12 @@ export default function RegistrationManagement({ tournamentId, tournament }: Reg
                           {reg.status === "pending" && (
                             <>
                               <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                  <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50">
+                                <AlertDialogTrigger asChild onClick={(e) => e.stopPropagation()}>
+                                  <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg">
                                     <UserCheck className="h-4 w-4" />
                                   </Button>
                                 </AlertDialogTrigger>
-                                <AlertDialogContent className="bg-white border-slate-100">
+                                <AlertDialogContent className="bg-white border-slate-100" onClick={(e) => e.stopPropagation()}>
                                   <AlertDialogHeader>
                                     <AlertDialogTitle>Approve Player Registration?</AlertDialogTitle>
                                     <AlertDialogDescription>
@@ -544,10 +583,13 @@ export default function RegistrationManagement({ tournamentId, tournament }: Reg
                                     </AlertDialogDescription>
                                   </AlertDialogHeader>
                                   <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogCancel onClick={(e) => e.stopPropagation()}>Cancel</AlertDialogCancel>
                                     <AlertDialogAction 
                                       className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                                      onClick={() => updateRegistrationMutation.mutate({ registrationId: reg.id, status: "approved" })}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        updateRegistrationMutation.mutate({ registrationId: reg.id, status: "approved" });
+                                      }}
                                     >
                                       Approve
                                     </AlertDialogAction>
@@ -556,12 +598,12 @@ export default function RegistrationManagement({ tournamentId, tournament }: Reg
                               </AlertDialog>
 
                               <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                  <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50">
+                                <AlertDialogTrigger asChild onClick={(e) => e.stopPropagation()}>
+                                  <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg">
                                     <UserX className="h-4 w-4" />
                                   </Button>
                                 </AlertDialogTrigger>
-                                <AlertDialogContent className="bg-white border-slate-100">
+                                <AlertDialogContent className="bg-white border-slate-100" onClick={(e) => e.stopPropagation()}>
                                   <AlertDialogHeader>
                                     <AlertDialogTitle>Decline Player Registration?</AlertDialogTitle>
                                     <AlertDialogDescription>
@@ -569,10 +611,13 @@ export default function RegistrationManagement({ tournamentId, tournament }: Reg
                                     </AlertDialogDescription>
                                   </AlertDialogHeader>
                                   <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogCancel onClick={(e) => e.stopPropagation()}>Cancel</AlertDialogCancel>
                                     <AlertDialogAction 
                                       className="bg-red-650 hover:bg-red-700 text-white"
-                                      onClick={() => updateRegistrationMutation.mutate({ registrationId: reg.id, status: "declined" })}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        updateRegistrationMutation.mutate({ registrationId: reg.id, status: "declined" });
+                                      }}
                                     >
                                       Decline
                                     </AlertDialogAction>
