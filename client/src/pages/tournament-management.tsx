@@ -711,7 +711,7 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
                           )}
                         </div>
 
-                        {tournament.status === 'active' && tournament.format !== 'knockout' && (
+                        {tournament.status !== 'draft' && tournament.format !== 'knockout' && (
                           <Button
                             variant="ghost"
                             size="sm"
@@ -725,7 +725,7 @@ export default function TournamentManagement({ tournamentId }: TournamentManagem
                         )}
                       </div>
                       <div className="flex items-center gap-2">
-                        {isOwner && tournament?.status === 'active' && !isEditMode && (
+                        {isOwner && tournament?.status !== 'draft' && !isEditMode && (
                           <Button
                             variant="outline"
                             size="sm"
