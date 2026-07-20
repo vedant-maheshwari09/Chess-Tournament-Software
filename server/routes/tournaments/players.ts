@@ -2,6 +2,7 @@ import type { Express, Request, Response } from "express";
 import { storage } from '../../storage';
 import { requireAuth, requireRole, requireTournamentAccess } from '../../auth';
 import { Player, insertPlayerSchema } from '@shared/schema';
+import { parseTournamentConfig } from "@shared/tournament-config";
 import { getLocalUSCFPlayerById } from "../../lib/localRatings";
 import { fetchLiveUscfRating } from "../../lib/uscf-live";
 
@@ -212,6 +213,124 @@ export function applyPlayersRoutes(app: Express) {
 
         if (Object.keys(updates).length === 0) {
           return res.status(400).json({ message: "No changes provided" });
+        }
+
+        // --- US Chess Rule 28C Section Transfer / Assignment Logic ---
+        let sectionChanged = false;
+        let oldSectionId: string | null = null;
+        let newSectionId: string | null = null;
+
+        if (updates.sectionId !== undefined && updates.sectionId !== existing.sectionId) {
+          sectionChanged = true;
+          oldSectionId = existing.sectionId;
+          newSectionId = updates.sectionId;
+        }
+
+        if (sectionChanged) {
+          const tournament = await storage.getTournament(tournamentId);
+          if (tournament && tournament.status === "active") {
+            const currentRound = tournament.currentRound ?? 1;
+            const totalRounds = tournament.rounds ?? 5;
+
+            // Step 1: Manage Old Section (if oldSectionId !== null)
+            if (oldSectionId !== null) {
+              console.log(`[RULE-28C] Processing withdrawal of Player ${playerId} from old section: ${oldSectionId}`);
+              
+              const allMatches = await storage.getMatchesByTournament(tournamentId);
+              const allPairings = await storage.getPairingsByTournament(tournamentId);
+
+              // Preserve historical completed matches by setting sectionId explicitly if empty
+              const pastMatches = allMatches.filter(
+                (m) => m.round <= currentRound && (m.whitePlayerId === playerId || m.blackPlayerId === playerId)
+              );
+              for (const m of pastMatches) {
+                if (!m.sectionId) {
+                  await storage.updateMatch(m.id, { sectionId: oldSectionId });
+                }
+              }
+
+              // Unpair and delete matches for future rounds
+              const futureMatches = allMatches.filter(
+                (m) => m.round > currentRound && (m.whitePlayerId === playerId || m.blackPlayerId === playerId)
+              );
+              for (const m of futureMatches) {
+                await storage.deleteMatch(m.id);
+
+                // Fetch other pairing records in that same match board
+                const roundPairings = await storage.getPairingsByRound(tournamentId, m.round);
+                const matchPairings = roundPairings.filter(
+                  (p) => p.playerId === m.whitePlayerId || p.playerId === m.blackPlayerId
+                );
+                for (const p of matchPairings) {
+                  await storage.deletePairing(p.id);
+                }
+              }
+
+              // Delete any lingering future pairings for the player in the old section
+              const futurePairings = allPairings.filter(
+                (p) => p.playerId === playerId && p.round > currentRound
+              );
+              for (const p of futurePairings) {
+                await storage.deletePairing(p.id);
+              }
+
+              // Insert 0-point bye pairings for rounds > currentRound in the old section
+              for (let r = currentRound + 1; r <= totalRounds; r++) {
+                await storage.createPairing({
+                  tournamentId,
+                  round: r,
+                  playerId,
+                  opponentId: null,
+                  color: null,
+                  points: 0, // 0.0 points representation
+                  isBye: true,
+                  byeType: "zero_point",
+                  isRequested: false,
+                });
+              }
+            }
+
+            // Step 2: Manage New Section (if newSectionId !== null)
+            if (newSectionId !== null) {
+              console.log(`[RULE-28C] Processing entry of Player ${playerId} into new section: ${newSectionId}`);
+
+              // Parse tournament configuration to extract bye limit
+              let byeLimit = 2;
+              try {
+                const tournamentConfig = parseTournamentConfig(tournament);
+                if (typeof tournamentConfig?.registers?.byeLimit === "number") {
+                  byeLimit = tournamentConfig.registers.byeLimit;
+                }
+              } catch (e) {
+                console.error("[RULE-28C] Failed to parse tournament config, defaulting byeLimit to 2:", e);
+              }
+
+              // Delete any existing past bye pairings for the player to ensure clean state
+              const allPairings = await storage.getPairingsByTournament(tournamentId);
+              const pastByePairings = allPairings.filter(
+                (p) => p.playerId === playerId && p.isBye && p.round <= currentRound
+              );
+              for (const p of pastByePairings) {
+                await storage.deletePairing(p.id);
+              }
+
+              // Insert byes for all past/missed rounds (1 up to currentRound)
+              for (let r = 1; r <= currentRound; r++) {
+                const isHalfPoint = r <= byeLimit;
+                await storage.createPairing({
+                  tournamentId,
+                  round: r,
+                  playerId,
+                  opponentId: null,
+                  color: null,
+                  points: isHalfPoint ? 1 : 0, // 1 represents 0.5 points, 0 represents 0.0 points
+                  isBye: true,
+                  byeType: isHalfPoint ? "half_point" : "zero_point",
+                  isRequested: false,
+                });
+              }
+            }
+          }
         }
 
         const updated = await storage.updatePlayer(playerId, updates);

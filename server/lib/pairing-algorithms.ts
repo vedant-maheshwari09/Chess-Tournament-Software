@@ -53,6 +53,7 @@ export async function generatePairings(
 
   if (tournament.format === 'swiss') {
     const swissPairings = await generateSwissPairings(tournament, players, matches, round, existingPairings, boardNumbers);
+    const sectionId = players.length > 0 ? players[0].sectionId : null;
 
     for (const pairing of swissPairings) {
       if (pairing.isBye) {
@@ -78,6 +79,7 @@ export async function generatePairings(
           result: '1-0',
           status: 'completed',
           isBye: true,
+          sectionId,
         });
       } else {
         const pWhite = {
@@ -113,6 +115,7 @@ export async function generatePairings(
           result: null,
           status: 'pending',
           isBye: false,
+          sectionId,
         });
       }
     }

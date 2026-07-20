@@ -107,7 +107,21 @@ export default function Standings({ tournamentId, showExportControls = true }: S
 
     const standings: PlayerStanding[] = filteredPlayers.map((player) => {
       const playerMatches = matches.filter(
-        match => match.whitePlayerId === player.id || match.blackPlayerId === player.id
+        match => {
+          const isWhite = match.whitePlayerId === player.id;
+          const isBlack = match.blackPlayerId === player.id;
+          if (!isWhite && !isBlack) return false;
+
+          // If the match has an explicit sectionId, check if it matches the player's sectionId
+          if (match.sectionId) {
+            const matchSec = match.sectionId || "";
+            const playerSec = player.sectionId || "";
+            if (matchSec.trim() !== playerSec.trim()) {
+              return false;
+            }
+          }
+          return true;
+        }
       );
 
       // Get bye pairings for this player - ONLY for completed/current rounds
